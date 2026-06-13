@@ -1,0 +1,5 @@
+﻿# Keep default agent context small.
+docs/human-design-decisions/
+docs/phases/**/learning-plan*.md
+harness/**/reports/
+.gocache/

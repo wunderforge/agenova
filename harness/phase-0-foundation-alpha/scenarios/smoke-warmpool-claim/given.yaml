@@ -1,0 +1,25 @@
+﻿apiVersion: sandbox.agenova.io/v1alpha1
+kind: AgentSandboxTemplate
+metadata:
+  name: python-agent-v1
+spec:
+  image: example.local/agenova/python-agent:dev
+  command: ["python", "/app/agent.py"]
+---
+apiVersion: sandbox.agenova.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: python-agent-pool
+spec:
+  templateRef: python-agent-v1
+  replicas: 2
+---
+apiVersion: sandbox.agenova.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: research-run
+spec:
+  poolRef: python-agent-pool
+  input:
+    task: research-run
+    topic: agent lifecycle

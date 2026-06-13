@@ -1,0 +1,7 @@
+﻿# Harness Gotchas
+
+- Keep scenario names tied to behavior, not implementation internals.
+- Do not write fixture checks that only prove the fixture contains its own expected string.
+- Static checks are acceptable in Phase 0 only when clearly labeled as placeholders.
+- Avoid adding future architecture surfaces without behavior evidence.
+- Do not let `SandboxClaim` wording drift into per-tool-call semantics.

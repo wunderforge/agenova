@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agenova Architecture Viewer</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root { color-scheme: light; --bg:#f6f7f9; --panel:#fff; --ink:#1f2937; --muted:#667085; --line:#d0d5dd; --brand:#0f766e; --accent:#7c3aed; --warn:#b45309; --ok:#15803d; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding:24px 32px 18px; border-bottom:1px solid var(--line); background:#fff; }
+    h1 { margin:0; font-size:26px; letter-spacing:0; }
+    .subtitle { margin:8px 0 0; color:var(--muted); max-width:780px; line-height:1.5; }
+    .meta { text-align:right; color:var(--muted); font-size:13px; line-height:1.6; white-space:nowrap; }
+    .tabs { display:flex; gap:8px; padding:14px 32px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
+    .tabs button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:8px 12px; cursor:pointer; font-weight:600; color:var(--ink); }
+    .tabs button.active { background:#0f766e; border-color:#0f766e; color:#fff; }
+    main { display:grid; grid-template-columns:minmax(0, 1fr) 360px; gap:18px; padding:18px 32px 32px; }
+    .stage, aside { background:var(--panel); border:1px solid var(--line); border-radius:8px; min-height:620px; }
+    .stage { overflow:auto; position:relative; }
+    aside { padding:18px; }
+    svg { min-width:1180px; min-height:780px; display:block; }
+    .domain { fill:#f8fafc; stroke:#cbd5e1; stroke-width:1; }
+    .domain-title { fill:#475467; font-size:13px; font-weight:700; }
+    .node { fill:#fff; stroke:#98a2b3; stroke-width:1.2; cursor:pointer; }
+    .node.done { stroke:var(--ok); }
+    .node.partial, .node.next { stroke:var(--warn); }
+    .node.reserved, .node.planned, .node.future { stroke:var(--accent); stroke-dasharray:4 3; }
+    .node.active { stroke:#0f766e; stroke-width:3; }
+    .label { pointer-events:none; fill:#111827; font-size:13px; font-weight:700; }
+    .small { fill:#667085; font-size:11px; }
+    .edge { stroke:#667085; stroke-width:1.5; fill:none; marker-end:url(#arrow); }
+    .flow-step { padding:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; background:#fff; cursor:pointer; }
+    .flow-step.active { border-color:#0f766e; box-shadow:0 0 0 2px rgba(15,118,110,.12); }
+    .badge { display:inline-block; border-radius:999px; padding:2px 8px; font-size:12px; background:#eef2ff; color:#3730a3; margin-right:6px; }
+    pre { background:#101828; color:#f2f4f7; border-radius:8px; padding:12px; overflow:auto; font-size:12px; line-height:1.5; }
+    .hidden { display:none; }
+    @media (max-width: 900px) { header, .tabs { padding-left:16px; padding-right:16px; } main { grid-template-columns:1fr; padding:16px; } .meta { text-align:left; } header { flex-direction:column; } aside { min-height:auto; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Agenova Architecture Viewer</h1>
+      <p class="subtitle">A compact view of runtime subjects, gateway boundaries, facts, and future deployment-shape constraints.</p>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+  <nav class="tabs" aria-label="Views">
+    <button data-view="map" class="active">Subject Map</button>
+    <button data-view="flow">Run Flow</button>
+    <button data-view="phase">Phase Status</button>
+  </nav>
+  <main>
+    <section class="stage">
+      <div id="mapView"></div>
+      <div id="flowView" class="hidden"></div>
+      <div id="phaseView" class="hidden"></div>
+    </section>
+    <aside id="detail"></aside>
+  </main>
+  <script src="../status/implementation-status.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+﻿apiVersion: sandbox.agenova.io/v1alpha1
+kind: AgentSandboxTemplate
+metadata:
+  name: secret-boundary-template
+spec:
+  image: example.local/agenova/python-agent:dev
+  command: ["python", "/app/check_secret.py"]
+  env:
+    AGENOVA_TOOL_GATEWAY_URL: http://agenova-tool-gateway.agenova-system.svc.cluster.local
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tool-gateway-upstream-token
+  namespace: agenova-system
+stringData:
+  token: replace-in-real-cluster
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tool-gateway-policy
+  namespace: agenova-system
+data:
+  allowedTools: upstream.echo
+  secretRef: tool-gateway-upstream-token
