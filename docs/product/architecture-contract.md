@@ -22,6 +22,12 @@ This file is default agent context. Keep it short. It records stable product con
 - Sandbox identity credentials may enter sandboxes when they are needed to authenticate to Agenova components.
 - Warm idle pods must not hold standing authority; authorization should be anchored to a claim, not to an unclaimed sandbox.
 
+## Runtime Isolation
+
+- Ordinary Pod isolation is not a hard boundary for mutually hostile agents.
+- Sandbox isolation requirements must remain explicit in runtime design; future runtime specs may map them to Kubernetes placement, runtime classes, dedicated node pools, or stronger backends.
+- Gateway authorization must not rely only on network location or sandbox self-reporting.
+
 ## Product Shapes
 
 - `Agenova Runtime`: the core deployable runtime that can run in customer-managed infrastructure.
