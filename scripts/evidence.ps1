@@ -42,11 +42,13 @@ try {
     Tee-Object -FilePath $output
 
   if ($LASTEXITCODE -ne 0) {
-    Add-Content -LiteralPath $summary -Value "`nResult: fail"
+    $rawSummary = Get-Content -LiteralPath $summary -Raw
+    ($rawSummary -replace "Result: pending", "Result: fail") | Set-Content -LiteralPath $summary -Encoding UTF8
     throw "evidence command failed: $Command"
   }
 
-  Add-Content -LiteralPath $summary -Value "`nResult: pass"
+  $rawSummary = Get-Content -LiteralPath $summary -Raw
+  ($rawSummary -replace "Result: pending", "Result: pass") | Set-Content -LiteralPath $summary -Encoding UTF8
   Write-Host "[pass] evidence captured at $outDir"
 }
 finally {

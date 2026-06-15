@@ -9,7 +9,7 @@
 // # Semantic gap summary
 //
 // The upstream Agent Sandbox model differs from Agenova's explicit lifecycle
-// contract in three ways discovered during Phase 2:
+// contract in five ways discovered during Phase 2:
 //
 //  1. No phase field. Upstream SandboxClaim uses k8s-standard conditions
 //     (status.conditions), not a phase string. The adapter maps conditions to
@@ -26,6 +26,15 @@
 //     readyReplicas and replicas; it does not break down IdleSandboxes,
 //     BoundClaims, RunningClaims, or ReplacedSandboxes per the Agenova model.
 //     The adapter approximates these from local claim tracking state.
+//
+//  4. PoolStatus is single-pool accurate for the spike. The current adapter
+//     counts local claims across its in-memory state and is validated only
+//     against one pool. A production adapter must derive per-pool status from
+//     upstream resources or durable Agenova state.
+//
+//  5. Claim returns terminal status but not the original spec. The spike keeps
+//     enough local state for governance and e2e lifecycle evidence, but future
+//     callers that need PoolRef or Input must use durable claim state.
 //
 // # RuntimeBackend boundary
 //

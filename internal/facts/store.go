@@ -1,6 +1,7 @@
-// Package facts provides an in-memory append-only store for claim-scoped governance events.
-// Each event type (ToolInvocation, ModelInvocation, RuntimeEvent) is associated with a
-// SandboxClaim and can be queried by claim ID.
+// Package facts provides an in-memory append-only store for claim-scoped
+// governance facts. ToolInvocation and ModelInvocation are emitted by the
+// gateway MVPs. RuntimeEvent is reserved for runtime lifecycle events; gateways
+// do not emit it.
 package facts
 
 import (
