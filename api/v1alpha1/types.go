@@ -1,5 +1,7 @@
 package v1alpha1
 
+import "time"
+
 type ObjectMeta struct {
 	Name string
 }
@@ -70,4 +72,25 @@ type SandboxClaimStatus struct {
 	// the business outcome (Succeeded/Failed/Expired); sandbox cleanup is a
 	// resource fact.
 	SandboxReplaced bool
+}
+
+// ToolInvocation records one concrete tool call inside a claim.
+type ToolInvocation struct {
+	ClaimID   string
+	ToolName  string
+	Timestamp time.Time
+}
+
+// ModelInvocation records one concrete model call inside a claim.
+type ModelInvocation struct {
+	ClaimID   string
+	ModelName string
+	Timestamp time.Time
+}
+
+// RuntimeEvent records a lifecycle event for a claim.
+type RuntimeEvent struct {
+	ClaimID   string
+	Kind      string
+	Timestamp time.Time
 }
