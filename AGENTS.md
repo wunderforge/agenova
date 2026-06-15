@@ -50,3 +50,14 @@ go test ./...
 ```
 
 If a change only updates docs or harness, still run `scripts/check.ps1 -All`. Record failures and do not broaden scope to make tests pass unless the current task requires it.
+
+## Phase 1-3 Delivery Rules
+
+Phase 1-3 work runs on a non-`main` delivery branch until human acceptance. Use `docs/harness/phase-delivery.md` for phase scope, `docs/harness/evidence-gates.md` for quality gates, and `docs/harness/claude-worker-playbook.md` when delegating execution to Claude Code.
+
+Hard rules:
+
+- Evidence check quality gates are mandatory. A feature is not done until the relevant gate passes or the failure is recorded as a blocker.
+- Code and docs must stay clear, readable, and small enough to review.
+- Prefer lightweight, boring, industry-standard designs. Do not add broad abstractions, controllers, or platforms before a phase evidence gate requires them.
+- Claude workers may implement in worktrees or worker branches, but Codex remains responsible for integration review, tests, and acceptance evidence.

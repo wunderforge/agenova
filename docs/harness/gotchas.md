@@ -8,3 +8,6 @@
 - Do not treat "secret absent from sandbox config" or ordinary Pod isolation as a complete security proof.
 - Do not expose upstream Agent Sandbox CRD shape through application-facing Agenova APIs.
 - Do not mark Agent Sandbox capabilities as verified without upstream docs, install output, or behavior evidence.
+- Do not accept "implemented" without the phase evidence gate output.
+- Do not let worker branches drift without an integration checkpoint; merge only after Codex review and evidence capture.
+- Do not make Phase 2/3 heavier than the evidence requires. Prefer the smallest deployable path before adding optional infrastructure.

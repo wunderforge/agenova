@@ -4,6 +4,8 @@
   [switch]$Unit,
   [switch]$Manifests,
   [switch]$Names,
+  [switch]$Phase2Evidence,
+  [switch]$Phase3Evidence,
   [string]$Scenario
 )
 
@@ -36,6 +38,9 @@ function Test-RequiredDocs {
     "docs/harness/gotchas.md",
     "docs/harness/playbooks.md",
     "docs/harness/learnings.md",
+    "docs/harness/phase-delivery.md",
+    "docs/harness/evidence-gates.md",
+    "docs/harness/claude-worker-playbook.md",
     "tasks/task-template.md"
   )
 
@@ -107,6 +112,28 @@ function Test-Phase1Spike {
   Pass "Phase 1 adapter spike docs pass static checks"
 }
 
+function Test-DeliveryHarness {
+  $delivery = Get-Content -LiteralPath (Join-Path $Root "docs/harness/phase-delivery.md") -Raw
+  foreach ($required in @("codex/phase3-delivery", "Phase 2: Deployable Runtime", "Phase 3: Governance Runtime", "Do not build a competing Kubernetes sandbox controller")) {
+    if ($delivery -notmatch [regex]::Escape($required)) { Fail "delivery harness missing: $required" }
+  }
+
+  $gates = Get-Content -LiteralPath (Join-Path $Root "docs/harness/evidence-gates.md") -Raw
+  foreach ($required in @("Evidence gates are mandatory", "Contract", "Deploy", "Governance", "docs/evidence/<phase>/<gate>/")) {
+    if ($gates -notmatch [regex]::Escape($required)) { Fail "evidence gates missing: $required" }
+  }
+
+  $worker = Get-Content -LiteralPath (Join-Path $Root "docs/harness/claude-worker-playbook.md") -Raw
+  foreach ($required in @("Worker Packet", "Preserve RuntimeBackend boundary", "Do not merge to main", "Evidence commands and results")) {
+    if ($worker -notmatch [regex]::Escape($required)) { Fail "Claude worker playbook missing: $required" }
+  }
+
+  $evidenceScript = Join-Path $Root "scripts/evidence.ps1"
+  if (-not (Test-Path -LiteralPath $evidenceScript)) { Fail "missing scripts/evidence.ps1" }
+
+  Pass "Phase 1-3 delivery harness passes static checks"
+}
+
 function Test-GoPackages {
   if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     Write-Host "[warn] go not found; skipped go test ./..."
@@ -121,6 +148,72 @@ function Test-GoPackages {
     Pass "go test ./..."
   }
   finally { Pop-Location }
+}
+
+function Test-RuntimeBoundary {
+  $patterns = @(
+    "sigs.k8s.io/agent-sandbox",
+    "github.com/kubernetes-sigs/agent-sandbox",
+    "agentsandboxv1",
+    "AgentSandboxClaim"
+  )
+
+  $sourceRoots = @("api", "cmd", "internal")
+  $allowedAdapterPath = Join-Path $Root "internal/runtime/agentsandbox"
+  $bad = @()
+  foreach ($rootName in $sourceRoots) {
+    $sourceRoot = Join-Path $Root $rootName
+    if (-not (Test-Path -LiteralPath $sourceRoot)) { continue }
+    $files = Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Filter *.go
+    foreach ($file in $files) {
+      if ($file.FullName.StartsWith($allowedAdapterPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        continue
+      }
+      $raw = Get-Content -LiteralPath $file.FullName -Raw
+      foreach ($pattern in $patterns) {
+        if ($raw -match [regex]::Escape($pattern)) {
+          $bad += "$($file.FullName): $pattern"
+        }
+      }
+    }
+  }
+
+  if ($bad) {
+    Fail "application/runtime source leaks upstream Agent Sandbox shape: $($bad -join '; ')"
+  }
+
+  Pass "runtime boundary has no known upstream Agent Sandbox type leaks"
+}
+
+function Test-EvidenceGate($Phase, $Gate) {
+  $gateDir = Join-Path $Root "docs/evidence/$Phase/$Gate"
+  if (-not (Test-Path -LiteralPath $gateDir)) { Fail "missing evidence gate: $Phase/$Gate" }
+
+  $summaries = Get-ChildItem -LiteralPath $gateDir -Recurse -File -Filter summary.md
+  if ($summaries.Count -lt 1) { Fail "evidence gate has no summary.md: $Phase/$Gate" }
+
+  $passed = $false
+  foreach ($summary in $summaries) {
+    $raw = Get-Content -LiteralPath $summary.FullName -Raw
+    if ($raw -match "Result:\s*pass") { $passed = $true }
+  }
+  if (-not $passed) { Fail "evidence gate has no passing summary: $Phase/$Gate" }
+}
+
+function Test-Phase2Evidence {
+  foreach ($gate in @("cluster-bootstrap", "upstream-agent-sandbox-install-or-blocker", "claim-lifecycle-e2e", "kubectl-runtime-state", "backend-neutral-api")) {
+    Test-EvidenceGate "phase-2" $gate
+  }
+
+  Pass "Phase 2 deploy evidence gates pass"
+}
+
+function Test-Phase3Evidence {
+  foreach ($gate in @("tool-gateway", "model-gateway", "authorization-negative", "claim-lineage", "facts-query", "multi-agent-reference", "multi-agent-kubernetes-or-blocker")) {
+    Test-EvidenceGate "phase-3" $gate
+  }
+
+  Pass "Phase 3 governance evidence gates pass"
 }
 
 function Test-Manifests {
@@ -188,14 +281,18 @@ function Test-Scenario($Name) {
   Pass "scenario scaffold exists: $Name"
 }
 
-if (-not ($All -or $Docs -or $Unit -or $Manifests -or $Names -or $Scenario)) { $All = $true }
+if (-not ($All -or $Docs -or $Unit -or $Manifests -or $Names -or $Phase2Evidence -or $Phase3Evidence -or $Scenario)) { $All = $true }
 
 if ($All -or $Docs) { Test-RequiredDocs }
 if ($All -or $Docs) { Test-Phase1Spike }
+if ($All -or $Docs) { Test-DeliveryHarness }
+if ($All -or $Docs) { Test-RuntimeBoundary }
 if ($All -or $Unit) { Test-GoPackages }
 if ($All -or $Manifests) { Test-Manifests }
 if ($All -or $Names) { Test-Names }
 if ($Scenario) { Test-Scenario $Scenario }
+if ($Phase2Evidence) { Test-Phase2Evidence }
+if ($Phase3Evidence) { Test-Phase3Evidence }
 
 if ($All) {
   Test-Scenario "smoke-warmpool-claim"

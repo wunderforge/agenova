@@ -19,3 +19,7 @@ Use `AGENTS.md` as the primary agent context. Keep loaded context focused on the
 ## Phase Discipline
 
 Phase 0 is a local foundation alpha. Do not infer later-phase requirements from archived design notes.
+
+## Worker Discipline
+
+When running as a Claude Code worker, read `docs/harness/claude-worker-playbook.md` before editing. Keep changes scoped to the task packet, preserve the RuntimeBackend boundary, and report exact evidence commands plus results. Do not merge to `main`.
