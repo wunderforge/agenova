@@ -27,7 +27,7 @@ window.ARCH = {
       w: 195,
       h: 72,
       desc: "The application may run many cooperating agents. It owns task logic, reasoning loops, prompt construction, tool choice, and application memory policy.",
-      note: "Agenova does not become an agent framework or workflow DAG engine.",
+      note: "Phase 1 does not implement workflow DAG orchestration; claim graph semantics preserve a future path for optional multi-agent orchestration.",
       example: "agents:\n  researcher: plan_research(topic)\n  coder: implement_patch(task)\n  reviewer: review_evidence(diff)"
     },
     {
@@ -123,7 +123,7 @@ window.ARCH = {
       w: 170,
       h: 70,
       desc: "Represents parent/child and peer relationships among claims so multi-agent runs can be authorized, audited, and bounded as a group.",
-      note: "This is how Agenova supports multi-agent workloads without owning agent orchestration.",
+      note: "This supports multi-agent governance now without owning workflow DAG orchestration in Phase 1, while preserving a future optional claim-level orchestration path.",
       example: "claims:\n  claim-root:\n    children: [claim-research, claim-code]\n  claim-review:\n    dependsOn: [claim-code]"
     },
     {

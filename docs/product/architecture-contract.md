@@ -4,7 +4,8 @@ This file is default agent context. Keep it short. It records stable product con
 
 ## Product Boundary
 
-- Agenova is not an agent framework, prompt orchestration layer, or workflow DAG engine.
+- Agenova is not an agent framework, prompt orchestration layer, or Phase 1 workflow DAG engine.
+- Claim graph semantics must still preserve a future path for optional multi-agent orchestration at the claim level.
 - Application agents own reasoning, prompt assembly, tool choice, memory strategy, and task semantics.
 - Agenova owns the runtime substrate around agent work: sandbox leases, access boundaries, identity, audit facts, and later state continuity.
 
