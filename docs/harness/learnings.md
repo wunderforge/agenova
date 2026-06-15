@@ -4,3 +4,4 @@
 - Phase documents should describe only what the current phase can validate.
 - Human design rationale should be tracked, but excluded from default agent context.
 - Tests should protect lifecycle semantics before Kubernetes integration begins.
+- Phase 1 should validate Agent Sandbox as a backend substrate before Agenova builds competing Kubernetes sandbox controllers.

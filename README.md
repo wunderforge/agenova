@@ -14,7 +14,7 @@ The core product shape is `Agenova Runtime`, with future `Agenova Cloud BYOC` an
 
 ## Current Phase
 
-The repository is in Phase 0: Foundation Alpha. Phase 0 intentionally stays small. It proves the local runtime lifecycle and harness discipline before introducing real Kubernetes controllers, gateways, memory, rollback, UI, or distributed execution.
+The repository has completed Phase 0: Foundation Alpha and is preparing Phase 1: Agent Sandbox Adapter Spike. Phase 0 remains the semantic baseline and reference implementation. Phase 1 intentionally starts with docs, harness, and backend contract evidence before introducing real Kubernetes integration.
 
 Implemented Phase 0 scope:
 
@@ -23,6 +23,14 @@ Implemented Phase 0 scope:
 - Claim lifecycle: `Pending -> Bound -> Running -> Succeeded`, `Pending -> Bound -> Running -> Failed`, `Pending -> Bound -> Failed`, and `Pending -> Expired`.
 - Sandbox replacement evidence stored on claim status without overwriting terminal claim phase.
 - Static harness scenarios and check script for smoke validation.
+
+Phase 1 direction:
+
+- define a minimal `RuntimeBackend` boundary around Phase 0 behavior;
+- keep the in-memory runtime as the reference backend and contract test target;
+- evaluate Kubernetes SIG Apps Agent Sandbox through an adapter;
+- avoid exposing application-facing Agenova APIs to upstream Agent Sandbox CRD shape;
+- avoid building competing Kubernetes sandbox controllers unless the spike proves they are required.
 
 ## Repository Map
 
@@ -33,7 +41,9 @@ Implemented Phase 0 scope:
 - `cmd/`: command entry points kept as placeholders until the relevant phase.
 - `docs/product/`: product purpose, architecture contract, and roadmap.
 - `docs/phases/phase-0-foundation-alpha/`: Phase 0 PRD, spec, acceptance, and progress.
+- `docs/phases/phase-1-agent-sandbox-adapter-spike/`: Phase 1 spike scope and capability matrix.
 - `harness/phase-0-foundation-alpha/`: executable evidence shape for Phase 0.
+- `harness/phase-1-agent-sandbox-adapter-spike/`: Phase 1 spike evidence scaffold.
 - `docs/human-design-decisions/`: human-only design archive, excluded from agent auto-context.
 
 ## Validate

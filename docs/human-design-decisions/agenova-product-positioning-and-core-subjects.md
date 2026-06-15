@@ -116,7 +116,11 @@ Permissions should not be attached directly to warm pods because warm pods exist
 
 SPIFFE can later reduce bearer-token replay risk by replacing bearer-style identity with workload identity and mTLS semantics.
 
-## 7. Memory Interfaces
+## 7. Runtime Isolation
+
+Pod-level isolation is a default runtime mechanism, not the full security model for mutually hostile agents. Agenova should preserve explicit isolation intent so deployments can choose stronger runtime or placement boundaries when required.
+
+## 8. Memory Interfaces
 
 The platform provides memory interfaces, schemas, metadata, and append-only storage rules. It does not perform semantic memory extraction or decide prompt contents.
 
@@ -132,11 +136,11 @@ It does not decide what is worth remembering.
 
 It does not summarize, compress, rank for prompt budget, or decide what enters the prompt.
 
-## 8. Checkpoints
+## 9. Checkpoints
 
 Because session state should be append-only, a checkpoint can be represented as a set of high-water marks over facts and records. Rollback can move a head pointer instead of copying or mutating state.
 
-## 9. Deployment Shapes
+## 10. Deployment Shapes
 
 Agenova has three intended product shapes:
 
@@ -145,15 +149,3 @@ Agenova has three intended product shapes:
 - `Agenova Cloud Fully Managed`: Agenova-managed control plane and runtime plane behind standard Agenova APIs.
 
 Control Plane and Runtime Plane must not be designed as if they always run in the same Kubernetes cluster. Early phases may implement a local or single-cluster path first, but specs should preserve this separation.
-
-## 10. Phase 0 Boundary
-
-Phase 0 implements only a local foundation alpha:
-
-- minimal API type sketches;
-- in-memory runtime lifecycle;
-- warm-pool and claim behavior tests;
-- static harness fixtures;
-- English public documentation.
-
-It does not implement gateways, Kubernetes reconciliation, memory, rollback, SPIFFE, Vault, DAG orchestration, or UI.

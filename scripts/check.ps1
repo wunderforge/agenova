@@ -20,12 +20,19 @@ function Test-RequiredDocs {
     "README.md",
     "docs/product/purpose.md",
     "docs/product/architecture-contract.md",
+    "docs/product/agent-sandbox-pivot.md",
     "docs/product/roadmap.md",
     "docs/phases/phase-0-foundation-alpha/README.md",
     "docs/phases/phase-0-foundation-alpha/prd.md",
     "docs/phases/phase-0-foundation-alpha/spec.md",
     "docs/phases/phase-0-foundation-alpha/acceptance.md",
     "docs/phases/phase-0-foundation-alpha/progress.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/README.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/prd.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/spec.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/acceptance.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/progress.md",
+    "docs/phases/phase-1-agent-sandbox-adapter-spike/backend-capability-matrix.md",
     "docs/harness/gotchas.md",
     "docs/harness/playbooks.md",
     "docs/harness/learnings.md",
@@ -38,6 +45,66 @@ function Test-RequiredDocs {
   }
 
   Pass "required docs exist"
+}
+
+function Test-Phase1Spike {
+  $matrix = Join-Path $Root "docs/phases/phase-1-agent-sandbox-adapter-spike/backend-capability-matrix.md"
+  $raw = Get-Content -LiteralPath $matrix -Raw
+
+  foreach ($status in @("Supported", "Needs verification", "Not supported", "Agenova-owned")) {
+    if ($raw -notmatch [regex]::Escape($status)) { Fail "Phase 1 matrix missing status: $status" }
+  }
+
+  foreach ($required in @("Claim as one worker-run lease", "External credential isolation behind gateways", "Control Plane / Runtime Plane separation")) {
+    if ($raw -notmatch [regex]::Escape($required)) { Fail "Phase 1 matrix missing capability: $required" }
+  }
+
+  $pivot = Get-Content -LiteralPath (Join-Path $Root "docs/product/agent-sandbox-pivot.md") -Raw
+  if ($pivot -notmatch "Application-facing Agenova APIs must not depend on upstream Agent Sandbox CRD shape") {
+    Fail "pivot doc must preserve adapter boundary"
+  }
+  if ($pivot -notmatch "alternative backend adapter") {
+    Fail "pivot doc must name the alternative backend path"
+  }
+
+  $contract = Get-Content -LiteralPath (Join-Path $Root "docs/product/architecture-contract.md") -Raw
+  if ($contract -notmatch "RuntimeBackend") {
+    Fail "architecture contract must name the RuntimeBackend boundary"
+  }
+  if ($contract -notmatch "Application-facing Agenova APIs must not change when the selected backend changes") {
+    Fail "architecture contract must preserve backend-neutral application APIs"
+  }
+
+  $spec = Get-Content -LiteralPath (Join-Path $Root "docs/phases/phase-1-agent-sandbox-adapter-spike/spec.md") -Raw
+  if ($spec -notmatch "type RuntimeBackend interface") {
+    Fail "Phase 1 spec must include the RuntimeBackend interface sketch"
+  }
+  if ($spec -notmatch "Contract tests must run against the in-memory reference backend") {
+    Fail "Phase 1 spec must require backend-neutral contract tests"
+  }
+  if ($raw -notmatch "Required for any backend") {
+    Fail "Phase 1 matrix missing Required for any backend column"
+  }
+
+  $scenarioDir = Join-Path $Root "harness/phase-1-agent-sandbox-adapter-spike/scenarios/smoke-backend-capability-matrix"
+  foreach ($fileName in @("README.md", "given.yaml")) {
+    $path = Join-Path $scenarioDir $fileName
+    if (-not (Test-Path -LiteralPath $path)) { Fail "Phase 1 scenario missing ${fileName}" }
+  }
+
+  $scenarioRaw = Get-Content -LiteralPath (Join-Path $scenarioDir "given.yaml") -Raw
+  if ($scenarioRaw -notmatch "BackendCapabilityMatrixCheck") { Fail "Phase 1 scenario should check the capability matrix" }
+
+  $neutralityDir = Join-Path $Root "harness/phase-1-agent-sandbox-adapter-spike/scenarios/smoke-backend-neutrality"
+  foreach ($fileName in @("README.md", "given.yaml")) {
+    $path = Join-Path $neutralityDir $fileName
+    if (-not (Test-Path -LiteralPath $path)) { Fail "Phase 1 backend-neutrality scenario missing ${fileName}" }
+  }
+  $neutralityRaw = Get-Content -LiteralPath (Join-Path $neutralityDir "given.yaml") -Raw
+  if ($neutralityRaw -notmatch "BackendNeutralityCheck") { Fail "Phase 1 scenario should check backend neutrality" }
+  if ($neutralityRaw -notmatch "application-facing-api-neutrality") { Fail "Phase 1 neutrality scenario must protect app-facing API neutrality" }
+
+  Pass "Phase 1 adapter spike docs pass static checks"
 }
 
 function Test-GoPackages {
@@ -124,6 +191,7 @@ function Test-Scenario($Name) {
 if (-not ($All -or $Docs -or $Unit -or $Manifests -or $Names -or $Scenario)) { $All = $true }
 
 if ($All -or $Docs) { Test-RequiredDocs }
+if ($All -or $Docs) { Test-Phase1Spike }
 if ($All -or $Unit) { Test-GoPackages }
 if ($All -or $Manifests) { Test-Manifests }
 if ($All -or $Names) { Test-Names }

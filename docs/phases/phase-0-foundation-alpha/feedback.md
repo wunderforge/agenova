@@ -8,9 +8,11 @@
 - Sandbox cleanup/replacement is resource evidence, not a claim phase.
 - Configuration fields should stay tied to implemented behavior.
 - Human design rationale is tracked, but excluded from default agent context.
+- Pod isolation and "secret not in sandbox" are necessary but not sufficient for strong multi-agent or multi-tenant isolation.
 
 ## Watch Items
 
 - Do not introduce `ToolInvocation` or `ModelInvocation` until gateway phases need behavior evidence.
 - Do not add Kubernetes controller-runtime before Phase 1 scope is explicit.
 - Keep harness scenarios small and tied to observable behavior.
+- Future Kubernetes runtime specs must preserve isolation intent without treating ordinary Pods as the strongest security boundary.

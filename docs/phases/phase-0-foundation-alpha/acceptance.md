@@ -14,6 +14,8 @@
 
 FA-004 is intentionally static in Phase 0. The current evidence checks that scenario fixtures do not put external secrets into sandbox configuration. This is not a real security proof. Behavior-level evidence belongs to the Tool Gateway implementation phase.
 
+FA-004 does not prove node-level isolation, workload identity hardening, network isolation, or resistance to container escape. It only checks that the static fixture does not place upstream credentials in sandbox configuration.
+
 ## Required Commands
 
 ```powershell

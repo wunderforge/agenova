@@ -17,14 +17,17 @@ Purpose:
 
 ## Phase 1: Kubernetes Runtime Plane
 
+Status: pivoted to Agent Sandbox Adapter Spike.
+
 Purpose:
 
-- turn the local runtime model into Kubernetes-native resources;
-- add controller reconciliation for templates, pools, claims, and sandboxes;
+- define a minimal runtime backend boundary;
+- keep the Phase 0 in-memory runtime as a reference backend;
+- evaluate Kubernetes SIG Apps Agent Sandbox as the first backend adapter;
 - preserve the Phase 0 lifecycle contract;
-- add behavior-level harness evidence.
+- produce behavior-level evidence before choosing the default substrate.
 
-Out of scope until scoped explicitly: real gateway policy, memory, rollback, web UI.
+Out of scope until scoped explicitly: self-built competing Kubernetes sandbox lifecycle controllers, real gateway policy, memory, rollback, web UI, cloud control plane.
 
 ## Phase 2: Tool Gateway Boundary
 
