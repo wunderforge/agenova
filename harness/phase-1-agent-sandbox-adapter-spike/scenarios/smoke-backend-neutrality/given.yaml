@@ -1,0 +1,12 @@
+apiVersion: harness.agenova.io/v1alpha1
+kind: BackendNeutralityCheck
+metadata:
+  name: phase-1-runtime-backend-neutrality
+spec:
+  contractRef: docs/phases/phase-1-agent-sandbox-adapter-spike/spec.md
+  architectureContractRef: docs/product/architecture-contract.md
+  referenceBackend: in-memory
+  adapterTargets:
+    - agent-sandbox-adapter
+    - future-backend-adapter
+  invariant: application-facing-api-neutrality

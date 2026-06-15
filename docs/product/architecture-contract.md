@@ -28,6 +28,25 @@ This file is default agent context. Keep it short. It records stable product con
 - Sandbox isolation requirements must remain explicit in runtime design; future runtime specs may map them to Kubernetes placement, runtime classes, dedicated node pools, or stronger backends.
 - Gateway authorization must not rely only on network location or sandbox self-reporting.
 
+## Runtime Backend Abstraction
+
+`RuntimeBackend` is the isolation boundary between Agenova's stable runtime contract and any concrete sandbox substrate.
+
+```text
+Application Agent / Framework
+  -> Agenova stable runtime contract
+  -> RuntimeBackend interface
+     +-- InMemoryBackend reference implementation
+     +-- AgentSandboxAdapter
+     +-- future backend adapters
+  -> selected sandbox substrate
+```
+
+- Application-facing Agenova APIs must not change when the selected backend changes.
+- The in-memory runtime is the reference backend and contract test oracle.
+- Agent Sandbox is the first backend adapter to evaluate, not a hard dependency of the product contract.
+- If Agent Sandbox cannot carry required Agenova semantics, another backend adapter or a native backend may satisfy the same `RuntimeBackend` interface.
+
 ## Product Shapes
 
 - `Agenova Runtime`: the core deployable runtime that can run in customer-managed infrastructure.

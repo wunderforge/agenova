@@ -47,7 +47,7 @@
   ],
   phases: [
     { name: "Phase 0", status: "done", scope: "Local foundation alpha and harness discipline." },
-    { name: "Phase 1", status: "next", scope: "Kubernetes runtime-plane reconciliation while preserving Phase 0 lifecycle." },
+    { name: "Phase 1", status: "next", scope: "RuntimeBackend boundary and Kubernetes SIG Apps Agent Sandbox adapter spike." },
     { name: "Phase 2", status: "planned", scope: "Tool Gateway behavior and ToolInvocation facts." },
     { name: "Phase 3", status: "planned", scope: "Model Gateway behavior and ModelInvocation facts." },
     { name: "Future", status: "reserved", scope: "Agenova Cloud BYOC and Fully Managed deployment shapes without assuming one shared cluster." }

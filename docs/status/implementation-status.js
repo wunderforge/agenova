@@ -1,12 +1,12 @@
 ﻿window.AGENOVA_STATUS = {
-  updated: "2026-06-12",
-  phase: "phase-0-foundation-alpha",
-  step: "Phase 0 foundation complete; Phase 1 Kubernetes runtime plane next",
+  updated: "2026-06-15",
+  phase: "phase-1-agent-sandbox-adapter-spike",
+  step: "Phase 0 semantic baseline complete; Phase 1 Agent Sandbox adapter spike scaffolded",
   subjects: {
     template: { status: "done", evidence: "api/v1alpha1/types.go; internal/operator/runtime_test.go", note: "Local image/command template shape only; real CRD generation belongs to Phase 1." },
     warmpool: { status: "done", evidence: "internal/sandbox/pool.go; internal/operator/runtime_test.go", note: "Maintains idle sandbox count and replaces consumed sandboxes." },
     claim: { status: "done", evidence: "internal/operator/runtime_test.go", note: "Terminal phases are Succeeded, Failed, and Expired; sandbox replacement is resource evidence." },
-    operator: { status: "partial", evidence: "internal/operator/runtime.go", note: "Local in-memory runtime only; controller reconciliation belongs to Phase 1." },
+    operator: { status: "partial", evidence: "internal/operator/runtime.go; docs/phases/phase-1-agent-sandbox-adapter-spike/backend-capability-matrix.md", note: "Local in-memory runtime remains the reference backend; Phase 1 evaluates Agent Sandbox through an adapter before native controller work." },
     toolgateway: { status: "planned", evidence: "harness/phase-0-foundation-alpha/scenarios/smoke-tool-gateway-secret-boundary", note: "Static boundary fixture only; real access mediation belongs to a later phase." },
     modelgateway: { status: "reserved", note: "Concept reserved; no Phase 0 implementation." },
     runtimeevent: { status: "reserved", note: "Future append-only runtime facts under a claim." },

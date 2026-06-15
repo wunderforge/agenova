@@ -17,7 +17,9 @@ Do not load `docs/product/roadmap.md` or `docs/human-design-decisions/` by defau
 
 ## Current Boundary
 
-Phase 0 proves local lifecycle behavior only. Do not add controller-runtime, real CRDs, Kubernetes controllers, real network proxies, memory systems, rollback systems, SPIFFE, Vault, DAG orchestration, or web UI unless a later phase explicitly asks for them.
+Phase 0 proves local lifecycle behavior and remains the semantic baseline. Phase 1 is an Agent Sandbox Adapter Spike: define a small runtime backend boundary, keep the in-memory runtime as the reference backend, and evaluate Kubernetes SIG Apps Agent Sandbox before building any native Kubernetes sandbox lifecycle controllers.
+
+Do not add controller-runtime, real CRDs, Kubernetes controllers, real network proxies, memory systems, rollback systems, SPIFFE, Vault, DAG orchestration, cloud control plane, or web UI unless a later phase explicitly asks for them.
 
 ## Naming Rules
 
@@ -33,6 +35,10 @@ Use these concepts consistently:
 Avoid wording that implies `SandboxClaim` is one tool call.
 
 Do not design Control Plane and Runtime Plane as if they must always run in the same Kubernetes cluster.
+
+Do not let application-facing Agenova APIs depend on upstream Agent Sandbox CRD shape.
+
+Do not let `RuntimeBackend` implementation details appear in application-facing Agenova APIs. Swapping backends must be invisible to application agents.
 
 ## Evidence Rules
 

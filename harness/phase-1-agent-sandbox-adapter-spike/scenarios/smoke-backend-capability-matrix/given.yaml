@@ -1,0 +1,12 @@
+apiVersion: harness.agenova.io/v1alpha1
+kind: BackendCapabilityMatrixCheck
+metadata:
+  name: phase-1-agent-sandbox-adapter-spike
+spec:
+  matrixRef: docs/phases/phase-1-agent-sandbox-adapter-spike/backend-capability-matrix.md
+  requiredStatuses:
+    - Supported
+    - Needs verification
+    - Not supported
+    - Agenova-owned
+  firstVerificationTarget: claim-as-worker-run-lease
