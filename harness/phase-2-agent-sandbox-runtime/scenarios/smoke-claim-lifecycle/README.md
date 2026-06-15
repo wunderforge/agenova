@@ -1,6 +1,6 @@
 # Scenario: Smoke Claim Lifecycle
 
-Verifies the minimal create→bind→start→succeed lifecycle through the
+Verifies the minimal create -> bind -> start -> succeed lifecycle through the
 `SpikeAdapter` against the upstream Agent Sandbox controller.
 
 ## Given

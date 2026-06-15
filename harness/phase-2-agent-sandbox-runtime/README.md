@@ -21,7 +21,7 @@ kubectl --context kind-agenova-k8s-lab -n agent-sandbox-system get pods
 ## Static Scenarios
 
 `scenarios/smoke-claim-lifecycle/` documents the expected lifecycle sequence for
-a minimal create→bind→start→succeed claim flow.
+a minimal create -> bind -> start -> succeed claim flow.
 
 ## E2E Test
 

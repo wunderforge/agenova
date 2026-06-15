@@ -1,0 +1,84 @@
+apiVersion: harness.agenova.io/v1alpha1
+kind: SmokeScenario
+metadata:
+  name: smoke-multi-agent-lineage
+  phase: phase-3
+spec:
+  description: >
+    Multi-agent lineage governance reference scenario. An orchestrator claim spawns
+    two worker child claims. All three call through the Tool Gateway and Model Gateway.
+    Facts are recorded per claim and lineage relationships are verified. When the
+    orchestrator terminates, both workers are denied further gateway access (child-out-of-scope).
+
+  check: MultiAgentLineageCheck
+
+  resources:
+    - kind: SandboxTemplate
+      name: agent-v1
+      image: example.local/agent:dev
+      command: ["agent"]
+
+    - kind: SandboxWarmPool
+      name: agent-pool
+      templateRef: agent-v1
+      replicas: 5
+
+    - kind: SandboxClaim
+      name: orchestrator
+      poolRef: agent-pool
+      role: parent
+
+    - kind: SandboxClaim
+      name: worker-a
+      poolRef: agent-pool
+      role: child
+      parentRef: orchestrator
+
+    - kind: SandboxClaim
+      name: worker-b
+      poolRef: agent-pool
+      role: child
+      parentRef: orchestrator
+
+  governance:
+    lineage:
+      - parent: orchestrator
+        children: [worker-a, worker-b]
+
+    gatewayChecks:
+      - claimID: orchestrator
+        tools: [plan]
+        models: [claude-opus-4-8]
+        expectAllow: true
+
+      - claimID: worker-a
+        tools: [web-search]
+        models: [claude-sonnet-4-6]
+        expectAllow: true
+        parentRunning: true
+
+      - claimID: worker-b
+        tools: [code-exec]
+        models: [claude-haiku-4-5]
+        expectAllow: true
+        parentRunning: true
+
+      - claimID: worker-a
+        tools: [web-search]
+        models: [claude-sonnet-4-6]
+        expectAllow: false
+        parentRunning: false
+        reason: child-out-of-scope after orchestrator terminates
+
+  expectedFacts:
+    - claimID: orchestrator
+      toolInvocations: 1
+      modelInvocations: 1
+
+    - claimID: worker-a
+      toolInvocations: 1
+      modelInvocations: 1
+
+    - claimID: worker-b
+      toolInvocations: 1
+      modelInvocations: 1
