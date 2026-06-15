@@ -17,6 +17,8 @@ $output = Join-Path $outDir "output.txt"
 
 Push-Location $Root
 try {
+  if (-not $env:GOCACHE) { $env:GOCACHE = Join-Path $Root ".gocache" }
+
   $branch = (git -c safe.directory=$Root rev-parse --abbrev-ref HEAD 2>$null)
   $commit = (git -c safe.directory=$Root rev-parse HEAD 2>$null)
 
