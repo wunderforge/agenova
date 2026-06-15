@@ -32,11 +32,14 @@ Evidence command: `go test ./...`
 
 ## Agent Sandbox Adapter
 
-Status: scaffold/research target. No upstream install, CRD install, or behavior verification has been performed.
-The adapter path is reserved at `internal/runtime/agentsandbox` (allowed by `Test-RuntimeBoundary`).
-Any future adapter must pass the same `contracttest.Run` suite without changing application-facing APIs.
+Status: Phase 2 spike implemented and evidence-backed.
+
+- Agent Sandbox v0.4.6 installed on kind cluster `agenova-k8s-lab`.
+- `internal/runtime/agentsandbox` contains the only adapter package allowed to know upstream CRD shapes.
+- SpikeAdapter e2e verified `AddTemplate`, `AddWarmPool`, `AddClaim`, `BindClaim`, `StartClaim`, `SucceedClaim`, and `ExpireClaim` against the real controller.
+- Confirmed semantic gaps: upstream has no explicit terminal claim phase field, terminal state is adapter-local, and pool status granularity is limited.
+- `contracttest.Run` still passes against the in-memory reference backend; full contract parity for Agent Sandbox requires a durable Agenova overlay or upstream CRD change for terminal phases.
 
 ## Next Verification
 
-Validate whether Kubernetes SIG Apps Agent Sandbox acquisition semantics can represent an Agenova `SandboxClaim` as one agent worker run / sandbox execution lease while preserving separate terminal claim outcome and sandbox cleanup evidence.
-
+Decide how to close the explicit terminal-phase durability gap before promoting Agent Sandbox from spike backend to production default backend.

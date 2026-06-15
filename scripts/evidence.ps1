@@ -37,7 +37,8 @@ try {
     "Result: pending"
   ) | Set-Content -LiteralPath $summary -Encoding UTF8
 
-  powershell -NoProfile -ExecutionPolicy Bypass -Command $Command *>&1 |
+  $wrappedCommand = "`$ErrorActionPreference = 'Continue'; $Command; if (`$null -ne `$LASTEXITCODE) { exit `$LASTEXITCODE }"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command $wrappedCommand *>&1 |
     Tee-Object -FilePath $output
 
   if ($LASTEXITCODE -ne 0) {

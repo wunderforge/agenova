@@ -5,22 +5,28 @@ Status labels:
 - `Supported`: appears covered by Agent Sandbox design or Phase 0 reference behavior.
 - `Needs verification`: plausible but must be proven with upstream docs, installation, or behavior evidence.
 - `CRD installed`: CRD confirmed present in a local kind cluster (Phase 2 install gate); runtime behavior still needs E2E evidence.
+- `E2E verified`: behavior confirmed by running SpikeAdapter against real kind cluster (Phase 2 adapter gate).
+- `E2E gap`: partially supported; semantic difference documented in `internal/runtime/agentsandbox/doc.go`.
 - `Not supported`: not expected from Agent Sandbox as an execution substrate.
 - `Agenova-owned`: must remain above the backend adapter.
 
 Phase 2 install gate completed 2026-06-15 on `worker/phase2-upstream-install`. Agent Sandbox v0.4.6 installed on kind cluster `agenova-k8s-lab` (k8s v1.36.1). Source: https://github.com/kubernetes-sigs/agent-sandbox. Evidence: `docs/evidence/phase-2/upstream-agent-sandbox-install-or-blocker/`.
 
+Phase 2 adapter gate completed 2026-06-15 on `worker/phase2-agent-sandbox-adapter`. SpikeAdapter implemented in `internal/runtime/agentsandbox/`. E2E tests passed against `kind-agenova-k8s-lab`. Evidence: `docs/evidence/phase-2/claim-lifecycle-e2e/`, `docs/evidence/phase-2/kubectl-runtime-state/`, `docs/evidence/phase-2/backend-neutral-api/`.
+
 | Capability | Required for any backend | In-memory reference | Agent Sandbox status | Owner | Evidence / next check |
 | --- | --- | --- | --- | --- | --- |
-| Worker image and command template | Yes | Supported | CRD installed | Backend adapter | `sandboxes.agents.x-k8s.io` CRD installed (Phase 2). Field mapping from Agenova template to Sandbox spec still needs adapter implementation and E2E verification. |
-| Warm idle capacity | Yes | Supported | CRD installed | Backend adapter | `sandboxwarmpools.extensions.agents.x-k8s.io` CRD installed (Phase 2). Warm pool semantics need E2E behavioral verification. |
-| Claim as one worker-run lease | Yes | Supported | CRD installed | Agenova contract plus backend adapter | `sandboxclaims.extensions.agents.x-k8s.io` CRD installed (Phase 2). Acquisition semantics and status mapping need E2E verification. |
-| Claim lifecycle observation | Yes | Supported | CRD installed | Backend adapter | `agent-sandbox-controller` running (Phase 2). Status phase mapping (`Pending`→`Bound`→`Running`→terminal) needs E2E runtime verification. |
-| Sandbox cleanup / replacement evidence | Yes | Supported | Needs verification | Backend adapter | Controller manages singleton pod lifecycle. Cleanup primitives need E2E runtime evidence. |
-| Backend-neutral contract tests | Yes | Supported | Needs verification | Agenova contract | `internal/runtime/contracttest` suite runs against in-memory backend. Same tests must pass every new backend. |
-| Scheduled deletion / cleanup | No | Not implemented | Needs verification | Backend adapter | Verify upstream cleanup primitives. |
-| Stateful sandbox storage | No | Not implemented | Needs verification | Backend substrate | Verify storage model and lifecycle ownership. |
-| runtimeClass / placement / node pool integration | No | Not implemented | Needs verification | Backend substrate | Verify isolation knobs and scheduling controls. |
+| Worker image and command template | Yes | Supported | E2E verified | Backend adapter | `AddTemplate` creates `SandboxTemplate` CRD with `podTemplate.spec.containers`. E2E confirmed with `busybox:stable`. Mapping: Agenova `Image`+`Command` -> upstream `podTemplate.spec.containers[0].image`+`command`. |
+| Warm idle capacity | Yes | Supported | E2E verified | Backend adapter | `AddWarmPool` creates `SandboxWarmPool` CRD. Controller pre-creates idle sandbox pods (OnReplenish). Replenishment confirmed: after SucceedClaim, a new idle pod appeared within 2s. |
+| Claim as one worker-run lease | Yes | Supported | E2E verified | Agenova contract plus backend adapter | `AddClaim` creates `SandboxClaim` CRD. Controller emits `SandboxAdopted` event when assigning sandbox. `status.sandbox.name` carries the sandbox pod name (Agenova `SandboxID`). |
+| Claim lifecycle observation | Yes | Supported | E2E gap | Backend adapter | `BindClaim`/`StartClaim` poll for controller-driven transitions (no direct API trigger). Gap: upstream uses `status.conditions` (Ready=True), not a phase field. Adapter maps conditions to Agenova phases. See `internal/runtime/agentsandbox/doc.go` gap 1. |
+| Sandbox cleanup / replacement evidence | Yes | Supported | E2E verified | Backend adapter | OnReplenish strategy confirmed: controller created replacement pod within 2s of claim deletion. Sandbox replacement evidence recorded in adapter-local `SandboxReplaced=true` state. |
+| Backend-neutral contract tests | Yes | Supported | E2E gap | Agenova contract | `contracttest.Run` passes against in-memory backend. The SpikeAdapter cannot pass the full contract test suite because SucceedClaim/FailClaim have no upstream equivalent. See gap 2 in `internal/runtime/agentsandbox/doc.go`. Requires upstream CRD spec change or local state overlay for full compliance. |
+| Explicit terminal phases (Succeeded/Failed) | Yes | Supported | E2E gap | Backend adapter | Gap: upstream `SandboxClaim` has no Succeeded/Failed phase field. Adapter deletes the claim on terminal transitions and records phase locally. State is not durable in the upstream CRD. If the adapter process restarts, terminal claim state is lost. |
+| Pool status granularity | Yes | Supported | E2E gap | Backend adapter | Gap: upstream `SandboxWarmPool.status` only exposes `readyReplicas` and `replicas`. Agenova's `IdleSandboxes`/`BoundClaims`/`RunningClaims`/`ReplacedSandboxes` breakdown is approximated from local adapter claim state. |
+| Scheduled deletion / cleanup | No | Not implemented | E2E verified | Backend adapter | `lifecycle.shutdownPolicy=Delete` + `ttlSecondsAfterFinished` confirmed in SandboxClaim spec. Controller cleans up pods after claim deletion. |
+| Stateful sandbox storage | No | Not implemented | Needs verification | Backend substrate | Upstream `SandboxTemplate.spec.podTemplate.spec` accepts standard pod volumes. Storage lifecycle ownership not tested. |
+| runtimeClass / placement / node pool integration | No | Not implemented | Needs verification | Backend substrate | Standard pod scheduling fields available via `podTemplate.spec`. Not tested in spike. |
 | Strong hostile-agent isolation | No | Not supported | Needs verification | Backend substrate | Ordinary Pod isolation is insufficient; verify stronger substrate options. |
 | External credential isolation behind gateways | Yes | Static fixture only | Not supported | Agenova-owned | Gateways own upstream credentials; sandboxes must not hold them. |
 | Tool Gateway and `ToolInvocation` facts | No | Not implemented | Not supported | Agenova-owned | Future phase. |
