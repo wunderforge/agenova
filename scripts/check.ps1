@@ -112,6 +112,35 @@ function Test-Phase1Spike {
   Pass "Phase 1 adapter spike docs pass static checks"
 }
 
+function Test-Phase1ContractArtifacts {
+  $backendFile = Join-Path $Root "internal/runtime/backend.go"
+  if (-not (Test-Path -LiteralPath $backendFile)) { Fail "missing RuntimeBackend definition: internal/runtime/backend.go" }
+  $backendRaw = Get-Content -LiteralPath $backendFile -Raw
+  if ($backendRaw -notmatch "type RuntimeBackend interface") { Fail "internal/runtime/backend.go must define RuntimeBackend interface" }
+
+  $contractFile = Join-Path $Root "internal/runtime/contracttest/run.go"
+  if (-not (Test-Path -LiteralPath $contractFile)) { Fail "missing contract test suite: internal/runtime/contracttest/run.go" }
+  $contractRaw = Get-Content -LiteralPath $contractFile -Raw
+  if ($contractRaw -notmatch "func Run\(") { Fail "contracttest/run.go must export a Run function" }
+  if ($contractRaw -notmatch "runtime\.RuntimeBackend") { Fail "contracttest/run.go must reference RuntimeBackend" }
+
+  $docFile = Join-Path $Root "internal/operator/doc.go"
+  if (-not (Test-Path -LiteralPath $docFile)) { Fail "missing operator doc.go with compile-time assertion" }
+  $docRaw = Get-Content -LiteralPath $docFile -Raw
+  if ($docRaw -notmatch "runtime\.RuntimeBackend") { Fail "internal/operator/doc.go must assert Runtime satisfies RuntimeBackend" }
+
+  $testFile = Join-Path $Root "internal/operator/runtime_test.go"
+  if (-not (Test-Path -LiteralPath $testFile)) { Fail "missing operator runtime_test.go" }
+  $testRaw = Get-Content -LiteralPath $testFile -Raw
+  if ($testRaw -notmatch "contracttest\.Run") { Fail "runtime_test.go must wire contracttest.Run against the in-memory backend" }
+
+  $matrix = Join-Path $Root "docs/phases/phase-1-agent-sandbox-adapter-spike/backend-capability-matrix.md"
+  $matrixRaw = Get-Content -LiteralPath $matrix -Raw
+  if ($matrixRaw -notmatch "Backend-neutral contract tests") { Fail "backend capability matrix must include Backend-neutral contract tests row" }
+
+  Pass "Phase 1 contract code artifacts present and correctly wired"
+}
+
 function Test-DeliveryHarness {
   $delivery = Get-Content -LiteralPath (Join-Path $Root "docs/harness/phase-delivery.md") -Raw
   foreach ($required in @("codex/phase3-delivery", "Phase 2: Deployable Runtime", "Phase 3: Governance Runtime", "Do not build a competing Kubernetes sandbox controller")) {
@@ -285,6 +314,7 @@ if (-not ($All -or $Docs -or $Unit -or $Manifests -or $Names -or $Phase2Evidence
 
 if ($All -or $Docs) { Test-RequiredDocs }
 if ($All -or $Docs) { Test-Phase1Spike }
+if ($All -or $Docs) { Test-Phase1ContractArtifacts }
 if ($All -or $Docs) { Test-DeliveryHarness }
 if ($All -or $Docs) { Test-RuntimeBoundary }
 if ($All -or $Unit) { Test-GoPackages }

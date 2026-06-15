@@ -14,7 +14,7 @@ Status labels:
 | Claim as one worker-run lease | Yes | Supported | Needs verification | Agenova contract plus backend adapter | First spike target: acquisition semantics and status mapping. |
 | Claim lifecycle observation | Yes | Supported | Needs verification | Backend adapter | Map to `Pending`, `Bound`, `Running`, terminal phases. |
 | Sandbox cleanup / replacement evidence | Yes | Supported | Needs verification | Backend adapter | Must stay resource evidence, not a terminal claim phase. |
-| Backend-neutral contract tests | Yes | Not yet extracted | Needs verification | Agenova contract | Same tests must run against in-memory and every new backend. |
+| Backend-neutral contract tests | Yes | Supported | Needs verification | Agenova contract | `internal/runtime/contracttest` suite runs against in-memory backend. Same tests must pass every new backend. |
 | Scheduled deletion / cleanup | No | Not implemented | Needs verification | Backend adapter | Verify upstream cleanup primitives. |
 | Stateful sandbox storage | No | Not implemented | Needs verification | Backend substrate | Verify storage model and lifecycle ownership. |
 | runtimeClass / placement / node pool integration | No | Not implemented | Needs verification | Backend substrate | Verify isolation knobs and scheduling controls. |
