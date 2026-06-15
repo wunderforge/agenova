@@ -1,64 +1,103 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agenova Architecture Viewer</title>
+  <title>Agenova Runtime Architecture</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <style>
-    :root { color-scheme: light; --bg:#f6f7f9; --panel:#fff; --ink:#1f2937; --muted:#667085; --line:#d0d5dd; --brand:#0f766e; --accent:#7c3aed; --warn:#b45309; --ok:#15803d; }
+    :root { color-scheme: light; --bg:#f6f7f9; --panel:#fff; --ink:#1f2937; --muted:#667085; --line:#d0d5dd; --core:#0f766e; --interface:#7c3aed; --dependency:#2563eb; --app:#64748b; --future:#b45309; --soft:#f8fafc; }
     * { box-sizing:border-box; }
     body { margin:0; font-family:Inter, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
-    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding:24px 32px 18px; border-bottom:1px solid var(--line); background:#fff; }
-    h1 { margin:0; font-size:26px; letter-spacing:0; }
-    .subtitle { margin:8px 0 0; color:var(--muted); max-width:780px; line-height:1.5; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding:18px 32px 12px; border-bottom:1px solid var(--line); background:#fff; }
+    h1 { margin:0; font-size:25px; letter-spacing:0; }
+    .subtitle { margin:6px 0 0; color:var(--muted); max-width:920px; line-height:1.4; }
     .meta { text-align:right; color:var(--muted); font-size:13px; line-height:1.6; white-space:nowrap; }
-    .tabs { display:flex; gap:8px; padding:14px 32px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
+    .value-strip { display:flex; align-items:center; gap:16px; padding:9px 32px; border-bottom:1px solid var(--line); background:#fff; color:var(--muted); font-size:13px; overflow:auto; }
+    .value-strip strong { color:var(--ink); white-space:nowrap; }
+    .value-strip span { min-width:220px; line-height:1.35; }
+    .tabs { display:flex; gap:8px; padding:10px 32px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
     .tabs button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:8px 12px; cursor:pointer; font-weight:600; color:var(--ink); }
-    .tabs button.active { background:#0f766e; border-color:#0f766e; color:#fff; }
-    main { display:grid; grid-template-columns:minmax(0, 1fr) 360px; gap:18px; padding:18px 32px 32px; }
-    .stage, aside { background:var(--panel); border:1px solid var(--line); border-radius:8px; min-height:620px; }
-    .stage { overflow:auto; position:relative; }
+    .tabs button.active { background:var(--core); border-color:var(--core); color:#fff; }
+    main { display:grid; grid-template-columns:1fr; gap:18px; padding:14px 32px 32px; }
+    .stage, aside { background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+    .stage { overflow:auto; position:relative; min-height:560px; }
     aside { padding:18px; }
-    svg { min-width:1180px; min-height:780px; display:block; }
-    .domain { fill:#f8fafc; stroke:#cbd5e1; stroke-width:1; }
-    .domain-title { fill:#475467; font-size:13px; font-weight:700; }
-    .node { fill:#fff; stroke:#98a2b3; stroke-width:1.2; cursor:pointer; }
-    .node.done { stroke:var(--ok); }
-    .node.partial, .node.next { stroke:var(--warn); }
-    .node.reserved, .node.planned, .node.future { stroke:var(--accent); stroke-dasharray:4 3; }
-    .node.active { stroke:#0f766e; stroke-width:3; }
+    svg { width:100%; min-width:960px; min-height:590px; display:block; background:#fff; }
+    .region { fill:var(--soft); stroke:#cbd5e1; stroke-width:1; }
+    .region.core { fill:#f0fdfa; stroke:#99f6e4; }
+    .region.dependency { fill:#eff6ff; stroke:#bfdbfe; }
+    .region.app { fill:#f8fafc; stroke:#cbd5e1; }
+    .region-title { fill:#111827; font-size:15px; font-weight:700; }
+    .region-subtitle { fill:#667085; font-size:12px; }
+    .node { fill:#fff; stroke:#98a2b3; stroke-width:1.4; cursor:pointer; }
+    .node.core { stroke:var(--core); }
+    .node.interface { stroke:var(--interface); }
+    .node.dependency { stroke:var(--dependency); }
+    .node.app { stroke:var(--app); }
+    .node.future { stroke:var(--future); stroke-dasharray:5 3; }
+    .node-wrap.selected .node { stroke-width:3; filter:drop-shadow(0 6px 10px rgba(15,118,110,.18)); }
+    .node-wrap.in-step .node { fill:#ecfeff; }
+    .node-wrap:hover .node { stroke-width:2.4; }
     .label { pointer-events:none; fill:#111827; font-size:13px; font-weight:700; }
-    .small { fill:#667085; font-size:11px; }
+    .node-kind, .status, .edge-label { fill:#667085; font-size:11px; }
     .edge { stroke:#667085; stroke-width:1.5; fill:none; marker-end:url(#arrow); }
-    .flow-step { padding:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; background:#fff; cursor:pointer; }
-    .flow-step.active { border-color:#0f766e; box-shadow:0 0 0 2px rgba(15,118,110,.12); }
-    .badge { display:inline-block; border-radius:999px; padding:2px 8px; font-size:12px; background:#eef2ff; color:#3730a3; margin-right:6px; }
-    pre { background:#101828; color:#f2f4f7; border-radius:8px; padding:12px; overflow:auto; font-size:12px; line-height:1.5; }
+    .edge.active { stroke:var(--core); stroke-width:2.4; }
+    .legend { display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px; border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:1; }
+    .legend-item, .pill { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:700; background:#fff; color:#334155; }
+    .legend-item { cursor:help; }
+    .legend-item span { width:9px; height:9px; border-radius:999px; background:#94a3b8; }
+    .legend-item.core span, .pill.core { background:#ccfbf1; color:#115e59; border-color:#99f6e4; }
+    .legend-item.interface span, .pill.interface { background:#ede9fe; color:#6d28d9; border-color:#ddd6fe; }
+    .legend-item.dependency span, .pill.dependency { background:#dbeafe; color:#1d4ed8; border-color:#bfdbfe; }
+    .legend-item.app span, .pill.app { background:#f1f5f9; color:#475569; border-color:#cbd5e1; }
+    .legend-item.future span, .pill.future { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+    .status-pill { background:#f8fafc; color:#475569; }
+    .run-layout, .ownership-table, .phase-list { display:grid; gap:10px; padding:16px; }
+    .run-step, .ownership-row, .phase-item { text-align:left; border:1px solid var(--line); border-radius:8px; padding:14px; background:#fff; }
+    .run-step { cursor:pointer; color:var(--ink); }
+    .run-step.active { border-color:var(--core); box-shadow:0 0 0 2px rgba(15,118,110,.12); }
+    .run-step strong, .run-step span, .run-step small { display:block; }
+    .run-step span, .ownership-row p, .phase-item p { margin:8px 0 0; color:var(--muted); line-height:1.45; }
+    .run-step small { margin-top:8px; color:#475569; }
+    .ownership-row { display:grid; grid-template-columns:minmax(220px, 1fr) auto; align-items:start; gap:10px; }
+    .ownership-row p { grid-column:1 / -1; }
+    aside { position:fixed; right:28px; top:168px; z-index:5; width:min(420px, calc(100vw - 56px)); max-height:calc(100vh - 190px); overflow:auto; display:grid; grid-template-columns:auto 1fr auto; align-items:start; gap:8px 14px; min-height:auto; box-shadow:0 18px 40px rgba(15,23,42,.16); }
+    aside.collapsed { display:none; }
+    aside h2 { grid-column:1 / -1; margin:6px 0 0; font-size:20px; letter-spacing:0; }
+    aside p { color:var(--muted); line-height:1.5; }
+    aside p { grid-column:1 / -1; margin:0; }
+    .detail-close { justify-self:end; border:1px solid var(--line); background:#fff; color:#475569; border-radius:999px; width:26px; height:26px; cursor:pointer; font-size:18px; line-height:20px; }
+    aside h3 { grid-column:1 / -1; margin:4px 0 -2px; font-size:14px; }
+    pre { grid-column:1 / -1; margin:0; padding:12px; border-radius:8px; background:#101828; color:#f8fafc; overflow:auto; font-size:12px; line-height:1.45; }
+    code { font-family:ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .hidden { display:none; }
-    @media (max-width: 900px) { header, .tabs { padding-left:16px; padding-right:16px; } main { grid-template-columns:1fr; padding:16px; } .meta { text-align:left; } header { flex-direction:column; } aside { min-height:auto; } }
+    @media (max-width: 900px) { header, .tabs, .value-strip { padding-left:16px; padding-right:16px; } main { grid-template-columns:1fr; padding:16px; } .meta { text-align:left; } header { flex-direction:column; } aside { position:static; width:auto; max-height:none; min-height:auto; } .value-strip { align-items:flex-start; } }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>Agenova Architecture Viewer</h1>
-      <p class="subtitle">A compact view of runtime subjects, gateway boundaries, facts, and future deployment-shape constraints.</p>
+      <h1>Agenova Runtime Architecture</h1>
+      <p class="subtitle">Agenova sits between application agents and sandbox infrastructure: it owns governance, access boundaries, and facts while delegating low-level sandbox lifecycle to a backend substrate.</p>
     </div>
     <div class="meta" id="meta"></div>
   </header>
+  <section class="value-strip" id="valueStrip"></section>
   <nav class="tabs" aria-label="Views">
-    <button data-view="map" class="active">Subject Map</button>
-    <button data-view="flow">Run Flow</button>
-    <button data-view="phase">Phase Status</button>
+    <button data-view="architecture" class="active">Architecture</button>
+    <button data-view="run">Run Path</button>
+    <button data-view="ownership">Ownership</button>
+    <button data-view="phase">Status</button>
   </nav>
   <main>
     <section class="stage">
-      <div id="mapView"></div>
-      <div id="flowView" class="hidden"></div>
+      <div id="architectureView"></div>
+      <div id="runView" class="hidden"></div>
+      <div id="ownershipView" class="hidden"></div>
       <div id="phaseView" class="hidden"></div>
     </section>
-    <aside id="detail"></aside>
+    <aside id="detail" class="collapsed"></aside>
   </main>
   <script src="../status/implementation-status.js"></script>
   <script src="data.js"></script>
