@@ -4,6 +4,7 @@ This file is default agent context. Keep it short. It records stable product con
 
 ## Product Boundary
 
+- Agenova models reusable agent workforces: long-lived agent roles are invoked through short-lived scoped assignments.
 - Agenova is not an agent framework, prompt orchestration layer, or Phase 1 workflow DAG engine.
 - Claim graph semantics must still preserve a future path for optional multi-agent orchestration at the claim level.
 - Application agents own reasoning, prompt assembly, tool choice, memory strategy, and task semantics.
@@ -11,6 +12,7 @@ This file is default agent context. Keep it short. It records stable product con
 
 ## Runtime Vocabulary
 
+- A reusable agent role is long-lived; a `SandboxClaim` is one scoped invocation or assignment of that role.
 - `SandboxClaim` is one agent worker run / sandbox execution lease.
 - `SandboxClaim` is not one tool call.
 - `ToolInvocation` is a future fact/event for one concrete tool call inside a claim.
