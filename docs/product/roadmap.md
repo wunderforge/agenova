@@ -62,3 +62,5 @@ Agenova should support three product shapes:
 - `Agenova Cloud Fully Managed`
 
 Cloud work stays out of Phase 0. Later specs should preserve standard Agenova APIs so managed users do not need to operate clusters directly.
+
+Deployment packaging is described in `docs/product/deployment-model.md`; implementation remains phase-scoped and evidence-backed.

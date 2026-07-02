@@ -34,3 +34,5 @@ Agenova is not:
 - a replacement for Kubernetes security primitives.
 
 Application agents still decide prompts, tools, memory usage, reasoning, and task semantics. Agenova governs the runtime substrate around that work.
+
+For the Kubernetes-native release shape, see `docs/product/deployment-model.md`.
