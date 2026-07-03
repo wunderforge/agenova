@@ -43,9 +43,30 @@ Contract rules:
 
 The adapter may translate Agenova templates, pools, claims, and status into upstream resources, labels, annotations, or SDK calls. Application-facing APIs, facts, gateways, and future policy logic must continue to speak Agenova concepts.
 
+## MVP Runtime Rules
+
+The detailed product contract lives in `docs/product/runtime-backend-mvp-contract.md`. Phase 1 implementations must preserve these rules:
+
+- Agent Sandbox and Kubernetes state are infrastructure evidence, not the Agenova product contract.
+- Agent Sandbox `Ready=True` must not be mapped to claim `Succeeded`.
+- Kubernetes `Pod Running` must not be treated as Agenova claim `Running` in warm-pool mode.
+- Upstream sandbox adoption maps to Agenova claim `Bound` and a `SandboxAllocated` condition.
+- Upstream sandbox or pod readiness maps to a readiness condition, not a terminal claim phase.
+- `Running`, `Succeeded`, `Failed`, and `Expired` are Agenova-owned claim execution phases.
+- Failure details should be reasons, conditions, or runtime facts, not many extra top-level phases.
+- Warm pool replacement is capacity evidence, not a terminal claim outcome.
+- Warm pools are configured for selected runtime templates, not automatically for every agent role.
+- MVP sandbox external egress is deny-by-default except for Agenova runtime, Tool Gateway, and Model Gateway paths.
+- MVP runtime templates are image-based. Shared runtime images plus claim-time agent artifacts are future work, not a Phase 1 requirement.
+- Isolation tiers, dedicated node pools, runtime classes, and stronger sandbox backends are future capability questions, not Phase 1 MVP fields.
+
 ## Non-Goals
 
 - No competing Kubernetes sandbox controller until the spike proves one is required.
 - No gateway implementation.
 - No external credential injection into sandboxes.
+- No direct sandbox access to external tools, model providers, cloud APIs, or arbitrary internet destinations.
+- No per-agent dedicated warm pool requirement.
+- No dynamic agent artifact loading requirement.
+- No isolation tier implementation.
 - No memory, checkpoint, rollback, UI, tenancy, billing, or managed control plane.

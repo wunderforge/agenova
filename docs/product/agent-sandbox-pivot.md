@@ -44,6 +44,8 @@ The `RuntimeBackend` interface is the replacement boundary. Agent Sandbox is the
 
 Do not build competing Kubernetes Template/WarmPool/Claim/Sandbox controllers unless the spike shows Agent Sandbox cannot carry Agenova's required semantics.
 
+The MVP runtime contract is recorded in `docs/product/runtime-backend-mvp-contract.md`. That document is the detailed source for template layering, warm pool granularity, gateway-mediated network posture, runner lifecycle, and Agent Sandbox status mapping.
+
 Phase 1 should first prove:
 
 - whether upstream acquisition semantics can represent an Agenova claim lease;

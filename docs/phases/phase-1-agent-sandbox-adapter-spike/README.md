@@ -27,5 +27,6 @@ Read with:
 
 - `docs/product/architecture-contract.md`
 - `docs/product/agent-sandbox-pivot.md`
+- `docs/product/runtime-backend-mvp-contract.md`
 - `docs/phases/phase-0-foundation-alpha/spec.md`
 - `harness/phase-1-agent-sandbox-adapter-spike/README.md`

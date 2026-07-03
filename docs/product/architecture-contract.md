@@ -49,6 +49,7 @@ Application Agent / Framework
 - The in-memory runtime is the reference backend and contract test oracle.
 - Agent Sandbox is the first backend adapter to evaluate, not a hard dependency of the product contract.
 - If Agent Sandbox cannot carry required Agenova semantics, another backend adapter or a native backend may satisfy the same `RuntimeBackend` interface.
+- Agent Sandbox and Kubernetes readiness are substrate evidence; Agenova owns claim execution phases and runtime facts.
 
 ## Product Shapes
 
