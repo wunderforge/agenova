@@ -53,6 +53,18 @@ Purpose:
 
 Later phases may add role registry, policy authoring, memory interfaces, state checkpoints, rollback, SPIFFE-based identity hardening, UI, and richer cloud shapes. They should only be implemented after the earlier runtime and gateway contracts have behavior-level evidence.
 
+## Contributor Expansion Gate
+
+Broader contributor work should begin after the MVP contracts are stable enough that tests and adapters can be added without reshaping the core semantics.
+
+This gate is not production readiness. It means:
+
+- core vocabulary is stable: agent role, `SandboxClaim`, `ToolInvocation`, `ModelInvocation`, `RuntimeEvent`, and `RuntimeBackend`;
+- claim lifecycle and terminal semantics are stable;
+- gateway request, authorization, and fact contracts are stable enough for adapter work;
+- reference in-memory paths and contract tests pass;
+- contributor tasks can be scoped as tests, adapters, docs, or install smoke tests without redesigning core objects.
+
 ## Product Deployment Track
 
 Agenova should support three product shapes:
