@@ -8,7 +8,7 @@ This file is default agent context. Keep it short. It records stable product con
 - Agenova is not an agent framework, prompt orchestration layer, or Phase 1 workflow DAG engine.
 - Claim graph semantics must still preserve a future path for optional multi-agent orchestration at the claim level.
 - Application agents own reasoning, prompt assembly, tool choice, memory strategy, and task semantics.
-- Agenova owns the runtime substrate around agent work: sandbox leases, access boundaries, identity, audit facts, and later state continuity.
+- Concrete backends own process execution details. Agenova owns the stable agent-work contract around that execution: claims, access boundaries, identity binding, gateway facts, runtime evidence, and later state-continuity interfaces.
 
 ## Runtime Vocabulary
 
@@ -23,12 +23,12 @@ This file is default agent context. Keep it short. It records stable product con
 
 - External system credentials must stay outside sandboxes and behind gateways.
 - Sandbox identity credentials may enter sandboxes when they are needed to authenticate to Agenova components.
-- Warm idle pods must not hold standing authority; authorization should be anchored to a claim, not to an unclaimed sandbox.
+- Warm idle pods or workers must not hold standing authority; authorization should be anchored to a claim, not to an unclaimed sandbox.
 
 ## Runtime Isolation
 
 - Ordinary Pod isolation is not a hard boundary for mutually hostile agents.
-- Sandbox isolation requirements must remain explicit in runtime design; future runtime specs may map them to Kubernetes placement, runtime classes, dedicated node pools, or stronger backends.
+- Sandbox isolation requirements must remain explicit in runtime design; future runtime specs may map them to Kubernetes placement, runtime classes, dedicated node pools, provider sandboxes, or stronger backends.
 - Gateway authorization must not rely only on network location or sandbox self-reporting.
 
 ## Runtime Backend Abstraction
@@ -48,8 +48,26 @@ Application Agent / Framework
 - Application-facing Agenova APIs must not change when the selected backend changes.
 - The in-memory runtime is the reference backend and contract test oracle.
 - Agent Sandbox is the first backend adapter to evaluate, not a hard dependency of the product contract.
+- kagent/Substrate, E2B, Daytona, ECS/Fargate, Firecracker, local Docker, or other substrates may become backend adapters if they can satisfy the same contract.
 - If Agent Sandbox cannot carry required Agenova semantics, another backend adapter or a native backend may satisfy the same `RuntimeBackend` interface.
 - Agent Sandbox and Kubernetes readiness are substrate evidence; Agenova owns claim execution phases and runtime facts.
+
+## Claim-Scoped Governance
+
+The product center is the join:
+
+```text
+one agent run
+  -> one claim
+  -> scoped authority
+  -> tool/model/runtime facts
+  -> backend evidence
+  -> queryable accountability
+```
+
+MCP auth can answer whether a tool request was allowed. Kubernetes, ECS, or a sandbox provider can answer where a process ran. Tracing can answer which spans occurred. Agent frameworks can answer which step happened next.
+
+Agenova must answer the cross-cutting question: for this specific agent run, what authority was granted, what tools and models were actually used, what execution environment carried it, what related agent runs existed, and what evidence proves that?
 
 ## Product Shapes
 

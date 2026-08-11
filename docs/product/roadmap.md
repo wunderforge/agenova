@@ -1,8 +1,8 @@
-﻿# Roadmap
+# Roadmap
 
 The roadmap is phase-based. Each phase must preserve a small harness with explicit evidence checks.
 
-Product through-line: Agenova turns reusable agent roles into scoped, auditable assignments. Runtime, gateway, facts, lineage, and backend work should strengthen that agent-native workforce model rather than become isolated infrastructure features.
+Product through-line: Agenova turns reusable agent roles into scoped, auditable assignments. Runtime, gateway, facts, lineage, and backend work should strengthen claim-scoped governance rather than become isolated infrastructure features.
 
 Cross-phase architecture constraint: Control Plane and Runtime Plane must not be specified as if they always run in the same Kubernetes cluster.
 
@@ -13,11 +13,11 @@ Status: implemented locally.
 Purpose:
 
 - define the minimal API vocabulary for a scoped agent assignment;
-- prove warm-pool claim lifecycle locally;
+- prove claim lifecycle semantics locally;
 - establish harness discipline;
-- prevent concept drift before real Kubernetes integration.
+- prevent concept drift before real backend integration.
 
-## Phase 1: Kubernetes Runtime Plane
+## Phase 1: Runtime Backend Boundary
 
 Status: pivoted to Agent Sandbox Adapter Spike.
 
@@ -27,9 +27,9 @@ Purpose:
 - keep the Phase 0 in-memory runtime as a reference backend;
 - evaluate Kubernetes SIG Apps Agent Sandbox as the first backend adapter;
 - preserve the Phase 0 assignment lifecycle contract;
-- produce behavior-level evidence before choosing the default substrate.
+- produce behavior-level evidence before choosing any default substrate.
 
-Out of scope until scoped explicitly: self-built competing Kubernetes sandbox lifecycle controllers, real gateway policy, memory, rollback, web UI, cloud control plane.
+Out of scope until scoped explicitly: self-built competing sandbox lifecycle controllers, real gateway policy, memory, rollback, web UI, cloud control plane.
 
 ## Phase 2: Tool Gateway Boundary
 
@@ -51,7 +51,7 @@ Purpose:
 
 ## Later Phases
 
-Later phases may add role registry, policy authoring, memory interfaces, state checkpoints, rollback, SPIFFE-based identity hardening, UI, and richer cloud shapes. They should only be implemented after the earlier runtime and gateway contracts have behavior-level evidence.
+Later phases may add role registry, policy authoring, memory interfaces, state checkpoints, rollback, SPIFFE-based identity hardening, UI, richer cloud shapes, and additional backend adapters such as kagent/Substrate, E2B, Daytona, ECS/Fargate, or Firecracker. They should only be implemented after the earlier runtime and gateway contracts have behavior-level evidence.
 
 ## Contributor Expansion Gate
 
