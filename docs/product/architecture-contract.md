@@ -1,67 +1,77 @@
 # Architecture Contract
 
-This file is default agent context. Keep it short. It records stable product constraints, not the full long-term design archive.
+This document contains stable rules. The PRD may change; these rules require an explicit architecture decision and maintainer approval.
 
-## Product Boundary
+## Product Center
 
-- Agenova is not an agent framework, prompt orchestration layer, or workflow DAG engine.
-- Application agents own reasoning, prompt assembly, tool choice, memory strategy, and task semantics.
-- Agenova owns the runtime substrate around agent work: sandbox leases, access boundaries, identity, audit facts, and later state continuity.
+Agenova provides a **claim-scoped governance contract** for reusable agent work.
 
-## Runtime Vocabulary
+- A reusable agent role is long-lived.
+- A `SandboxClaim` is one agent worker run / scoped assignment.
+- A claim is not one tool call.
+- Agent code and its framework own prompts, reasoning, plans, and task semantics.
+- Agenova owns claim lifecycle, scoped authority, gateway boundaries, facts, lineage, and backend evidence.
+- Runtime backends own process execution and substrate capabilities.
 
-- `SandboxClaim` is one agent worker run / sandbox execution lease.
-- `SandboxClaim` is not one tool call.
-- `ToolInvocation` is a future fact/event for one concrete tool call inside a claim.
-- `ModelInvocation` is a future fact/event for one concrete model call inside a claim.
-- `RuntimeEvent` is a future append-only runtime fact under a claim.
+## Submission and Resolution
 
-## Identity and Credentials
+- `ClaimRequest` is the application-facing declaration of one task, requested access, and backend-neutral runtime requirements.
+- Task input does not grant resource access; requested resource scopes must be resolved through the same authority rules as tools, models, and memory.
+- YAML, API JSON, and a future `agenova run -f <file>` command must use the same request schema.
+- The task remains embedded in `ClaimRequest` for the MVP; a standalone Task resource requires a separately justified lifecycle.
+- `SandboxClaim` is the system-managed record of one resolved worker run. Callers do not self-issue claim status or effective authority.
+- Request resolution precedes claim creation and must remain backend-neutral.
 
-- External system credentials must stay outside sandboxes and behind gateways.
-- Sandbox identity credentials may enter sandboxes when they are needed to authenticate to Agenova components.
-- Warm idle pods must not hold standing authority; authorization should be anchored to a claim, not to an unclaimed sandbox.
+## Backend Neutrality
 
-## Runtime Isolation
+`RuntimeBackend` is an internal replacement boundary.
 
-- Ordinary Pod isolation is not a hard boundary for mutually hostile agents.
-- Sandbox isolation requirements must remain explicit in runtime design; future runtime specs may map them to Kubernetes placement, runtime classes, dedicated node pools, or stronger backends.
-- Gateway authorization must not rely only on network location or sandbox self-reporting.
+- Application-facing types must not depend on Kubernetes CRDs, provider SDK objects, or backend status shapes.
+- Backend-specific code and vocabulary stay inside the adapter package.
+- Adding or swapping a backend must not change the meaning of a claim.
+- The in-memory backend is the reference oracle for shared lifecycle semantics.
+- A backend gap must be documented and tested; it must not silently weaken the shared contract.
 
-## Runtime Backend Abstraction
+Kubernetes Agent Sandbox is one adapter target, not an Agenova product dependency. Agenova must not build a competing sandbox lifecycle platform unless verified evidence shows that no suitable backend can carry a required semantic.
 
-`RuntimeBackend` is the isolation boundary between Agenova's stable runtime contract and any concrete sandbox substrate.
+## Claim Lifecycle
+
+Shared phases are:
 
 ```text
-Application Agent / Framework
-  -> Agenova stable runtime contract
-  -> RuntimeBackend interface
-     +-- InMemoryBackend reference implementation
-     +-- AgentSandboxAdapter
-     +-- future backend adapters
-  -> selected sandbox substrate
+Pending -> Bound -> Running -> Succeeded
+Pending -> Bound -> Running -> Failed
+Pending -> Bound -> Failed
+Pending / Bound / Running -> Expired when the relevant timeout applies
 ```
 
-- Application-facing Agenova APIs must not change when the selected backend changes.
-- The in-memory runtime is the reference backend and contract test oracle.
-- Agent Sandbox is the first backend adapter to evaluate, not a hard dependency of the product contract.
-- If Agent Sandbox cannot carry required Agenova semantics, another backend adapter or a native backend may satisfy the same `RuntimeBackend` interface.
+- Backend readiness is infrastructure evidence, not agent-work success.
+- `Running` starts when the Agenova runner starts claim work, not merely when a Pod or process exists.
+- `Succeeded`, `Failed`, and `Expired` are terminal claim outcomes.
+- Cleanup, deletion, replenishment, or sandbox replacement is resource evidence, not a claim phase.
 
-## Product Shapes
+## Authority and Credentials
 
-- `Agenova Runtime`: the core deployable runtime that can run in customer-managed infrastructure.
-- `Agenova Cloud BYOC`: Agenova-managed control plane with runtime plane in the customer's cloud account, VPC, or cluster.
-- `Agenova Cloud Fully Managed`: Agenova-managed control plane and runtime plane, consumed through standard Agenova APIs.
+- Requested access is intent, not granted authority.
+- Effective claim authority is the intersection of Agent Template limits, applicable caller/project/platform policy, requested access, and runtime restrictions.
+- A request may narrow authority but cannot create authority.
+- Requests contain scopes and references, never external secret values.
+- Authority is anchored to an active claim, not an idle sandbox or network location.
+- Warm workers must not hold standing external authority.
+- External system credentials remain behind Tool and Model Gateways or the future Memory Interface.
+- A sandbox may receive only scoped identity material required to authenticate to Agenova components.
+- Gateway policy and tests do not replace network controls, workload identity, or backend isolation evidence.
 
-## Plane Separation
+## Facts and Lineage
 
-Control Plane and Runtime Plane must not be designed as if they always run in the same Kubernetes cluster.
-
-Current phases may implement a local or single-cluster path first, but API and spec language should preserve future separation between:
-
-- Control Plane: tenants, projects, policy, audit, usage, billing, and management APIs.
-- Runtime Plane: templates, pools, sandboxes, gateways, worker execution, and runtime facts.
+- `ToolInvocation`, `ModelInvocation`, and `RuntimeEvent` are append-only facts below a claim.
+- Facts must be attributable to the correct claim and must not be cross-assigned between workers.
+- Parent/child claims express authority scope and accountability.
+- Claim lineage must not grow into workflow scheduling without a separately approved product scope.
 
 ## Scope Discipline
 
-Current implementation must follow the current phase spec. Do not treat long-term product shapes as permission to add cloud control plane, tenancy, billing, UI, real gateways, memory, rollback, or distributed execution before a phase explicitly scopes them.
+- Prefer small interfaces, explicit behavior, and contract tests over broad frameworks.
+- Consume backend lifecycle, warm-pool, checkpoint, snapshot, placement, and isolation capabilities when available.
+- Do not claim production readiness from in-memory behavior, static manifests, or one local-cluster spike.
+- Do not implement future surfaces merely because they appear in the long-term vision or technology list.

@@ -1,34 +1,39 @@
-﻿# Task Template
+# Task
 
-## Goal
-
-State the smallest outcome that should be true after this task.
+- Mission: <smallest outcome and why it matters>
+- Owner: <name>
+- Target: <modules/files if known>
+- MVP path: <which step in the golden flow improves>
 
 ## Scope
 
 In scope:
 
-- item 1
-- item 2
+- <item>
 
 Out of scope:
 
-- later-phase capability 1
-- unrelated refactor 1
+- <item>
 
-## Context
+## Acceptance Criteria
 
-Read only the current phase docs and files directly needed for the task. Do not load `docs/human-design-decisions/` unless the task asks for design rationale.
+- <observable result>
+- <important negative case>
 
-## Acceptance
+## Quality Gates
 
-- Observable behavior or document change.
-- No concept drift from the current phase.
-- Harness evidence updated when behavior changes.
+- `<focused command>`
+- `.\scripts\check.ps1 -All`
 
-## Evidence
+## Evidence Required
 
-```powershell
-go test ./...
-.\scripts\check.ps1 -All
-```
+- <test output, E2E flow, integration output, or rendered artifact>
+
+## Constraints
+
+- Preserve `docs/product/architecture-contract.md`.
+- Do not broaden scope without recording a blocker or requesting a decision.
+
+## Known Gotchas
+
+- <task-specific trap, if any>
