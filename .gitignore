@@ -1,4 +1,5 @@
-﻿.gocache/
+.gocache/
+.tmp/
 harness/**/reports/
 dist/
 .claude/

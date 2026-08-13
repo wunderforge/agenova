@@ -9,7 +9,7 @@
 // # Semantic gap summary
 //
 // The upstream Agent Sandbox model differs from Agenova's explicit lifecycle
-// contract in five ways discovered during Phase 2:
+// contract in five ways discovered during the adapter spike:
 //
 //  1. No phase field. Upstream SandboxClaim uses k8s-standard conditions
 //     (status.conditions), not a phase string. The adapter maps conditions to

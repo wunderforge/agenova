@@ -7,7 +7,7 @@ import (
 )
 
 // Unit tests cover adapter state machine logic without a running cluster.
-// E2e tests against a real kind cluster live in harness/phase-2-agent-sandbox-runtime/e2e/.
+// Integration tests against a real kind cluster live in harness/integration/agentsandbox/.
 
 func TestResourceName(t *testing.T) {
 	got := resourceName("claim", "research-run")

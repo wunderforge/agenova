@@ -1,63 +1,46 @@
-﻿# AGENTS.md
+# Agenova Agent Contract
 
-This repository uses harness-driven development. Keep the implementation small, testable, and aligned with the current phase.
+Keep changes small, backend-neutral, and supported by mechanically checkable evidence.
 
-## Default Context
-
-Read these first:
+## Read First
 
 1. `README.md`
-2. `docs/product/purpose.md`
+2. `docs/product/prd.md`
 3. `docs/product/architecture-contract.md`
-4. `docs/phases/phase-0-foundation-alpha/README.md`
-5. `docs/phases/phase-0-foundation-alpha/spec.md`
-6. `harness/phase-0-foundation-alpha/README.md`
+4. `docs/project-status.md`
+5. Task-relevant code and harness files only
 
-Do not load `docs/product/roadmap.md` or `docs/human-design-decisions/` by default. Those files are planning and architecture rationale, not the active task contract.
+Use `docs/project-design.md` when product or architecture context is needed. Use `docs/harness/` for workflow, gates, and known traps.
 
-## Current Boundary
+## Stable Rules
 
-Phase 0 proves local lifecycle behavior and remains the semantic baseline. Phase 1 is an Agent Sandbox Adapter Spike: define a small runtime backend boundary, keep the in-memory runtime as the reference backend, and evaluate Kubernetes SIG Apps Agent Sandbox before building any native Kubernetes sandbox lifecycle controllers.
+- `SandboxClaim` represents one agent worker run / scoped assignment, not one tool call.
+- `ClaimRequest` is the canonical application input; YAML, API JSON, and CLI `-f` must share one backend-neutral schema.
+- Requested access is intent, not authority. Resolve it against template and policy limits before creating the system-managed claim.
+- Claim-scoped governance is the product; Kubernetes is one possible execution substrate.
+- Application-facing APIs must not expose backend CRDs, SDK types, or provider status shapes.
+- Upstream Agent Sandbox knowledge stays inside `internal/runtime/agentsandbox`.
+- External system credentials stay behind gateways; do not place long-lived upstream credentials in sandbox configuration.
+- `ToolInvocation`, `ModelInvocation`, and `RuntimeEvent` are facts under a claim.
+- Parent/child claims express governance scope, not workflow scheduling.
+- Do not add controllers, CRDs, memory, UI, cloud control plane, or new platforms unless the active task and PRD require them.
 
-Do not add controller-runtime, real CRDs, Kubernetes controllers, real network proxies, memory systems, rollback systems, SPIFFE, Vault, DAG orchestration, cloud control plane, or web UI unless a later phase explicitly asks for them.
+## Standard Loop
 
-## Naming Rules
+1. Read the task contract and inspect the affected boundary.
+2. State observable acceptance criteria and the strongest relevant gate.
+3. Implement the smallest change that satisfies them.
+4. Run focused tests, then `./scripts/check.ps1 -All` before completion.
+5. If a gate fails, stop expansion, classify the failure, fix the smallest responsible issue, and rerun.
+6. Record reusable failures in `docs/harness/learnings.md`; promote repeated failures into a gotcha or mechanical check.
 
-Use these concepts consistently:
+## Evidence
 
-- `SandboxClaim`: one agent worker run / sandbox execution lease.
-- `Input`: phase-local run configuration, not a tool-call payload model.
-- `ToolInvocation`: a future fact/event for one concrete tool call inside a claim.
-- `ModelInvocation`: a future fact/event for one concrete model call inside a claim.
-- `Tool Gateway`: the component that mediates tool access.
-- `Model Gateway`: the component that mediates model access.
+A task is done only when its acceptance criteria have reproducible evidence. A prose report is not evidence by itself.
 
-Avoid wording that implies `SandboxClaim` is one tool call.
+- Core behavior: focused unit/contract test plus `./scripts/check.ps1 -All`.
+- Backend behavior: adapter test and real backend evidence, or an explicit blocker.
+- User-facing flow: executable E2E/smoke output; add rendered evidence when UI exists.
+- Docs/harness only: `./scripts/check.ps1 -Docs` and link/path review.
 
-Do not design Control Plane and Runtime Plane as if they must always run in the same Kubernetes cluster.
-
-Do not let application-facing Agenova APIs depend on upstream Agent Sandbox CRD shape.
-
-Do not let `RuntimeBackend` implementation details appear in application-facing Agenova APIs. Swapping backends must be invisible to application agents.
-
-## Evidence Rules
-
-Every phase change needs evidence:
-
-```powershell
-go test ./...
-.\scripts\check.ps1 -All
-```
-
-If a change only updates docs or harness, still run `scripts/check.ps1 -All`. Record failures and do not broaden scope to make tests pass unless the current task requires it.
-
-## Phase 1-3 Delivery Rules
-
-Phase 1-3 work runs on a non-`main` delivery branch until human acceptance. Use `docs/harness/phase-delivery.md` for phase scope, `docs/harness/evidence-gates.md` for quality gates, and `docs/harness/claude-worker-playbook.md` when delegating execution to Claude Code.
-
-Hard rules:
-
-- Evidence check quality gates are mandatory. A feature is not done until the relevant gate passes or the failure is recorded as a blocker.
-- Code and docs must stay clear, readable, and small enough to review.
-- Prefer lightweight, boring, industry-standard designs. Do not add broad abstractions, controllers, or platforms before a phase evidence gate requires them.
-- Claude workers may implement in worktrees or worker branches, but Codex remains responsible for integration review, tests, and acceptance evidence.
+Use `tasks/task-template.md` for new work and `docs/harness/quality-gates.md` for gate selection.

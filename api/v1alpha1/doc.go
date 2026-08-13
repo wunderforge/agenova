@@ -1,2 +1,2 @@
-// Package v1alpha1 will contain the Phase 0 Kubernetes API types.
+// Package v1alpha1 contains the current backend-neutral Agenova API type sketches.
 package v1alpha1
