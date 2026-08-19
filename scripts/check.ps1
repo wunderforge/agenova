@@ -243,7 +243,9 @@ function Test-Go {
     }
     Pass "current Go files are formatted"
 
-    go mod tidy -diff
+    go mod tidy
+    if ($LASTEXITCODE -ne 0) { Fail "go mod tidy failed" }
+    git diff --exit-code -- go.mod go.sum
     if ($LASTEXITCODE -ne 0) { Fail "go.mod or go.sum needs 'go mod tidy'" }
     Pass "Go module metadata is tidy"
 
