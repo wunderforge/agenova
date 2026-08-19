@@ -37,6 +37,10 @@ If the task touches Agent Sandbox behavior, run the integration gate when the re
 
 ## 4. Open a Reviewable PR
 
+The PR must pass the required `pr / baseline` GitHub check. This runs the
+repository gate plus the race detector on Linux; it does not replace
+task-specific evidence or real-backend evidence.
+
 Include:
 
 - what user-visible or contract behavior changed;

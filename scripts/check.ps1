@@ -3,6 +3,7 @@ param(
   [switch]$Docs,
   [switch]$Unit,
   [switch]$Integration,
+  [switch]$Race,
   [string]$KubeContext = "kind-agenova-k8s-lab",
   [string]$Namespace = "default"
 )
@@ -21,6 +22,7 @@ function Test-RequiredDocs {
     "README.md",
     "AGENTS.md",
     "CONTRIBUTING.md",
+    ".github/workflows/pr.yml",
     "docs/project-design.md",
     "docs/project-status.md",
     "docs/product/prd.md",
@@ -241,9 +243,23 @@ function Test-Go {
     }
     Pass "current Go files are formatted"
 
+    go mod tidy -diff
+    if ($LASTEXITCODE -ne 0) { Fail "go.mod or go.sum needs 'go mod tidy'" }
+    Pass "Go module metadata is tidy"
+
+    go vet ./...
+    if ($LASTEXITCODE -ne 0) { Fail "go vet ./... failed" }
+    Pass "go vet ./..."
+
     go test -count=1 ./...
     if ($LASTEXITCODE -ne 0) { Fail "go test ./... failed" }
     Pass "go test ./..."
+
+    if ($Race) {
+      go test -race -count=1 ./...
+      if ($LASTEXITCODE -ne 0) { Fail "go test -race ./... failed" }
+      Pass "go test -race ./..."
+    }
 
     go test -run '^$' -tags integration ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "Agent Sandbox integration package does not compile" }
