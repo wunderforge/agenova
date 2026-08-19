@@ -12,12 +12,10 @@
    - license, notice, attribution, SPDX header, module path, docs, formatting,
      unit tests, reference E2E, and integration-package compilation passed.
 2. `gitleaks git . --log-opts=--all`
-   - 47 reachable commits scanned;
-   - 714.83 KB scanned;
+   - all commits reachable from the candidate release refs scanned;
    - zero findings.
 3. `gitleaks dir <publishable-tree-mirror>`
-   - 52 tracked or publishable working-tree files scanned;
-   - 171.30 KB scanned;
+   - a clean mirror of the candidate release tree scanned;
    - zero findings.
 4. Remote-ref audit
    - preserved `main`;
