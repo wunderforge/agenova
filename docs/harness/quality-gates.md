@@ -11,6 +11,7 @@ Choose the strongest gate that directly proves the task's acceptance criteria. `
 This checks:
 
 - current required docs and local Markdown links;
+- Apache-2.0 metadata, third-party attribution, SPDX source headers, and the public Go module path;
 - retired phase/personal-doc paths are absent;
 - stable architecture phrases and backend-neutral source boundaries;
 - Go formatting and `go test ./...`;

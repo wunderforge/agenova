@@ -1,9 +1,12 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 package agentsandbox
 
 import (
 	"testing"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/api/v1alpha1"
 )
 
 // Unit tests cover adapter state machine logic without a running cluster.

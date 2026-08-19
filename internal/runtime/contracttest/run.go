@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package contracttest provides a reusable suite that exercises the
 // RuntimeBackend lifecycle contract. Import this package from any backend's
 // test file and call Run to verify behavioral parity with the in-memory
@@ -7,8 +10,8 @@ package contracttest
 import (
 	"testing"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // Run exercises the RuntimeBackend lifecycle contract against any backend.

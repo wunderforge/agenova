@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package operator is the in-memory reference backend for the RuntimeBackend contract.
 //
 // Runtime is the reference implementation: deterministic, single-threaded, and
@@ -10,7 +13,7 @@
 // application-facing Agenova APIs.
 package operator
 
-import "github.com/donozhang1992/agenova/internal/runtime"
+import "github.com/wunderforge/agenova/internal/runtime"
 
 // Compile-time assertion: Runtime must satisfy the RuntimeBackend contract.
 var _ runtime.RuntimeBackend = (*Runtime)(nil)

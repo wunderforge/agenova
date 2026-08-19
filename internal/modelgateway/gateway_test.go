@@ -1,12 +1,15 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 package modelgateway
 
 import (
 	"testing"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/facts"
-	"github.com/donozhang1992/agenova/internal/governance"
-	"github.com/donozhang1992/agenova/internal/operator"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/governance"
+	"github.com/wunderforge/agenova/internal/operator"
 )
 
 func newFixture(t *testing.T) (*Gateway, *operator.Runtime, *facts.Store, *governance.Lineage) {

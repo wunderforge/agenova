@@ -1,0 +1,6 @@
+Agenova
+Copyright 2026 Dapeng Zhang and Agenova contributors
+
+This product includes API-shape adaptations based on Kubernetes SIGs Agent
+Sandbox, which is licensed under the Apache License, Version 2.0.
+See THIRD_PARTY_NOTICES.md for details.

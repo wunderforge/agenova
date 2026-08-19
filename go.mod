@@ -1,3 +1,3 @@
-module github.com/donozhang1992/agenova
+module github.com/wunderforge/agenova
 
 go 1.22

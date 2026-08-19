@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package e2e contains the backend-neutral multi-agent governance reference scenario.
 // It runs against the in-memory backend only and does not require a cluster.
 package e2e
@@ -5,12 +8,12 @@ package e2e
 import (
 	"testing"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/facts"
-	"github.com/donozhang1992/agenova/internal/governance"
-	"github.com/donozhang1992/agenova/internal/modelgateway"
-	"github.com/donozhang1992/agenova/internal/operator"
-	"github.com/donozhang1992/agenova/internal/toolgateway"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/governance"
+	"github.com/wunderforge/agenova/internal/modelgateway"
+	"github.com/wunderforge/agenova/internal/operator"
+	"github.com/wunderforge/agenova/internal/toolgateway"
 )
 
 // newSharedRuntime creates the shared in-memory runtime for reference tests.

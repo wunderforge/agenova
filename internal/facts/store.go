@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package facts provides an in-memory append-only store for claim-scoped
 // governance facts. ToolInvocation and ModelInvocation are emitted by the
 // gateway MVPs. RuntimeEvent is reserved for runtime lifecycle events; gateways
@@ -8,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/api/v1alpha1"
 )
 
 // Store is an in-memory append-only fact store. It is safe for concurrent use.

@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package agentsandbox is the ONLY package permitted to import or reference
 // upstream Agent Sandbox CRD types, manifests, or API group names.
 //

@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 //go:build integration
 
 // Package agentsandbox contains integration tests for the Agent Sandbox adapter.
@@ -14,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 )
 
 var (

@@ -1,3 +1,8 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+// API wire shapes are adapted from Kubernetes SIGs Agent Sandbox v0.4.6.
+// Copyright 2025 The Kubernetes Authors. See THIRD_PARTY_NOTICES.md.
+
 package agentsandbox
 
 // Local minimal type definitions for upstream Agent Sandbox CRD JSON shapes.

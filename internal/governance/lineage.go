@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package governance records parent/child claim relationships for multi-agent governance.
 // It does not implement DAG orchestration or workflow scheduling; it only tracks claim
 // ownership lineage so gateways can enforce scope.

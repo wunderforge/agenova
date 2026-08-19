@@ -1,13 +1,16 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 package toolgateway
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/facts"
-	"github.com/donozhang1992/agenova/internal/governance"
-	"github.com/donozhang1992/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/governance"
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // Request is a tool invocation request from an agent claim.
