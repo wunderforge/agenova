@@ -1,51 +1,40 @@
 # Agenova Agent Routing
 
-Keep changes bounded, backend-neutral, and supported by reproducible evidence.
+Mission-critical rule: deliver the active Ticket's acceptance criteria with reproducible evidence while preserving Agenova's claim-scoped, backend-neutral product boundary.
 
-## Start With the Active Contract
+## Required Context
 
-1. Read the active GitHub Issue.
-2. Read `docs/development/workflow.md` and any linked file under `specs/`.
-3. Load only the authority relevant to the change:
-   - MVP outcome: `docs/product/prd.md`;
-   - architecture invariant: `docs/product/architecture-contract.md`;
-   - implemented truth: `docs/project-status.md`;
-   - backend mapping: the applicable file under `docs/backends/`;
-   - verification: `docs/harness/quality-gates.md`.
-4. Inspect the smallest relevant code and test surface.
+For every implementation Ticket, read in this order:
 
-Do not read or rewrite every product document for a local change. The source-of-truth map and conflict rules live in `docs/development/workflow.md`.
+1. this file;
+2. `docs/product/prd.md` for the committed MVP direction;
+3. the active `work/<issue>-<slug>/task.md`;
+4. only the spec, design, architecture sections, code, tests, backend notes, and playbooks linked by that task.
 
-## Non-Negotiable Boundaries
+If the task packet does not exist, follow **Start a GitHub Ticket** in `docs/harness/playbooks.md`, create it from the canonical template, and stop for Owner/Reviewer approval before implementation.
 
-The architecture contract is authoritative. In particular:
+`README.md` and `docs/project-design.md` are human/public explanations, not default coding context. The collaboration contract and source ownership map are in `docs/development/AIDLC.md`.
 
-- one `SandboxClaim` is one agent worker assignment, not one tool call;
-- requested access is intent and cannot grant authority;
-- claim-scoped governance is the product, while Kubernetes is one runtime option;
-- backend/provider shapes remain inside their adapters;
-- long-lived external credentials remain behind governed interfaces;
-- parent/child claims express governance scope, not workflow scheduling.
+## Stable Boundaries
 
-Do not broaden the PRD or architecture contract to make one implementation easier. Stop and request a maintainer decision when the accepted task conflicts with either authority.
+- One `SandboxClaim` is one agent worker assignment, not one tool call.
+- Requested access is intent and cannot grant authority.
+- Claim-scoped governance is the product; Kubernetes is one runtime option.
+- Backend/provider shapes remain inside their adapters.
+- Long-lived external credentials remain behind governed interfaces.
+- Parent/child claims express governance scope, not workflow scheduling.
 
-## Standard Loop
+The architecture contract is authoritative. Stop and request a maintainer decision if the Ticket conflicts with the PRD or architecture contract; do not broaden either to make implementation easier.
 
-1. Confirm acceptance criteria, negative behavior, dependencies, and the strongest relevant gate.
-2. Use `specs/README.md` to decide whether the Issue is sufficient or a feature spec/design is required.
-3. Implement the smallest accepted slice on a dedicated branch or worktree.
+## Execution Loop
+
+1. Confirm the approved task packet, negative behavior, dependencies, and strongest gate.
+2. Scout the smallest relevant implementation and test surface.
+3. Execute one Todo slice at a time and keep task-local decisions/blockers current.
 4. Add or update focused behavioral evidence with the implementation.
-5. Run the focused gate, then `./scripts/check.ps1 -All` before completion.
-6. If a gate fails, stop expansion, fix or narrow the responsible change, and rerun.
-7. Reconcile any affected source of truth in the same PR.
+5. Run the focused gate, then `./scripts/check.ps1 -All`.
+6. On failure, stop expansion, fix or narrow the responsible change, and rerun.
+7. Review the diff for scope, regressions, and source-of-truth changes.
+8. Report exact evidence and residual risk in the PR and Ticket.
 
-## Completion Evidence
-
-Prose alone is not evidence.
-
-- Core contract: focused unit/contract test plus `./scripts/check.ps1 -All`.
-- Backend claim: adapter test and real-backend evidence, or an explicit blocker.
-- CLI/API/UI flow: executable smoke/E2E output; rendered evidence when visual behavior matters.
-- Docs/harness: `./scripts/check.ps1 -Docs` plus manual review of meaning and layout.
-
-Record exact results in the linked Issue and PR. Promote repeated failures into a focused gotcha, playbook, fixture, or deterministic check instead of adding generic ambient rules.
+Prose alone is not evidence. Backend claims require real-backend output or an explicit blocker; user-facing flows require executable smoke/E2E evidence and rendered proof when visual behavior matters.

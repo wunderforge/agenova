@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Keep the ticket bounded to one observable outcome. Project status, priority, and ownership belong in GitHub fields, not in this body. Choose planning depth with [specs/README.md](https://github.com/wunderforge/agenova/blob/main/specs/README.md).
+        Keep the ticket bounded to one observable outcome. Project status, priority, and ownership belong in GitHub fields, not in this body. The Owner turns the accepted Ticket into an Agent task packet by following [work/README.md](https://github.com/wunderforge/agenova/blob/main/work/README.md).
 
   - type: input
     id: parent_epic
@@ -51,9 +51,9 @@ body:
       label: Planning depth
       description: Use the smallest artifact set that removes meaningful ambiguity. Reviewers may change this choice during elaboration.
       options:
-        - Issue only
-        - Feature spec required
-        - Feature spec and technical design required
+        - Task packet only
+        - Task packet and feature spec
+        - Task packet, feature spec, and technical design
         - Decide during elaboration
     validations:
       required: true

@@ -20,10 +20,10 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 2. [MVP PRD](docs/product/prd.md) — the current shared delivery target and acceptance criteria.
 3. [Current status](docs/project-status.md) — what is implemented, what is only a spike, and what comes next.
 4. [Contributing](CONTRIBUTING.md) — how to select, implement, verify, and review a task.
-5. [Development workflow](docs/development/workflow.md) — source-of-truth ownership and the ten-person AI-assisted delivery loop.
+5. [AIDLC workflow](docs/development/AIDLC.md) — source-of-truth ownership and the ten-person AI-assisted delivery loop.
 6. [Architecture contract](docs/product/architecture-contract.md) — stable rules that changes must preserve.
 
-Feature planning is adaptive: bounded work uses its GitHub Issue; ambiguous or cross-component work follows the lightweight convention in [`specs/README.md`](specs/README.md).
+Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
 
 ## Current Baseline
 
@@ -67,7 +67,7 @@ The Agent Sandbox integration test requires a prepared Kubernetes cluster and is
 - `internal/facts/`, `internal/governance/`: fact storage and claim lineage.
 - `harness/`: executable reference and integration scenarios.
 - `docs/`: product authorities, implementation evidence, backend notes, and delivery rules.
-- `specs/`: optional durable behavior/design for complex features; GitHub remains the task tracker.
+- `work/`: Ticket-derived Agent task packets; GitHub remains the team tracker.
 
 ## Product Boundary
 

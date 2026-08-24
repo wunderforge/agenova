@@ -1,8 +1,8 @@
 # Agenova MVP PRD
 
-This document is authoritative for committed MVP outcomes, scope, and product acceptance. It does not own architecture invariants, implementation status, or mutable ticket state. Accepted work that changes an MVP requirement must update this PRD; feature-level elaboration that stays within the requirement belongs under `specs/`.
+This document is authoritative for committed MVP outcomes, scope, and product acceptance. It does not own architecture invariants, implementation status, or mutable ticket state. Accepted work that changes an MVP requirement must update this PRD; feature-level elaboration that stays within the requirement belongs in the applicable Ticket task packet under `work/`.
 
-Implementation order and stable Epic boundaries are summarized in the [MVP Epic Map](mvp-epics.md). Mutable ticket state remains in GitHub. See the [source-of-truth map](../development/workflow.md) for conflict and update rules.
+Implementation order and stable Epic boundaries are summarized in the [MVP Epic Map](mvp-epics.md). Mutable ticket state remains in GitHub. See the [AIDLC source-of-truth map](../development/AIDLC.md) for conflict and update rules.
 
 ## Product Statement
 

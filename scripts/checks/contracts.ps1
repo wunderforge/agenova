@@ -111,15 +111,108 @@ function Test-IssueFormContract {
   if ($specDepth.Value -notmatch "(?m)^\s+required:\s*true\s*$") {
     throw "issue form field is not required: spec_depth"
   }
-  foreach ($option in @("Issue only", "Feature spec required", "Feature spec and technical design required")) {
+  foreach ($option in @("Task packet only", "Task packet and feature spec", "Task packet, feature spec, and technical design")) {
     if ($specDepth.Value -notmatch [regex]::Escape($option)) {
       throw "issue form planning depth is missing: $option"
     }
   }
 }
 
+function Test-TaskPacketContract {
+  $taskTemplatePath = Join-Path $Root "docs/harness/templates/task.md"
+  $specTemplatePath = Join-Path $Root "docs/harness/templates/spec.md"
+  $designTemplatePath = Join-Path $Root "docs/harness/templates/design.md"
+
+  $taskTemplate = Get-Content -LiteralPath $taskTemplatePath -Raw
+  foreach ($required in @(
+    "- Mission:",
+    "- Target:",
+    "- User value:",
+    "- PRD outcome:",
+    "## Context to Read",
+    "## Scope",
+    "## Acceptance Criteria",
+    "## Negative Case",
+    "## Execution Todo",
+    "## Quality Gates",
+    "## Evidence Required",
+    "## Constraints",
+    "## Decisions and Blockers"
+  )) {
+    if ($taskTemplate -notmatch [regex]::Escape($required)) {
+      throw "task packet template is missing: $required"
+    }
+  }
+  foreach ($projectField in @("- Owner:", "- Reviewer:", "- Priority:", "- Sequence:", "- Status:")) {
+    if ($taskTemplate -match [regex]::Escape($projectField)) {
+      throw "task packet must not mirror GitHub Project state: $projectField"
+    }
+  }
+
+  $specTemplate = Get-Content -LiteralPath $specTemplatePath -Raw
+  foreach ($required in @("## Intent", "## Requirements", "## Negative Cases", "## Compatibility")) {
+    if ($specTemplate -notmatch [regex]::Escape($required)) {
+      throw "feature spec template is missing: $required"
+    }
+  }
+
+  $designTemplate = Get-Content -LiteralPath $designTemplatePath -Raw
+  foreach ($required in @("## Decision", "## Ownership and Contract Boundaries", "## Alternatives Considered", "## Verification Strategy")) {
+    if ($designTemplate -notmatch [regex]::Escape($required)) {
+      throw "technical design template is missing: $required"
+    }
+  }
+
+  $tempParent = Join-Path $Root ".tmp"
+  $tempRoot = Join-Path $tempParent "task-scaffold-contract"
+  $resolvedParent = [System.IO.Path]::GetFullPath($tempParent).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  $resolvedTemp = [System.IO.Path]::GetFullPath($tempRoot)
+  if (-not $resolvedTemp.StartsWith($resolvedParent, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "unsafe task scaffold test path: $resolvedTemp"
+  }
+
+  if (Test-Path -LiteralPath $tempRoot) {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force
+  }
+
+  try {
+    & (Join-Path $Root "scripts/new-task.ps1") -Issue 9999 -Slug "contract-check" -Title "Contract Check" -WithSpec -WithDesign -OutputRoot $tempRoot
+    $packetPath = Join-Path $tempRoot "9999-contract-check"
+    foreach ($fileName in @("task.md", "spec.md", "design.md")) {
+      $generatedPath = Join-Path $packetPath $fileName
+      if (-not (Test-Path -LiteralPath $generatedPath)) {
+        throw "task scaffold did not generate: $fileName"
+      }
+      $generated = Get-Content -LiteralPath $generatedPath -Raw
+      if ($generated -match "\{\{(?:ISSUE|ISSUE_URL|TITLE)\}\}") {
+        throw "task scaffold left an unresolved template token in: $fileName"
+      }
+    }
+
+    $generatedTask = Get-Content -LiteralPath (Join-Path $packetPath "task.md") -Raw
+    if ($generatedTask -notmatch [regex]::Escape("[#9999](https://github.com/wunderforge/agenova/issues/9999)")) {
+      throw "task scaffold did not link the source Issue"
+    }
+
+    $overwriteRejected = $false
+    try {
+      & (Join-Path $Root "scripts/new-task.ps1") -Issue 9999 -Slug "contract-check" -Title "Contract Check" -OutputRoot $tempRoot
+    }
+    catch {
+      $overwriteRejected = $true
+    }
+    if (-not $overwriteRejected) { throw "task scaffold overwrote an existing packet" }
+  }
+  finally {
+    if (Test-Path -LiteralPath $tempRoot) {
+      Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    }
+  }
+}
+
 function Test-DeliveryContracts {
   Test-IssueFormContract
+  Test-TaskPacketContract
 
   $headings = @(
     "Linked ticket",
@@ -180,5 +273,5 @@ function Test-DeliveryContracts {
   }
   if (-not $rejected) { throw "empty evidence output was accepted" }
 
-  Pass "issue, PR, and evidence delivery contracts are mechanically validated"
+  Pass "issue, task-packet, PR, and evidence delivery contracts are mechanically validated"
 }

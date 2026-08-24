@@ -13,7 +13,7 @@ function Test-RequiredDocs {
     ".github/pull_request_template.md",
     "docs/project-design.md",
     "docs/project-status.md",
-    "docs/development/workflow.md",
+    "docs/development/AIDLC.md",
     "docs/product/prd.md",
     "docs/product/architecture-contract.md",
     "docs/backends/agent-sandbox.md",
@@ -21,8 +21,11 @@ function Test-RequiredDocs {
     "docs/harness/gotchas.md",
     "docs/harness/playbooks.md",
     "docs/harness/learnings.md",
+    "docs/harness/templates/task.md",
+    "docs/harness/templates/spec.md",
+    "docs/harness/templates/design.md",
     "harness/README.md",
-    "specs/README.md",
+    "work/README.md",
     "scripts/install-hooks.ps1",
     "scripts/checks/repository.ps1",
     "scripts/checks/docs.ps1",
@@ -30,6 +33,7 @@ function Test-RequiredDocs {
     "scripts/checks/contracts.ps1",
     "scripts/checks/go.ps1",
     "scripts/checks/backend.ps1",
+    "scripts/new-task.ps1",
     "scripts/check-pr-body.ps1"
   )
 
@@ -45,6 +49,8 @@ function Test-RequiredDocs {
     "docs/harness/phase-delivery.md",
     "docs/harness/evidence-gates.md",
     "docs/harness/claude-worker-playbook.md",
+    "docs/development/workflow.md",
+    "specs/README.md",
     "tasks/task-template.md",
     "harness/phase-0-foundation-alpha",
     "harness/phase-1-agent-sandbox-adapter-spike"

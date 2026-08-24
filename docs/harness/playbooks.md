@@ -1,11 +1,25 @@
 # Harness Playbooks
 
+## Start a GitHub Ticket
+
+Use when a contributor is ready to turn an accepted GitHub Ticket into coding-agent execution context.
+
+1. Read the Ticket, `AGENTS.md`, and `docs/product/prd.md`.
+2. Confirm the Ticket has one bounded outcome, acceptance criteria, a negative case, evidence requirements, Owner, Reviewer, and dependencies.
+3. Choose Task, Task + Spec, or Task + Spec + Design using `docs/development/AIDLC.md`.
+4. Run `./scripts/new-task.ps1` with the Issue number, slug, title, and required planning-depth switches.
+5. Replace every `TODO` marker, linking only task-relevant context.
+6. Check the packet against the Ticket and PRD, then stop until Owner/Reviewer approval is recorded in the Ticket.
+7. Begin implementation only after the task packet is approved.
+
+Do not ask the Agent to implement directly from a conversational prompt or create a packet that silently changes the Ticket.
+
 ## Change a Core Contract
 
 Use when changing claim lifecycle, authority, facts, lineage, or shared API types.
 
-1. Read the Issue, PRD, architecture contract, and applicable feature spec.
-2. If no accepted spec exists, use `specs/README.md` to elaborate the behavior and compatibility impact before dependent work proceeds.
+1. Read the Issue, task packet, PRD, architecture contract, and applicable feature spec.
+2. If no accepted spec exists, add one to the task packet and elaborate behavior and compatibility before dependent work proceeds.
 3. Define negative cases in the Issue/spec and update the reference implementation and contract tests together.
 4. Confirm backend-specific types remain isolated.
 5. Run focused tests and `./scripts/check.ps1 -All`.

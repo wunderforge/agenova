@@ -32,7 +32,7 @@ for local use.
 
 This checks:
 
-- source-of-truth ownership, adaptive spec structure, current required docs, and local Markdown links;
+- AIDLC source ownership, task-packet/template structure, current required docs, and local Markdown links;
 - Apache-2.0 metadata, third-party attribution, SPDX source headers, and the public Go module path;
 - retired phase/personal-doc paths are absent;
 - stable architecture authority and backend-neutral source boundaries without requiring the same prose in several documents;

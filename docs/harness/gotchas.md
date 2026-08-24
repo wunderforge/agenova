@@ -5,7 +5,7 @@ Only recurring or high-risk Agenova mistakes belong here.
 ## One question must have one authority
 
 - Failure: updating the same requirement, status, or task detail in several Markdown files and GitHub.
-- Correct boundary: use `docs/development/workflow.md` to locate the authority; summaries link to it and mutable delivery state stays in GitHub.
+- Correct boundary: use `docs/development/AIDLC.md` to locate the authority; summaries link to it and mutable delivery state stays in GitHub.
 - Gate: source-of-truth structure and local-link checks in `./scripts/check.ps1 -Docs`.
 
 ## Claim is not a tool call

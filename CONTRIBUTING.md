@@ -14,11 +14,11 @@ Create work with the GitHub MVP delivery ticket form. The Issue is the delivery 
 
 Split work by one independently reviewable behavior and evidence gate, not by estimated coding hours. AI may compress implementation time, but it does not remove contract, integration, or review boundaries.
 
-During elaboration, use [`specs/README.md`](specs/README.md) to choose the smallest useful planning depth. A bounded change uses the Issue alone. Add a feature spec or design only when a public contract, cross-component behavior, security/authority rule, or parallel dependency needs durable agreement.
+During elaboration, follow [`work/README.md`](work/README.md) to create the Ticket's Agent task packet and choose the smallest useful planning depth. Every Ticket gets `task.md`; add a feature spec or design only when a public contract, cross-component behavior, security/authority rule, or parallel dependency needs durable agreement.
 
 ## 2. Read Only What You Need
 
-Start with the active Issue and [`AGENTS.md`](AGENTS.md). The [development workflow](docs/development/workflow.md) routes each question to its authority; load only the applicable product, architecture, spec, backend, or harness material.
+Start with the active Issue and [`AGENTS.md`](AGENTS.md). The [AIDLC workflow](docs/development/AIDLC.md) routes each question to its authority. The Agent must read the PRD and approved `work/<issue>-<slug>/task.md`, then load only task-linked product, architecture, spec, backend, code, test, or harness material.
 
 Product requirements belong in the PRD, architecture invariants in the architecture contract, implementation evidence in project status, and mutable delivery state in GitHub. Update an authority only when the accepted change alters what that authority owns.
 

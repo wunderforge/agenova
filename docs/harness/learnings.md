@@ -31,7 +31,22 @@ Root cause:
 
 Harness amendment:
 
-- Define one authority per question, keep delivery state in GitHub, use feature specs only when ambiguity or parallel dependencies justify them, and test routing/structure instead of repeated prose.
+- Define one authority per question, keep delivery state in GitHub, give every Agent a Ticket-derived task packet, use feature specs only when ambiguity or parallel dependencies justify them, and test routing/structure instead of repeated prose.
+
+## 2026-08-24 — Documentation routing was not execution context
+
+What failed or slowed down:
+
+- A comprehensive source-of-truth map did not tell a coding Agent which minimal files to load or where to keep its Todo.
+- Removing the local task template confused a duplicated team backlog with a useful Agent execution contract.
+
+Root cause:
+
+- Human coordination context and Agent execution context were treated as the same layer.
+
+Harness amendment:
+
+- Keep GitHub as the team tracker, require `AGENTS.md + PRD + task.md` as the Agent baseline, and scaffold one reviewable task packet per Ticket.
 
 ## Escalation Rule
 

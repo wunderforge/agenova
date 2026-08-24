@@ -4,8 +4,9 @@ function Test-ArchitectureText {
   $contract = Get-Content -LiteralPath (Join-Path $Root "docs/product/architecture-contract.md") -Raw
   $prd = Get-Content -LiteralPath (Join-Path $Root "docs/product/prd.md") -Raw
   $status = Get-Content -LiteralPath (Join-Path $Root "docs/project-status.md") -Raw
-  $workflow = Get-Content -LiteralPath (Join-Path $Root "docs/development/workflow.md") -Raw
-  $specs = Get-Content -LiteralPath (Join-Path $Root "specs/README.md") -Raw
+  $aidlc = Get-Content -LiteralPath (Join-Path $Root "docs/development/AIDLC.md") -Raw
+  $work = Get-Content -LiteralPath (Join-Path $Root "work/README.md") -Raw
+  $agents = Get-Content -LiteralPath (Join-Path $Root "AGENTS.md") -Raw
 
   foreach ($required in @("backend-neutral governance runtime", "ClaimRequest", "RuntimeBackend")) {
     if ($readme -notmatch [regex]::Escape($required)) {
@@ -49,31 +50,48 @@ function Test-ArchitectureText {
   }
 
   foreach ($required in @(
-    "## Source of Truth Map",
+    "## Delivery Unit",
+    "## Sources of Truth",
+    "## Agent Context Contract",
+    "## From Existing Ticket to Task Packet",
     "## Adaptive Planning Depth",
-    "## Delivery Loop",
-    "## Ten-Person Collaboration",
-    "## Rules, Skills, and Code Style",
-    "## Human Decision Gates",
+    "## Human and Agent Responsibilities",
+    "## When the PRD Changes",
+    "## Parallel Delivery",
+    "## Rules, Skills, and Harness Memory",
+    "## Learning Loop",
     "docs/product/prd.md",
     "docs/product/architecture-contract.md",
-    "GitHub Issue and Delivery Project"
+    "work/<issue>-<slug>/task.md"
   )) {
-    if ($workflow -notmatch [regex]::Escape($required)) {
-      Fail "development workflow is missing: $required"
+    if ($aidlc -notmatch [regex]::Escape($required)) {
+      Fail "AIDLC collaboration contract is missing: $required"
     }
   }
 
   foreach ($required in @(
-    "## Choose the Smallest Useful Level",
-    "### Issue only",
-    "### Feature spec",
-    "### Feature spec plus technical design",
-    'Do not create `tasks.md`',
-    'Nested `AGENTS.md`'
+    "## Create a Packet",
+    "## Ownership Boundary",
+    "## Review Gate",
+    "scripts\new-task.ps1",
+    "work/0072-claim-request/",
+    "task.md",
+    "spec.md",
+    "design.md"
   )) {
-    if ($specs -notmatch [regex]::Escape($required)) {
-      Fail "feature-spec convention is missing: $required"
+    if ($work -notmatch [regex]::Escape($required)) {
+      Fail "task-packet convention is missing: $required"
+    }
+  }
+
+  foreach ($required in @(
+    "docs/product/prd.md",
+    "work/<issue>-<slug>/task.md",
+    "docs/harness/playbooks.md",
+    "stop for Owner/Reviewer approval"
+  )) {
+    if ($agents -notmatch [regex]::Escape($required)) {
+      Fail "AGENTS.md execution routing is missing: $required"
     }
   }
 
@@ -95,7 +113,7 @@ function Test-ArchitectureText {
     }
   }
 
-  Pass "product authorities, delivery routing, and adaptive spec structure are present"
+  Pass "product authorities, AIDLC routing, and task-packet structure are present"
 }
 
 function Test-MarkdownLinks {
@@ -111,6 +129,7 @@ function Test-MarkdownLinks {
     $matches = [regex]::Matches($raw, "\[[^\]]+\]\(([^)]+)\)")
     foreach ($match in $matches) {
       $target = $match.Groups[1].Value.Trim().Trim('<', '>')
+      if ($target -match "^\{\{[A-Z0-9_]+\}\}$") { continue }
       if ($target -match "^(https?://|mailto:|#)") { continue }
       $pathPart = ($target -split "#", 2)[0]
       if ([string]::IsNullOrWhiteSpace($pathPart)) { continue }
