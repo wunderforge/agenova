@@ -16,6 +16,8 @@ Kubernetes Agent Sandbox is the first real substrate used to test the `RuntimeBa
 
 The path was exercised with Agent Sandbox v0.4.6 on a local kind cluster. It must be re-run when promoting or changing the adapter.
 
+To reproduce the pinned upstream test substrate itself (no adapter involved), see [harness/spike/agent-sandbox-substrate/RUNBOOK.md](../../harness/spike/agent-sandbox-substrate/RUNBOOK.md).
+
 ## Known Gaps
 
 1. Upstream claims use conditions rather than Agenova work phases.

@@ -1,0 +1,15 @@
+# Plain upstream extensions.agents.x-k8s.io/v1alpha1 SandboxTemplate.
+# No Agenova types or naming are used here on purpose: this fixture proves the
+# upstream substrate only (see harness/spike/agent-sandbox-substrate/RUNBOOK.md).
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: smoke-template
+  namespace: agent-sandbox-smoke
+spec:
+  podTemplate:
+    spec:
+      containers:
+        - name: smoke
+          image: busybox:stable
+          command: ["sh", "-c", "echo e8-t3-smoke-start && sleep 30 && echo e8-t3-smoke-done"]
