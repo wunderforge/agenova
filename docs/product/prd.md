@@ -1,6 +1,8 @@
 # Agenova MVP PRD
 
-Implementation order and stable Epic boundaries are summarized in the [MVP Epic Map](mvp-epics.md). Mutable ticket state remains in GitHub.
+This document is authoritative for committed MVP outcomes, scope, and product acceptance. It does not own architecture invariants, implementation status, or mutable ticket state. Accepted work that changes an MVP requirement must update this PRD; feature-level elaboration that stays within the requirement belongs under `specs/`.
+
+Implementation order and stable Epic boundaries are summarized in the [MVP Epic Map](mvp-epics.md). Mutable ticket state remains in GitHub. See the [source-of-truth map](../development/workflow.md) for conflict and update rules.
 
 ## Product Statement
 

@@ -1,6 +1,6 @@
 # Architecture Contract
 
-This document contains stable rules. The PRD may change; these rules require an explicit architecture decision and maintainer approval.
+This document is authoritative for stable product and system boundaries. The PRD may change; these rules require an explicit architecture decision and maintainer approval. It does not own ticket state or feature-specific implementation plans. See the [source-of-truth map](../development/workflow.md).
 
 ## Product Center
 

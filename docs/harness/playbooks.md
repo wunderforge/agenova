@@ -4,12 +4,12 @@
 
 Use when changing claim lifecycle, authority, facts, lineage, or shared API types.
 
-1. Read the PRD and architecture contract.
-2. Define the compatibility impact and negative cases in the task.
-3. Update the reference implementation and contract/unit tests together.
+1. Read the Issue, PRD, architecture contract, and applicable feature spec.
+2. If no accepted spec exists, use `specs/README.md` to elaborate the behavior and compatibility impact before dependent work proceeds.
+3. Define negative cases in the Issue/spec and update the reference implementation and contract tests together.
 4. Confirm backend-specific types remain isolated.
 5. Run focused tests and `./scripts/check.ps1 -All`.
-6. Update project design/status only when the public contract or implementation truth changed.
+6. Update only the sources of truth whose owned behavior changed.
 
 Do not reshape the contract to match one backend's API.
 
@@ -42,3 +42,15 @@ Do not build a broad UI or framework before the evidence schema and golden path 
 3. Record the first reusable occurrence in `learnings.md`.
 4. On repetition, add a gotcha or mechanical check.
 5. Remove superseded guidance so the harness stays small.
+
+## Elaborate Parallel Work
+
+Use when an adapter, UI, example, or test contributor needs an upstream contract that is not yet stable.
+
+1. Keep the consumer ticket blocked or fixture-only until the producing contract is accepted.
+2. Put shared behavior in a feature spec when the Issue cannot express it unambiguously.
+3. Land a backend-neutral schema and representative fixtures before consumers claim integration readiness.
+4. Let consumers prototype against fixtures without changing the producer's contract from their subtree.
+5. Replace fixtures with integration evidence when the real producer is available.
+
+Do not use parallel delivery pressure to freeze an unreviewed contract.

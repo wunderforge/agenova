@@ -15,8 +15,23 @@ Root cause:
 
 Harness amendment:
 
-- Route all work through one PRD, architecture contract, current-status file, compact task template, and current quality gates.
+- Route work through the PRD, architecture contract, implementation snapshot, GitHub Issue form, and current quality gates.
 - Keep only current accepted evidence or an explicit blocker.
+
+## 2026-08-24 — Document count was not the main problem
+
+What slowed work:
+
+- The repository had already removed most historical documents, but several retained files still answered the same routing, status, and workflow questions.
+- Exact-phrase checks encouraged those documents to repeat product language.
+
+Root cause:
+
+- Document ownership was implicit, and task/spec depth was undefined.
+
+Harness amendment:
+
+- Define one authority per question, keep delivery state in GitHub, use feature specs only when ambiguity or parallel dependencies justify them, and test routing/structure instead of repeated prose.
 
 ## Escalation Rule
 

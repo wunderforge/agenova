@@ -13,6 +13,7 @@ function Test-RequiredDocs {
     ".github/pull_request_template.md",
     "docs/project-design.md",
     "docs/project-status.md",
+    "docs/development/workflow.md",
     "docs/product/prd.md",
     "docs/product/architecture-contract.md",
     "docs/backends/agent-sandbox.md",
@@ -21,6 +22,7 @@ function Test-RequiredDocs {
     "docs/harness/playbooks.md",
     "docs/harness/learnings.md",
     "harness/README.md",
+    "specs/README.md",
     "scripts/install-hooks.ps1",
     "scripts/checks/repository.ps1",
     "scripts/checks/docs.ps1",
@@ -28,8 +30,7 @@ function Test-RequiredDocs {
     "scripts/checks/contracts.ps1",
     "scripts/checks/go.ps1",
     "scripts/checks/backend.ps1",
-    "scripts/check-pr-body.ps1",
-    "tasks/task-template.md"
+    "scripts/check-pr-body.ps1"
   )
 
   foreach ($path in $required) {
@@ -44,6 +45,7 @@ function Test-RequiredDocs {
     "docs/harness/phase-delivery.md",
     "docs/harness/evidence-gates.md",
     "docs/harness/claude-worker-playbook.md",
+    "tasks/task-template.md",
     "harness/phase-0-foundation-alpha",
     "harness/phase-1-agent-sandbox-adapter-spike"
   )

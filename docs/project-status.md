@@ -1,8 +1,10 @@
-# Current Project Status
+# Implementation Evidence Snapshot
 
 Updated: 2026-08-24
 
-This file is the source of truth for what the repository currently proves. Product vision is not implementation status.
+This file is the evidence-backed snapshot of what the merged repository currently proves. Product vision is not implementation status, and this file does not track ticket owners, readiness, sequence, or work-in-progress; those remain in GitHub Issues and the Delivery Project.
+
+Update this snapshot only when merged behavior, accepted evidence, or a known implementation gap changes. See the [source-of-truth map](development/workflow.md).
 
 ## Position Against the Target Design
 

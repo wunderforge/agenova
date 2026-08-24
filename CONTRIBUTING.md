@@ -1,11 +1,10 @@
 # Contributing to Agenova
 
-Contributions should strengthen the shared MVP path without changing the product boundary by accident.
+Contributions should strengthen the shared MVP path without creating a second source of truth or changing the product boundary by accident.
 
 ## 1. Choose a Bounded Task
 
-Create work with the GitHub MVP delivery ticket form. Use
-`tasks/task-template.md` only when a local task contract is needed. Every task needs:
+Create work with the GitHub MVP delivery ticket form. The Issue is the delivery contract and must contain:
 
 - one mission and parent Epic;
 - explicit in-scope and out-of-scope boundaries;
@@ -13,20 +12,19 @@ Create work with the GitHub MVP delivery ticket form. Use
 - exact quality gates and evidence;
 - a link to the MVP flow it improves.
 
-Prefer work that can be reviewed in one or two days. Split larger work by behavior or evidence gate.
+Split work by one independently reviewable behavior and evidence gate, not by estimated coding hours. AI may compress implementation time, but it does not remove contract, integration, or review boundaries.
+
+During elaboration, use [`specs/README.md`](specs/README.md) to choose the smallest useful planning depth. A bounded change uses the Issue alone. Add a feature spec or design only when a public contract, cross-component behavior, security/authority rule, or parallel dependency needs durable agreement.
 
 ## 2. Read Only What You Need
 
-Always read:
+Start with the active Issue and [`AGENTS.md`](AGENTS.md). The [development workflow](docs/development/workflow.md) routes each question to its authority; load only the applicable product, architecture, spec, backend, or harness material.
 
-- `AGENTS.md`;
-- `docs/product/prd.md`;
-- `docs/product/architecture-contract.md`;
-- the active task.
-
-Then load only task-relevant code, backend notes, or harness playbooks.
+Product requirements belong in the PRD, architecture invariants in the architecture contract, implementation evidence in project status, and mutable delivery state in GitHub. Update an authority only when the accepted change alters what that authority owns.
 
 ## 3. Implement and Verify
+
+Work on a ticket-specific branch or worktree. Stabilize a shared contract, schema, fixture, or accepted spec before dependent adapter, UI, or example work claims integration readiness.
 
 Add or update the strongest relevant behavior check with the implementation.
 
@@ -64,6 +62,8 @@ Include:
 - evidence location;
 - remaining risks or blockers;
 - confirmation that the change did not leak backend-specific types into shared APIs.
+
+The Issue and Delivery Project remain authoritative for owner, priority, dependency, sequence, status, and completion evidence. Do not mirror that state into repository planning files.
 
 ## Contribution License and DCO
 

@@ -105,6 +105,17 @@ function Test-IssueFormContract {
       throw "issue form field is not required: $id"
     }
   }
+
+  $specDepth = [regex]::Match($raw, "(?ms)^\s*- type:\s*dropdown\s*$.*?^\s+id:\s*spec_depth\s*$.*?(?=^\s*- type:|\z)")
+  if (-not $specDepth.Success) { throw "issue form is missing required field: spec_depth" }
+  if ($specDepth.Value -notmatch "(?m)^\s+required:\s*true\s*$") {
+    throw "issue form field is not required: spec_depth"
+  }
+  foreach ($option in @("Issue only", "Feature spec required", "Feature spec and technical design required")) {
+    if ($specDepth.Value -notmatch [regex]::Escape($option)) {
+      throw "issue form planning depth is missing: $option"
+    }
+  }
 }
 
 function Test-DeliveryContracts {
@@ -131,21 +142,6 @@ function Test-DeliveryContracts {
     $templateRejected = $true
   }
   if (-not $templateRejected) { throw "unfilled PR template was accepted" }
-
-  $taskTemplate = Get-Content -LiteralPath (Join-Path $Root "tasks/task-template.md") -Raw
-  foreach ($required in @(
-    "Parent Epic:",
-    "MVP-path outcome:",
-    "## Scope",
-    "## Acceptance Criteria",
-    "## Negative Case",
-    "## Quality Gates",
-    "## Evidence Required"
-  )) {
-    if ($taskTemplate -notmatch [regex]::Escape($required)) {
-      throw "local task template is missing: $required"
-    }
-  }
 
   $valid = Get-Content -LiteralPath (Join-Path $Root "harness/fixtures/contracts/pr-valid.md") -Raw
   Test-PullRequestContract -Body $valid

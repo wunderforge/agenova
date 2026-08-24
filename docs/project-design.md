@@ -1,6 +1,6 @@
 # Agenova Project Design
 
-This document explains Agenova through one concrete agent job. No Kubernetes or platform-engineering knowledge is assumed.
+This is the explanatory product tour for newcomers. It illustrates the authoritative MVP PRD and architecture contract but does not override them. No Kubernetes or platform-engineering knowledge is assumed.
 
 > **Design status:** the YAML and CLI below show the intended product contract. Their final schemas are not frozen or implemented yet. See [Current project status](project-status.md) for what the repository proves today.
 
@@ -288,7 +288,7 @@ The primary product surfaces are a usable CLI and a live read-only claim console
 
 The repository already proves reference claim lifecycle, an in-memory backend contract, in-process Tool and Model authorization, claim-scoped facts, and parent/child scope. It also contains a Kubernetes Agent Sandbox adapter spike.
 
-The target `AgentTemplate`/`ClaimRequest` schemas, resolver, usable CLI, networked gateways, durable storage, Memory Interface, and UI are not implemented. [Current project status](project-status.md) is the detailed source of truth.
+The target `AgentTemplate`/`ClaimRequest` schemas, resolver, usable CLI, networked gateways, durable storage, Memory Interface, and UI are not implemented. The [implementation evidence snapshot](project-status.md) records the detailed current boundary.
 
 ### Non-goals
 

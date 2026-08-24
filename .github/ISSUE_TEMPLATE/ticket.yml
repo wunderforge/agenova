@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Keep the ticket bounded to one observable outcome. Project status, priority, and ownership belong in GitHub fields, not in this body.
+        Keep the ticket bounded to one observable outcome. Project status, priority, and ownership belong in GitHub fields, not in this body. Choose planning depth with [specs/README.md](https://github.com/wunderforge/agenova/blob/main/specs/README.md).
 
   - type: input
     id: parent_epic
@@ -42,6 +42,19 @@ body:
       label: Out of scope
       description: Name the nearest tempting work that this ticket must not absorb.
       placeholder: "- ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: spec_depth
+    attributes:
+      label: Planning depth
+      description: Use the smallest artifact set that removes meaningful ambiguity. Reviewers may change this choice during elaboration.
+      options:
+        - Issue only
+        - Feature spec required
+        - Feature spec and technical design required
+        - Decide during elaboration
     validations:
       required: true
 
