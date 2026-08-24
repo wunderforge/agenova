@@ -1,4 +1,4 @@
-name: pr
+name: CI
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,6 +19,8 @@ jobs:
     name: baseline
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      AGENOVA_CHECK_PROFILE: ${{ github.event_name == 'pull_request' && 'PR' || 'Main' }}
 
     steps:
       - name: Check out repository
@@ -33,6 +35,6 @@ jobs:
           check-latest: false
           cache: true
 
-      - name: Run repository quality gate
+      - name: Run shared repository quality gate
         shell: pwsh
-        run: ./scripts/check.ps1 -All -Race
+        run: ./scripts/check.ps1 -Profile $env:AGENOVA_CHECK_PROFILE

@@ -29,6 +29,16 @@ Then load only task-relevant code, backend notes, or harness playbooks.
 
 Add or update the strongest relevant behavior check with the implementation.
 
+Enable the optional fast pre-commit hook once per clone:
+
+```powershell
+.\scripts\install-hooks.ps1
+```
+
+The hook checks staged whitespace, conflict markers, Go formatting, and SPDX
+headers. It is a fast developer feedback loop and can be bypassed, so GitHub CI
+remains authoritative.
+
 ```powershell
 .\scripts\check.ps1 -All
 ```
@@ -37,8 +47,8 @@ If the task touches Agent Sandbox behavior, run the integration gate when the re
 
 ## 4. Open a Reviewable PR
 
-The PR must pass the required `pr / baseline` GitHub check. This runs the
-repository gate plus the race detector on Linux; it does not replace
+The PR must pass the required `CI / baseline` GitHub check. GitHub invokes the
+same repository entry point with the `PR` profile; it does not replace
 task-specific evidence or real-backend evidence.
 
 Include:
