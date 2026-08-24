@@ -52,13 +52,13 @@ Out of scope:
 
 - [x] Scout the current product contract, Ticket, risks, and adjacent solution categories.
 - [x] Confirm this packet with the Owner before research; independent review remains required on the PR.
-- [ ] Map official capabilities and positioning of adjacent products and projects.
-- [ ] Collect and code first-person public pain and counterevidence.
-- [ ] Build a claim/evidence/gap matrix and run targeted follow-up searches.
-- [ ] Synthesize personas, niche choices, positioning, scope implications, and outreach targets.
-- [ ] Create the report and source ledger with descriptive citations.
-- [ ] Run documentation gates, link checks, and final claim-to-source audit.
-- [ ] Review the diff for scope, overclaiming, unsupported inference, and source-of-truth changes.
+- [x] Map official capabilities and positioning of adjacent products and projects.
+- [x] Collect and code first-person public pain and counterevidence.
+- [x] Build a claim/evidence/gap matrix and run targeted follow-up searches.
+- [x] Synthesize personas, niche choices, positioning, scope implications, and outreach targets.
+- [x] Create the report and source ledger with descriptive citations.
+- [x] Run documentation gates, link checks, and final claim-to-source audit.
+- [x] Review the diff for scope, overclaiming, unsupported inference, and source-of-truth changes.
 
 ## Quality Gates
 
@@ -86,3 +86,10 @@ Out of scope:
 - Owner authorization: the project lead explicitly requested execution of #74 on 2026-08-25 and asked for an honest, deep assessment including direction changes.
 - Decision: deliver the durable artifact as repository Markdown and use the PR as the independent review gate.
 - Blockers: none.
+
+## Verification Evidence
+
+- `2026-08-25`: `.\scripts\check.ps1 -Docs` passed, including local Markdown links and task-packet contracts.
+- `2026-08-25`: `.\scripts\check.ps1 -All` passed, including formatting, module consistency, static analysis, Go tests, and Agent Sandbox integration compilation.
+- Manual acceptance audit: 23 first-person signals across seven ecosystems, 21 counterevidence/capability entries, eight public validation targets, explicit low-fit users, and continue/stop criteria.
+- Manual claim audit: material capability claims use primary documentation; community reports are labelled as anecdotal signals; adoption and willingness-to-pay remain explicitly unvalidated.
