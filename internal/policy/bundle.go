@@ -7,6 +7,7 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // PolicyBundle is one immutable version of the reference control-plane policy.
@@ -26,6 +27,7 @@ type Rule struct {
 
 // Loader owns the last successfully loaded policy bundle.
 type Loader struct {
+	mu      sync.RWMutex
 	current *PolicyBundle
 }
 
@@ -36,12 +38,17 @@ func (l *Loader) Load(bundle PolicyBundle) error {
 	}
 
 	copy := clone(bundle)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.current = &copy
 	return nil
 }
 
 // Current returns a copy of the last successfully loaded bundle.
 func (l *Loader) Current() (PolicyBundle, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
 	if l.current == nil {
 		return PolicyBundle{}, false
 	}

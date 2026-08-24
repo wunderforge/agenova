@@ -3,7 +3,11 @@
 
 package policy
 
-import "testing"
+import (
+	"fmt"
+	"sync"
+	"testing"
+)
 
 func TestLoaderLoadsVersionedBundle(t *testing.T) {
 	loader := &Loader{}
@@ -22,6 +26,12 @@ func TestLoaderLoadsVersionedBundle(t *testing.T) {
 	}
 	if !got.Allows("claim.create", "payments", "engineer") {
 		t.Fatal("Allows() denied the exact configured rule")
+	}
+
+	bundle.Rules[0].Action = "changed-input"
+	fromInput, _ := loader.Current()
+	if fromInput.Rules[0].Action != "claim.create" {
+		t.Fatal("Load() retained mutable input state")
 	}
 
 	got.Rules[0].Action = "changed"
@@ -61,9 +71,24 @@ func TestLoaderRejectsMalformedAndDuplicateRulesWithoutReplacement(t *testing.T)
 		"missing ID": {
 			Version: "2",
 		},
-		"malformed rule": {
+		"missing version": {
+			ID: "replacement",
+		},
+		"missing action": {
+			ID: "replacement", Version: "2",
+			Rules: []Rule{{Project: "payments", TemplateRef: "engineer"}},
+		},
+		"missing project": {
+			ID: "replacement", Version: "2",
+			Rules: []Rule{{Action: "claim.create", TemplateRef: "engineer"}},
+		},
+		"missing template": {
 			ID: "replacement", Version: "2",
 			Rules: []Rule{{Action: "claim.create", Project: "payments"}},
+		},
+		"malformed rule": {
+			ID: "replacement", Version: "2",
+			Rules: []Rule{{}},
 		},
 		"duplicate rule": {
 			ID: "replacement", Version: "2",
@@ -85,6 +110,35 @@ func TestLoaderRejectsMalformedAndDuplicateRulesWithoutReplacement(t *testing.T)
 			}
 		})
 	}
+}
+
+func TestLoaderSupportsConcurrentReadersAndWriters(t *testing.T) {
+	loader := &Loader{}
+	if err := loader.Load(validBundle()); err != nil {
+		t.Fatalf("load initial bundle: %v", err)
+	}
+
+	const workers = 20
+	var group sync.WaitGroup
+	group.Add(workers * 2)
+	for index := 0; index < workers; index++ {
+		index := index
+		go func() {
+			defer group.Done()
+			bundle := validBundle()
+			bundle.Version = fmt.Sprintf("version-%d", index)
+			if err := loader.Load(bundle); err != nil {
+				t.Errorf("concurrent Load() error = %v", err)
+			}
+		}()
+		go func() {
+			defer group.Done()
+			if bundle, ok := loader.Current(); !ok || bundle.ID != "reference" {
+				t.Errorf("concurrent Current() = %#v, %v", bundle, ok)
+			}
+		}()
+	}
+	group.Wait()
 }
 
 func validBundle() PolicyBundle {
