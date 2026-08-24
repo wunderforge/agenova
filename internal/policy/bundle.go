@@ -1,4 +1,4 @@
-// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package policy provides the static, backend-neutral reference policy bundle.
