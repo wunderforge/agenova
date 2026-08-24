@@ -1,15 +1,29 @@
 # Harness Playbooks
 
+## Start a GitHub Ticket
+
+Use when a contributor is ready to turn an accepted GitHub Ticket into coding-agent execution context.
+
+1. Read the Ticket, `AGENTS.md`, and `docs/product/prd.md`.
+2. Confirm the Ticket has one bounded outcome, acceptance criteria, a negative case, evidence requirements, Owner, Reviewer, and dependencies.
+3. Choose Task, Task + Spec, or Task + Spec + Design using `docs/development/AIDLC.md`.
+4. Run `./scripts/new-task.ps1` with the Issue number, slug, title, and required planning-depth switches.
+5. Replace every `TODO` marker, linking only task-relevant context.
+6. Check the packet against the Ticket and PRD, then stop until Owner/Reviewer approval is recorded in the Ticket.
+7. Begin implementation only after the task packet is approved.
+
+Do not ask the Agent to implement directly from a conversational prompt or create a packet that silently changes the Ticket.
+
 ## Change a Core Contract
 
 Use when changing claim lifecycle, authority, facts, lineage, or shared API types.
 
-1. Read the PRD and architecture contract.
-2. Define the compatibility impact and negative cases in the task.
-3. Update the reference implementation and contract/unit tests together.
+1. Read the Issue, task packet, PRD, architecture contract, and applicable feature spec.
+2. If no accepted spec exists, add one to the task packet and elaborate behavior and compatibility before dependent work proceeds.
+3. Define negative cases in the Issue/spec and update the reference implementation and contract tests together.
 4. Confirm backend-specific types remain isolated.
 5. Run focused tests and `./scripts/check.ps1 -All`.
-6. Update project design/status only when the public contract or implementation truth changed.
+6. Update only the sources of truth whose owned behavior changed.
 
 Do not reshape the contract to match one backend's API.
 
@@ -42,3 +56,15 @@ Do not build a broad UI or framework before the evidence schema and golden path 
 3. Record the first reusable occurrence in `learnings.md`.
 4. On repetition, add a gotcha or mechanical check.
 5. Remove superseded guidance so the harness stays small.
+
+## Elaborate Parallel Work
+
+Use when an adapter, UI, example, or test contributor needs an upstream contract that is not yet stable.
+
+1. Keep the consumer ticket blocked or fixture-only until the producing contract is accepted.
+2. Put shared behavior in a feature spec when the Issue cannot express it unambiguously.
+3. Land a backend-neutral schema and representative fixtures before consumers claim integration readiness.
+4. Let consumers prototype against fixtures without changing the producer's contract from their subtree.
+5. Replace fixtures with integration evidence when the real producer is available.
+
+Do not use parallel delivery pressure to freeze an unreviewed contract.

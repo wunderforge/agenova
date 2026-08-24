@@ -32,10 +32,10 @@ for local use.
 
 This checks:
 
-- current required docs and local Markdown links;
+- AIDLC source ownership, task-packet/template structure, current required docs, and local Markdown links;
 - Apache-2.0 metadata, third-party attribution, SPDX source headers, and the public Go module path;
 - retired phase/personal-doc paths are absent;
-- stable architecture phrases and backend-neutral source boundaries;
+- stable architecture authority and backend-neutral source boundaries without requiring the same prose in several documents;
 - Go formatting, module consistency, `go vet`, and `go test ./...`;
 - the reference multi-agent E2E included in the Go test tree.
 
