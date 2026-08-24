@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 package agentsandbox
 
 import (
@@ -6,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/donozhang1992/agenova/api/v1alpha1"
-	"github.com/donozhang1992/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // Compile-time assertion: SpikeAdapter must satisfy the RuntimeBackend contract.

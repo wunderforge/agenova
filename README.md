@@ -69,3 +69,8 @@ The Agent Sandbox integration test requires a prepared Kubernetes cluster and is
 ## Product Boundary
 
 Agenova is not an agent framework, prompt orchestration layer, workflow DAG engine, or replacement for sandbox/runtime providers. Agent code and its framework own reasoning and task logic. Runtime backends own process execution. Agenova owns the claim-scoped governance contract between them.
+
+## License
+
+Agenova is licensed under the [Apache License 2.0](LICENSE). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for upstream attribution.

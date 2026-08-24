@@ -3,3 +3,4 @@
 harness/**/reports/
 dist/
 .claude/
+.worktrees/

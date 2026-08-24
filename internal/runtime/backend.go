@@ -1,3 +1,6 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package runtime defines the RuntimeBackend boundary between Agenova's stable
 // runtime contract and any concrete sandbox substrate.
 //
@@ -6,7 +9,7 @@
 // contract test oracle.
 package runtime
 
-import "github.com/donozhang1992/agenova/api/v1alpha1"
+import "github.com/wunderforge/agenova/api/v1alpha1"
 
 // RuntimeBackend is the pluggable isolation boundary for sandbox lifecycle.
 // Any implementation satisfying this interface is a valid Agenova runtime

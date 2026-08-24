@@ -37,6 +37,10 @@ If the task touches Agent Sandbox behavior, run the integration gate when the re
 
 ## 4. Open a Reviewable PR
 
+The PR must pass the required `pr / baseline` GitHub check. This runs the
+repository gate plus the race detector on Linux; it does not replace
+task-specific evidence or real-backend evidence.
+
 Include:
 
 - what user-visible or contract behavior changed;
@@ -45,6 +49,23 @@ Include:
 - evidence location;
 - remaining risks or blockers;
 - confirmation that the change did not leak backend-specific types into shared APIs.
+
+## Contribution License and DCO
+
+All contributions are submitted under the repository's
+[Apache License 2.0](LICENSE).
+
+Every commit must include a `Signed-off-by` line certifying the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/). Use:
+
+```text
+git commit -s
+```
+
+The sign-off certifies that you created the contribution, or otherwise have
+the right to submit it under the project's license. It also records your name
+and email permanently in the public Git history. Do not submit confidential,
+employer-owned, or incompatibly licensed material.
 
 ## Definition of Done
 

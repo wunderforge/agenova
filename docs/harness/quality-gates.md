@@ -11,10 +11,31 @@ Choose the strongest gate that directly proves the task's acceptance criteria. `
 This checks:
 
 - current required docs and local Markdown links;
+- Apache-2.0 metadata, third-party attribution, SPDX source headers, and the public Go module path;
 - retired phase/personal-doc paths are absent;
 - stable architecture phrases and backend-neutral source boundaries;
-- Go formatting and `go test ./...`;
+- Go formatting, module consistency, `go vet`, and `go test ./...`;
 - the reference multi-agent E2E included in the Go test tree.
+
+## Pull Request Automation
+
+Every pull request to `main` runs the standard `pr / baseline` check defined in
+`.github/workflows/pr.yml`:
+
+```powershell
+./scripts/check.ps1 -All -Race
+```
+
+The additional race gate runs on the Linux CI runner. Local Windows
+environments with `CGO_ENABLED=0` should use `-All`; contributors with a
+working CGO toolchain may also run `-Race`.
+
+The workflow has read-only repository permissions, does not receive project
+secrets, cancels superseded runs for the same PR, and also verifies pushes to
+`main`.
+
+Configure the `main` branch ruleset to require `pr / baseline` before merging.
+The workflow alone runs the check but cannot make it mandatory.
 
 ## Focused Gates
 
@@ -35,6 +56,11 @@ Not part of the default gate because it requires an external cluster:
 ```
 
 A missing cluster is a blocker, not a passing backend result.
+
+The real-backend gate remains manual until cluster creation and Agent Sandbox
+installation are deterministic in CI. Adapter PRs must include its output or
+an explicit environment blocker; a passing `pr / baseline` proves only that
+the integration package compiles.
 
 ## Evidence Capture
 

@@ -3,6 +3,7 @@ param(
   [switch]$Docs,
   [switch]$Unit,
   [switch]$Integration,
+  [switch]$Race,
   [string]$KubeContext = "kind-agenova-k8s-lab",
   [string]$Namespace = "default"
 )
@@ -15,9 +16,13 @@ function Fail($Message) { throw "[fail] $Message" }
 
 function Test-RequiredDocs {
   $required = @(
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
     "README.md",
     "AGENTS.md",
     "CONTRIBUTING.md",
+    ".github/workflows/pr.yml",
     "docs/project-design.md",
     "docs/project-status.md",
     "docs/product/prd.md",
@@ -54,6 +59,47 @@ function Test-RequiredDocs {
   }
 
   Pass "current documentation set exists and retired paths are absent"
+}
+
+function Test-OpenSourceMetadata {
+  $license = Get-Content -LiteralPath (Join-Path $Root "LICENSE") -Raw
+  $notice = Get-Content -LiteralPath (Join-Path $Root "NOTICE") -Raw
+  $thirdParty = Get-Content -LiteralPath (Join-Path $Root "THIRD_PARTY_NOTICES.md") -Raw
+  $goMod = Get-Content -LiteralPath (Join-Path $Root "go.mod") -Raw
+
+  if ($license -notmatch "Apache License\s+Version 2\.0, January 2004") {
+    Fail "LICENSE is not the canonical Apache License 2.0 text"
+  }
+  if ($notice -notmatch "Copyright 2026 Dapeng Zhang and Agenova contributors") {
+    Fail "NOTICE is missing the Agenova copyright attribution"
+  }
+  foreach ($required in @("Kubernetes SIGs Agent Sandbox", "v0.4.6", "Apache-2.0")) {
+    if ($thirdParty -notmatch [regex]::Escape($required)) {
+      Fail "third-party notice missing: $required"
+    }
+  }
+  if ($goMod -notmatch "(?m)^module github\.com/wunderforge/agenova$") {
+    Fail "go.mod must use the public github.com/wunderforge/agenova module path"
+  }
+
+  $goFiles = Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.go |
+    Where-Object { $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp)[\\/]" }
+  $missingHeaders = @()
+  $legacyImports = @()
+  foreach ($file in $goFiles) {
+    $raw = Get-Content -LiteralPath $file.FullName -Raw
+    $relative = $file.FullName.Substring($Root.Length + 1)
+    if ($raw -notmatch "SPDX-License-Identifier: Apache-2\.0") {
+      $missingHeaders += $relative
+    }
+    if ($raw -match "github\.com/donozhang1992/agenova") {
+      $legacyImports += $relative
+    }
+  }
+
+  if ($missingHeaders) { Fail "Go files missing Apache-2.0 SPDX headers: $($missingHeaders -join ', ')" }
+  if ($legacyImports) { Fail "legacy Go module imports remain: $($legacyImports -join ', ')" }
+  Pass "open-source license, attribution, source headers, and module path are consistent"
 }
 
 function Test-ArchitectureText {
@@ -197,9 +243,25 @@ function Test-Go {
     }
     Pass "current Go files are formatted"
 
+    go mod tidy
+    if ($LASTEXITCODE -ne 0) { Fail "go mod tidy failed" }
+    git diff --exit-code -- go.mod go.sum
+    if ($LASTEXITCODE -ne 0) { Fail "go.mod or go.sum needs 'go mod tidy'" }
+    Pass "Go module metadata is tidy"
+
+    go vet ./...
+    if ($LASTEXITCODE -ne 0) { Fail "go vet ./... failed" }
+    Pass "go vet ./..."
+
     go test -count=1 ./...
     if ($LASTEXITCODE -ne 0) { Fail "go test ./... failed" }
     Pass "go test ./..."
+
+    if ($Race) {
+      go test -race -count=1 ./...
+      if ($LASTEXITCODE -ne 0) { Fail "go test -race ./... failed" }
+      Pass "go test -race ./..."
+    }
 
     go test -run '^$' -tags integration ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "Agent Sandbox integration package does not compile" }
@@ -230,6 +292,7 @@ if (-not ($All -or $Docs -or $Unit -or $Integration)) { $All = $true }
 
 if ($All -or $Docs) {
   Test-RequiredDocs
+  Test-OpenSourceMetadata
   Test-ArchitectureText
   Test-MarkdownLinks
   Test-RuntimeBoundary
