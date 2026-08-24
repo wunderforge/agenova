@@ -2,6 +2,23 @@
 
 Choose the strongest gate that directly proves the task's acceptance criteria. `-All` is the repository baseline, not a substitute for task-specific behavior evidence.
 
+## Shared Check Profiles
+
+Hooks and GitHub Actions route into the same `scripts/check.ps1` entry point.
+Concrete checks live once under `scripts/checks/`; callers select a profile
+instead of copying commands.
+
+| Profile | Caller | Scope |
+| --- | --- | --- |
+| `Fast` | Optional pre-commit hook | Staged whitespace/conflict markers, Go formatting, and SPDX headers |
+| `PR` | Pull requests to `main` | Full repository baseline plus the race detector |
+| `Main` | Pushes to `main` | The same baseline against the committed `main` SHA; artifact builds can extend this profile later |
+| `Backend` | Manual or scheduled real-environment lane | Full baseline plus the Agent Sandbox integration test |
+
+`-ChangedOnly` is valid only with `-Profile Fast`. PR and Main always validate
+the complete candidate repository. Existing focused switches remain supported
+for local use.
+
 ## Repository Baseline
 
 ```powershell
@@ -19,14 +36,16 @@ This checks:
 
 ## Pull Request Automation
 
-Every pull request to `main` runs the standard `pr / baseline` check defined in
-`.github/workflows/pr.yml`:
+Every pull request to `main` runs the standard `CI / baseline` check defined in
+`.github/workflows/ci.yml`:
 
 ```powershell
-./scripts/check.ps1 -All -Race
+./scripts/check.ps1 -Profile PR
 ```
 
-The additional race gate runs on the Linux CI runner. Local Windows
+Pushes to `main` use `-Profile Main`. Both profiles currently run the full
+repository baseline and race detector; the profile names keep trigger-specific
+delivery behavior explicit without duplicating validation logic. Local Windows
 environments with `CGO_ENABLED=0` should use `-All`; contributors with a
 working CGO toolchain may also run `-Race`.
 
@@ -34,7 +53,7 @@ The workflow has read-only repository permissions, does not receive project
 secrets, cancels superseded runs for the same PR, and also verifies pushes to
 `main`.
 
-Configure the `main` branch ruleset to require `pr / baseline` before merging.
+Configure the `main` branch ruleset to require `CI / baseline` before merging.
 The workflow alone runs the check but cannot make it mandatory.
 
 ## Focused Gates
@@ -49,10 +68,10 @@ The workflow alone runs the check but cannot make it mandatory.
 
 ## Agent Sandbox Integration
 
-Not part of the default gate because it requires an external cluster:
+Not part of the PR or Main profile because it requires an external cluster:
 
 ```powershell
-.\scripts\check.ps1 -Integration -KubeContext kind-agenova-k8s-lab
+.\scripts\check.ps1 -Profile Backend -KubeContext kind-agenova-k8s-lab
 ```
 
 A missing cluster is a blocker, not a passing backend result.
