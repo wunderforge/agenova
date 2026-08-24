@@ -21,6 +21,7 @@ foreach ($module in @(
   "repository.ps1",
   "docs.ps1",
   "architecture.ps1",
+  "contracts.ps1",
   "go.ps1",
   "backend.ps1"
 )) {
@@ -69,6 +70,7 @@ if ($All -or $Docs) {
   Test-ArchitectureText
   Test-MarkdownLinks
   Test-RuntimeBoundary
+  Test-DeliveryContracts
 }
 
 if ($All -or $Unit) {

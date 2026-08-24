@@ -4,9 +4,10 @@ Contributions should strengthen the shared MVP path without changing the product
 
 ## 1. Choose a Bounded Task
 
-Start from `tasks/task-template.md`. Every task needs:
+Create work with the GitHub MVP delivery ticket form. Use
+`tasks/task-template.md` only when a local task contract is needed. Every task needs:
 
-- one mission and owner;
+- one mission and parent Epic;
 - explicit in-scope and out-of-scope boundaries;
 - observable acceptance criteria;
 - exact quality gates and evidence;
@@ -46,6 +47,10 @@ remains authoritative.
 If the task touches Agent Sandbox behavior, run the integration gate when the required cluster is available. Do not replace real backend evidence with static YAML or a prose claim.
 
 ## 4. Open a Reviewable PR
+
+Start from `.github/pull_request_template.md`. CI rejects a PR body that leaves
+required content empty, omits a closing ticket link, lacks an exact verification
+result, or does not confirm backend neutrality.
 
 The PR must pass the required `CI / baseline` GitHub check. GitHub invokes the
 same repository entry point with the `PR` profile; it does not replace

@@ -8,6 +8,11 @@ Hooks and GitHub Actions route into the same `scripts/check.ps1` entry point.
 Concrete checks live once under `scripts/checks/`; callers select a profile
 instead of copying commands.
 
+Pull requests also run `scripts/check-pr-body.ps1` against the GitHub event body.
+This deterministic contract check requires a closing ticket link, completed
+sections, exact verification results, backend-neutrality confirmation, and
+explicit risks and blockers.
+
 | Profile | Caller | Scope |
 | --- | --- | --- |
 | `Fast` | Optional pre-commit hook | Staged whitespace/conflict markers, Go formatting, and SPDX headers |
