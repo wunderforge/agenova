@@ -1,0 +1,21 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "AgentTemplate",
+  "metadata": {"name": "engineer"},
+  "spec": {
+    "artifact": {"image": "ghcr.io/wunderforge/agenova-engineer:v0"},
+    "entrypoint": {"command": ["/agenova-agent", "run"]},
+    "defaults": {
+      "modelProfile": "approved-coding-model",
+      "memoryScopes": ["team-docs"]
+    },
+    "capabilityCeiling": {
+      "tools": ["git.read", "git.write", "github.pull-request"],
+      "resourceScopes": ["repo:acme/*"],
+      "modelProfiles": ["approved-coding-model"],
+      "memoryScopes": ["team-docs"],
+      "runtimeProfiles": ["standard-isolated"],
+      "maxTimeout": "30m"
+    }
+  }
+}

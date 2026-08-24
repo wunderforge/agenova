@@ -1,0 +1,32 @@
+{
+  "requestRef": "fix-payment-timeout-team-b",
+  "principal": {
+    "subject": "user:team-b-engineer",
+    "team": "team-b",
+    "authenticationContext": "upstream:test"
+  },
+  "action": {
+    "name": "claim.create",
+    "project": "payments",
+    "templateRef": "engineer"
+  },
+  "policyRef": {
+    "id": "reference-default-deny",
+    "version": "1"
+  },
+  "decision": {
+    "id": "decision:fix-payment-timeout-team-b:1",
+    "principalRef": "user:team-b-engineer",
+    "action": "claim.create",
+    "allowed": false,
+    "policyRef": {"id": "reference-default-deny", "version": "1"},
+    "reason": "team-b is not authorized for the payments project"
+  },
+  "evidence": {
+    "requestRef": "fix-payment-timeout-team-b",
+    "decisionIds": ["decision:fix-payment-timeout-team-b:1"],
+    "runtimeEvents": [],
+    "toolInvocations": [],
+    "modelInvocations": []
+  }
+}

@@ -48,6 +48,20 @@ Harness amendment:
 
 - Keep GitHub as the team tracker, require `AGENTS.md + PRD + task.md` as the Agent baseline, and scaffold one reviewable task packet per Ticket.
 
+## 2026-08-25 — Dependency changes confused the full gate
+
+What failed or slowed down:
+
+- `scripts/check.ps1 -All` reported that `go.mod` or `go.sum` needed `go mod tidy` even after tidy had run, because the intended dependency changes were still unstaged and the gate checks their working-tree diff.
+
+Root cause:
+
+- The full Go gate assumes normalized dependency changes are staged, but that precondition is not stated in the playbook or gate output.
+
+Harness amendment:
+
+- On the next harness-maintenance Ticket, either compare module files before and after `go mod tidy` without depending on Git staging state, or explicitly document the staging precondition.
+
 ## Escalation Rule
 
 - First occurrence: record a concise learning.

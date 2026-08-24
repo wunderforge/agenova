@@ -55,11 +55,11 @@ Out of scope:
 
 - [x] Scout the relevant implementation, tests, risks, dependencies, and downstream fixture consumers.
 - [x] Confirm this packet with the Owner and record independent review as a PR gate before implementation.
-- [ ] Add the v0 manifest and canonical Team A/Team B fixture inputs.
-- [ ] Add focused invalid template, request, and system-issued-state inputs.
-- [ ] Add the deterministic inventory/parse/equivalence/boundary tests.
-- [ ] Run the focused gate and `.\scripts\check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Add the v0 manifest and canonical Team A/Team B fixture inputs.
+- [x] Add focused invalid template, request, and system-issued-state inputs.
+- [x] Add the deterministic inventory/parse/equivalence/boundary tests.
+- [x] Run the focused gate and `.\scripts\check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -88,3 +88,10 @@ Out of scope:
 - Owner authorization: the project lead explicitly requested execution of E1-T1 on 2026-08-25 and will review the resulting PR.
 - Reviewer gate: independent review remains required on the PR before merge.
 - Blockers: none.
+
+## Verification Evidence
+
+- `go test -count=1 -v ./harness/fixtures/contract/v0` passed: 18 cases (5 valid, 13 invalid), all nine required contract shapes, and seven deliberate inventory-breakage subtests.
+- `.\scripts\check.ps1 -All` passed after module metadata was normalized and the scoped diff staged: docs/contracts, formatting, module tidy, `go vet`, all Go tests, and Agent Sandbox integration compilation.
+- Diff audit: no product Go type, runtime/backend adapter, PRD, architecture contract, or mutable project-status source changed.
+- Residual review point: E1-T2 through E1-T4 still own the exact public Go schemas and semantic validators; these fixtures intentionally do not claim that implementation is complete.

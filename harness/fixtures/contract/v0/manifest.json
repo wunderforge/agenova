@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "agenova.contract-fixtures/v0",
+  "cases": [
+    {
+      "id": "agent-template.valid.engineer",
+      "subject": "AgentTemplate",
+      "purpose": "Reusable engineer role with an artifact, entrypoint, defaults, and capability ceiling.",
+      "input": "inputs/agent-template/valid-engineer.json",
+      "format": "json",
+      "coverage": ["AgentTemplate"],
+      "expected": {"outcome": "valid"}
+    },
+    {
+      "id": "agent-template.invalid.missing-artifact",
+      "subject": "AgentTemplate",
+      "purpose": "Reject a template that has no runnable artifact reference.",
+      "input": "inputs/agent-template/invalid-missing-artifact.json",
+      "format": "json",
+      "coverage": ["AgentTemplate"],
+      "expected": {"outcome": "invalid", "category": "required-field"}
+    },
+    {
+      "id": "agent-template.invalid.missing-entrypoint",
+      "subject": "AgentTemplate",
+      "purpose": "Reject a template that has no artifact entrypoint.",
+      "input": "inputs/agent-template/invalid-missing-entrypoint.json",
+      "format": "json",
+      "coverage": ["AgentTemplate"],
+      "expected": {"outcome": "invalid", "category": "required-field"}
+    },
+    {
+      "id": "agent-template.invalid.capability-ceiling",
+      "subject": "AgentTemplate",
+      "purpose": "Reject a capability ceiling whose tools are not a list of scoped names.",
+      "input": "inputs/agent-template/invalid-capability-ceiling.json",
+      "format": "json",
+      "coverage": ["AgentTemplate"],
+      "expected": {"outcome": "invalid", "category": "invalid-capability-ceiling"}
+    },
+    {
+      "id": "agent-template.invalid.issued-authority",
+      "subject": "AgentTemplate",
+      "purpose": "Reject issued run authority embedded in a reusable template.",
+      "input": "inputs/agent-template/invalid-issued-authority.json",
+      "format": "json",
+      "coverage": ["AgentTemplate", "EffectiveAuthority"],
+      "expected": {"outcome": "invalid", "category": "system-managed-field"}
+    },
+    {
+      "id": "agent-template.invalid.secret-value",
+      "subject": "AgentTemplate",
+      "purpose": "Reject an external credential value embedded in a reusable template.",
+      "input": "inputs/agent-template/invalid-secret-value.json",
+      "format": "json",
+      "coverage": ["AgentTemplate"],
+      "expected": {"outcome": "invalid", "category": "secret-value"}
+    },
+    {
+      "id": "claim-request.valid.team-a-engineer-json",
+      "subject": "ClaimRequest",
+      "purpose": "API JSON form of the canonical Team A engineer payment-timeout request.",
+      "input": "inputs/claim-request/valid-team-a-engineer.json",
+      "format": "json",
+      "coverage": ["ClaimRequest"],
+      "expected": {"outcome": "valid"}
+    },
+    {
+      "id": "claim-request.valid.team-a-engineer-yaml",
+      "subject": "ClaimRequest",
+      "purpose": "YAML form of the canonical Team A engineer payment-timeout request.",
+      "input": "inputs/claim-request/valid-team-a-engineer.yaml",
+      "format": "yaml",
+      "coverage": ["ClaimRequest"],
+      "equivalentTo": "claim-request.valid.team-a-engineer-json",
+      "expected": {"outcome": "valid"}
+    },
+    {
+      "id": "claim-request.invalid.missing-template",
+      "subject": "ClaimRequest",
+      "purpose": "Reject a request that does not select a reusable agent template.",
+      "input": "inputs/claim-request/invalid-missing-template.json",
+      "format": "json",
+      "coverage": ["ClaimRequest"],
+      "expected": {"outcome": "invalid", "category": "required-field"}
+    },
+    {
+      "id": "claim-request.invalid.missing-task",
+      "subject": "ClaimRequest",
+      "purpose": "Reject a request with no task definition.",
+      "input": "inputs/claim-request/invalid-missing-task.json",
+      "format": "json",
+      "coverage": ["ClaimRequest"],
+      "expected": {"outcome": "invalid", "category": "required-field"}
+    },
+    {
+      "id": "claim-request.invalid.missing-runtime",
+      "subject": "ClaimRequest",
+      "purpose": "Reject a request with no backend-neutral runtime requirements.",
+      "input": "inputs/claim-request/invalid-missing-runtime.json",
+      "format": "json",
+      "coverage": ["ClaimRequest"],
+      "expected": {"outcome": "invalid", "category": "required-field"}
+    },
+    {
+      "id": "claim-request.invalid.self-asserted-principal",
+      "subject": "ClaimRequest",
+      "purpose": "Reject caller-controlled authoritative principal data in the request.",
+      "input": "inputs/claim-request/invalid-self-asserted-principal.json",
+      "format": "json",
+      "coverage": ["ClaimRequest", "Principal"],
+      "expected": {"outcome": "invalid", "category": "self-asserted-principal"}
+    },
+    {
+      "id": "claim-request.invalid.secret-value",
+      "subject": "ClaimRequest",
+      "purpose": "Reject an external credential value in the request.",
+      "input": "inputs/claim-request/invalid-secret-value.json",
+      "format": "json",
+      "coverage": ["ClaimRequest"],
+      "expected": {"outcome": "invalid", "category": "secret-value"}
+    },
+    {
+      "id": "issued-state.valid.team-a-engineer",
+      "subject": "IssuedState",
+      "purpose": "System-issued Team A engineer authority, running claim, decision, and evidence snapshot.",
+      "input": "inputs/issued-state/valid-team-a-engineer.json",
+      "format": "json",
+      "coverage": ["Principal", "Action", "PolicyReference", "EffectiveAuthority", "SandboxClaim", "Decision", "Evidence"],
+      "expected": {"outcome": "valid"}
+    },
+    {
+      "id": "issued-state.valid.team-b-denial",
+      "subject": "IssuedState",
+      "purpose": "Pre-claim Team B denial evidence with no fabricated claim or backend allocation.",
+      "input": "inputs/issued-state/valid-team-b-denial.json",
+      "format": "json",
+      "coverage": ["Principal", "Action", "PolicyReference", "Decision", "Evidence"],
+      "expected": {"outcome": "valid"}
+    },
+    {
+      "id": "issued-state.invalid.caller-effective-authority",
+      "subject": "IssuedState",
+      "purpose": "Reject caller-supplied effective authority.",
+      "input": "inputs/issued-state/invalid-caller-effective-authority.json",
+      "format": "json",
+      "coverage": ["EffectiveAuthority"],
+      "expected": {"outcome": "invalid", "category": "system-managed-field"}
+    },
+    {
+      "id": "issued-state.invalid.caller-claim-phase",
+      "subject": "IssuedState",
+      "purpose": "Reject a caller-supplied claim lifecycle phase.",
+      "input": "inputs/issued-state/invalid-caller-claim-phase.json",
+      "format": "json",
+      "coverage": ["SandboxClaim"],
+      "expected": {"outcome": "invalid", "category": "system-managed-field"}
+    },
+    {
+      "id": "issued-state.invalid.caller-backend-identity",
+      "subject": "IssuedState",
+      "purpose": "Reject caller-supplied backend identity.",
+      "input": "inputs/issued-state/invalid-caller-backend-identity.json",
+      "format": "json",
+      "coverage": ["SandboxClaim"],
+      "expected": {"outcome": "invalid", "category": "system-managed-field"}
+    }
+  ]
+}

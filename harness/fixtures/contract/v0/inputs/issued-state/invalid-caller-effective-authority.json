@@ -1,0 +1,8 @@
+{
+  "source": "caller",
+  "requestRef": "fix-payment-timeout",
+  "effectiveAuthority": {
+    "tools": ["git.write"],
+    "resourceScopes": ["repo:acme/payments"]
+  }
+}
