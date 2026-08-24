@@ -58,7 +58,7 @@ Out of scope:
 - [x] Optimize `AGENTS.md` for minimal execution context.
 - [x] Add and mechanically test the task scaffolder.
 - [x] Run the focused gate and `./scripts/check.ps1 -All` after final review edits.
-- [ ] Update PR #73 and Issue #71 with final evidence.
+- [x] Prepare final PR #73 and Issue #71 evidence.
 
 ## Quality Gates
 
