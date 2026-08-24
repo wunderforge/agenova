@@ -5,7 +5,9 @@ package v1alpha1
 
 import "time"
 
-type ObjectMeta struct { Name string }
+type ObjectMeta struct {
+	Name string
+}
 
 type AgentSandboxTemplate struct {
 	Metadata ObjectMeta
