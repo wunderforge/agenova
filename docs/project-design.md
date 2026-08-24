@@ -135,6 +135,8 @@ agenova run -f tasks/fix-payment-timeout.yaml
 
 YAML is only one representation of these Agenova contracts. The same objects may be submitted as API JSON, and they do not have to be Kubernetes resources.
 
+The MVP also targets a separate `agenova install -f <installation.yaml>` operator path for an existing test cluster. Sharing one executable does not make the two commands equally privileged: `run` is an untrusted task-submission client, while `install` relies on the operator's existing Kubernetes identity and RBAC. The installation file may seed Agenova's first policy for later actions, but it cannot authorize its own bootstrap operation or contain cluster credentials.
+
 ### Resolve the request into a run
 
 The request asks for access; it does not grant access. Agenova checks the request against the template and applicable policies before it creates the system-managed claim.
@@ -280,7 +282,7 @@ register one AgentTemplate
   -> repeat the supported runtime slice on one real backend
 ```
 
-The primary demo surfaces are a usable CLI and a small claim/evidence view. A later engineer/reviewer example may add a child claim with authority constrained by its parent; this demonstrates multi-agent accountability, not workflow DAG scheduling.
+The primary product surfaces are a usable CLI and a live read-only claim console. The console obtains the same backend-neutral evidence representation through a minimal API; it does not define a UI-specific claim or policy model and does not provide mutation controls. A later engineer/reviewer example may add a child claim with authority constrained by its parent; this demonstrates multi-agent accountability, not workflow DAG scheduling.
 
 ### What exists today
 
