@@ -16,11 +16,15 @@ Agenova provides a **claim-scoped governance contract** for reusable agent work.
 ## Submission and Resolution
 
 - `ClaimRequest` is the application-facing declaration of one task, requested access, and backend-neutral runtime requirements.
+- Caller identity comes from a trusted upstream authentication boundary and must not be self-declared as authoritative data in `ClaimRequest`.
+- Possessing or invoking the Agenova CLI grants no authority; Agenova authorizes the caller's action, project, and template at the trusted application boundary.
+- A denied submission must not create a claim or allocate a runtime backend.
 - Task input does not grant resource access; requested resource scopes must be resolved through the same authority rules as tools, models, and memory.
 - YAML, API JSON, and a future `agenova run -f <file>` command must use the same request schema.
 - The task remains embedded in `ClaimRequest` for the MVP; a standalone Task resource requires a separately justified lifecycle.
 - `SandboxClaim` is the system-managed record of one resolved worker run. Callers do not self-issue claim status or effective authority.
 - Request resolution precedes claim creation and must remain backend-neutral.
+- The MVP may use a static, versioned, default-deny reference policy bundle. Identity-provider integration and self-service policy administration are separate concerns.
 
 ## Backend Neutrality
 
@@ -68,6 +72,21 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 - Facts must be attributable to the correct claim and must not be cross-assigned between workers.
 - Parent/child claims express authority scope and accountability.
 - Claim lineage must not grow into workflow scheduling without a separately approved product scope.
+
+## Evidence Surfaces
+
+- CLI JSON, the read-only evidence API, and the React console must consume the same backend-neutral evidence representation.
+- An API or UI may transport, validate, and render governance evidence; it must not create a second claim, policy, decision, or evidence model.
+- The MVP console is read-only. Claim mutation, policy editing, workflow control, and broad administration require separately approved scope.
+- A reference evidence endpoint must bind locally or internally by default and must not be exposed publicly without an upstream authentication boundary.
+
+## Reference Installation and Bootstrap
+
+- The MVP install path targets an existing, explicitly selected test cluster; Agenova does not create the cluster.
+- The caller's existing Kubernetes authentication and RBAC authorize installation mutations. An installation file or `ClaimRequest` cannot grant that privilege.
+- Installation may seed the first versioned Agenova PolicyBundle. That bundle governs later Agenova control-plane actions; it does not retroactively authorize the bootstrap operation that installed it.
+- The supported reference install must be idempotent and must not require embedding administrative credentials in the Agenova CLI or configuration.
+- Production upgrades, rollback, high availability, multi-cluster administration, and general policy management require separately approved scope.
 
 ## Scope Discipline
 
