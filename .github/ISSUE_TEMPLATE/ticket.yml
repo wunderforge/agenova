@@ -1,0 +1,84 @@
+name: MVP delivery ticket
+description: Propose one independently verifiable unit of Agenova MVP work.
+title: "[E?-T?] "
+labels:
+  - type:ticket
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the ticket bounded to one observable outcome. Project status, priority, and ownership belong in GitHub fields, not in this body.
+
+  - type: input
+    id: parent_epic
+    attributes:
+      label: Parent Epic
+      description: Link the GitHub Epic that owns this work.
+      placeholder: "#4 (E0)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mvp_path_outcome
+    attributes:
+      label: MVP-path outcome
+      description: State which step in the golden flow becomes observably better and why it matters.
+      placeholder: A contributor can...
+    validations:
+      required: true
+
+  - type: textarea
+    id: in_scope
+    attributes:
+      label: In scope
+      description: List only the behavior and files this ticket is expected to change.
+      placeholder: "- ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Name the nearest tempting work that this ticket must not absorb.
+      placeholder: "- ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance criteria
+      description: Describe results a reviewer can observe or reproduce.
+      placeholder: "- Given..., when..., then..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: negative_case
+    attributes:
+      label: Negative case
+      description: Name at least one invalid, denied, or failing behavior that must be demonstrated.
+      placeholder: "- The check rejects..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: quality_gates
+    attributes:
+      label: Quality gates
+      description: List the exact focused and repository commands that must pass.
+      placeholder: |-
+        - `go test ./path/...`
+        - `./scripts/check.ps1 -All`
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence required
+      description: State the reproducible command output, artifact, E2E flow, or explicit blocker required for completion.
+      placeholder: "- Command output showing..."
+    validations:
+      required: true

@@ -6,6 +6,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "checks/contracts.ps1")
+
+Assert-NonBlankEvidenceInput -Name "Ticket" -Value $Ticket
+Assert-NonBlankEvidenceInput -Name "Gate" -Value $Gate
+Assert-NonBlankEvidenceInput -Name "Command" -Value $Command
+
 $safeTicket = $Ticket -replace "[^A-Za-z0-9._-]", "-"
 $safeGate = $Gate -replace "[^A-Za-z0-9._-]", "-"
 $outDir = Join-Path $Root "docs/evidence/$safeTicket/$safeGate"
@@ -42,11 +48,14 @@ try {
   powershell -NoProfile -ExecutionPolicy Bypass -Command $wrapped *>&1 |
     Tee-Object -FilePath $output
 
-  $result = if ($LASTEXITCODE -eq 0) { "pass" } else { "fail" }
+  $commandExitCode = $LASTEXITCODE
+  $capturedOutput = if (Test-Path -LiteralPath $output) { Get-Content -LiteralPath $output -Raw } else { "" }
+  $result = if ($commandExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($capturedOutput)) { "pass" } else { "fail" }
   $raw = Get-Content -LiteralPath $summary -Raw
   ($raw -replace "Result: pending", "Result: $result") | Set-Content -LiteralPath $summary -Encoding UTF8
 
-  if ($LASTEXITCODE -ne 0) { throw "evidence command failed: $Command" }
+  if ($commandExitCode -ne 0) { throw "evidence command failed: $Command" }
+  Assert-NonBlankEvidenceOutput -Value $capturedOutput
   Write-Host "[pass] evidence captured at $outDir"
 }
 finally {

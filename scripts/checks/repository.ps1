@@ -8,6 +8,9 @@ function Test-RequiredDocs {
     "CONTRIBUTING.md",
     ".github/workflows/ci.yml",
     ".githooks/pre-commit",
+    ".github/ISSUE_TEMPLATE/ticket.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/pull_request_template.md",
     "docs/project-design.md",
     "docs/project-status.md",
     "docs/product/prd.md",
@@ -22,8 +25,10 @@ function Test-RequiredDocs {
     "scripts/checks/repository.ps1",
     "scripts/checks/docs.ps1",
     "scripts/checks/architecture.ps1",
+    "scripts/checks/contracts.ps1",
     "scripts/checks/go.ps1",
     "scripts/checks/backend.ps1",
+    "scripts/check-pr-body.ps1",
     "tasks/task-template.md"
   )
 

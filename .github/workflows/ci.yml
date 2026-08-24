@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   workflow_dispatch:
@@ -34,6 +35,13 @@ jobs:
           go-version-file: go.mod
           check-latest: false
           cache: true
+
+      - name: Validate PR delivery contract
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          AGENOVA_PR_BODY: ${{ github.event.pull_request.body }}
+        run: ./scripts/check-pr-body.ps1 -Body $env:AGENOVA_PR_BODY
 
       - name: Run shared repository quality gate
         shell: pwsh

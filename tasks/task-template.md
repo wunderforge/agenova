@@ -1,9 +1,9 @@
 # Task
 
 - Mission: <smallest outcome and why it matters>
-- Owner: <name>
+- Parent Epic: <GitHub Epic link>
 - Target: <modules/files if known>
-- MVP path: <which step in the golden flow improves>
+- MVP-path outcome: <which observable step in the golden flow improves>
 
 ## Scope
 
@@ -18,7 +18,10 @@ Out of scope:
 ## Acceptance Criteria
 
 - <observable result>
-- <important negative case>
+
+## Negative Case
+
+- <invalid, denied, or failing behavior that must be demonstrated>
 
 ## Quality Gates
 
@@ -27,7 +30,7 @@ Out of scope:
 
 ## Evidence Required
 
-- <test output, E2E flow, integration output, or rendered artifact>
+- <exact test output, E2E flow, integration output, rendered artifact, or explicit blocker>
 
 ## Constraints
 
