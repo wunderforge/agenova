@@ -40,7 +40,7 @@
     "id": "decision:fix-payment-timeout:1",
     "principalRef": "user:team-a-engineer",
     "action": "claim.create",
-    "allowed": true,
+    "result": "Allow",
     "policyRef": {"id": "reference-default-deny", "version": "1"},
     "reason": "team-a may create the engineer assignment for the payments project"
   },

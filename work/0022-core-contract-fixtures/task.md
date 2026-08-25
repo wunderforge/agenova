@@ -44,6 +44,7 @@ Out of scope:
 - Human-authored AgentTemplate cases use YAML; ClaimRequest has a canonical YAML input plus equivalent API JSON; system-issued state and evidence use JSON.
 - The fixture set covers `AgentTemplate`, trusted `Principal`, action, `ClaimRequest`, policy reference, effective authority, `SandboxClaim`, decision, and evidence shapes.
 - Stable positive cases represent the Team A engineer request and issued claim; a Team B denial represents inspectable evidence without a fabricated claim.
+- Issued-state decisions use a typed `result` rather than a boolean flag; these claim-issuance fixtures exercise `Allow` and `Deny` without inventing the separate approval lifecycle.
 - Focused invalid cases cover missing/malformed template input, missing/unsafe request input, and caller-supplied system-managed state with stable error categories.
 - Case IDs and input paths are unique, expected outcomes are explicit, the YAML/JSON request pair is equivalent, and provider-specific vocabulary or secret-like values fail the inventory test.
 - No reusable conformance runner or product validation logic is introduced.
@@ -86,6 +87,7 @@ Out of scope:
 - Planning depth: Task + Spec because the fixtures define shared behavior consumed by multiple delivery lanes; no Design is needed because the versioned manifest/raw-input layout has one bounded implementation approach.
 - Decision: use a small JSON manifest plus raw JSON/YAML product inputs. The manifest owns case metadata; raw inputs remain directly consumable by downstream tests.
 - Decision: error categories describe expected semantic rejection without implementing validators in this Ticket.
+- Decision: authorization outcomes use a typed result so downstream contracts are not frozen to a binary boolean; `ApprovalRequired` behavior remains owned by the later governed-invocation approval ticket.
 - Owner authorization: the project lead explicitly requested execution of E1-T1 on 2026-08-25 and will review the resulting PR.
 - Reviewer gate: independent review remains required on the PR before merge.
 - Blockers: none.

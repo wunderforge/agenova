@@ -30,6 +30,7 @@ Give contract producers and fixture-first consumers one provider-neutral v0 exam
 - Given the canonical request YAML and API JSON cases, when normalized as data, then they are semantically equal.
 - Given the fixture inventory, when coverage is aggregated, then it includes `AgentTemplate`, `Principal`, `Action`, `ClaimRequest`, `PolicyReference`, `EffectiveAuthority`, `SandboxClaim`, `Decision`, and `Evidence`.
 - Given the canonical Team A scenario, when downstream work selects fixtures by stable ID, then it can load the engineer template, both request encodings, and one issued-state snapshot without copying those files.
+- Given an authorization decision in issued state, then its outcome is represented by a typed `result` (`Allow` or `Deny` in these v0 cases), not an `allowed` boolean. `ApprovalRequired` is reserved for the governed-invocation contract and lifecycle owned by CAG-T3 rather than simulated by these claim-issuance fixtures.
 - Given a Team B denial, when evidence is inspected, then it has request/decision correlation and no fabricated claim ID or backend allocation.
 - Given template negatives, then cases exist for missing artifact, missing entrypoint, malformed capability ceiling, embedded issued authority, and a secret-value field.
 - Given request negatives, then cases exist for missing template, task, or runtime data; self-asserted principal; and an external secret-value field.

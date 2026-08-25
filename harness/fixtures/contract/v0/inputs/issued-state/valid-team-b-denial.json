@@ -18,7 +18,7 @@
     "id": "decision:fix-payment-timeout-team-b:1",
     "principalRef": "user:team-b-engineer",
     "action": "claim.create",
-    "allowed": false,
+    "result": "Deny",
     "policyRef": {"id": "reference-default-deny", "version": "1"},
     "reason": "team-b is not authorized for the payments project"
   },

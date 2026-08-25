@@ -391,15 +391,19 @@ func validateScenarioInvariants(decoded map[string]any) error {
 		}
 	}
 
+	issued := decoded["issued-state.valid.team-a-engineer"].(map[string]any)
+	if err := requireDecisionResult(issued, "Allow"); err != nil {
+		return fmt.Errorf("Team A issued state: %w", err)
+	}
+
 	denial := decoded["issued-state.valid.team-b-denial"].(map[string]any)
 	for _, forbidden := range []string{"claim", "effectiveAuthority", "backendIdentity"} {
 		if _, ok := denial[forbidden]; ok {
 			return fmt.Errorf("pre-claim denial contains fabricated field %s", forbidden)
 		}
 	}
-	decision := denial["decision"].(map[string]any)
-	if allowed, ok := decision["allowed"].(bool); !ok || allowed {
-		return errors.New("pre-claim denial decision must be allowed=false")
+	if err := requireDecisionResult(denial, "Deny"); err != nil {
+		return fmt.Errorf("pre-claim denial: %w", err)
 	}
 	evidence := denial["evidence"].(map[string]any)
 	for _, forbidden := range []string{"claimId", "backendIdentity"} {
@@ -408,6 +412,21 @@ func validateScenarioInvariants(decoded map[string]any) error {
 		}
 	}
 
+	return nil
+}
+
+func requireDecisionResult(state map[string]any, want string) error {
+	decision, ok := state["decision"].(map[string]any)
+	if !ok {
+		return errors.New("decision must be an object")
+	}
+	if _, ok := decision["allowed"]; ok {
+		return errors.New("decision must use typed result instead of allowed boolean")
+	}
+	result, ok := decision["result"].(string)
+	if !ok || result != want {
+		return fmt.Errorf("decision result = %v, want %s", decision["result"], want)
+	}
 	return nil
 }
 
