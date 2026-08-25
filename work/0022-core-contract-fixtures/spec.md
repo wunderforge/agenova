@@ -12,8 +12,9 @@ Give contract producers and fixture-first consumers one provider-neutral v0 exam
 - `harness/fixtures/contract/v0/manifest.json` with `schemaVersion` and a `cases` array.
 - Each case records `id`, `subject`, `purpose`, `input`, `format`, `coverage`, and `expected`.
 - `expected.outcome` is `valid` or `invalid`; invalid cases also carry one stable `expected.category`.
+- YAML `AgentTemplate` inputs for human-authored reusable configuration.
 - A valid YAML `ClaimRequest` and equivalent API JSON input for the payment-timeout scenario.
-- Valid Team A engineer `AgentTemplate` and issued-state inputs, plus valid Team B pre-claim denial evidence.
+- JSON system-issued-state inputs for the Team A claim and Team B pre-claim denial evidence.
 - Focused negative inputs named by E1-T2, E1-T3, and E1-T4.
 
 ## Out of Scope
@@ -25,6 +26,7 @@ Give contract producers and fixture-first consumers one provider-neutral v0 exam
 ## Requirements
 
 - Given the manifest, when inventory tests run, then every case ID and input path is unique, every file parses in its declared format, every purpose/coverage/expectation is non-empty, and invalid cases name an error category.
+- Given the format boundary, when fixtures are reviewed, then human-authored AgentTemplate and ClaimRequest configuration is represented as YAML, ClaimRequest API equivalence is represented as JSON, and system-issued state/evidence is represented as JSON.
 - Given the canonical request YAML and API JSON cases, when normalized as data, then they are semantically equal.
 - Given the fixture inventory, when coverage is aggregated, then it includes `AgentTemplate`, `Principal`, `Action`, `ClaimRequest`, `PolicyReference`, `EffectiveAuthority`, `SandboxClaim`, `Decision`, and `Evidence`.
 - Given the canonical Team A scenario, when downstream work selects fixtures by stable ID, then it can load the engineer template, both request encodings, and one issued-state snapshot without copying those files.

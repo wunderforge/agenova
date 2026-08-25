@@ -1,0 +1,9 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: engineer
+spec:
+  entrypoint:
+    command: [/agenova-agent, run]
+  capabilityCeiling:
+    tools: [git.read]

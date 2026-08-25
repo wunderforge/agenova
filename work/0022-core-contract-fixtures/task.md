@@ -29,7 +29,7 @@ Additional task-specific context:
 In scope:
 
 - A versioned JSON manifest that assigns every case a stable ID, subject, purpose, input path/format, coverage, and expected valid result or invalid error category.
-- Raw JSON/YAML inputs for the canonical Team A engineer template/request/issued state, a pre-claim Team B denial, and focused invalid variants required by E1-T2 through E1-T4.
+- YAML inputs for human-authored AgentTemplate and ClaimRequest configuration, equivalent ClaimRequest API JSON, JSON system-issued state/evidence, and focused invalid variants required by E1-T2 through E1-T4.
 - Inventory tests that parse all inputs, reject duplicate or malformed metadata, prove the canonical YAML/API JSON pair is semantically equivalent, verify required coverage/cases, and scan for backend vocabulary or secret-like values.
 
 Out of scope:
@@ -41,6 +41,7 @@ Out of scope:
 ## Acceptance Criteria
 
 - `harness/fixtures/contract/v0/manifest.json` is the canonical inventory and all referenced JSON/YAML inputs parse.
+- Human-authored AgentTemplate cases use YAML; ClaimRequest has a canonical YAML input plus equivalent API JSON; system-issued state and evidence use JSON.
 - The fixture set covers `AgentTemplate`, trusted `Principal`, action, `ClaimRequest`, policy reference, effective authority, `SandboxClaim`, decision, and evidence shapes.
 - Stable positive cases represent the Team A engineer request and issued claim; a Team B denial represents inspectable evidence without a fabricated claim.
 - Focused invalid cases cover missing/malformed template input, missing/unsafe request input, and caller-supplied system-managed state with stable error categories.

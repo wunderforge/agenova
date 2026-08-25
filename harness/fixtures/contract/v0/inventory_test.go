@@ -93,7 +93,7 @@ func TestFixtureInventoryRejectsBrokenContracts(t *testing.T) {
 			name: "unreadable input",
 			want: "parse fixture",
 			mutate: func(t *testing.T, root string) {
-				writeFixture(t, root, "inputs/agent-template/valid-engineer.json", []byte(`{"broken":`))
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("spec: [broken"))
 			},
 		},
 		{
@@ -126,14 +126,14 @@ func TestFixtureInventoryRejectsBrokenContracts(t *testing.T) {
 			name: "provider vocabulary",
 			want: "provider vocabulary",
 			mutate: func(t *testing.T, root string) {
-				writeFixture(t, root, "inputs/agent-template/valid-engineer.json", []byte(`{"provider":"kubernetes"}`))
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("provider: kubernetes\n"))
 			},
 		},
 		{
 			name: "secret-like value",
 			want: "secret-like value",
 			mutate: func(t *testing.T, root string) {
-				writeFixture(t, root, "inputs/agent-template/valid-engineer.json", []byte(`{"token":"ghp_01234567890123456789"}`))
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("token: ghp_01234567890123456789\n"))
 			},
 		},
 	}
