@@ -1,0 +1,20 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: fix-payment-timeout
+spec:
+  templateRef: engineer
+  task:
+    type: repository-change
+    input:
+      repository: acme/payments
+      objective: Fix the payment timeout bug
+      baseBranch: main
+  requestedAccess:
+    tools: [git.read, git.write, github.pull-request]
+    resourceScopes: [repo:acme/payments]
+    modelProfile: approved-coding-model
+    memoryScopes: [team-docs]
+  runtime:
+    profileRef: standard-isolated
+    timeout: 20m
