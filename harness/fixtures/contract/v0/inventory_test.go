@@ -27,9 +27,10 @@ var (
 	caseIDPattern = regexp.MustCompile(`^[a-z0-9]+(?:[.-][a-z0-9]+)*$`)
 	providerTerms = regexp.MustCompile(`(?i)(kubernetes|agents\.x-k8s\.io|\bpod\b|\bnamespace\b|runtimeclass|\be2b\b|daytona|fargate)`)
 	secretTerms   = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\bghp_[a-z0-9]{20,}\b`),
-		regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),
-		regexp.MustCompile(`\bsk-[A-Za-z0-9]{20,}\b`),
+		regexp.MustCompile(`(?i)\bgh[pousr]_[a-z0-9]{20,}\b`),
+		regexp.MustCompile(`(?i)\bgithub_pat_[a-z0-9_]{20,}\b`),
+		regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`),
+		regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{20,}\b`),
 		regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----`),
 	}
 )
@@ -53,6 +54,33 @@ type fixtureCase struct {
 type fixtureExpected struct {
 	Outcome  string `json:"outcome"`
 	Category string `json:"category,omitempty"`
+}
+
+type requiredCaseContract struct {
+	Subject  string
+	Outcome  string
+	Category string
+}
+
+var requiredCases = map[string]requiredCaseContract{
+	"agent-template.valid.engineer":                   {Subject: "AgentTemplate", Outcome: "valid"},
+	"agent-template.invalid.missing-artifact":         {Subject: "AgentTemplate", Outcome: "invalid", Category: "required-field"},
+	"agent-template.invalid.missing-entrypoint":       {Subject: "AgentTemplate", Outcome: "invalid", Category: "required-field"},
+	"agent-template.invalid.capability-ceiling":       {Subject: "AgentTemplate", Outcome: "invalid", Category: "invalid-capability-ceiling"},
+	"agent-template.invalid.issued-authority":         {Subject: "AgentTemplate", Outcome: "invalid", Category: "system-managed-field"},
+	"agent-template.invalid.secret-value":             {Subject: "AgentTemplate", Outcome: "invalid", Category: "secret-value"},
+	"claim-request.valid.team-a-engineer-json":        {Subject: "ClaimRequest", Outcome: "valid"},
+	"claim-request.valid.team-a-engineer-yaml":        {Subject: "ClaimRequest", Outcome: "valid"},
+	"claim-request.invalid.missing-template":          {Subject: "ClaimRequest", Outcome: "invalid", Category: "required-field"},
+	"claim-request.invalid.missing-task":              {Subject: "ClaimRequest", Outcome: "invalid", Category: "required-field"},
+	"claim-request.invalid.missing-runtime":           {Subject: "ClaimRequest", Outcome: "invalid", Category: "required-field"},
+	"claim-request.invalid.self-asserted-principal":   {Subject: "ClaimRequest", Outcome: "invalid", Category: "self-asserted-principal"},
+	"claim-request.invalid.secret-value":              {Subject: "ClaimRequest", Outcome: "invalid", Category: "secret-value"},
+	"issued-state.valid.team-a-engineer":              {Subject: "IssuedState", Outcome: "valid"},
+	"issued-state.valid.team-b-denial":                {Subject: "IssuedState", Outcome: "valid"},
+	"issued-state.invalid.caller-effective-authority": {Subject: "IssuedState", Outcome: "invalid", Category: "system-managed-field"},
+	"issued-state.invalid.caller-claim-phase":         {Subject: "IssuedState", Outcome: "invalid", Category: "system-managed-field"},
+	"issued-state.invalid.caller-backend-identity":    {Subject: "IssuedState", Outcome: "invalid", Category: "system-managed-field"},
 }
 
 func TestFixtureInventory(t *testing.T) {
@@ -86,6 +114,36 @@ func TestFixtureInventoryRejectsBrokenContracts(t *testing.T) {
 			mutate: func(t *testing.T, root string) {
 				manifest := readManifestForMutation(t, root)
 				manifest.Cases[0].Expected.Outcome = ""
+				writeManifest(t, root, manifest)
+			},
+		},
+		{
+			name: "required case subject drift",
+			want: "subject",
+			mutate: func(t *testing.T, root string) {
+				manifest := readManifestForMutation(t, root)
+				fixture := fixtureCaseForMutation(t, &manifest, "agent-template.valid.engineer")
+				fixture.Subject = "ClaimRequest"
+				writeManifest(t, root, manifest)
+			},
+		},
+		{
+			name: "required case outcome drift",
+			want: "outcome",
+			mutate: func(t *testing.T, root string) {
+				manifest := readManifestForMutation(t, root)
+				fixture := fixtureCaseForMutation(t, &manifest, "agent-template.invalid.missing-artifact")
+				fixture.Expected = fixtureExpected{Outcome: "valid"}
+				writeManifest(t, root, manifest)
+			},
+		},
+		{
+			name: "required case category drift",
+			want: "category",
+			mutate: func(t *testing.T, root string) {
+				manifest := readManifestForMutation(t, root)
+				fixture := fixtureCaseForMutation(t, &manifest, "agent-template.invalid.missing-artifact")
+				fixture.Expected.Category = "invalid-capability-ceiling"
 				writeManifest(t, root, manifest)
 			},
 		},
@@ -130,10 +188,31 @@ func TestFixtureInventoryRejectsBrokenContracts(t *testing.T) {
 			},
 		},
 		{
-			name: "secret-like value",
+			name: "GitHub classic secret-like value",
 			want: "secret-like value",
 			mutate: func(t *testing.T, root string) {
 				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("token: ghp_01234567890123456789\n"))
+			},
+		},
+		{
+			name: "GitHub fine-grained secret-like value",
+			want: "secret-like value",
+			mutate: func(t *testing.T, root string) {
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("token: github_pat_012345678901234567890123\n"))
+			},
+		},
+		{
+			name: "OpenAI project secret-like value",
+			want: "secret-like value",
+			mutate: func(t *testing.T, root string) {
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("token: sk-proj-012345678901234567890123\n"))
+			},
+		},
+		{
+			name: "AWS temporary access key-like value",
+			want: "secret-like value",
+			mutate: func(t *testing.T, root string) {
+				writeFixture(t, root, "inputs/agent-template/valid-engineer.yaml", []byte("accessKeyId: ASIA0123456789ABCDEF\n"))
 			},
 		},
 	}
@@ -249,10 +328,8 @@ func validateFixtureTree(root string) error {
 		decodedByID[fixture.ID] = decoded
 	}
 
-	for _, id := range requiredCaseIDs() {
-		if _, ok := seenIDs[id]; !ok {
-			return fmt.Errorf("required case %s is missing", id)
-		}
+	if err := validateRequiredCases(caseByID); err != nil {
+		return err
 	}
 	for shape := range allowedCoverage {
 		if _, ok := coverage[shape]; !ok {
@@ -293,6 +370,26 @@ func validateExpected(fixture fixtureCase) error {
 		}
 	default:
 		return fmt.Errorf("case %s has invalid or missing expected outcome %q", fixture.ID, fixture.Expected.Outcome)
+	}
+	return nil
+}
+
+func validateRequiredCases(actual map[string]fixtureCase) error {
+	for _, id := range requiredCaseIDs() {
+		fixture, ok := actual[id]
+		if !ok {
+			return fmt.Errorf("required case %s is missing", id)
+		}
+		want := requiredCases[id]
+		if fixture.Subject != want.Subject {
+			return fmt.Errorf("required case %s subject = %q, want %q", id, fixture.Subject, want.Subject)
+		}
+		if fixture.Expected.Outcome != want.Outcome {
+			return fmt.Errorf("required case %s outcome = %q, want %q", id, fixture.Expected.Outcome, want.Outcome)
+		}
+		if fixture.Expected.Category != want.Category {
+			return fmt.Errorf("required case %s category = %q, want %q", id, fixture.Expected.Category, want.Category)
+		}
 	}
 	return nil
 }
@@ -431,25 +528,9 @@ func requireDecisionResult(state map[string]any, want string) error {
 }
 
 func requiredCaseIDs() []string {
-	ids := []string{
-		"agent-template.valid.engineer",
-		"agent-template.invalid.missing-artifact",
-		"agent-template.invalid.missing-entrypoint",
-		"agent-template.invalid.capability-ceiling",
-		"agent-template.invalid.issued-authority",
-		"agent-template.invalid.secret-value",
-		"claim-request.valid.team-a-engineer-json",
-		"claim-request.valid.team-a-engineer-yaml",
-		"claim-request.invalid.missing-template",
-		"claim-request.invalid.missing-task",
-		"claim-request.invalid.missing-runtime",
-		"claim-request.invalid.self-asserted-principal",
-		"claim-request.invalid.secret-value",
-		"issued-state.valid.team-a-engineer",
-		"issued-state.valid.team-b-denial",
-		"issued-state.invalid.caller-effective-authority",
-		"issued-state.invalid.caller-claim-phase",
-		"issued-state.invalid.caller-backend-identity",
+	ids := make([]string, 0, len(requiredCases))
+	for id := range requiredCases {
+		ids = append(ids, id)
 	}
 	sort.Strings(ids)
 	return ids
@@ -514,6 +595,17 @@ func readManifestForMutation(t *testing.T, root string) fixtureManifest {
 		t.Fatal(err)
 	}
 	return manifest
+}
+
+func fixtureCaseForMutation(t *testing.T, manifest *fixtureManifest, id string) *fixtureCase {
+	t.Helper()
+	for i := range manifest.Cases {
+		if manifest.Cases[i].ID == id {
+			return &manifest.Cases[i]
+		}
+	}
+	t.Fatalf("fixture case %s not found", id)
+	return nil
 }
 
 func writeManifest(t *testing.T, root string, manifest fixtureManifest) {
