@@ -63,13 +63,13 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Obtain Owner and independent Reviewer re-approval after incorporating the planning review changes.
-- [ ] Add the backend-neutral AgentTemplate v0 model and categorized validation surface in `api/v1alpha1/`.
-- [ ] Add strict YAML parsing that distinguishes the named fixture failure categories without introducing a second schema.
-- [ ] Add focused tests that load the shared v0 manifest and AgentTemplate inputs directly.
-- [ ] Add or update focused behavioral evidence and record the exact fixture case IDs exercised.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Record Owner authorization to proceed and retain independent Reviewer approval as a PR gate.
+- [x] Add the backend-neutral AgentTemplate v0 model and categorized validation surface in `api/v1alpha1/`.
+- [x] Add strict YAML parsing that distinguishes the named fixture failure categories without introducing a separate schema artifact.
+- [x] Add focused tests that load the shared v0 manifest and AgentTemplate inputs directly.
+- [x] Add focused behavioral evidence and record the exact fixture case IDs exercised.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -97,6 +97,17 @@ Out of scope:
 - Planning depth: Task + Spec because this Ticket defines a public contract consumed by later request and authority-resolution work; no Design is needed for the bounded Go model/parser implementation.
 - Dependency: #22 is satisfied by merged PR #79 (`abc8013` on `main`).
 - Planning review: `@wunderforge` requested four v0 clarifications on 2026-08-28; this revision records required non-blank identity, typed validation results, deterministic path-based reserved-field classification, and explicit empty-ceiling default deny.
-- Blocker: the updated Task + Spec packet still requires Owner and independent Reviewer approval before implementation begins.
+- Owner authorization: after direct discussion with the project lead on 2026-08-29, the Owner directed implementation to proceed and independent review to occur on the resulting PR.
+- Reviewer gate: independent approval remains required before merge.
+- PRD link audit: current `main` defines `Demonstrable contributor path` as section 8, so the resolving `#8-demonstrable-contributor-path` anchor is retained and the earlier section-6 review note will be called out in the PR.
 - Verification environment: Go 1.27.0 is installed and the pre-change `go test ./...` baseline passes.
+- Blockers: none.
+
+## Verification Evidence
+
+- `go test -count=1 -v ./api/v1alpha1 -run AgentTemplate` passed and named all six shared cases: `agent-template.valid.engineer`, `agent-template.invalid.missing-artifact`, `agent-template.invalid.missing-entrypoint`, `agent-template.invalid.capability-ceiling`, `agent-template.invalid.issued-authority`, and `agent-template.invalid.secret-value`.
+- Focused unit cases passed for non-blank template identity, runnable artifact/entrypoint requirements, required versus explicitly empty capability ceilings, defaults outside the ceiling, invalid list/timeout values, exact-path reserved-field classification, unknown nested fields, non-heuristic value handling, and multiple-document rejection.
+- `.\scripts\check.ps1 -All` passed: documentation/contracts, Markdown links, formatting, module tidy, `go vet ./...`, `go test ./...`, and Agent Sandbox integration-package compilation.
+- Diff audit: shared API additions contain no backend/provider types; tests read the E1-T1 manifest and its referenced YAML files directly; the PRD, architecture contract, fixture manifest, and fixture inputs are unchanged.
+- Residual review point: public type naming and the strict parser surface require independent PR approval before merge.
 
