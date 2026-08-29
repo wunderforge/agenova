@@ -29,7 +29,7 @@ In scope:
 
 - Backend-neutral `AgentTemplate v0` types for object identity, runnable artifact, entrypoint, defaults, and capability ceiling.
 - YAML parsing for the human-authored AgentTemplate surface represented by the merged E1-T1 fixtures.
-- Semantic validation with stable categories for required fields, malformed capability ceilings, caller-supplied issued authority, and embedded secret values.
+- Semantic validation returning a typed error/result with stable `category` and `field/path` data for required fields, malformed capability ceilings, caller-supplied issued authority, embedded secret values, and unknown fields.
 - Focused Go tests that select and load the six shared AgentTemplate fixture cases directly from the v0 manifest without copying their contents.
 - Narrow unit coverage for contract invariants that are not safely expressible by duplicating fixture files.
 
@@ -44,21 +44,26 @@ Out of scope:
 
 - The shared `agent-template.valid.engineer` YAML parses to the public v0 Go type and validates successfully.
 - The parsed valid template preserves its name, artifact image, entrypoint command, defaults, capability lists, resource scopes, runtime profiles, and maximum timeout.
-- Missing artifact or entrypoint inputs are rejected with category `required-field`.
+- `metadata.name`, `artifact.image`, and `entrypoint.command` are required and non-blank; focused unit coverage verifies the name invariant needed by later `templateRef` resolution.
+- Validation returns typed data containing at least `category` and `field/path`; tests assert those fields directly and never infer categories from error-string matching.
+- A missing `capabilityCeiling` is rejected with category `required-field`; an explicitly empty ceiling is valid and means default-deny across every governed capability dimension.
+- Missing or blank required inputs are rejected with category `required-field` and the responsible field/path.
 - A non-list capability ceiling is rejected with category `invalid-capability-ceiling`.
-- Caller-authored `effectiveAuthority` is rejected with category `system-managed-field`.
-- Raw environment/credential values are rejected with category `secret-value`.
+- Defaults outside the explicit capability ceiling are rejected with category `invalid-capability-ceiling`.
+- The exact reserved path `spec.effectiveAuthority` is rejected with category `system-managed-field`.
+- The exact credential-bearing path `spec.environment` is rejected with category `secret-value`.
+- Other unknown fields fail closed with category `unknown-field`; reserved-field classification is path-based and does not scan field names or values heuristically.
 - Focused tests discover all six AgentTemplate cases through the shared manifest and assert the manifest's expected outcome/category.
 - Existing runtime-spike types and backend adapters continue to compile unchanged.
 
 ## Negative Case
 
-- Each of the five shared negative AgentTemplate fixtures must fail closed for its manifest-declared category; unknown or malformed document structure must not be accepted as a valid reusable role.
+- Each of the five shared negative AgentTemplate fixtures must fail closed for its manifest-declared category; focused unit cases also cover non-blank `metadata.name`, required versus explicitly empty `capabilityCeiling`, defaults outside the ceiling, and deterministic `unknown-field` handling.
 
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation.
+- [ ] Obtain Owner and independent Reviewer re-approval after incorporating the planning review changes.
 - [ ] Add the backend-neutral AgentTemplate v0 model and categorized validation surface in `api/v1alpha1/`.
 - [ ] Add strict YAML parsing that distinguishes the named fixture failure categories without introducing a second schema.
 - [ ] Add focused tests that load the shared v0 manifest and AgentTemplate inputs directly.
@@ -85,11 +90,13 @@ Out of scope:
 - The reusable template may declare only limits and safe defaults; it must not carry live external credential values or system-issued effective authority.
 - The merged E1-T1 manifest and fixture files are dependencies, not files owned by this Ticket; do not fork or rewrite them to make the validator pass.
 - Keep validation deterministic and side-effect free; no registry, network, filesystem lookup, or backend allocation belongs in the API contract.
+- Classify reserved fields by exact document path: `spec.effectiveAuthority` is system-managed, `spec.environment` is credential-bearing, and every other unsupported field is unknown; do not use substring or value scanning.
 
 ## Decisions and Blockers
 
 - Planning depth: Task + Spec because this Ticket defines a public contract consumed by later request and authority-resolution work; no Design is needed for the bounded Go model/parser implementation.
 - Dependency: #22 is satisfied by merged PR #79 (`abc8013` on `main`).
-- Blocker: the GitHub Issue does not yet record the required Owner and independent Reviewer approval of this Task + Spec packet, so implementation must not begin.
-- Environment blocker for later verification: `go` is not currently available on this Windows PATH.
+- Planning review: `@wunderforge` requested four v0 clarifications on 2026-08-28; this revision records required non-blank identity, typed validation results, deterministic path-based reserved-field classification, and explicit empty-ceiling default deny.
+- Blocker: the updated Task + Spec packet still requires Owner and independent Reviewer approval before implementation begins.
+- Verification environment: Go 1.27.0 is installed and the pre-change `go test ./...` baseline passes.
 
