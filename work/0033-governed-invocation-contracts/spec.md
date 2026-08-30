@@ -11,9 +11,25 @@ Tool and Model gateways accept only typed, backend-neutral invocation requests t
 
 - Tool invocation request: claim identity plus tool name, action, and resource scope.
 - Model invocation request: claim identity plus the approved model profile.
-- Pre-adapter request validation rejecting missing claim identity, secret-bearing fields, and ambiguous resource scope.
+- Operation data travels in one typed string-map `Parameters` field — the only extensible request surface. Credential material cannot enter through typed fields (they do not exist) and is rejected by key inspection on `Parameters` before any adapter invocation, so the secret-bearing negative case is reachable without weakening the typed boundary.
+- Pre-adapter request validation rejecting missing claim identity, secret-bearing fields, and ambiguous resource scope, each with an enumerated stable category (below).
 - One stable, gateway-assigned `invocationId` per governed attempt, created before policy evaluation and carried by the decision, the attempted external call, the result, and recorded evidence.
 - Typed decision result: `Allow`, `Deny`, `ApprovalRequired`.
+- Persisted evidence for every attempt: each decision — including `Deny` and `ApprovalRequired` — appends one invocation fact carrying the `invocationId`, the typed result, and the claim attribution, so denied requests stay inspectable.
+
+## Stable Rejection Categories
+
+Focused tests assert these identifiers exactly; downstream consumers must not invent alternates.
+
+| Category | Condition |
+| --- | --- |
+| `missing-claim-identity` | request carries no claim identity |
+| `incomplete-operation` | tool request lacks tool or action; model request lacks the approved profile |
+| `ambiguous-resource-scope` | resource scope is empty or contains a wildcard |
+| `secret-value` | a `Parameters` key names credential material (same category as the frozen fixture set) |
+| `unknown-claim` | claim is not known to the runtime backend |
+| `claim-not-active` | claim exists but is not in the Running phase |
+| `out-of-parent-scope` | child claim whose parent is no longer Running |
 
 ## Out of Scope
 
@@ -31,6 +47,7 @@ Tool and Model gateways accept only typed, backend-neutral invocation requests t
 - Given a caller-supplied identifier, when the gateway assigns the `invocationId`, then the caller value is not adopted as the trusted correlation identity.
 - Given policy evaluation, when a decision is produced, then it is exactly one of `Allow`, `Deny`, or `ApprovalRequired`, never a boolean flag.
 - Given a `Deny` or `ApprovalRequired` decision, when the decision is returned, then no provider adapter call occurs, and `ApprovalRequired` does not itself grant authority.
+- Given any non-`Allow` decision, when it is returned, then one invocation fact carrying that `invocationId`, the typed result, and the claim attribution has been appended, with zero adapter calls.
 
 ## Negative Cases
 

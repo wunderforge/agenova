@@ -56,21 +56,22 @@ Out of scope:
 
 ## Negative Case
 
-- Requests with missing claim identity, secret-bearing fields, or ambiguous resource scope are rejected before adapter invocation.
+- Requests with missing claim identity, secret-bearing fields, or ambiguous resource scope are rejected before adapter invocation, with the enumerated stable categories asserted exactly.
 - A caller-supplied identifier is not accepted as the trusted `invocationId`.
 - `Deny` and `ApprovalRequired` produce zero provider-adapter calls, proved by adapter spy counts, and `ApprovalRequired` grants no authority.
+- Every non-`Allow` decision appends one inspectable invocation fact carrying its `invocationId`, typed result, and claim attribution, proved by fact-store assertions.
 
 ## Execution Todo
 
-- [ ] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation.
-- [ ] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
-- [ ] Add request validation with the named rejection reasons ahead of any adapter path.
-- [ ] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
-- [ ] Correlate recorded invocation facts with the gateway-assigned `invocationId`.
-- [ ] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Scout the relevant implementation, tests, risks, and dependencies.
+- [ ] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
+- [x] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
+- [x] Add request validation with the named rejection reasons ahead of any adapter path.
+- [x] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
+- [x] Correlate recorded invocation facts with the gateway-assigned `invocationId`.
+- [x] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -80,7 +81,7 @@ Out of scope:
 ## Evidence Required
 
 - G2 focused test output covering valid and invalid request fixtures (claim inputs drawn from the shared v0 fixture set), caller-supplied-ID rejection, and all three decision-result paths.
-- Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`.
+- Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`, and that each non-`Allow` decision persists one correlated invocation fact.
 - Passing repository baseline output; exact commands recorded in the PR.
 
 ## Constraints
@@ -95,5 +96,11 @@ Out of scope:
 - Planning depth: Task + Spec because the invocation contract is consumed by #34, #35, #36, and #90; no Design because the in-process contract has one bounded implementation approach.
 - Proposed placement: shared contract types in a new `internal/gateway` package consumed by `internal/toolgateway` and `internal/modelgateway`; packet approval covers this placement.
 - Dependency note: #25 (E1-T4 SandboxClaim v0) and #32 (E3-T3 Running-only binding) are still open. Contract definition proceeds against the current `api/v1alpha1` claim types and the existing Running-only prototype semantics; alignment is re-checked when those Tickets land.
-- Owner/Reviewer approval: pending; implementation does not start until approval is recorded in the Ticket.
+- Owner/Reviewer approval: pending. On the Owner's decision, implementation was prepared locally while approval is outstanding; it is pushed to the PR only after approval is recorded in the Ticket, and planning-review changes are folded in before that first implementation push.
+- Decision: gateway tests draw claim identity, tool capability, resource scope, and model profile from the frozen `issued-state.valid.team-a-engineer` fixture, and the secret-rejection case reuses the key from `claim-request.invalid.secret-value`, via a small `internal/gateway/gatewaytest` loader (contracttest precedent).
+- Decision (revised after automated planning review, 2026-08-30): every decision — `Allow`, `Deny`, and `ApprovalRequired` — appends one invocation fact carrying `invocationId`, typed result, and claim attribution, so denied requests are inspectable from the store, not only from the returned Decision. The E5 (#37) boundary is respected: no new fact kinds are introduced, the existing invocation fact gains correlation fields only.
+- Codex automated review on the packet (2026-08-30, three findings): P1 non-Allow evidence persistence adopted as above; P1 secret-reachability answered by specifying `Parameters` as the single extensible operation-data surface with key-based secret detection; P2 category enumeration added to the specification with exact-assertion requirement.
+- Decision: `Deny`/`ApprovalRequired` reach callers as typed decisions, never Go errors; the `Invoke` error channel reports adapter failures only.
+- Decision: the caller-supplied identifier is modeled as untrusted `CallerReference` metadata — the request shape has no invocationId field to smuggle, and tests assert the issued ID never equals the caller value.
+- Decision: the e2e multi-agent reference test migrated to the typed `Invoke` contract in the same change (Change-a-Core-Contract playbook: reference implementation and contract tests move together).
 - Blockers: none.
