@@ -7,6 +7,7 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 )
 
@@ -40,6 +41,12 @@ func (l *Loader) Load(bundle PolicyBundle) error {
 	copy := clone(bundle)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.current != nil && l.current.ID == bundle.ID && l.current.Version == bundle.Version {
+		if !slices.Equal(l.current.Rules, bundle.Rules) {
+			return fmt.Errorf("policy bundle %s@%s cannot change content", bundle.ID, bundle.Version)
+		}
+		return nil
+	}
 	l.current = &copy
 	return nil
 }

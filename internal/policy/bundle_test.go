@@ -112,6 +112,35 @@ func TestLoaderRejectsMalformedAndDuplicateRulesWithoutReplacement(t *testing.T)
 	}
 }
 
+func TestLoaderRejectsChangedContentForSameIdentity(t *testing.T) {
+	loader := &Loader{}
+	original := validBundle()
+	if err := loader.Load(original); err != nil {
+		t.Fatalf("load initial bundle: %v", err)
+	}
+
+	if err := loader.Load(clone(original)); err != nil {
+		t.Fatalf("identical reload error = %v", err)
+	}
+
+	replacement := clone(original)
+	replacement.Rules[0].Action = "claim.delete"
+	if err := loader.Load(replacement); err == nil {
+		t.Fatal("Load() accepted changed content under the same ID and version")
+	}
+
+	current, ok := loader.Current()
+	if !ok {
+		t.Fatal("changed reload removed the current bundle")
+	}
+	if !current.Allows("claim.create", "payments", "engineer") {
+		t.Fatal("changed reload replaced the original rule")
+	}
+	if current.Allows("claim.delete", "payments", "engineer") {
+		t.Fatal("changed reload activated the replacement rule")
+	}
+}
+
 func TestLoaderSupportsConcurrentReadersAndWriters(t *testing.T) {
 	loader := &Loader{}
 	if err := loader.Load(validBundle()); err != nil {
