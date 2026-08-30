@@ -1,0 +1,10 @@
+{
+  "source": "caller",
+  "requestRef": "fix-payment-timeout",
+  "claim": {
+    "backendIdentity": {
+      "backend": "reference",
+      "workerId": "caller-chosen-worker"
+    }
+  }
+}

@@ -1,46 +1,40 @@
-# Agenova Agent Contract
+# Agenova Agent Routing
 
-Keep changes small, backend-neutral, and supported by mechanically checkable evidence.
+Mission-critical rule: deliver the active Ticket's acceptance criteria with reproducible evidence while preserving Agenova's claim-scoped, backend-neutral product boundary.
 
-## Read First
+## Required Context
 
-1. `README.md`
-2. `docs/product/prd.md`
-3. `docs/product/architecture-contract.md`
-4. `docs/project-status.md`
-5. Task-relevant code and harness files only
+For every implementation Ticket, read in this order:
 
-Use `docs/project-design.md` when product or architecture context is needed. Use `docs/harness/` for workflow, gates, and known traps.
+1. this file;
+2. `docs/product/prd.md` for the committed MVP direction;
+3. the active `work/<issue>-<slug>/task.md`;
+4. only the spec, design, architecture sections, code, tests, backend notes, and playbooks linked by that task.
 
-## Stable Rules
+If the task packet does not exist, follow **Start a GitHub Ticket** in `docs/harness/playbooks.md`, create it from the canonical template, and stop for Owner/Reviewer approval before implementation.
 
-- `SandboxClaim` represents one agent worker run / scoped assignment, not one tool call.
-- `ClaimRequest` is the canonical application input; YAML, API JSON, and CLI `-f` must share one backend-neutral schema.
-- Requested access is intent, not authority. Resolve it against template and policy limits before creating the system-managed claim.
-- Claim-scoped governance is the product; Kubernetes is one possible execution substrate.
-- Application-facing APIs must not expose backend CRDs, SDK types, or provider status shapes.
-- Upstream Agent Sandbox knowledge stays inside `internal/runtime/agentsandbox`.
-- External system credentials stay behind gateways; do not place long-lived upstream credentials in sandbox configuration.
-- `ToolInvocation`, `ModelInvocation`, and `RuntimeEvent` are facts under a claim.
+`README.md` and `docs/project-design.md` are human/public explanations, not default coding context. The collaboration contract and source ownership map are in `docs/development/AIDLC.md`.
+
+## Stable Boundaries
+
+- One `SandboxClaim` is one agent worker assignment, not one tool call.
+- Requested access is intent and cannot grant authority.
+- Claim-scoped governance is the product; Kubernetes is one runtime option.
+- Backend/provider shapes remain inside their adapters.
+- Long-lived external credentials remain behind governed interfaces.
 - Parent/child claims express governance scope, not workflow scheduling.
-- Do not add controllers, CRDs, memory, UI, cloud control plane, or new platforms unless the active task and PRD require them.
 
-## Standard Loop
+The architecture contract is authoritative. Stop and request a maintainer decision if the Ticket conflicts with the PRD or architecture contract; do not broaden either to make implementation easier.
 
-1. Read the task contract and inspect the affected boundary.
-2. State observable acceptance criteria and the strongest relevant gate.
-3. Implement the smallest change that satisfies them.
-4. Run focused tests, then `./scripts/check.ps1 -All` before completion.
-5. If a gate fails, stop expansion, classify the failure, fix the smallest responsible issue, and rerun.
-6. Record reusable failures in `docs/harness/learnings.md`; promote repeated failures into a gotcha or mechanical check.
+## Execution Loop
 
-## Evidence
+1. Confirm the approved task packet, negative behavior, dependencies, and strongest gate.
+2. Scout the smallest relevant implementation and test surface.
+3. Execute one Todo slice at a time and keep task-local decisions/blockers current.
+4. Add or update focused behavioral evidence with the implementation.
+5. Run the focused gate, then `./scripts/check.ps1 -All`.
+6. On failure, stop expansion, fix or narrow the responsible change, and rerun.
+7. Review the diff for scope, regressions, and source-of-truth changes.
+8. Report exact evidence and residual risk in the PR and Ticket.
 
-A task is done only when its acceptance criteria have reproducible evidence. A prose report is not evidence by itself.
-
-- Core behavior: focused unit/contract test plus `./scripts/check.ps1 -All`.
-- Backend behavior: adapter test and real backend evidence, or an explicit blocker.
-- User-facing flow: executable E2E/smoke output; add rendered evidence when UI exists.
-- Docs/harness only: `./scripts/check.ps1 -Docs` and link/path review.
-
-Use `tasks/task-template.md` for new work and `docs/harness/quality-gates.md` for gate selection.
+Prose alone is not evidence. Backend claims require real-backend output or an explicit blocker; user-facing flows require executable smoke/E2E evidence and rendered proof when visual behavior matters.

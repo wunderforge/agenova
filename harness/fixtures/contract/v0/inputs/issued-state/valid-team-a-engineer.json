@@ -1,0 +1,55 @@
+{
+  "requestRef": "fix-payment-timeout",
+  "principal": {
+    "subject": "user:team-a-engineer",
+    "team": "team-a",
+    "authenticationContext": "upstream:test"
+  },
+  "action": {
+    "name": "claim.create",
+    "project": "payments",
+    "templateRef": "engineer"
+  },
+  "policyRef": {
+    "id": "reference-default-deny",
+    "version": "1"
+  },
+  "effectiveAuthority": {
+    "id": "authority:fix-payment-timeout:1",
+    "tools": ["git.read", "git.write", "github.pull-request"],
+    "resourceScopes": ["repo:acme/payments"],
+    "modelProfile": "approved-coding-model",
+    "memoryScopes": ["team-docs"],
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "20m"
+    }
+  },
+  "claim": {
+    "id": "claim:fix-payment-timeout:1",
+    "requestRef": "fix-payment-timeout",
+    "templateRef": "engineer",
+    "authorityRef": "authority:fix-payment-timeout:1",
+    "phase": "Running",
+    "backendIdentity": {
+      "backend": "reference",
+      "workerId": "worker:fix-payment-timeout:1"
+    }
+  },
+  "decision": {
+    "id": "decision:fix-payment-timeout:1",
+    "principalRef": "user:team-a-engineer",
+    "action": "claim.create",
+    "result": "Allow",
+    "policyRef": {"id": "reference-default-deny", "version": "1"},
+    "reason": "team-a may create the engineer assignment for the payments project"
+  },
+  "evidence": {
+    "requestRef": "fix-payment-timeout",
+    "claimId": "claim:fix-payment-timeout:1",
+    "decisionIds": ["decision:fix-payment-timeout:1"],
+    "runtimeEvents": [{"kind": "ClaimRunning"}],
+    "toolInvocations": [],
+    "modelInvocations": []
+  }
+}

@@ -2,17 +2,23 @@
 
 Only recurring or high-risk Agenova mistakes belong here.
 
+## One question must have one authority
+
+- Failure: updating the same requirement, status, or task detail in several Markdown files and GitHub.
+- Correct boundary: use `docs/development/AIDLC.md` to locate the authority; summaries link to it and mutable delivery state stays in GitHub.
+- Gate: source-of-truth structure and local-link checks in `./scripts/check.ps1 -Docs`.
+
 ## Claim is not a tool call
 
 - Failure: modeling one `SandboxClaim` per tool invocation.
 - Correct boundary: one claim is one worker run; tool/model calls are facts below it.
-- Gate: lifecycle and gateway tests plus architecture text checks in `scripts/check.ps1`.
+- Gate: lifecycle and gateway tests plus the architecture-authority check in `scripts/check.ps1`.
 
 ## A request is not authority
 
 - Failure: treating YAML fields or CLI flags as permissions already granted to the worker.
 - Correct boundary: `ClaimRequest` expresses requested access; task input alone grants nothing. Agenova intersects requested tools and resource scopes with template, policy, and runtime limits before creating the system-managed claim.
-- Gate: resolver negative tests and architecture text checks in `scripts/check.ps1`.
+- Gate: resolver negative tests plus the architecture-authority check in `scripts/check.ps1`.
 
 ## Backend readiness is not work success
 
