@@ -21,7 +21,7 @@ func TestLoaderLoadsVersionedBundle(t *testing.T) {
 	if !ok {
 		t.Fatal("Current() did not return the loaded bundle")
 	}
-	if got.ID != "reference" || got.Version != "2026-08-24" {
+	if got.ID != "reference-default-deny" || got.Version != "1" {
 		t.Fatalf("Current() identity = %q@%q", got.ID, got.Version)
 	}
 	if !got.Allows("claim.create", "payments", "engineer") {
@@ -105,7 +105,7 @@ func TestLoaderRejectsMalformedAndDuplicateRulesWithoutReplacement(t *testing.T)
 				t.Fatal("Load() accepted an invalid bundle")
 			}
 			current, ok := loader.Current()
-			if !ok || current.ID != "reference" || current.Version != "2026-08-24" {
+			if !ok || current.ID != "reference-default-deny" || current.Version != "1" {
 				t.Fatalf("failed load replaced current bundle: %#v, %v", current, ok)
 			}
 		})
@@ -133,7 +133,7 @@ func TestLoaderSupportsConcurrentReadersAndWriters(t *testing.T) {
 		}()
 		go func() {
 			defer group.Done()
-			if bundle, ok := loader.Current(); !ok || bundle.ID != "reference" {
+			if bundle, ok := loader.Current(); !ok || bundle.ID != "reference-default-deny" {
 				t.Errorf("concurrent Current() = %#v, %v", bundle, ok)
 			}
 		}()
@@ -143,8 +143,8 @@ func TestLoaderSupportsConcurrentReadersAndWriters(t *testing.T) {
 
 func validBundle() PolicyBundle {
 	return PolicyBundle{
-		ID:      "reference",
-		Version: "2026-08-24",
+		ID:      "reference-default-deny",
+		Version: "1",
 		Rules: []Rule{{
 			Action:      "claim.create",
 			Project:     "payments",
