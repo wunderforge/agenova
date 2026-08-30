@@ -45,7 +45,7 @@ Tool and Model gateways accept only typed, backend-neutral invocation requests t
 - `api/v1alpha1` claim types (`SandboxClaim`, `ClaimPhase`) remain unchanged.
 - The prototype gateways' Running-only and child-out-of-parent-scope denial semantics are preserved through the typed decision path; their authoritative binding is owned by #32.
 - `internal/facts` invocation records remain attributable to the correct claim and gain `invocationId` correlation without dropping existing fields.
-- The typed decision aligns with the E1-T1 fixture convention of typed authorization results rather than boolean flags.
+- The typed decision aligns with the E1-T1 fixture convention of typed authorization results rather than boolean flags; gateway tests consume the shared v0 fixtures for claim inputs and keep failure categories consistent with the fixture manifest.
 
 ## Open Decisions
 
