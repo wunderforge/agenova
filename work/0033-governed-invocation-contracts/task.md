@@ -79,7 +79,7 @@ Out of scope:
 
 ## Evidence Required
 
-- G2 focused test output covering valid and invalid request fixtures, caller-supplied-ID rejection, and all three decision-result paths.
+- G2 focused test output covering valid and invalid request fixtures (claim inputs drawn from the shared v0 fixture set), caller-supplied-ID rejection, and all three decision-result paths.
 - Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`.
 - Passing repository baseline output; exact commands recorded in the PR.
 
@@ -88,7 +88,7 @@ Out of scope:
 - Preserve `docs/product/architecture-contract.md`.
 - Do not broaden the Ticket or PRD without a recorded human decision.
 - Contracts stay backend-neutral and carry no provider credential material; provider shapes remain inside adapters.
-- Do not modify the frozen E1-T1 fixture set under `harness/fixtures/contract/v0/`; invocation request fixtures live with the gateway tests.
+- Gateway tests consume the shared `harness/fixtures/contract/v0/` fixtures for claim inputs: valid cases must pass, invalid cases must fail, and failure categories must match the manifest's `expected.category`. Do not modify the frozen fixture set in this Ticket; new invocation-request fixtures live with the gateway tests, and any design change that invalidates a shared fixture requires updating it in a reviewed change.
 
 ## Decisions and Blockers
 
