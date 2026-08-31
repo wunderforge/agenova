@@ -46,6 +46,8 @@ Out of scope:
 - The parsed request preserves template reference, task type and input, requested tools, resource scopes, model profile, memory scopes, and runtime profile/timeout.
 - Task input remains distinct from resource scopes: task data lives under `spec.task.input`; access intent lives under `spec.requestedAccess`, and neither is derived from the other.
 - Missing template, task, or runtime data is rejected with category `required-field` and the responsible field/path.
+- The nested v0 invariants hold: `metadata.name`, `spec.task.type`, and `spec.runtime.profileRef` are required and non-blank, and `spec.runtime.timeout` must be a positive Go duration. Focused unit cases cover each of these nested invariants.
+- `spec.task.input` may be absent or empty because its shape is task-specific, and `spec.requestedAccess` may be absent or explicitly empty, meaning default-deny; neither is treated as a required field.
 - The exact caller-authored path `spec.principal` is rejected with category `self-asserted-principal`; the exact secret-bearing path `spec.secrets` is rejected with category `secret-value`; other unknown fields fail closed with `unknown-field`. Classification is deterministic and path-based, never heuristic.
 - Validation returns typed data containing at least `category` and `field/path`; tests assert those fields directly and never infer categories from error-string matching.
 - Mismatched apiVersion/kind, invalid documents, and multiple YAML documents fail closed with typed data.
@@ -60,11 +62,12 @@ Out of scope:
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [ ] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
-- [x] Define the public ClaimRequest v0 types and both parsing surfaces per the feature specification.
-- [x] Implement path-based semantic validation with typed category/field data.
-- [x] Add fixture-driven tests covering all seven shared cases plus the YAML/JSON equivalence proof and focused boundary units.
-- [x] Run the focused gate and `./scripts/check.ps1 -All`.
-- [x] Review the diff for scope, regressions, and source-of-truth updates.
+- [ ] Rebase onto merged #93 and reuse its shared validation primitives.
+- [ ] Define the public ClaimRequest v0 types and both parsing surfaces per the feature specification.
+- [ ] Implement path-based semantic validation with typed category/field data, including the nested required-field invariants.
+- [ ] Add fixture-driven tests covering all seven shared cases, the YAML/JSON equivalence proof, and focused units for the nested invariants and empty task input / default-deny requested access.
+- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
+- [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -75,6 +78,7 @@ Out of scope:
 
 - Focused test output naming all seven shared fixture case IDs, the equivalence proof, and the typed category assertions.
 - Passing repository baseline output; exact commands recorded in the PR.
+- Evidence is recorded here only once the corresponding commits exist on this PR and are reviewable; locally prepared code is not repository evidence.
 
 ## Constraints
 
@@ -87,8 +91,8 @@ Out of scope:
 
 - Planning depth: Task + Spec because ClaimRequest is a public contract consumed by resolution (#26–#29), CLI submission (#41), and the E1-T2/E1-T4 sibling contracts.
 - Decision: reuse the typed-error and path-classification conventions the project lead fixed in the E1-T2 planning review (2026-08-28), so the two human-authored contracts stay symmetric.
-- Dependency note: #22 (E1-T1 fixtures) is merged — all seven ClaimRequest cases and both valid surfaces are frozen and consumable now; no upstream blocker.
+- Dependency note: #22 (E1-T1 fixtures) is merged — all seven ClaimRequest cases and both valid surfaces are frozen and consumable now.
 - Decision: both surfaces share one strict parsing pipeline (JSON is a YAML subset; the JSON entrypoint additionally requires `json.Valid` input), so shape classification and semantic validation cannot drift between forms and the equivalence proof compares decoded values directly.
-- Coordination: the shared validation primitives (`ValidationCategory`, `ValidationError`, `Duration`, mapping/scalar shape helpers) are kept byte-compatible with the unmerged E1-T2 branch in a separate `validation.go`; whichever contract merges second folds the two copies into one source and re-runs both fixture suites.
-- Owner/Reviewer approval: pending. On the Owner's decision, implementation was prepared locally while approval is outstanding; it is pushed to a PR only after approval is recorded in the Ticket, with planning-review changes folded in first.
-- Blockers: none.
+- Decision (planning review, 2026-08-31): #93 is approved, so this Ticket does not introduce a second copy of the shared validation primitives. After #93 merges, this branch rebases onto it and reuses its `ValidationCategory`, `ValidationError`, `Duration`, and parsing helpers; only the ClaimRequest-specific category and shape validators are added here.
+- Owner/Reviewer approval: pending planning approval on #24.
+- Blockers: #93 (E1-T2) must merge first so the shared validation primitives can be reused rather than duplicated; implementation commits land after that rebase.

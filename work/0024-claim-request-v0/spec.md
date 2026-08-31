@@ -25,6 +25,8 @@ Define one declarative, backend-neutral v0 contract for requesting an agent work
 - Given the canonical Team A YAML, when it is parsed and validated, then it yields `apiVersion=agenova.io/v1alpha1`, `kind=ClaimRequest`, metadata name `fix-payment-timeout`, template reference `engineer`, the declared task type and input map, requested tools/resource scopes/model profile/memory scopes, and runtime profile/timeout.
 - Given the equivalent API JSON fixture, when both surfaces are parsed, then the resulting values are semantically equal, proven by direct comparison rather than string formatting.
 - Given a request missing `spec.templateRef`, `spec.task`, or `spec.runtime`, then validation fails with `required-field` and the responsible field/path.
+- Given a blank `metadata.name`, `spec.task.type`, or `spec.runtime.profileRef`, then validation fails with `required-field` and that path; given a missing or non-positive `spec.runtime.timeout`, validation fails with the timeout's path.
+- Given an absent or empty `spec.task.input`, then validation succeeds: task input shape is task-specific. Given an absent or explicitly empty `spec.requestedAccess`, then validation succeeds and the request means default-deny.
 - Given the exact caller-authored path `spec.principal`, then parsing fails with `self-asserted-principal` and that path; the trusted principal never travels in the request.
 - Given the exact secret-bearing path `spec.secrets`, then parsing fails with `secret-value` and that path; v0 carries neither credential values nor a delivery mechanism.
 - Given any other unknown field, then parsing fails closed with `unknown-field` and the exact path; classification is deterministic and path-based, never a scan of names or values.
@@ -45,7 +47,7 @@ Define one declarative, backend-neutral v0 contract for requesting an agent work
 ## Compatibility
 
 - E1-T1 fixture IDs, paths, expected outcomes, and categories remain unchanged and are consumed rather than copied.
-- The approved E1-T2 AgentTemplate conventions (typed `category` + `field/path`, exact-path reserved-field classification, fail-closed parsing) are reused so the two human-authored contracts stay symmetric.
+- The approved E1-T2 AgentTemplate conventions (typed `category` + `field/path`, exact-path reserved-field classification, fail-closed parsing) are reused so the two human-authored contracts stay symmetric. Their shared primitives are consumed from the merged #93 source, not re-declared here.
 - `templateRef` names an `AgentTemplate` by `metadata.name` (the invariant fixed in the E1-T2 review); this Ticket references but does not resolve it.
 - Existing runtime-spike types, gateways, and backend adapters remain unchanged.
 
