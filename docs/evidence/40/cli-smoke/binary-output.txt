@@ -1,0 +1,43 @@
+=== .tmp/agenova --help ===
+Agenova hosts claim-scoped application services for one agent worker run.
+
+Usage:
+  agenova [flags] [command]
+
+Commands:
+  help       Show this help
+  version    Print version and the hosted runtime backend
+
+Flags:
+  --backend string   Runtime backend to host (default "memory")
+  --help             Show this help
+  --version          Print version and the hosted runtime backend
+
+This composition root hosts the in-memory reference backend. Command behavior
+does not import Kubernetes or other provider types, and it does not accept
+authority flags such as --repo, --tools, or --model.
+
+agenova run -f is not part of this binary yet.
+exit=0
+
+=== .tmp/agenova version ===
+agenova dev
+runtime-backend: memory
+exit=0
+
+=== .tmp/agenova not-a-command ===
+unknown command "not-a-command"
+Run 'agenova --help' for usage.
+exit=2
+
+=== .tmp/agenova --backend kubernetes version ===
+unknown runtime backend "kubernetes"
+This composition root supports "memory" (the in-memory reference backend).
+Provider backends are not selected from the CLI
+Run 'agenova --help' for usage.
+exit=2
+
+=== .tmp/agenova --backend --version ===
+flag --backend requires a value
+Run 'agenova --help' for usage.
+exit=2
