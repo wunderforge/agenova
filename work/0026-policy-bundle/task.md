@@ -27,22 +27,23 @@ Additional task-specific context:
 In scope:
 
 - Validate and load one static `PolicyBundle`.
-- Match exact action, project, and template rules with default-deny behavior.
+- Match exact trusted team, action, project, and template rules with default-deny behavior.
 - Preserve the last valid bundle when a replacement is invalid.
 - Keep bundle inputs, stored state, and returned values isolated from caller mutation.
+- Retain previously seen ID/version content identities so an older audit reference cannot later be rebound to different rules.
 - Support concurrent readers and writers without data races.
 
 Out of scope:
 
 - Policy CRUD, hot reload, Rego/CEL, action authorization, or a general authoring language.
-- Freezing Principal or issued-state fields before dependent Ticket #25 is merged.
+- Defining authentication or accepting caller-authored identity from `ClaimRequest`; the trusted team value is supplied by the later authorization boundary from the #25 Principal contract.
 
 ## Acceptance Criteria
 
 - A valid bundle loads with a stable ID and version.
-- Missing or unmatched action, project, and template rules deny by default.
+- Missing or unmatched trusted team, action, project, and template rules deny by default.
 - Malformed and duplicate rules fail without replacing the last valid bundle.
-- An identical ID/version reload is idempotent, while changed content under the same ID/version is rejected without replacing the active bundle.
+- An identical ID/version reload is idempotent, while changed content under the same ID/version is rejected even after another version became active.
 - Caller mutation cannot change the loader's active bundle.
 - Concurrent reads and writes pass the Go race detector.
 
@@ -55,7 +56,7 @@ Out of scope:
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [x] Preserve the previously approved Ticket contract while migrating it to the current task-packet structure.
 - [x] Add the validated, immutable, concurrency-safe bundle loader and exact-match default-deny behavior.
-- [x] Add focused valid, malformed, duplicate, unmatched, immutable-version, rollback, defensive-copy, and concurrent-access evidence.
+- [x] Add focused Team A allow, Team B/default-deny, malformed, duplicate, immutable-version, rollback, defensive-copy, and concurrent-access evidence.
 - [x] Merge the latest `main` and run the focused gate and `./scripts/check.ps1 -All`.
 - [x] Review the diff for scope, regressions, and source-of-truth updates.
 
@@ -74,18 +75,20 @@ Out of scope:
 
 - Preserve `docs/product/architecture-contract.md`.
 - Do not broaden the Ticket or PRD without a recorded human decision.
-- Keep this package independent of claim and Principal field definitions until Ticket #25 merges.
+- Keep this package independent of claim issuance and authentication. `Rule.Team` represents the exact trusted `Principal.team` value selected by #27; callers must not source it from `ClaimRequest`.
 
 ## Decisions and Blockers
 
 - Decision: the loader accepts a backend-neutral in-memory bundle and does not add policy CRUD, a policy language, or backend-specific fields.
 - Decision: use exact matching and absence-as-denial; no implicit normalization or wildcard authority is introduced.
-- Decision: treat `ID@Version` as immutable content identity; structurally identical ordered-rule reloads are idempotent, while a changed ordered rule set requires a new version.
+- Decision: add one principal-scoped v0 dimension using the canonical trusted `team` value required by #27; broader metadata selectors remain out of scope.
+- Decision: treat `ID@Version` as immutable content identity for the Loader lifetime; structurally identical ordered-rule reloads are idempotent, while a changed or reordered rule set requires a new version.
+- Decision: expose a structured `Match` value rather than positional string arguments so #27 can explicitly map trusted `Principal.team` and `Action` fields into the four exact-match dimensions.
 - Decision: align canonical test policy references with the merged v0 fixture (`reference-default-deny@1`).
-- Dependency: #26 is blocked by #25. After #25 merges, rebase and confirm whether the final Principal/issued-state contract requires a small rule-field or caller-context alignment before this PR leaves Draft.
+- Dependency: after #25 merges, rebase and confirm that `Rule.Team` consumes its canonical trusted `Principal.team` field without creating a duplicate public Principal type.
 
 ## Verification Evidence
 
-- `go test -race ./internal/policy` passed after merging `main` at `abc8013`.
+- `go test -race ./internal/policy` passed after merging `main` at `2662a02`.
 - `go test ./...` passed on the merged tree.
 - `./scripts/check.ps1 -All` passed: delivery contracts, formatting, module tidy, `go vet`, all Go tests, and Agent Sandbox integration compilation.

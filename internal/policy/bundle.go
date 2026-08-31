@@ -19,17 +19,32 @@ type PolicyBundle struct {
 	Rules   []Rule
 }
 
-// Rule grants one action for one project and agent template.
+// Rule grants one action for one trusted team, project, and agent template.
 type Rule struct {
+	Team        string
 	Action      string
 	Project     string
 	TemplateRef string
+}
+
+// Match is the trusted assignment context evaluated against a policy bundle.
+type Match struct {
+	Team        string
+	Action      string
+	Project     string
+	TemplateRef string
+}
+
+type bundleIdentity struct {
+	id      string
+	version string
 }
 
 // Loader owns the last successfully loaded policy bundle.
 type Loader struct {
 	mu      sync.RWMutex
 	current *PolicyBundle
+	seen    map[bundleIdentity][]Rule
 }
 
 // Load validates the complete bundle before replacing the current version.
@@ -41,11 +56,16 @@ func (l *Loader) Load(bundle PolicyBundle) error {
 	copy := clone(bundle)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.current != nil && l.current.ID == bundle.ID && l.current.Version == bundle.Version {
-		if !slices.Equal(l.current.Rules, bundle.Rules) {
+	identity := bundleIdentity{id: bundle.ID, version: bundle.Version}
+	if rules, ok := l.seen[identity]; ok {
+		if !slices.Equal(rules, bundle.Rules) {
 			return fmt.Errorf("policy bundle %s@%s cannot change content", bundle.ID, bundle.Version)
 		}
-		return nil
+	} else {
+		if l.seen == nil {
+			l.seen = make(map[bundleIdentity][]Rule)
+		}
+		l.seen[identity] = append([]Rule(nil), bundle.Rules...)
 	}
 	l.current = &copy
 	return nil
@@ -63,14 +83,14 @@ func (l *Loader) Current() (PolicyBundle, bool) {
 	return clone(*l.current), true
 }
 
-// Allows reports whether an exact action, project, and template rule exists.
-func (b PolicyBundle) Allows(action, project, templateRef string) bool {
-	if action == "" || project == "" || templateRef == "" {
+// Allows reports whether an exact trusted team, action, project, and template rule exists.
+func (b PolicyBundle) Allows(match Match) bool {
+	if match.Team == "" || match.Action == "" || match.Project == "" || match.TemplateRef == "" {
 		return false
 	}
 
 	for _, rule := range b.Rules {
-		if rule.Action == action && rule.Project == project && rule.TemplateRef == templateRef {
+		if rule.Team == match.Team && rule.Action == match.Action && rule.Project == match.Project && rule.TemplateRef == match.TemplateRef {
 			return true
 		}
 	}
@@ -87,8 +107,8 @@ func validate(bundle PolicyBundle) error {
 
 	seen := make(map[Rule]int, len(bundle.Rules))
 	for index, rule := range bundle.Rules {
-		if rule.Action == "" || rule.Project == "" || rule.TemplateRef == "" {
-			return fmt.Errorf("policy rule %d requires action, project, and templateRef", index)
+		if rule.Team == "" || rule.Action == "" || rule.Project == "" || rule.TemplateRef == "" {
+			return fmt.Errorf("policy rule %d requires team, action, project, and templateRef", index)
 		}
 		if first, ok := seen[rule]; ok {
 			return fmt.Errorf("policy rule %d duplicates rule %d", index, first)
