@@ -70,19 +70,53 @@ one of them (or run `kind`/`kubectl` by hand following this runbook).
 ```
 
 `all` = `up` (create cluster + install pinned Agent Sandbox) → `smoke`
-(create/observe/terminate/clean up one claim) → `down` (delete the cluster). It is
-safe to re-run: cluster and namespace creation are idempotent, and `down` is a
-no-op when nothing exists.
+(create one claim and observe it reach Ready) → `teardown` (delete the
+claim/pool/template and assert every sandbox pod terminates) → `down` (delete the
+cluster). It is safe to re-run: cluster and namespace creation are idempotent,
+`teardown` uses `--ignore-not-found`, and `down` is a no-op when nothing exists.
+
+`smoke` **leaves its fixtures in place** so you can inspect them
+(`kubectl -n agent-sandbox-smoke get sandbox,pod`, `kubectl ... exec`, …). Clean
+up afterwards with `reproduce.sh teardown` (deletes just the smoke namespace) or
+`reproduce.sh down` (deletes the whole cluster).
 
 ### Individual phases
 
 ```sh
-./harness/spike/agent-sandbox-substrate/reproduce.sh tools    # read-only: resolve kind/kubectl, print versions
-./harness/spike/agent-sandbox-substrate/reproduce.sh status   # read-only: context, cluster, CRDs, controller readiness
-./harness/spike/agent-sandbox-substrate/reproduce.sh up       # cluster + controller only, cluster stays up
-./harness/spike/agent-sandbox-substrate/reproduce.sh smoke    # requires `up` first
-./harness/spike/agent-sandbox-substrate/reproduce.sh down     # delete only the kind cluster this script created
+./harness/spike/agent-sandbox-substrate/reproduce.sh tools     # read-only: resolve kind/kubectl, print versions
+./harness/spike/agent-sandbox-substrate/reproduce.sh status    # read-only: context, cluster, CRDs, controller readiness
+./harness/spike/agent-sandbox-substrate/reproduce.sh up        # cluster + controller only, cluster stays up
+./harness/spike/agent-sandbox-substrate/reproduce.sh smoke     # requires `up` first; leaves fixtures in place
+./harness/spike/agent-sandbox-substrate/reproduce.sh teardown  # delete smoke claim/pool/template, assert pods -> 0, drop the namespace
+./harness/spike/agent-sandbox-substrate/reproduce.sh compare   # requires `up`; warm-pool vs cold-start time-to-Ready per image, self-cleans
+./harness/spike/agent-sandbox-substrate/reproduce.sh down      # delete only the kind cluster this script created
 ```
+
+### `compare` — warm pool vs cold start
+
+`compare` quantifies what the warm pool buys you. For each image in
+`COMPARE_IMAGES` (edit the array near the top of `reproduce.sh`) it evicts the
+image from the node cache, then times `SandboxClaim -> Ready` twice:
+
+- **cold** — a claim with only `sandboxTemplateRef` (no `warmpool`). The
+  controller provisions a fresh `Sandbox` + pod on demand, so the time includes
+  the image pull + pod create + start.
+- **warm** — a `SandboxWarmPool(replicas:1)` is pre-warmed first (it absorbs the
+  pull), then a `warmpool:`-backed claim adopts the ready pod.
+
+It runs in its own `agent-sandbox-compare` namespace and deletes everything it
+creates. It is **not** part of `all`. Sample run (kind, Darwin arm64,
+2026-08-31):
+
+| image | approx size | cold (no pool) | warm (pool) |
+| --- | --- | --- | --- |
+| `busybox:1.36` | ~4 MB | 6 s | 0 s |
+| `python:3.12-slim` | ~130 MB | 10 s | 0 s |
+| `node:22-slim` | ~250 MB | 13 s | 0 s |
+
+Cold `claim -> Ready` grows with image size (pull-dominated); the warm path is
+~0 s regardless because the pull already happened during pre-warm. The gap
+widens on slower networks and larger images.
 
 ## What gets created, and what cleanup removes
 
@@ -90,14 +124,17 @@ no-op when nothing exists.
   context name `./scripts/check.ps1 -Integration -KubeContext kind-agenova-k8s-lab`
   already expects, so this substrate is reusable by that gate later.
 - Namespace `agent-sandbox-smoke` holding the three fixtures in `manifests/`.
+  `smoke` creates them and leaves them; `teardown` removes them.
+- Namespace `agent-sandbox-compare` — created and fully removed within a single
+  `compare` run.
 - Namespace `agent-sandbox-system` (from the upstream `manifest.yaml`), removed with
   the cluster.
 
-`down` deletes **only** the `agenova-k8s-lab` kind cluster. `smoke`'s own cleanup
-deletes **only** the `agent-sandbox-smoke` namespace and its contents. Before any
-mutating step — including cleanup — the script re-resolves
-`kubectl config current-context` and refuses to proceed unless it is exactly
-`kind-agenova-k8s-lab`.
+`down` deletes **only** the `agenova-k8s-lab` kind cluster. `teardown` deletes
+**only** the `agent-sandbox-smoke` namespace and its contents; `compare` deletes
+**only** the `agent-sandbox-compare` namespace. Before any mutating step —
+including cleanup — the script re-resolves `kubectl config current-context` and
+refuses to proceed unless it is exactly `kind-agenova-k8s-lab`.
 
 ## Safety / honesty behavior
 
@@ -130,7 +167,8 @@ Every invocation writes, under `docs/evidence/E8-T3/agent-sandbox-substrate/`:
   `spec.warmpool` and points at the template via `spec.sandboxTemplateRef`.
 - Deleting a warm-pool-backed `SandboxClaim` on `v0.4.6` recycles its `Sandbox`
   back into the pool; the pod is only removed once the pool and template are
-  deleted too. `smoke` tears down all three before asserting pod count zero.
+  deleted too. The `teardown` phase deletes all three before asserting pod count
+  zero.
 
 ## Troubleshooting
 

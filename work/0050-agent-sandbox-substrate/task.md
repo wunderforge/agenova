@@ -39,7 +39,7 @@ In scope:
   - supports deterministic reruns (idempotent create, safe re-entry) and phase subcommands for debugging;
   - on missing prerequisites (Docker daemon, network) or unsupported upstream behavior (never Ready, pod never terminates), exits non-zero with a specific message instead of a silent pass.
 - Minimal upstream-native manifests (`SandboxTemplate` / `SandboxWarmPool` / `SandboxClaim` or the smallest equivalent for the pinned version) kept beside the script.
-- A runbook documenting prerequisites, the exact setup/smoke/cleanup commands, what is created, what cleanup removes, and observed upstream behavior.
+- A runbook documenting prerequisites, the exact up/smoke/teardown/down commands, what is created, what cleanup removes, and observed upstream behavior.
 - Evidence under `docs/evidence/E8-T3/agent-sandbox-substrate/` (`summary.md` + `output.txt`) capturing a real end-to-end run.
 - One pointer line from `docs/backends/agent-sandbox.md` to the runbook.
 - Any real upstream finding recorded for #48 (E8-T1) and #51 (E8-T4) as prose notes, not contract changes.
@@ -76,6 +76,8 @@ Out of scope:
 - [x] Implement tool resolution: use existing `kind`/`kubectl` when present, pinned checksum-verified binary in `.tmp/` when absent; verify the kube context before any mutation.
 - [x] Implement cluster up + pinned Agent Sandbox install + readiness wait + version/readiness recording.
 - [x] Implement the create / observe / terminate / cleanup smoke path with explicit failure reporting.
+- [x] Split the lifecycle into `smoke` (create + observe Ready, fixtures left in place for inspection) and `teardown` (delete claim/pool/template, assert pods -> 0, drop the namespace); `all` runs `up -> smoke -> teardown -> down`.
+- [x] Add a `compare` phase: for each image in a size ladder, measure `SandboxClaim -> Ready` for a cold-start claim (no warm pool) vs a warm-pool claim, and print a table. Run on its own, not part of `all`.
 - [x] Add the minimal manifests and the runbook; add the pointer line in `docs/backends/agent-sandbox.md`.
 - [x] Run the script end to end (three consecutive `reproduce.sh all` passes) on a real local machine; capture `summary.md` + `output.txt`.
 - [ ] Run `./scripts/check.ps1 -Docs` and review the diff for scope and source-of-truth updates. (`pwsh` is not installed on the Owner machine; run in CI or by the Reviewer. Manual Markdown-link check done.)
@@ -84,11 +86,21 @@ Verification (Darwin arm64, 2026-08-31):
 
 - Without Docker: `tools`/`status` reuse the existing Homebrew `kind v0.32.0` / `kubectl v1.36.2` and skip install; `up` with the daemon down exits 1 with `docker daemon is not reachable` and creates nothing; an unknown subcommand prints usage and exits 1. `bash -n` clean; `shellcheck` not installed locally.
 - With Docker (29.6.1): `reproduce.sh all` passed end to end against Agent Sandbox `v0.4.6` (`registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6`) on kind cluster `agenova-k8s-lab` — cluster created and context verified, `manifest.yaml` + `extensions.yaml` applied and controller Ready, `SandboxClaim/smoke-claim` reached `Ready=True` with a `Running` sandbox pod, then claim/pool/template torn down (pods -> 0), namespace and cluster deleted. The active context `ais-uat` was restored after each run.
-- Finding for #48: on `v0.4.6`, deleting a warm-pool-backed `SandboxClaim` recycles its `Sandbox` back into the pool; the pod is removed only once the pool and template are also deleted. The harness accounts for this by tearing down claim, pool, and template together and asserting the pod count reaches zero.
+- Finding for #48 (warm-pool recycle): on `v0.4.6`, deleting a warm-pool-backed `SandboxClaim` terminates the *claimed* pod, but the `SandboxWarmPool` immediately provisions a replacement to hold `spec.replicas`, so the namespace pod count settles back to `replicas`, not zero. Only deleting the claim **and** the pool **and** the template drives it to zero. The `teardown` phase deletes all three and asserts pod count zero; a cold-start claim (no pool) instead deletes its `Sandbox` and pod outright.
+- Finding for #48 (warm pool vs cold start): a `SandboxClaim` may omit `warmpool` and reference only `sandboxTemplateRef` — the controller then provisions a fresh `Sandbox` + pod on demand, so `claim -> Ready` includes the image pull + pod create + start. `reproduce.sh compare` measured `claim -> Ready` wall time per image (node cache evicted before each cold run):
+
+  | image | size (approx) | cold, no pool | warm, `replicas:1` pool |
+  | --- | --- | --- | --- |
+  | `busybox:1.36` | ~4 MB | 6 s | 0 s |
+  | `python:3.12-slim` | ~130 MB | 10 s | 0 s |
+  | `node:22-slim` | ~250 MB | 13 s | 0 s |
+
+  Cold `claim -> Ready` rises with image size (pull-dominated); the warm-pool path is ~0 s for every image because the pull already happened while the pool pre-warmed. On kind with a fast registry the absolute cold numbers are small; the gap widens on slower networks / larger images. Recorded as a prose note for #48, no contract change.
 
 ## Quality Gates
 
 - `./harness/spike/agent-sandbox-substrate/reproduce.sh all` — real end-to-end run (twice, for determinism), evidence captured
+- `./harness/spike/agent-sandbox-substrate/reproduce.sh compare` — warm-pool vs cold-start image-size comparison, run on its own; results recorded as the #48 prose note above
 - `./scripts/check.ps1 -Docs` — Markdown links and docs structure for the new runbook/pointer
 - `shellcheck harness/spike/agent-sandbox-substrate/reproduce.sh` — if available in the environment
 

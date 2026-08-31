@@ -38,6 +38,13 @@ CONTROLLER_DEPLOY="agent-sandbox-controller"
 SMOKE_NAMESPACE="agent-sandbox-smoke"
 SMOKE_TIMEOUT_SECONDS=180
 
+# `compare` (warm-pool vs cold-start) config. Its own namespace so it never
+# clobbers fixtures that `smoke` deliberately leaves in place. Edit
+# COMPARE_IMAGES to change the size ladder; cold time-to-Ready is dominated by
+# the image pull, so bigger images should show a bigger warm-vs-cold gap.
+COMPARE_NAMESPACE="agent-sandbox-compare"
+COMPARE_IMAGES=("busybox:1.36" "python:3.12-slim" "node:22-slim")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 MANIFEST_DIR="${SCRIPT_DIR}/manifests"
@@ -61,14 +68,20 @@ fail() { printf '[fail] %s\n' "$1" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: reproduce.sh <status|tools|up|smoke|down|all>
+Usage: reproduce.sh <status|tools|up|smoke|teardown|compare|down|all>
 
-  status  Read-only: kube context, cluster existence, CRDs, controller readiness.
-  tools   Read-only: resolve kind/kubectl (reuse existing or fetch pinned) and print versions.
-  up      Create the kind cluster (if missing) and install pinned Agent Sandbox.
-  smoke   Create/observe/terminate/clean up one minimal upstream SandboxClaim.
-  down    Delete the kind cluster created by this script. Nothing else is touched.
-  all     up + smoke + down (default).
+  status    Read-only: kube context, cluster existence, CRDs, controller readiness.
+  tools     Read-only: resolve kind/kubectl (reuse existing or fetch pinned) and print versions.
+  up        Create the kind cluster (if missing) and install pinned Agent Sandbox.
+  smoke     Create one minimal upstream SandboxTemplate/WarmPool/Claim and observe
+            it reach Ready. Fixtures are LEFT IN PLACE for inspection.
+  teardown  Delete the smoke claim/pool/template, assert all sandbox pods
+            terminate, and remove the smoke namespace.
+  compare   For each image in COMPARE_IMAGES, measure claim -> Ready for a
+            cold-start claim (no warm pool) vs a warm-pool claim, and print a
+            table. Self-contained: uses its own namespace and cleans up.
+  down      Delete the kind cluster created by this script. Nothing else is touched.
+  all       up + smoke + teardown + down (default). `compare` is run on its own.
 EOF
 }
 
@@ -306,10 +319,17 @@ cmd_smoke() {
   kc -n "${SMOKE_NAMESPACE}" get sandboxtemplate,sandboxwarmpool,sandboxclaim,sandbox,pod -o wide
   info "claim status.sandbox: $(kc -n "${SMOKE_NAMESPACE}" get sandboxclaim smoke-claim -o jsonpath='{.status.sandbox}' 2>/dev/null || true)"
 
+  info "smoke fixtures left in place in namespace '${SMOKE_NAMESPACE}'; run 'reproduce.sh teardown' to delete them and assert pods -> 0, or 'reproduce.sh down' to remove the whole cluster"
+}
+
+cmd_teardown() {
+  resolve_tools
+  require_context
+
   # Observed upstream behavior (v0.4.6): deleting a warm-pool-backed claim
   # RECYCLES its Sandbox back into the pool rather than terminating the pod;
   # the sandbox only actually goes away once the pool and template are also
-  # deleted. The teardown below accounts for that and still asserts pods -> 0.
+  # deleted. This phase deletes all three and still asserts pods -> 0.
   info "terminating: deleting SandboxClaim/smoke-claim"
   kc -n "${SMOKE_NAMESPACE}" delete sandboxclaim smoke-claim --ignore-not-found=true --timeout=60s
 
@@ -318,8 +338,7 @@ cmd_smoke() {
   kc -n "${SMOKE_NAMESPACE}" delete sandboxtemplate smoke-template --ignore-not-found=true --timeout=60s
 
   info "waiting up to ${SMOKE_TIMEOUT_SECONDS}s for all sandbox pods to terminate"
-  elapsed=0
-  local remaining="unknown"
+  local elapsed=0 remaining="unknown"
   while [ "${elapsed}" -lt "${SMOKE_TIMEOUT_SECONDS}" ]; do
     remaining="$(kc -n "${SMOKE_NAMESPACE}" get pods --no-headers 2>/dev/null | wc -l | tr -d ' ' || true)"
     [ "${remaining}" = "0" ] && break
@@ -351,6 +370,164 @@ cmd_smoke() {
   else
     info "smoke namespace still finalizing after 60s; deletion is requested and 'down' will remove the cluster"
   fi
+}
+
+# --- compare helpers (all logging to stderr; numeric result on stdout) -----
+cmp_apply_template() {
+  local p="$1" img="$2"
+  cat <<EOF | kc apply -f - >&2
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: ${p}-template
+  namespace: ${COMPARE_NAMESPACE}
+spec:
+  podTemplate:
+    spec:
+      containers:
+        - name: sandbox
+          image: ${img}
+          command: ["/bin/sh", "-c", "sleep 3600"]
+EOF
+}
+
+# cmp_wait_claim_ready <claim-name> -> prints elapsed whole seconds; exit 1 on timeout
+cmp_wait_claim_ready() {
+  local name="$1" t0 elapsed ready
+  t0="$(date +%s)"
+  while :; do
+    elapsed=$(( $(date +%s) - t0 ))
+    ready="$(kc -n "${COMPARE_NAMESPACE}" get sandboxclaim "${name}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+    [ "${ready}" = "True" ] && { printf '%s' "${elapsed}"; return 0; }
+    [ "${elapsed}" -ge "${SMOKE_TIMEOUT_SECONDS}" ] && { printf '%s' "${elapsed}"; return 1; }
+    sleep 1
+  done
+}
+
+cmp_wait_warm_pod_running() {
+  local elapsed=0 running
+  while [ "${elapsed}" -lt "${SMOKE_TIMEOUT_SECONDS}" ]; do
+    running="$(kc -n "${COMPARE_NAMESPACE}" get pods \
+      -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/dev/null | grep -c '^Running$' || true)"
+    [ "${running:-0}" -ge 1 ] && return 0
+    sleep 2; elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
+cmp_wait_pods_zero() {
+  local elapsed=0 n
+  while [ "${elapsed}" -lt "${SMOKE_TIMEOUT_SECONDS}" ]; do
+    n="$(kc -n "${COMPARE_NAMESPACE}" get pods --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    [ "${n}" = "0" ] && return 0
+    sleep 3; elapsed=$((elapsed + 3))
+  done
+  info "warning: ${n} pod(s) still present in ${COMPARE_NAMESPACE} after ${SMOKE_TIMEOUT_SECONDS}s"
+  return 0
+}
+
+cmd_compare() {
+  require_docker
+  resolve_tools
+  require_context
+  kc get crd sandboxclaims.extensions.agents.x-k8s.io >/dev/null 2>&1 \
+    || fail "extension CRDs not installed; run 'reproduce.sh up' first"
+
+  local node="${CLUSTER_NAME}-control-plane"
+  info "creating namespace '${COMPARE_NAMESPACE}' (idempotent)"
+  kc create namespace "${COMPARE_NAMESPACE}" --dry-run=client -o yaml | kc apply -f -
+
+  info "cold time-to-Ready is dominated by the image pull; the phase best-effort"
+  info "evicts each image from the node first so the cold number is a real pull."
+
+  local -a rows=()
+  local idx=0 img p t0 cold warm
+  for img in "${COMPARE_IMAGES[@]}"; do
+    p="cmp${idx}"
+    info "=== image: ${img} ==="
+    docker exec "${node}" crictl rmi "${img}" >/dev/null 2>&1 \
+      && info "evicted ${img} from node cache" \
+      || info "could not evict ${img} from node cache (may be absent already)"
+
+    cmp_apply_template "${p}" "${img}"
+
+    # --- COLD: no warm pool; the claim provisions the Sandbox + pod on demand ---
+    info "cold: applying SandboxClaim/${p}-cold (no warm pool)"
+    t0="$(date +%s)"
+    cat <<EOF | kc apply -f - >&2
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: ${p}-cold
+  namespace: ${COMPARE_NAMESPACE}
+spec:
+  sandboxTemplateRef:
+    name: ${p}-template
+EOF
+    if cold="$(cmp_wait_claim_ready "${p}-cold")"; then
+      info "cold time-to-Ready: ${cold}s"
+    else
+      cold="TIMEOUT(${cold}s)"
+      info "cold claim did not reach Ready within ${SMOKE_TIMEOUT_SECONDS}s"
+    fi
+    kc -n "${COMPARE_NAMESPACE}" delete sandboxclaim "${p}-cold" --ignore-not-found=true --grace-period=1 --wait=false
+    cmp_wait_pods_zero
+
+    # --- WARM: pre-warmed pool absorbs the pull; the claim just adopts a pod ---
+    info "warm: applying SandboxWarmPool/${p}-pool (replicas:1) and waiting for the warmed pod"
+    cat <<EOF | kc apply -f - >&2
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: ${p}-pool
+  namespace: ${COMPARE_NAMESPACE}
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: ${p}-template
+EOF
+    cmp_wait_warm_pod_running || info "warm pod never reached Running within ${SMOKE_TIMEOUT_SECONDS}s"
+    info "warm: applying SandboxClaim/${p}-warm (warmpool: ${p}-pool)"
+    t0="$(date +%s)"
+    cat <<EOF | kc apply -f - >&2
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: ${p}-warm
+  namespace: ${COMPARE_NAMESPACE}
+spec:
+  sandboxTemplateRef:
+    name: ${p}-template
+  warmpool: ${p}-pool
+EOF
+    if warm="$(cmp_wait_claim_ready "${p}-warm")"; then
+      info "warm time-to-Ready: ${warm}s"
+    else
+      warm="TIMEOUT(${warm}s)"
+      info "warm claim did not reach Ready within ${SMOKE_TIMEOUT_SECONDS}s"
+    fi
+
+    kc -n "${COMPARE_NAMESPACE}" delete sandboxclaim "${p}-warm" --ignore-not-found=true --grace-period=1 --wait=false
+    kc -n "${COMPARE_NAMESPACE}" delete sandboxwarmpool "${p}-pool" --ignore-not-found=true --grace-period=1 --wait=false
+    kc -n "${COMPARE_NAMESPACE}" delete sandboxtemplate "${p}-template" --ignore-not-found=true --wait=false
+    cmp_wait_pods_zero
+
+    rows+=("$(printf '%-20s | %14s | %13s' "${img}" "${cold}" "${warm}")")
+    idx=$((idx + 1))
+  done
+
+  {
+    printf '\n[info] warm-pool vs cold-start — SandboxClaim -> Ready (wall seconds):\n'
+    printf '  %-20s | %14s | %13s\n' "image" "cold (no pool)" "warm (pool)"
+    printf '  %-20s-+-%14s-+-%13s\n' "--------------------" "--------------" "-------------"
+    local r; for r in "${rows[@]}"; do printf '  %s\n' "${r}"; done
+    printf '\n'
+  } >&2
+
+  info "cleaning up compare namespace '${COMPARE_NAMESPACE}'"
+  kc delete namespace "${COMPARE_NAMESPACE}" --ignore-not-found=true --wait=false
+  pass "compare complete"
 }
 
 cmd_down() {
@@ -393,11 +570,12 @@ write_summary() {
   \`ClaimRequest\`/\`SandboxClaim\`, \`RuntimeBackend\` adapter, or contract is
   exercised here (that is E8-T4 / #51).
 - Reruns are idempotent: cluster and namespace creation are safe to repeat,
-  and teardown deletes only the \`${CLUSTER_NAME}\` kind cluster and the
-  \`${SMOKE_NAMESPACE}\` namespace created by this script.
+  \`teardown\` uses \`--ignore-not-found\`, and \`down\` deletes only the
+  \`${CLUSTER_NAME}\` kind cluster. \`smoke\` leaves its fixtures in the
+  \`${SMOKE_NAMESPACE}\` namespace; \`teardown\` removes them.
 - Not isolated here: claim-only deletion vs warm-pool "recycle" behaviour
-  (see #48). This harness deletes the claim, pool, and template together and
-  asserts the sandbox pod count reaches zero.
+  (see #48). The \`teardown\` phase deletes the claim, pool, and template
+  together and asserts the sandbox pod count reaches zero.
 
 Raw output: \`output.txt\`
 EOF
@@ -409,7 +587,7 @@ main() {
 
   case "${subcommand}" in
     -h|--help) usage; exit 0 ;;
-    status|tools|up|smoke|down|all) ;;
+    status|tools|up|smoke|teardown|compare|down|all) ;;
     *) usage; fail "unknown subcommand: ${subcommand}" ;;
   esac
 
@@ -423,8 +601,10 @@ main() {
     tools) cmd_tools ;;
     up) cmd_up ;;
     smoke) cmd_smoke ;;
+    teardown) cmd_teardown ;;
+    compare) cmd_compare ;;
     down) cmd_down ;;
-    all) cmd_up; cmd_smoke; cmd_down ;;
+    all) cmd_up; cmd_smoke; cmd_teardown; cmd_down ;;
   esac
 }
 

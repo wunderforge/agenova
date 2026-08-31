@@ -1,49 +1,28 @@
 [pass] docker daemon reachable
 [pass] kind: /opt/homebrew/bin/kind (existing)
 [pass] kubectl: /opt/homebrew/bin/kubectl (existing)
-[info] creating kind cluster 'agenova-k8s-lab'
-Creating cluster "agenova-k8s-lab" ...
- • Ensuring node image (kindest/node:v1.36.1) 🖼  ...
- ✓ Ensuring node image (kindest/node:v1.36.1) 🖼
- • Preparing nodes 📦   ...
- ✓ Preparing nodes 📦 
- • Writing configuration 📜  ...
- ✓ Writing configuration 📜
- • Starting control-plane 🕹️  ...
- ✓ Starting control-plane 🕹️
- • Installing CNI 🔌  ...
- ✓ Installing CNI 🔌
- • Installing StorageClass 💾  ...
- ✓ Installing StorageClass 💾
- • Waiting ≤ 1m30s for control-plane = Ready ⏳  ...
- ✓ Waiting ≤ 1m30s for control-plane = Ready ⏳
- • Ready after 16s 💚
-Set kubectl context to "kind-agenova-k8s-lab"
-You can now use your cluster with:
-
-kubectl cluster-info --context kind-agenova-k8s-lab
-
-Thanks for using kind! 😊
+[info] kind cluster 'agenova-k8s-lab' already exists, skipping creation
 [pass] resolved context matches expected 'kind-agenova-k8s-lab'
 [info] downloading pinned Agent Sandbox v0.4.6 manifests
 [pass] downloaded pinned manifests to /Users/neoliu/projects/agenova/.tmp/agent-sandbox-v0.4.6
 [info] applying core manifest (namespace, RBAC, Sandbox CRD, controller)
-namespace/agent-sandbox-system created
-serviceaccount/agent-sandbox-controller created
-clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller created
-service/agent-sandbox-controller created
-deployment.apps/agent-sandbox-controller created
-customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io created
-clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller created
-Waiting for deployment "agent-sandbox-controller" rollout to finish: 0 of 1 updated replicas are available...
+namespace/agent-sandbox-system unchanged
+serviceaccount/agent-sandbox-controller unchanged
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller unchanged
+service/agent-sandbox-controller unchanged
+deployment.apps/agent-sandbox-controller configured
+customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io unchanged
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller unchanged
+Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
 deployment "agent-sandbox-controller" successfully rolled out
 [info] applying extensions manifest (Template/WarmPool/Claim CRDs)
-customresourcedefinition.apiextensions.k8s.io/sandboxclaims.extensions.agents.x-k8s.io created
-customresourcedefinition.apiextensions.k8s.io/sandboxtemplates.extensions.agents.x-k8s.io created
-customresourcedefinition.apiextensions.k8s.io/sandboxwarmpools.extensions.agents.x-k8s.io created
-clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller-extensions created
+customresourcedefinition.apiextensions.k8s.io/sandboxclaims.extensions.agents.x-k8s.io unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxtemplates.extensions.agents.x-k8s.io unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxwarmpools.extensions.agents.x-k8s.io unchanged
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller-extensions unchanged
 deployment.apps/agent-sandbox-controller configured
-clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller-extensions created
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller-extensions unchanged
 Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
 Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
 deployment "agent-sandbox-controller" successfully rolled out
@@ -61,8 +40,8 @@ customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io
 customresourcedefinition.apiextensions.k8s.io/sandboxtemplates.extensions.agents.x-k8s.io
 customresourcedefinition.apiextensions.k8s.io/sandboxwarmpools.extensions.agents.x-k8s.io
 [info] controller deployment:
-NAME                       READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS                 IMAGES                                                          SELECTOR
-agent-sandbox-controller   1/1     1            1           6s    agent-sandbox-controller   registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6   app=agent-sandbox-controller
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS                 IMAGES                                                          SELECTOR
+agent-sandbox-controller   1/1     1            1           141m   agent-sandbox-controller   registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6   app=agent-sandbox-controller
 [info] controller image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6
 [info] pinned Agent Sandbox version: v0.4.6
 [pass] kind: /opt/homebrew/bin/kind (existing)
@@ -78,22 +57,26 @@ sandboxclaim.extensions.agents.x-k8s.io/smoke-claim created
 [pass] SandboxClaim/smoke-claim observed Ready=True
 [info] observed state:
 NAME                                                        AGE
-sandboxtemplate.extensions.agents.x-k8s.io/smoke-template   26s
+sandboxtemplate.extensions.agents.x-k8s.io/smoke-template   21s
 
 NAME                                                    READY   AGE
-sandboxwarmpool.extensions.agents.x-k8s.io/smoke-pool   1       26s
+sandboxwarmpool.extensions.agents.x-k8s.io/smoke-pool   1       21s
 
 NAME                                                  AGE
-sandboxclaim.extensions.agents.x-k8s.io/smoke-claim   26s
+sandboxclaim.extensions.agents.x-k8s.io/smoke-claim   21s
 
 NAME                                       AGE
-sandbox.agents.x-k8s.io/smoke-claim        10s
-sandbox.agents.x-k8s.io/smoke-pool-c94kx   10s
+sandbox.agents.x-k8s.io/smoke-claim        4s
+sandbox.agents.x-k8s.io/smoke-pool-9pm4b   4s
 
-NAME                   READY   STATUS    RESTARTS   AGE   IP           NODE                            NOMINATED NODE   READINESS GATES
-pod/smoke-claim        1/1     Running   0          10s   10.244.0.8   agenova-k8s-lab-control-plane   <none>           <none>
-pod/smoke-pool-c94kx   1/1     Running   0          10s   10.244.0.7   agenova-k8s-lab-control-plane   <none>           <none>
-[info] claim status.sandbox: {"name":"smoke-claim","podIPs":["10.244.0.8"]}
+NAME                   READY   STATUS    RESTARTS   AGE   IP            NODE                            NOMINATED NODE   READINESS GATES
+pod/smoke-claim        1/1     Running   0          4s    10.244.0.29   agenova-k8s-lab-control-plane   <none>           <none>
+pod/smoke-pool-9pm4b   1/1     Running   0          4s    10.244.0.30   agenova-k8s-lab-control-plane   <none>           <none>
+[info] claim status.sandbox: {"name":"smoke-claim","podIPs":["10.244.0.29"]}
+[info] smoke fixtures left in place in namespace 'agent-sandbox-smoke'; run 'reproduce.sh teardown' to delete them and assert pods -> 0, or 'reproduce.sh down' to remove the whole cluster
+[pass] kind: /opt/homebrew/bin/kind (existing)
+[pass] kubectl: /opt/homebrew/bin/kubectl (existing)
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
 [info] terminating: deleting SandboxClaim/smoke-claim
 sandboxclaim.extensions.agents.x-k8s.io "smoke-claim" deleted from agent-sandbox-smoke namespace
 [info] tearing down warm pool and template
