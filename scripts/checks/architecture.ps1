@@ -34,19 +34,27 @@ function Test-CLICompositionBoundary {
     Fail "CLI composition root is missing: cmd/agenova/main.go"
   }
 
+  # Command behavior and shared contracts must not contain provider SDKs,
+  # CRD vocabulary, or adapter packages. cmd/agenova and internal/app are
+  # the composition edge: they may import a concrete adapter constructor
+  # without leaking those types into application contracts.
   $providerPatterns = @(
     "k8s.io/",
     "sigs.k8s.io/",
     "github.com/kubernetes-sigs/",
+    "agentsandboxv1",
+    "AgentSandboxClaim",
+    "agents.x-k8s.io",
+    "extensions.agents.x-k8s.io",
     "github.com/wunderforge/agenova/internal/runtime/agentsandbox"
   )
 
   $targets = @(
-    @{ Rel = "cmd"; Extra = @() },
-    @{ Rel = "internal/app"; Extra = @() },
+    @{ Rel = "api"; Extra = @() },
     @{ Rel = "internal/cli"; Extra = @(
         "github.com/wunderforge/agenova/internal/operator",
-        "github.com/wunderforge/agenova/internal/app"
+        "github.com/wunderforge/agenova/internal/app",
+        "github.com/wunderforge/agenova/internal/sandbox"
       )
     }
   )
@@ -70,6 +78,6 @@ function Test-CLICompositionBoundary {
     }
   }
 
-  if ($bad) { Fail "CLI composition imported provider or command-layer backend types: $($bad -join '; ')" }
-  Pass "CLI composition root stays backend-neutral"
+  if ($bad) { Fail "provider vocabulary leaked into command behavior or shared contracts: $($bad -join '; ')" }
+  Pass "command behavior and shared contracts stay provider-neutral"
 }

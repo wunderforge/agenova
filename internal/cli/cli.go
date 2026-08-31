@@ -109,7 +109,7 @@ func parseArgs(argv []string) (parsedArgs, error) {
 		case arg == "--version" || arg == "-v":
 			parsed.version = true
 		case arg == "--backend":
-			if i+1 >= len(argv) {
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("flag --backend requires a value")
 			}
 			i++
@@ -150,4 +150,8 @@ func flagName(arg string) string {
 		return arg[:i]
 	}
 	return arg
+}
+
+func looksLikeFlag(arg string) bool {
+	return strings.HasPrefix(arg, "-") && arg != "-"
 }

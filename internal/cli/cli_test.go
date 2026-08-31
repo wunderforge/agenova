@@ -93,6 +93,16 @@ func TestInvalidConfiguration(t *testing.T) {
 			want: "flag --backend requires a value",
 		},
 		{
+			name: "backend value is another flag",
+			args: []string{"agenova", "--backend", "--version"},
+			want: "flag --backend requires a value",
+		},
+		{
+			name: "backend value is help flag",
+			args: []string{"agenova", "--backend", "--help"},
+			want: "flag --backend requires a value",
+		},
+		{
 			name: "authority flag",
 			args: []string{"agenova", "--repo=acme/payments"},
 			want: "does not grant authority through CLI flags",

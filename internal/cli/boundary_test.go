@@ -17,17 +17,18 @@ func TestProductionSourcesStayBackendNeutral(t *testing.T) {
 	t.Parallel()
 
 	root := moduleRoot(t)
+	// Command behavior and shared contracts must stay free of provider
+	// SDKs and adapter packages. cmd/agenova and internal/app are the
+	// composition edge and may import a concrete adapter constructor.
 	targets := []struct {
 		rel       string
 		forbidden []string
 	}{
-		{rel: "cmd/agenova", forbidden: providerImports()},
-		{rel: "internal/app", forbidden: providerImports()},
+		{rel: "api/v1alpha1", forbidden: providerImports()},
 		{rel: "internal/cli", forbidden: append(providerImports(),
 			"github.com/wunderforge/agenova/internal/operator",
 			"github.com/wunderforge/agenova/internal/app",
 			"github.com/wunderforge/agenova/internal/sandbox",
-			"github.com/wunderforge/agenova/internal/runtime/agentsandbox",
 		)},
 	}
 

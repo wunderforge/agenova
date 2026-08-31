@@ -3,7 +3,7 @@
 [pass] product authorities, AIDLC routing, and task-packet structure are present
 [pass] local Markdown links resolve
 [pass] backend-specific Agent Sandbox shape stays inside its adapter
-[pass] CLI composition root stays backend-neutral
+[pass] command behavior and shared contracts stay provider-neutral
 Created task packet: /workspace/.tmp/task-scaffold-contract/9999-contract-check
 Read the linked Issue, replace every TODO marker, and stop for Owner/Reviewer approval before implementation.
 [pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
@@ -11,10 +11,10 @@ Read the linked Issue, replace every TODO marker, and stop for Owner/Reviewer ap
 [pass] Go module metadata is tidy
 [pass] go vet ./...
 ?   	github.com/wunderforge/agenova/api/v1alpha1	[no test files]
-ok  	github.com/wunderforge/agenova/cmd/agenova	0.135s
-ok  	github.com/wunderforge/agenova/harness/e2e	0.001s
-ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	0.037s
-ok  	github.com/wunderforge/agenova/internal/app	0.004s
+ok  	github.com/wunderforge/agenova/cmd/agenova	0.129s
+ok  	github.com/wunderforge/agenova/harness/e2e	0.002s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	0.052s
+ok  	github.com/wunderforge/agenova/internal/app	0.001s
 ok  	github.com/wunderforge/agenova/internal/cli	0.001s
 ok  	github.com/wunderforge/agenova/internal/facts	0.001s
 ok  	github.com/wunderforge/agenova/internal/governance	0.001s
@@ -23,7 +23,7 @@ ok  	github.com/wunderforge/agenova/internal/modelgateway	0.001s
 ok  	github.com/wunderforge/agenova/internal/operator	0.001s
 ?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
 ?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
-ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	0.001s
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	0.005s
 ok  	github.com/wunderforge/agenova/internal/toolgateway	0.001s
 [pass] go test ./...
 ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]

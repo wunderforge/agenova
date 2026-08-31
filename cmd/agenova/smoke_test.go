@@ -8,19 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"sync"
 	"testing"
 )
 
-var (
-	buildOnce sync.Once
-	builtBin  string
-	buildErr  error
-)
-
 func TestCLISmoke(t *testing.T) {
-	bin := builtCLI(t)
+	bin := buildCLI(t)
 
 	helpOut := runCLI(t, bin, 0, "--help")
 	if !strings.Contains(helpOut, "Usage:") {
@@ -41,29 +35,28 @@ func TestCLISmoke(t *testing.T) {
 	if !strings.Contains(invalid, `unknown runtime backend "kubernetes"`) {
 		t.Fatalf("invalid backend output: %q", invalid)
 	}
+
+	missingValue := runCLI(t, bin, 2, "--backend", "--version")
+	if !strings.Contains(missingValue, "flag --backend requires a value") {
+		t.Fatalf("missing backend value output: %q", missingValue)
+	}
 }
 
-func builtCLI(t *testing.T) string {
+func buildCLI(t *testing.T) string {
 	t.Helper()
-	buildOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "agenova-cli-smoke-")
-		if err != nil {
-			buildErr = err
-			return
-		}
-		builtBin = filepath.Join(dir, "agenova")
-		cmd := exec.Command("go", "build", "-o", builtBin, ".")
-		cmd.Dir = moduleDir(t)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			buildErr = err
-			builtBin = string(out)
-		}
-	})
-	if buildErr != nil {
-		t.Fatalf("go build ./cmd/agenova: %v\n%s", buildErr, builtBin)
+	dir := t.TempDir()
+	name := "agenova"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
 	}
-	return builtBin
+	bin := filepath.Join(dir, name)
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd.Dir = moduleDir(t)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build ./cmd/agenova: %v\n%s", err, out)
+	}
+	return bin
 }
 
 func runCLI(t *testing.T, bin string, wantExit int, args ...string) string {

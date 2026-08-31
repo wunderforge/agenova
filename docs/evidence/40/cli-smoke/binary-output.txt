@@ -36,3 +36,8 @@ This composition root supports "memory" (the in-memory reference backend).
 Provider backends are not selected from the CLI
 Run 'agenova --help' for usage.
 exit=2
+
+=== .tmp/agenova --backend --version ===
+flag --backend requires a value
+Run 'agenova --help' for usage.
+exit=2
