@@ -27,6 +27,7 @@ Define one declarative, backend-neutral v0 contract for requesting an agent work
 - Given a request missing `spec.templateRef`, `spec.task`, or `spec.runtime`, then validation fails with `required-field` and the responsible field/path.
 - Given a blank `metadata.name`, `spec.task.type`, or `spec.runtime.profileRef`, then validation fails with `required-field` and that path; given a missing or non-positive `spec.runtime.timeout`, validation fails with the timeout's path.
 - Given an absent or empty `spec.task.input`, then validation succeeds: task input shape is task-specific. Given an absent or explicitly empty `spec.requestedAccess`, then validation succeeds and the request means default-deny.
+- Given any optional field written with no value, then YAML null counts as that explicitly empty form and decodes to the zero value. Given a required field written with no value, then it is reported as `required-field` at its own path rather than as a document-shape error, because a null-valued required field is semantically missing.
 - Given the exact caller-authored path `spec.principal`, then parsing fails with `self-asserted-principal` and that path; the trusted principal never travels in the request.
 - Given the exact secret-bearing path `spec.secrets`, then parsing fails with `secret-value` and that path; v0 carries neither credential values nor a delivery mechanism.
 - Given any other unknown field, then parsing fails closed with `unknown-field` and the exact path; classification is deterministic and path-based, never a scan of names or values.

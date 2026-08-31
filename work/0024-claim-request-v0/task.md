@@ -94,5 +94,10 @@ Out of scope:
 - Dependency note: #22 (E1-T1 fixtures) is merged — all seven ClaimRequest cases and both valid surfaces are frozen and consumable now.
 - Decision: both surfaces share one strict parsing pipeline (JSON is a YAML subset; the JSON entrypoint additionally requires `json.Valid` input), so shape classification and semantic validation cannot drift between forms and the equivalence proof compares decoded values directly.
 - Decision (planning review, 2026-08-31): #93 is approved, so this Ticket does not introduce a second copy of the shared validation primitives. After #93 merges, this branch rebases onto it and reuses its `ValidationCategory`, `ValidationError`, `Duration`, and parsing helpers; only the ClaimRequest-specific category and shape validators are added here.
+- Fold instructions for that rebase (the two copies are not identical, so deleting either outright loses behavior):
+  1. Keep #93's `ValidationCategoryInvalidCapabilityCeiling`; it has no ClaimRequest equivalent.
+  2. Carry over the `Duration` marshallers (`MarshalYAML`, `MarshalJSON`, `UnmarshalJSON`) and the `encoding/json` import added here; without them the ClaimRequest JSON and YAML round-trip tests fail, because the default encoding emits nanoseconds that the strict parser rejects.
+  3. `validateMapping`'s reserved-field and unknown-field `Detail` strings must be contract-neutral in the shared helper. #93 currently names AgentTemplate, which would mislabel ClaimRequest failures; this branch uses neutral wording. Category and field path are unaffected, and tests assert only those two, so a careless fold would pass while emitting misleading text.
+- Residual: `InvocationResult` (E4-T1) documents three values but Go still admits any untyped string constant at the fact-store boundary; `IsValid` makes the set assertable, and rejecting an invalid value on append belongs to the evidence contract in #37.
 - Owner/Reviewer approval: pending planning approval on #24.
 - Blockers: #93 (E1-T2) must merge first so the shared validation primitives can be reused rather than duplicated; implementation commits land after that rebase.
