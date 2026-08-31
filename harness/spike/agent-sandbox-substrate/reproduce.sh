@@ -25,8 +25,8 @@ set -euo pipefail
 # NOTE: this substrate is deliberately pinned to v0.4.6 to match the rest of
 # the codebase (the internal/runtime/agentsandbox adapter, docs/backends,
 # THIRD_PARTY_NOTICES.md, and the repository.ps1 check are all on v0.4.6 /
-# extensions.agents.x-k8s.io/v1alpha1). Moving to v1.0.0 / v1beta1 is a
-# separate E8 change tracked by the #66 mapping spike.
+# extensions.agents.x-k8s.io/v1alpha1). Adopting a newer upstream release
+# across E8 is a separate change tracked by the #66 mapping spike.
 CLUSTER_NAME="agenova-k8s-lab"
 CONTEXT="kind-${CLUSTER_NAME}"
 AGENT_SANDBOX_VERSION="v0.4.6"      # matches the codebase adapter (v1alpha1 APIs)

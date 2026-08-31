@@ -122,11 +122,10 @@ Every invocation writes, under `docs/evidence/E8-T3/agent-sandbox-substrate/`:
 - Pinned to `v0.4.6` on purpose: the `internal/runtime/agentsandbox` adapter,
   `docs/backends/agent-sandbox.md`, `THIRD_PARTY_NOTICES.md`, and the
   `scripts/checks/repository.ps1` check are all on `v0.4.6` /
-  `extensions.agents.x-k8s.io/v1alpha1`. Bumping this substrate to `v1.0.0`
-  (`v1beta1`) is a separate E8 change tracked by the #66 mapping spike.
+  `extensions.agents.x-k8s.io/v1alpha1`. Adopting a newer upstream Agent Sandbox
+  release across E8 is a separate change tracked by the #66 mapping spike.
 - Release assets for `v0.4.6` are `manifest.yaml` (core CRDs + controller) and
-  `extensions.yaml` (Template/WarmPool/Claim CRDs). (`v1.0.0` renamed the core
-  asset to `sandbox.yaml` and dropped `v1alpha1`.)
+  `extensions.yaml` (Template/WarmPool/Claim CRDs).
 - The `v1alpha1` `SandboxClaim` names its warm pool with the string field
   `spec.warmpool` and points at the template via `spec.sandboxTemplateRef`.
 - Deleting a warm-pool-backed `SandboxClaim` on `v0.4.6` recycles its `Sandbox`
