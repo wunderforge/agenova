@@ -1,0 +1,13 @@
+# Pre-warms exactly one sandbox from smoke-template so the claim below can be
+# satisfied without a cold start. Single-pool path only (E8-T3 scope).
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: smoke-pool
+  namespace: agent-sandbox-smoke
+spec:
+  replicas: 1
+  updateStrategy:
+    type: Recreate
+  sandboxTemplateRef:
+    name: smoke-template

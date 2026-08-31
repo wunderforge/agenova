@@ -71,14 +71,16 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Scout the pinned upstream Agent Sandbox release: manifest layout, CRD names, controller namespace/deployment, and the minimal sandbox object for that version.
+- [x] Scout the pinned upstream Agent Sandbox release: `v1.0.0` assets are `sandbox.yaml` (core CRDs + `agent-sandbox-controller` in `agent-sandbox-system`) and `extensions.yaml` (Template/WarmPool/Claim CRDs, group `extensions.agents.x-k8s.io/v1beta1`); minimal path is `SandboxTemplate` -> `SandboxWarmPool(replicas:1)` -> `SandboxClaim(warmPoolRef, lifecycle.shutdownPolicy:Delete)`.
 - [x] Confirm this packet with the Owner (authorized 2026-08-31); record independent Reviewer approval on Ticket #50 as a PR gate.
-- [ ] Implement tool resolution: use existing `kind`/`kubectl` when present, pinned checksum-verified binary in `.tmp/` when absent; verify the kube context before any mutation.
-- [ ] Implement cluster up + pinned Agent Sandbox install + readiness wait + version/readiness recording.
-- [ ] Implement the create / observe / terminate / cleanup smoke path with explicit failure reporting.
-- [ ] Add the minimal manifests and the runbook; add the pointer line in `docs/backends/agent-sandbox.md`.
-- [ ] Run the script end to end twice on a real local machine; capture `summary.md` + `output.txt`.
+- [x] Implement tool resolution: use existing `kind`/`kubectl` when present, pinned checksum-verified binary in `.tmp/` when absent; verify the kube context before any mutation.
+- [x] Implement cluster up + pinned Agent Sandbox install + readiness wait + version/readiness recording.
+- [x] Implement the create / observe / terminate / cleanup smoke path with explicit failure reporting.
+- [x] Add the minimal manifests and the runbook; add the pointer line in `docs/backends/agent-sandbox.md`.
+- [ ] Run the script end to end twice on a real local machine; capture `summary.md` + `output.txt`. (blocked: Docker daemon not running on the Owner machine)
 - [ ] Run `./scripts/check.ps1 -Docs` (and any check covering changed scripts); review the diff for scope and source-of-truth updates.
+
+Verified so far without Docker (Darwin arm64, 2026-08-31): `tools` and `status` resolve the existing Homebrew `kind`/`kubectl` and skip install; `up` with the Docker daemon down exits 1 with `docker daemon is not reachable` and creates nothing; an unknown subcommand prints usage and exits 1. `bash -n` clean; `shellcheck` not installed locally.
 
 ## Quality Gates
 
@@ -112,4 +114,6 @@ Out of scope:
 - Decision (Owner-confirmed 2026-08-31): install `kind` via its pinned official release binary, not `go install` or a package manager. Pin an exact `kind` version in the script; download the release binary for the host OS/arch, verify the published SHA256, cache it under the gitignored `.tmp/`, and reuse a `PATH` `kind` only when its version already matches the pin. This keeps reruns deterministic and never mutates the developer's system `PATH` or existing `kind`.
 - Owner authorization: the Owner explicitly approved this packet and requested execution and a local test on 2026-08-31, and will review the resulting PR. Independent Reviewer approval on Ticket #50 remains a PR gate.
 - Owner machine baseline (2026-08-31, Darwin arm64): `kind v0.32.0` and `kubectl v1.36.2` are already installed via Homebrew, so the pinned-binary install path will not be exercised there (the skip path will). The Docker daemon is currently **not running** and the active context is `ais-uat`; Docker Desktop must be started before the `up`/`smoke` phases, and the context-mismatch refusal can be verified as-is.
-- Blockers: Docker daemon not running on the Owner machine — blocks the end-to-end `up`/`smoke` run until Docker Desktop is started. No code blocker. Execution also needs network access to `github.com` and `registry.k8s.io`.
+- Decision: the smoke fixtures use a bare `busybox:1.36` `sleep` pod with no `volumeClaimTemplates`, `runtimeClassName`, or `NetworkPolicy` — kind has no pre-provisioned RWO storage class and the ticket only needs one observable lifecycle, not a hardened template.
+- Decision: `kind`/`kubectl` pinned fallbacks are `v0.33.0` / `v1.34.0` (only used when the tool is absent); the Owner machine already has both via Homebrew so its recorded run will show `existing`.
+- Blockers: Docker daemon not running on the Owner machine — blocks the end-to-end `up`/`smoke` run until Docker Desktop is started. No code blocker. Execution also needs network access to `github.com`, `dl.k8s.io`, and `registry.k8s.io`.

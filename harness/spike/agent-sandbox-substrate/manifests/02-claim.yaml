@@ -1,0 +1,14 @@
+# One upstream-native SandboxClaim adopting a sandbox from smoke-pool.
+# shutdownPolicy: Delete so deleting this claim tears the sandbox down
+# (rather than retaining stopped objects); the script still tears down the
+# pool and template afterwards and asserts the pod count reaches zero.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxClaim
+metadata:
+  name: smoke-claim
+  namespace: agent-sandbox-smoke
+spec:
+  warmPoolRef:
+    name: smoke-pool
+  lifecycle:
+    shutdownPolicy: Delete
