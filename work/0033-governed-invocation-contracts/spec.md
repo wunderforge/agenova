@@ -31,6 +31,7 @@ Focused tests assert these identifiers exactly; downstream consumers must not in
 | `unknown-claim` | claim is not known to the runtime backend |
 | `claim-not-active` | claim exists but is not in the Running phase |
 | `out-of-parent-scope` | child claim whose parent is no longer Running |
+| `invalid-policy-outcome` | policy returned a result outside the three contract values; the gateway fails closed rather than passing an untyped decision on |
 
 ## Out of Scope
 
@@ -48,6 +49,8 @@ Focused tests assert these identifiers exactly; downstream consumers must not in
 - Given a caller-supplied identifier, when the gateway assigns the `invocationId`, then the caller value is not adopted as the trusted correlation identity.
 - Given policy evaluation, when a decision is produced, then it is exactly one of `Allow`, `Deny`, or `ApprovalRequired`, never a boolean flag.
 - Given a `Deny` or `ApprovalRequired` decision, when the decision is returned, then no provider adapter call occurs, and `ApprovalRequired` does not itself grant authority.
+- Given a policy result outside the three contract values, when the gateway evaluates it, then the attempt is denied with `invalid-policy-outcome`; an untyped result never reaches a caller or the evidence store.
+- Given an `Allow` decision and no provider adapter configured, when the gateway attempts the call, then it reports a configuration failure instead of returning success for a call that never happened.
 - Given a decision reached after claim identity resolves, when it is returned, then exactly one invocation fact carrying that `invocationId`, the typed result, and the claim attribution has been appended; non-`Allow` decisions additionally have zero adapter calls.
 - Given a rejection raised before claim identity resolves — structural rejection or unknown claim — when it is returned, then it carries the issued `invocationId` and no invocation fact is appended for the asserted claim identity.
 
