@@ -1,7 +1,9 @@
 # Minimal upstream-native SandboxTemplate for the E8-T3 (#50) kind smoke.
-# No persistent storage, no runtimeClass, no NetworkPolicy - just enough for
-# the pinned upstream controller to warm one pod and satisfy one claim.
-apiVersion: extensions.agents.x-k8s.io/v1beta1
+# Pinned to Agent Sandbox v0.4.6 (extensions.agents.x-k8s.io/v1alpha1) to match
+# the internal/runtime/agentsandbox adapter. No persistent storage, no
+# runtimeClass, no NetworkPolicy - just enough for the pinned upstream
+# controller to warm one pod and satisfy one claim.
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
 kind: SandboxTemplate
 metadata:
   name: smoke-template

@@ -2,11 +2,11 @@
 
 - Ticket: E8-T3 (#50)
 - Gate: agent-sandbox-substrate
-- Date: 2026-08-31T08:02:51Z
+- Date: 2026-08-31T09:07:37Z
 - Branch: neo/e8-t3-kind-agent-sandbox
-- Commit: 009e7e34dec65f52e27376ce0ab460071f8e8f41
+- Commit: 0b602fed2248ba215100f9a41ec65472cf70e09e
 - Command: reproduce.sh all
-- Pinned Agent Sandbox version: v1.0.0
+- Pinned Agent Sandbox version: v0.4.6
 - kind: /opt/homebrew/bin/kind (existing)
 - kubectl: /opt/homebrew/bin/kubectl (existing)
 - kind cluster / context: agenova-k8s-lab / kind-agenova-k8s-lab

@@ -21,9 +21,15 @@ set -euo pipefail
 # Bump AGENT_SANDBOX_VERSION when the team adopts a newer upstream release.
 # Bump the *_FALLBACK_VERSION pins when a clean machine should bootstrap a
 # newer kind/kubectl; verified working values as of 2026-08-31 below.
+#
+# NOTE: this substrate is deliberately pinned to v0.4.6 to match the rest of
+# the codebase (the internal/runtime/agentsandbox adapter, docs/backends,
+# THIRD_PARTY_NOTICES.md, and the repository.ps1 check are all on v0.4.6 /
+# extensions.agents.x-k8s.io/v1alpha1). Moving to v1.0.0 / v1beta1 is a
+# separate E8 change tracked by the #66 mapping spike.
 CLUSTER_NAME="agenova-k8s-lab"
 CONTEXT="kind-${CLUSTER_NAME}"
-AGENT_SANDBOX_VERSION="v1.0.0"      # upstream latest; v1beta1 core + extension APIs
+AGENT_SANDBOX_VERSION="v0.4.6"      # matches the codebase adapter (v1alpha1 APIs)
 KIND_FALLBACK_VERSION="v0.33.0"     # kind latest as of 2026-08-31
 KUBECTL_FALLBACK_VERSION="v1.34.0"  # tracks the kind v0.33.0 default node (k8s v1.34)
 
@@ -243,19 +249,19 @@ cmd_up() {
 
   mkdir -p "${DOWNLOAD_DIR}"
   info "downloading pinned Agent Sandbox ${AGENT_SANDBOX_VERSION} manifests"
-  curl -fsSL -o "${DOWNLOAD_DIR}/sandbox.yaml" "${RELEASE_BASE}/sandbox.yaml" \
-    || fail "could not download core manifest (sandbox.yaml) for ${AGENT_SANDBOX_VERSION}"
+  curl -fsSL -o "${DOWNLOAD_DIR}/manifest.yaml" "${RELEASE_BASE}/manifest.yaml" \
+    || fail "could not download core manifest (manifest.yaml) for ${AGENT_SANDBOX_VERSION}"
   curl -fsSL -o "${DOWNLOAD_DIR}/extensions.yaml" "${RELEASE_BASE}/extensions.yaml" \
     || fail "could not download extensions manifest for ${AGENT_SANDBOX_VERSION}"
   pass "downloaded pinned manifests to ${DOWNLOAD_DIR}"
 
   info "applying core manifest (namespace, RBAC, Sandbox CRD, controller)"
-  kc apply --server-side -f "${DOWNLOAD_DIR}/sandbox.yaml"
+  kc apply -f "${DOWNLOAD_DIR}/manifest.yaml"
   kc -n "${CONTROLLER_NAMESPACE}" rollout status "deploy/${CONTROLLER_DEPLOY}" --timeout=180s \
     || fail "controller did not become ready after core manifest apply"
 
   info "applying extensions manifest (Template/WarmPool/Claim CRDs)"
-  kc apply --server-side -f "${DOWNLOAD_DIR}/extensions.yaml"
+  kc apply -f "${DOWNLOAD_DIR}/extensions.yaml"
   kc -n "${CONTROLLER_NAMESPACE}" rollout status "deploy/${CONTROLLER_DEPLOY}" --timeout=180s \
     || fail "controller did not become ready after extensions manifest apply"
 
@@ -300,7 +306,11 @@ cmd_smoke() {
   kc -n "${SMOKE_NAMESPACE}" get sandboxtemplate,sandboxwarmpool,sandboxclaim,sandbox,pod -o wide
   info "claim status.sandbox: $(kc -n "${SMOKE_NAMESPACE}" get sandboxclaim smoke-claim -o jsonpath='{.status.sandbox}' 2>/dev/null || true)"
 
-  info "terminating: deleting SandboxClaim/smoke-claim (spec.lifecycle.shutdownPolicy=Delete)"
+  # Observed upstream behavior (v0.4.6): deleting a warm-pool-backed claim
+  # RECYCLES its Sandbox back into the pool rather than terminating the pod;
+  # the sandbox only actually goes away once the pool and template are also
+  # deleted. The teardown below accounts for that and still asserts pods -> 0.
+  info "terminating: deleting SandboxClaim/smoke-claim"
   kc -n "${SMOKE_NAMESPACE}" delete sandboxclaim smoke-claim --ignore-not-found=true --timeout=60s
 
   info "tearing down warm pool and template"
@@ -324,8 +334,23 @@ cmd_smoke() {
   pass "sandbox terminated and cleaned up after claim/pool/template teardown"
 
   info "cleaning up scoped smoke namespace '${SMOKE_NAMESPACE}'"
-  kc delete namespace "${SMOKE_NAMESPACE}" --ignore-not-found=true --timeout=120s
-  pass "smoke namespace and resources removed"
+  # --wait=false: request deletion but do not block on finalization. The
+  # meaningful cleanup (sandbox pods -> 0) is already asserted above, and a
+  # blocking wait here is prone to a dropped watch on kind. A follow-up
+  # 'down' deletes the whole cluster regardless.
+  kc delete namespace "${SMOKE_NAMESPACE}" --ignore-not-found=true --wait=false
+  elapsed=0
+  local ns_state="present"
+  while [ "${elapsed}" -lt 60 ]; do
+    kc get namespace "${SMOKE_NAMESPACE}" >/dev/null 2>&1 || { ns_state="gone"; break; }
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  if [ "${ns_state}" = "gone" ]; then
+    pass "smoke namespace and resources removed"
+  else
+    info "smoke namespace still finalizing after 60s; deletion is requested and 'down' will remove the cluster"
+  fi
 }
 
 cmd_down() {

@@ -40,7 +40,7 @@ under the gitignored `.tmp/` directory.
 
 | Pin | Value | Meaning | Bump when |
 | --- | --- | --- | --- |
-| `AGENT_SANDBOX_VERSION` | `v1.0.0` (v1beta1 APIs) | installed on every run | the team adopts a newer upstream Agent Sandbox release |
+| `AGENT_SANDBOX_VERSION` | `v0.4.6` (`v1alpha1` APIs) | installed on every run | the team adopts a newer upstream Agent Sandbox release |
 | `KIND_FALLBACK_VERSION` | `v0.33.0` | used only to bootstrap `kind` on a machine that lacks it | a clean machine should bootstrap a newer `kind` |
 | `KUBECTL_FALLBACK_VERSION` | `v1.34.0` | used only to bootstrap `kubectl` on a machine that lacks it | the `kind` node Kubernetes version moves a minor |
 
@@ -90,7 +90,7 @@ no-op when nothing exists.
   context name `./scripts/check.ps1 -Integration -KubeContext kind-agenova-k8s-lab`
   already expects, so this substrate is reusable by that gate later.
 - Namespace `agent-sandbox-smoke` holding the three fixtures in `manifests/`.
-- Namespace `agent-sandbox-system` (from the upstream `sandbox.yaml`), removed with
+- Namespace `agent-sandbox-system` (from the upstream `manifest.yaml`), removed with
   the cluster.
 
 `down` deletes **only** the `agenova-k8s-lab` kind cluster. `smoke`'s own cleanup
@@ -117,15 +117,21 @@ Every invocation writes, under `docs/evidence/E8-T3/agent-sandbox-substrate/`:
 - `summary.md` — ticket, gate, date, branch/commit, command, pinned Agent Sandbox
   version, resolved `kind`/`kubectl` (existing vs pinned), context, and pass/fail.
 
-## Upstream notes (v1.0.0)
+## Upstream notes (v0.4.6)
 
-- Core + extension APIs are served as `v1beta1`; `v1alpha1` and the conversion
-  webhook were removed in v1.0.0. Fresh installs (this script) need no migration.
-- Release assets are `sandbox.yaml` (core CRDs + controller), `extensions.yaml`
-  (Template/WarmPool/Claim CRDs), and `sandbox-with-extensions.yaml` (combined).
-  The old `manifest.yaml` name (≤ v0.4.x) no longer exists.
-- `SandboxClaim.status.sandbox.serviceFQDN` and the claim's own
-  `Ready`/`observedGeneration` reporting were fixed/added in v1.0.0.
+- Pinned to `v0.4.6` on purpose: the `internal/runtime/agentsandbox` adapter,
+  `docs/backends/agent-sandbox.md`, `THIRD_PARTY_NOTICES.md`, and the
+  `scripts/checks/repository.ps1` check are all on `v0.4.6` /
+  `extensions.agents.x-k8s.io/v1alpha1`. Bumping this substrate to `v1.0.0`
+  (`v1beta1`) is a separate E8 change tracked by the #66 mapping spike.
+- Release assets for `v0.4.6` are `manifest.yaml` (core CRDs + controller) and
+  `extensions.yaml` (Template/WarmPool/Claim CRDs). (`v1.0.0` renamed the core
+  asset to `sandbox.yaml` and dropped `v1alpha1`.)
+- The `v1alpha1` `SandboxClaim` names its warm pool with the string field
+  `spec.warmpool` and points at the template via `spec.sandboxTemplateRef`.
+- Deleting a warm-pool-backed `SandboxClaim` on `v0.4.6` recycles its `Sandbox`
+  back into the pool; the pod is only removed once the pool and template are
+  deleted too. `smoke` tears down all three before asserting pod count zero.
 
 ## Troubleshooting
 
