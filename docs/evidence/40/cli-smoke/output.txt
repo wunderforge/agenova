@@ -1,0 +1,64 @@
+=== RUN   TestProductionSourcesStayBackendNeutral
+=== PAUSE TestProductionSourcesStayBackendNeutral
+=== RUN   TestHelpAndVersion
+=== PAUSE TestHelpAndVersion
+=== RUN   TestUnknownCommand
+=== PAUSE TestUnknownCommand
+=== RUN   TestInvalidConfiguration
+=== PAUSE TestInvalidConfiguration
+=== RUN   TestFactoryAcceptsTestDouble
+=== PAUSE TestFactoryAcceptsTestDouble
+=== RUN   TestVersionHostsInMemoryReferenceBackend
+=== PAUSE TestVersionHostsInMemoryReferenceBackend
+=== RUN   TestInvalidBackendUsesCompositionRootError
+=== PAUSE TestInvalidBackendUsesCompositionRootError
+=== CONT  TestProductionSourcesStayBackendNeutral
+=== CONT  TestVersionHostsInMemoryReferenceBackend
+--- PASS: TestVersionHostsInMemoryReferenceBackend (0.00s)
+=== CONT  TestInvalidConfiguration
+--- PASS: TestProductionSourcesStayBackendNeutral (0.00s)
+=== CONT  TestHelpAndVersion
+--- PASS: TestHelpAndVersion (0.00s)
+=== RUN   TestInvalidConfiguration/unknown_backend
+=== PAUSE TestInvalidConfiguration/unknown_backend
+=== CONT  TestFactoryAcceptsTestDouble
+--- PASS: TestFactoryAcceptsTestDouble (0.00s)
+=== RUN   TestInvalidConfiguration/empty_backend
+=== PAUSE TestInvalidConfiguration/empty_backend
+=== CONT  TestInvalidBackendUsesCompositionRootError
+=== RUN   TestInvalidConfiguration/missing_backend_value
+=== PAUSE TestInvalidConfiguration/missing_backend_value
+=== RUN   TestInvalidConfiguration/authority_flag
+=== PAUSE TestInvalidConfiguration/authority_flag
+=== RUN   TestInvalidConfiguration/unknown_flag
+=== PAUSE TestInvalidConfiguration/unknown_flag
+=== CONT  TestInvalidConfiguration/unknown_backend
+=== CONT  TestInvalidConfiguration/authority_flag
+--- PASS: TestInvalidBackendUsesCompositionRootError (0.00s)
+=== CONT  TestUnknownCommand
+--- PASS: TestUnknownCommand (0.00s)
+=== CONT  TestInvalidConfiguration/unknown_flag
+=== CONT  TestInvalidConfiguration/missing_backend_value
+=== CONT  TestInvalidConfiguration/empty_backend
+--- PASS: TestInvalidConfiguration (0.00s)
+    --- PASS: TestInvalidConfiguration/unknown_backend (0.00s)
+    --- PASS: TestInvalidConfiguration/authority_flag (0.00s)
+    --- PASS: TestInvalidConfiguration/unknown_flag (0.00s)
+    --- PASS: TestInvalidConfiguration/missing_backend_value (0.00s)
+    --- PASS: TestInvalidConfiguration/empty_backend (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/cli	0.002s
+=== RUN   TestNewRuntimeHostsMemoryBackend
+=== PAUSE TestNewRuntimeHostsMemoryBackend
+=== RUN   TestNewRuntimeRejectsProviderBackends
+=== PAUSE TestNewRuntimeRejectsProviderBackends
+=== CONT  TestNewRuntimeHostsMemoryBackend
+--- PASS: TestNewRuntimeHostsMemoryBackend (0.00s)
+=== CONT  TestNewRuntimeRejectsProviderBackends
+--- PASS: TestNewRuntimeRejectsProviderBackends (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/app	0.001s
+=== RUN   TestCLISmoke
+--- PASS: TestCLISmoke (0.08s)
+PASS
+ok  	github.com/wunderforge/agenova/cmd/agenova	0.083s
