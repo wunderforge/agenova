@@ -70,6 +70,7 @@ if ($All -or $Docs) {
   Test-ArchitectureText
   Test-MarkdownLinks
   Test-RuntimeBoundary
+  Test-CLICompositionBoundary
   Test-DeliveryContracts
 }
 
