@@ -1,5 +1,10 @@
 # Agent Sandbox Test Substrate — Runbook (E8-T3 / #50)
 
+> **Where to run this**
+> - **macOS / Linux:** run `reproduce.sh` directly.
+> - **Windows:** run it inside **WSL2** (recommended) — or Git Bash. Not
+>   PowerShell or `cmd`. See [Platforms](#platforms) for details.
+
 Reproduces the upstream [Agent Sandbox](https://agent-sandbox.sigs.k8s.io/) test
 substrate on a disposable local `kind` cluster: a pinned upstream install, and one
 minimal `SandboxTemplate` → `SandboxWarmPool` → `SandboxClaim` lifecycle observed
