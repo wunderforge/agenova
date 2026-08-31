@@ -47,6 +47,7 @@ Out of scope:
 - Task input remains distinct from resource scopes: task data lives under `spec.task.input`; access intent lives under `spec.requestedAccess`, and neither is derived from the other.
 - Missing template, task, or runtime data is rejected with category `required-field` and the responsible field/path.
 - The nested v0 invariants hold: `metadata.name`, `spec.task.type`, and `spec.runtime.profileRef` are required and non-blank, and `spec.runtime.timeout` must be a positive Go duration. Focused unit cases cover each of these nested invariants.
+- `spec.task.input` accepts JSON-compatible structured task data — string-keyed mappings whose values may be strings, finite numbers, booleans, nulls, arrays, or nested string-keyed mappings — and rejects YAML constructs that cannot be represented consistently in JSON (non-string or duplicate keys, aliases and merge keys, non-JSON tags, non-finite floats) with typed data at the exact path. `ValidateClaimRequest` enforces the same invariants on decoded values, so directly constructed requests cannot bypass the parser. One focused case proves a structured input round-trips between the YAML and JSON surfaces with semantic equality.
 - `spec.task.input` may be absent or empty because its shape is task-specific, and `spec.requestedAccess` may be absent or explicitly empty, meaning default-deny; neither is treated as a required field.
 - The exact caller-authored path `spec.principal` is rejected with category `self-asserted-principal`; the exact secret-bearing path `spec.secrets` is rejected with category `secret-value`; other unknown fields fail closed with `unknown-field`. Classification is deterministic and path-based, never heuristic.
 - Validation returns typed data containing at least `category` and `field/path`; tests assert those fields directly and never infer categories from error-string matching.
@@ -65,7 +66,7 @@ Out of scope:
 - [ ] Rebase onto merged #93 and reuse its shared validation primitives.
 - [ ] Define the public ClaimRequest v0 types and both parsing surfaces per the feature specification.
 - [ ] Implement path-based semantic validation with typed category/field data, including the nested required-field invariants.
-- [ ] Add fixture-driven tests covering all seven shared cases, the YAML/JSON equivalence proof, and focused units for the nested invariants and empty task input / default-deny requested access.
+- [ ] Add fixture-driven tests covering all seven shared cases, the YAML/JSON equivalence proof, and focused units for the nested invariants, the structured task-input round-trip, and empty task input / default-deny requested access.
 - [ ] Run the focused gate and `./scripts/check.ps1 -All`.
 - [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
@@ -98,6 +99,7 @@ Out of scope:
   1. Keep #93's `ValidationCategoryInvalidCapabilityCeiling`; it has no ClaimRequest equivalent.
   2. Carry over the `Duration` marshallers (`MarshalYAML`, `MarshalJSON`, `UnmarshalJSON`) and the `encoding/json` import added here; without them the ClaimRequest JSON and YAML round-trip tests fail, because the default encoding emits nanoseconds that the strict parser rejects.
   3. `validateMapping`'s reserved-field and unknown-field `Detail` strings must be contract-neutral in the shared helper. #93 currently names AgentTemplate, which would mislabel ClaimRequest failures; this branch uses neutral wording. Category and field path are unaffected, and tests assert only those two, so a careless fold would pass while emitting misleading text.
-- Residual: `InvocationResult` (E4-T1) documents three values but Go still admits any untyped string constant at the fact-store boundary; `IsValid` makes the set assertable, and rejecting an invalid value on append belongs to the evidence contract in #37.
+- Decision (planning re-review, 2026-08-31): `spec.task.input` is JSON-compatible structured task data, not `map[string]string` — the field is task-specific and the contract must not freeze it to the current all-string fixture. Non-JSON-representable YAML constructs fail closed, and one focused structured-input round-trip case is required.
+- Decision (2026-08-31): the JSON-compatibility rules for `task.input` are enforced twice by design — on the YAML document tree before decoding (a tag such as `!!binary` need not survive decoding) and again on decoded Go values from `ValidateClaimRequest` (callers can construct the public `map[string]any` directly, including with NaN or binary values). Aliases and merge keys inside `task.input` are rejected in v0 to avoid expansion and duplicate-key ambiguity; anchors without aliases are inert. The round-trip fixture authors numbers with identical spellings on both surfaces and uses direct value equality, because a numeric-tolerant comparison could hide precision loss.
 - Owner/Reviewer approval: pending planning approval on #24.
 - Blockers: #93 (E1-T2) must merge first so the shared validation primitives can be reused rather than duplicated; implementation commits land after that rebase.
