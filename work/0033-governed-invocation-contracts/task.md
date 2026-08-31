@@ -56,22 +56,23 @@ Out of scope:
 
 ## Negative Case
 
-- Requests with missing claim identity, secret-bearing fields, or ambiguous resource scope are rejected before adapter invocation, with the enumerated stable categories asserted exactly.
+- Requests with missing claim identity, reserved secret-bearing keys, or ambiguous resource scope are rejected before adapter invocation, with the enumerated stable categories asserted exactly.
 - A caller-supplied identifier is not accepted as the trusted `invocationId`.
 - `Deny` and `ApprovalRequired` produce zero provider-adapter calls, proved by adapter spy counts, and `ApprovalRequired` grants no authority.
-- Every non-`Allow` decision appends one inspectable invocation fact carrying its `invocationId`, typed result, and claim attribution, proved by fact-store assertions.
+- A rejection raised before claim identity resolves (structural rejection, unknown claim) returns the issued `invocationId` and appends no invocation fact, proved by fact-store assertions: an unresolved claim must not gain fabricated claim-attributed evidence.
+- Once claim identity resolves, every `Allow`, `Deny`, and `ApprovalRequired` decision appends exactly one claim-scoped invocation fact carrying its `invocationId` and typed result.
 
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [ ] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
-- [x] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
-- [x] Add request validation with the named rejection reasons ahead of any adapter path.
-- [x] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
-- [x] Correlate recorded invocation facts with the gateway-assigned `invocationId`.
-- [x] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
-- [x] Run the focused gate and `./scripts/check.ps1 -All`.
-- [x] Review the diff for scope, regressions, and source-of-truth updates.
+- [ ] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
+- [ ] Add request validation with the enumerated rejection categories ahead of any adapter path.
+- [ ] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
+- [ ] Correlate invocation facts with the gateway-assigned `invocationId` under the claim-resolution rule above.
+- [ ] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
+- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
+- [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -81,8 +82,9 @@ Out of scope:
 ## Evidence Required
 
 - G2 focused test output covering valid and invalid request fixtures (claim inputs drawn from the shared v0 fixture set), caller-supplied-ID rejection, and all three decision-result paths.
-- Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`, and that each non-`Allow` decision persists one correlated invocation fact.
+- Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`, that pre-resolution rejections append no fact, and that each post-resolution decision persists exactly one correlated invocation fact.
 - Passing repository baseline output; exact commands recorded in the PR.
+- Evidence is recorded here only once the corresponding commits exist on this PR and are reviewable; locally prepared code is not repository evidence.
 
 ## Constraints
 
@@ -95,12 +97,13 @@ Out of scope:
 
 - Planning depth: Task + Spec because the invocation contract is consumed by #34, #35, #36, and #90; no Design because the in-process contract has one bounded implementation approach.
 - Proposed placement: shared contract types in a new `internal/gateway` package consumed by `internal/toolgateway` and `internal/modelgateway`; packet approval covers this placement.
-- Dependency note: #25 (E1-T4 SandboxClaim v0) and #32 (E3-T3 Running-only binding) are still open. Contract definition proceeds against the current `api/v1alpha1` claim types and the existing Running-only prototype semantics; alignment is re-checked when those Tickets land.
-- Owner/Reviewer approval: pending. On the Owner's decision, implementation was prepared locally while approval is outstanding; it is pushed to the PR only after approval is recorded in the Ticket, and planning-review changes are folded in before that first implementation push.
+- Decision (planning review, 2026-08-31): the gateway assigns `invocationId` at entry, before structural validation and policy evaluation, so every returned result is correlatable. A rejection raised before claim identity resolves returns that ID without fabricating a claim-attributed fact; once the claim resolves, each `Allow`, `Deny`, and `ApprovalRequired` decision appends exactly one claim-scoped invocation fact. This supersedes the earlier "fact on every decision path" wording.
+- Decision (planning review, 2026-08-31): secret rejection on `Parameters` is deterministic — an exact documented reserved-key set matched after one documented normalization rule (lowercase, then remove `-` and `_`). No substring or value heuristics, and the contract does not claim to detect arbitrary secret values; provider credentials still originate only behind adapters.
+- Owner/Reviewer approval: pending planning approval on #33.
 - Decision: gateway tests draw claim identity, tool capability, resource scope, and model profile from the frozen `issued-state.valid.team-a-engineer` fixture, and the secret-rejection case reuses the key from `claim-request.invalid.secret-value`, via a small `internal/gateway/gatewaytest` loader (contracttest precedent).
-- Decision (revised after automated planning review, 2026-08-30): every decision — `Allow`, `Deny`, and `ApprovalRequired` — appends one invocation fact carrying `invocationId`, typed result, and claim attribution, so denied requests are inspectable from the store, not only from the returned Decision. The E5 (#37) boundary is respected: no new fact kinds are introduced, the existing invocation fact gains correlation fields only.
-- Codex automated review on the packet (2026-08-30, three findings): P1 non-Allow evidence persistence adopted as above; P1 secret-reachability answered by specifying `Parameters` as the single extensible operation-data surface with key-based secret detection; P2 category enumeration added to the specification with exact-assertion requirement.
+- Decision (automated review, 2026-08-30): denied attempts must be inspectable from the fact store rather than only from the returned Decision. The E5 (#37) boundary is respected: no new fact kinds are introduced, the existing invocation fact gains correlation fields only. The exact persistence rule is the claim-resolution rule recorded above.
+- Codex automated review on the packet (2026-08-30, three findings): P1 evidence persistence adopted; P1 secret-reachability answered by specifying `Parameters` as the single extensible operation-data surface; P2 category enumeration added to the specification with exact-assertion requirement.
 - Decision: `Deny`/`ApprovalRequired` reach callers as typed decisions, never Go errors; the `Invoke` error channel reports adapter failures only.
 - Decision: the caller-supplied identifier is modeled as untrusted `CallerReference` metadata — the request shape has no invocationId field to smuggle, and tests assert the issued ID never equals the caller value.
 - Decision: the e2e multi-agent reference test migrated to the typed `Invoke` contract in the same change (Change-a-Core-Contract playbook: reference implementation and contract tests move together).
-- Blockers: none.
+- Blockers: #25 (E1-T4 SandboxClaim v0) and #32 (E3-T3 Running-only binding) block implementation. Planning may be approved ahead of them, but product code must reuse the final E1-T4 decision/result types and the E3-T3 Running-only binding rather than provisional duplicates, so implementation commits wait for those Tickets to land.
