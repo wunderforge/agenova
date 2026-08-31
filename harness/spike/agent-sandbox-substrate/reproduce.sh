@@ -10,11 +10,22 @@
 set -euo pipefail
 
 # --- pinned versions / names -------------------------------------------------
+# These pins are the single source of truth for the substrate. The RUNBOOK
+# "Pinned versions" table documents them and when to bump each one.
+#
+#   AGENT_SANDBOX_VERSION    installed on every run (the thing this spike proves).
+#   KIND_FALLBACK_VERSION    used ONLY when `kind` is not already on PATH. An
+#                            existing `kind` is used as-is at whatever version it is.
+#   KUBECTL_FALLBACK_VERSION used ONLY when `kubectl` is not already on PATH.
+#
+# Bump AGENT_SANDBOX_VERSION when the team adopts a newer upstream release.
+# Bump the *_FALLBACK_VERSION pins when a clean machine should bootstrap a
+# newer kind/kubectl; verified working values as of 2026-08-31 below.
 CLUSTER_NAME="agenova-k8s-lab"
 CONTEXT="kind-${CLUSTER_NAME}"
-AGENT_SANDBOX_VERSION="v1.0.0"      # current latest upstream release (v1beta1 APIs)
-KIND_FALLBACK_VERSION="v0.33.0"     # only used when kind is not already on PATH
-KUBECTL_FALLBACK_VERSION="v1.34.0"  # only used when kubectl is not already on PATH
+AGENT_SANDBOX_VERSION="v1.0.0"      # upstream latest; v1beta1 core + extension APIs
+KIND_FALLBACK_VERSION="v0.33.0"     # kind latest as of 2026-08-31
+KUBECTL_FALLBACK_VERSION="v1.34.0"  # tracks the kind v0.33.0 default node (k8s v1.34)
 
 CONTROLLER_NAMESPACE="agent-sandbox-system"
 CONTROLLER_DEPLOY="agent-sandbox-controller"
@@ -74,7 +85,16 @@ sha256_of() {
   fi
 }
 
-host_os() { uname -s | tr '[:upper:]' '[:lower:]'; }
+# Normalised host OS: linux | darwin | windows (windows covers Git Bash / MSYS /
+# Cygwin, where this script runs under bash; native PowerShell/cmd cannot).
+host_os() {
+  case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
+    linux*) printf 'linux' ;;
+    darwin*) printf 'darwin' ;;
+    mingw*|msys*|cygwin*|windows*) printf 'windows' ;;
+    *) fail "unsupported OS $(uname -s) for tool auto-install (install kind/kubectl manually)" ;;
+  esac
+}
 host_arch() {
   case "$(uname -m)" in
     x86_64|amd64) printf 'amd64' ;;
@@ -82,17 +102,19 @@ host_arch() {
     *) fail "unsupported architecture $(uname -m) for tool auto-install" ;;
   esac
 }
+exe_suffix() { [ "$(host_os)" = "windows" ] && printf '.exe' || true; }
 
 # download_pinned_tool <name> <pinned-version>
 # Downloads a checksum-verified pinned binary into .tmp/ and prints its path.
 # Only called when <name> is not already on PATH.
 download_pinned_tool() {
   local name="$1" version="$2"
-  local os arch dest url sha_url expected got
+  local os arch ext dest url sha_url expected got
   os="$(host_os)"
   arch="$(host_arch)"
+  ext="$(exe_suffix)"
   mkdir -p "${TOOLS_DIR}"
-  dest="${TOOLS_DIR}/${name}"
+  dest="${TOOLS_DIR}/${name}${ext}"
 
   if [ -x "${dest}" ]; then
     printf '%s\n' "${dest}"
@@ -101,11 +123,11 @@ download_pinned_tool() {
 
   case "${name}" in
     kind)
-      url="https://github.com/kubernetes-sigs/kind/releases/download/${version}/kind-${os}-${arch}"
+      url="https://github.com/kubernetes-sigs/kind/releases/download/${version}/kind-${os}-${arch}${ext}"
       sha_url="${url}.sha256sum"
       ;;
     kubectl)
-      url="https://dl.k8s.io/release/${version}/bin/${os}/${arch}/kubectl"
+      url="https://dl.k8s.io/release/${version}/bin/${os}/${arch}/kubectl${ext}"
       sha_url="${url}.sha256"
       ;;
     *)
@@ -339,6 +361,18 @@ write_summary() {
 - kubectl: ${KUBECTL_BIN:-unresolved} (${KUBECTL_SOURCE:-n/a})
 - kind cluster / context: ${CLUSTER_NAME} / ${CONTEXT}
 - Result: ${result}
+
+## Notes
+
+- Scope: the pinned upstream Agent Sandbox lifecycle only. No Agenova
+  \`ClaimRequest\`/\`SandboxClaim\`, \`RuntimeBackend\` adapter, or contract is
+  exercised here (that is E8-T4 / #51).
+- Reruns are idempotent: cluster and namespace creation are safe to repeat,
+  and teardown deletes only the \`${CLUSTER_NAME}\` kind cluster and the
+  \`${SMOKE_NAMESPACE}\` namespace created by this script.
+- Not isolated here: claim-only deletion vs warm-pool "recycle" behaviour
+  (see #48). This harness deletes the claim, pool, and template together and
+  asserts the sandbox pod count reaches zero.
 
 Raw output: \`output.txt\`
 EOF

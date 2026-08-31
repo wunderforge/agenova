@@ -77,10 +77,14 @@ Out of scope:
 - [x] Implement cluster up + pinned Agent Sandbox install + readiness wait + version/readiness recording.
 - [x] Implement the create / observe / terminate / cleanup smoke path with explicit failure reporting.
 - [x] Add the minimal manifests and the runbook; add the pointer line in `docs/backends/agent-sandbox.md`.
-- [ ] Run the script end to end twice on a real local machine; capture `summary.md` + `output.txt`. (blocked: Docker daemon not running on the Owner machine)
-- [ ] Run `./scripts/check.ps1 -Docs` (and any check covering changed scripts); review the diff for scope and source-of-truth updates.
+- [x] Run the script end to end (three consecutive `reproduce.sh all` passes) on a real local machine; capture `summary.md` + `output.txt`.
+- [ ] Run `./scripts/check.ps1 -Docs` and review the diff for scope and source-of-truth updates. (`pwsh` is not installed on the Owner machine; run in CI or by the Reviewer. Manual Markdown-link check done.)
 
-Verified so far without Docker (Darwin arm64, 2026-08-31): `tools` and `status` resolve the existing Homebrew `kind`/`kubectl` and skip install; `up` with the Docker daemon down exits 1 with `docker daemon is not reachable` and creates nothing; an unknown subcommand prints usage and exits 1. `bash -n` clean; `shellcheck` not installed locally.
+Verification (Darwin arm64, 2026-08-31):
+
+- Without Docker: `tools`/`status` reuse the existing Homebrew `kind v0.32.0` / `kubectl v1.36.2` and skip install; `up` with the daemon down exits 1 with `docker daemon is not reachable` and creates nothing; an unknown subcommand prints usage and exits 1. `bash -n` clean; `shellcheck` not installed locally.
+- With Docker (29.6.1): `reproduce.sh all` passed three times consecutively (~87-90s each). Each run created kind cluster `agenova-k8s-lab` (k8s v1.36.1 node), installed Agent Sandbox `v1.0.0` (`registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.0`), observed `SandboxClaim/smoke-claim` reach `Ready=True` with `status.sandbox={"name":"smoke-claim","podIPs":[...]}` and a `Running` sandbox pod, then deleted claim/pool/template (pods -> 0), the `agent-sandbox-smoke` namespace, and the cluster. The active context `ais-uat` was restored after each run.
+- Finding for #48: on `v1.0.0` with `lifecycle.shutdownPolicy: Delete`, the combined claim+pool+template teardown terminates all sandbox pods cleanly. The claim-only "recycle back into the warm pool" behaviour recorded for `v0.4.x` was not separately isolated by this harness.
 
 ## Quality Gates
 
@@ -115,5 +119,6 @@ Verified so far without Docker (Darwin arm64, 2026-08-31): `tools` and `status` 
 - Owner authorization: the Owner explicitly approved this packet and requested execution and a local test on 2026-08-31, and will review the resulting PR. Independent Reviewer approval on Ticket #50 remains a PR gate.
 - Owner machine baseline (2026-08-31, Darwin arm64): `kind v0.32.0` and `kubectl v1.36.2` are already installed via Homebrew, so the pinned-binary install path will not be exercised there (the skip path will). The Docker daemon is currently **not running** and the active context is `ais-uat`; Docker Desktop must be started before the `up`/`smoke` phases, and the context-mismatch refusal can be verified as-is.
 - Decision: the smoke fixtures use a bare `busybox:1.36` `sleep` pod with no `volumeClaimTemplates`, `runtimeClassName`, or `NetworkPolicy` — kind has no pre-provisioned RWO storage class and the ticket only needs one observable lifecycle, not a hardened template.
+- Decision: keep one `bash` script (no PowerShell port) for cross-platform use. macOS/Linux run it directly; Windows runs it under WSL2 (recommended — Docker Desktop's `kind` support uses the WSL2 backend) or Git Bash. The script normalises `mingw/msys/cygwin` to a `windows` OS and adds `.exe` for the pinned `kind`/`kubectl` fallback download. Rationale: the heavy lifting (`kind`, `kubectl`, `docker`) is identical across platforms and only the ~250-line wrapper differs; a `bash` + WSL2/Git Bash story is standard for kind harnesses and far less code than maintaining a parallel `.ps1`. Revisit only if a contributor genuinely cannot use WSL2 or Git Bash.
 - Decision: `kind`/`kubectl` pinned fallbacks are `v0.33.0` / `v1.34.0` (only used when the tool is absent); the Owner machine already has both via Homebrew so its recorded run will show `existing`.
 - Blockers: Docker daemon not running on the Owner machine — blocks the end-to-end `up`/`smoke` run until Docker Desktop is started. No code blocker. Execution also needs network access to `github.com`, `dl.k8s.io`, and `registry.k8s.io`.

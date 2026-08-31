@@ -8,28 +8,55 @@ and cleaned up with plain `kubectl`.
 **This is upstream-native only.** It never touches Agenova's `RuntimeBackend`,
 claim types, or `internal/runtime/agentsandbox` adapter — that proof is E8-T4 (#51).
 
-## Pinned versions
-
-| Thing | Pin | Where |
-| --- | --- | --- |
-| Agent Sandbox | `v1.0.0` (v1beta1 APIs) | `AGENT_SANDBOX_VERSION` in `reproduce.sh` |
-| `kind` (fallback only) | `v0.33.0` | `KIND_FALLBACK_VERSION`; used **only if `kind` is not already on `PATH`** |
-| `kubectl` (fallback only) | `v1.34.0` | `KUBECTL_FALLBACK_VERSION`; used **only if `kubectl` is not already on `PATH`** |
-
-An existing `kind` / `kubectl` on `PATH` is used as-is and its version is
-recorded. A missing one is downloaded from its official release, checksum-verified
-against the published `.sha256sum` / `.sha256`, and cached under the gitignored
-`.tmp/agenova-k8s-lab-tools/` — the script never installs into your system `PATH`.
-
 ## Prerequisites
 
-| Requirement | Check | Notes |
+You must install and start these yourself before running the script:
+
+| Requirement | Install | Check | Why the script needs it |
+| --- | --- | --- | --- |
+| **Docker Desktop** (or a compatible engine) — **must be running** | <https://docs.docker.com/desktop/> (macOS/Windows) or Docker Engine / Podman on Linux | `docker info` | `kind` runs the Kubernetes node as a container. The script calls `docker info` first and exits non-zero with `docker daemon is not reachable` if it is stopped. |
+| `curl` | preinstalled on macOS and most Linux | `curl --version` | Fetches the pinned upstream manifests and, when needed, the pinned `kind`/`kubectl` binaries. |
+| Network access | — | — | Needs `github.com`, `dl.k8s.io`, and `registry.k8s.io`. |
+
+The script installs these for you when missing (an existing one on `PATH` is
+used as-is), so they are **not** manual prerequisites:
+
+| Tool | If already on `PATH` | If absent |
 | --- | --- | --- |
-| Docker daemon running | `docker info` | Start Docker Desktop (or your engine) first; the script fails loudly if it can't reach it. |
-| `curl` | `curl --version` | Used to fetch pinned release manifests / binaries. |
-| `kind` | optional | Installed on demand (pinned, checksum-verified) if absent. |
-| `kubectl` | optional | Installed on demand (pinned, checksum-verified) if absent. |
-| Network access | — | Needs `github.com`, `dl.k8s.io`, and `registry.k8s.io`. |
+| `kind` | used as-is, version recorded | pinned `v0.33.0` downloaded, SHA256-verified, cached under `.tmp/agenova-k8s-lab-tools/` |
+| `kubectl` | used as-is, version recorded | pinned `v1.34.0` downloaded, SHA256-verified, cached under `.tmp/agenova-k8s-lab-tools/` |
+
+The script never writes into your system `PATH`; downloaded binaries live only
+under the gitignored `.tmp/` directory.
+
+## Pinned versions
+
+`reproduce.sh` holds the pins; change them there.
+
+| Pin | Value | Meaning | Bump when |
+| --- | --- | --- | --- |
+| `AGENT_SANDBOX_VERSION` | `v1.0.0` (v1beta1 APIs) | installed on every run | the team adopts a newer upstream Agent Sandbox release |
+| `KIND_FALLBACK_VERSION` | `v0.33.0` | used only to bootstrap `kind` on a machine that lacks it | a clean machine should bootstrap a newer `kind` |
+| `KUBECTL_FALLBACK_VERSION` | `v1.34.0` | used only to bootstrap `kubectl` on a machine that lacks it | the `kind` node Kubernetes version moves a minor |
+
+Values verified working on Darwin arm64 on 2026-08-31.
+
+## Platforms
+
+`reproduce.sh` is a `bash` script (it uses `bash` process substitution, not just
+POSIX `sh`). It runs on:
+
+- **macOS / Linux** — run it directly.
+- **Windows** — run it from a `bash` shell, not PowerShell or `cmd`:
+  - **WSL2 (recommended).** Docker Desktop's Kubernetes/`kind` support on Windows
+    uses the WSL2 backend anyway, so run the whole flow inside your WSL2 distro
+    with Docker Desktop's WSL integration enabled.
+  - **Git Bash** (ships with Git for Windows) also works. The script detects the
+    MSYS/MinGW environment and fetches the `windows/amd64` `kind`/`kubectl`
+    binaries (with `.exe`) when they are not already on `PATH`.
+
+There is no native PowerShell port; on Windows without WSL2 or Git Bash, install
+one of them (or run `kind`/`kubectl` by hand following this runbook).
 
 ## Run it
 
