@@ -31,7 +31,7 @@ In scope:
 - Evaluate the trusted `Principal` and requested `claim.create` action against one active, immutable PolicyBundle.
 - Match principal, project, template, and action using the stable contracts owned by #24 through #26.
 - Return an explicit typed `Allow` or `Deny` decision with the active policy ID/version and a non-empty reason.
-- Put authorization on the submission path before any authorized continuation that may issue a claim or allocate a backend.
+- Put authorization before #28 authority resolution and before any later claim issuance or backend allocation.
 - Prove the canonical Team A allow and Team B pre-claim denial cases using the shared fixtures.
 - Deny when no active policy or no exact rule is available.
 
@@ -46,9 +46,9 @@ Out of scope:
 
 - The canonical Team A principal and `claim.create` action for the payments project and engineer template return `Allow` under the matching active policy.
 - The otherwise identical Team B request returns `Deny` because no principal-scoped rule matches.
-- Missing policy, missing required authorization context, and unmatched principal/action/project/template return explicit denial or validation failure according to the approved spec; none invokes the authorized continuation.
+- Missing policy, missing required authorization context, and unmatched principal/action/project/template return explicit denial or validation failure according to the approved spec; none proceeds to authority resolution.
 - Every completed evaluation returns or records a typed decision containing principal, action, result, policy ID/version when available, and a non-empty evidence-suitable reason.
-- Only `Allow` may enter the authorized continuation; `Deny` and `ApprovalRequired` are never treated as granted authority.
+- Only `Allow` may proceed to #28; `Deny` and `ApprovalRequired` are never treated as granted authority.
 - Claim and backend spies prove zero calls for every denial case.
 - Shared application-facing types remain backend-neutral and no provider-specific type enters the authorization package.
 
@@ -76,7 +76,7 @@ Out of scope:
 
 - Focused test output naming the Team A allow and Team B denial fixture cases.
 - Spy counts proving zero claim-issuance and backend-allocation calls for Team B, missing-policy, and unmatched-rule cases.
-- One allow-path test proving the authorized continuation is entered exactly once.
+- One allow-path test proving authority resolution is entered exactly once.
 - Passing repository baseline after rebasing on the merged dependency contracts.
 
 ## Constraints
@@ -92,7 +92,8 @@ Out of scope:
 ## Decisions and Blockers
 
 - Planning depth: Task + Spec because this Ticket defines authority semantics shared by submission, evidence, claim issuance, CLI/API, and later gateway paths; no separate Design is needed if the two alignment decisions below are accepted.
-- Decision: authorization is a backend-neutral precondition. A denied request never reaches the continuation that owns claim issuance or runtime allocation.
+- Decision: #27 and #28 are consecutive pure stages in one assignment-resolution pipeline. They are not separate services, APIs, or persisted workflow states.
+- Decision: authorization is a backend-neutral precondition. A denied request never reaches authority resolution, claim issuance, or runtime allocation.
 - Decision: the v0 evaluator is exact-match and default-deny. It does not introduce wildcard, hierarchy, or policy-merging semantics.
 - Decision: `ApprovalRequired` remains part of the shared result vocabulary but is not an allow result and is not produced by this assignment-creation MVP path.
 - Blocker: #25 must first freeze the trusted Principal, Action, Decision, policy-reference, and pre-claim Evidence shapes.

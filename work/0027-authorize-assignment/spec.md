@@ -15,7 +15,7 @@ This specification elaborates authorization order and observable behavior. It do
 - One assignment action containing `claim.create`, requested project, and template reference.
 - One active immutable PolicyBundle and exact-match, default-deny evaluation.
 - One typed `Decision` with principal, action, result, policy reference, and reason.
-- One pre-side-effect gate whose authorized continuation may later compose claim issuance and backend allocation.
+- One pre-side-effect admission stage that returns its decision to #28 in the same assignment-resolution pipeline.
 - Evidence-ready allow and deny decisions using the shared issued-state fixture vocabulary.
 
 ## Out of Scope
@@ -38,13 +38,13 @@ The authorizer consumes these contracts. It must not redefine them in a private 
 
 ## Requirements
 
-- Given the canonical Team A principal, payments project, engineer template, `claim.create`, and a matching active rule, when the request is evaluated, then the result is `Allow` and the authorized continuation is invoked exactly once.
-- Given the canonical Team B principal with the same request context, when no principal-scoped rule matches, then the result is `Deny` and the authorized continuation is not invoked.
-- Given no active PolicyBundle, when authorization is attempted, then the request is denied before the authorized continuation and the reason identifies unavailable policy.
+- Given the canonical Team A principal, payments project, engineer template, `claim.create`, and a matching active rule, when the request is evaluated, then the result is `Allow` and #28 authority resolution is entered exactly once.
+- Given the canonical Team B principal with the same request context, when no principal-scoped rule matches, then the result is `Deny` and #28 authority resolution is not entered.
+- Given no active PolicyBundle, when authorization is attempted, then the request is denied before authority resolution and the reason identifies unavailable policy.
 - Given an unknown or missing principal/action/project/template, when authorization is attempted, then it cannot produce `Allow` and no side effect occurs.
 - Given an exact rule mismatch in any required dimension, when authorization is evaluated, then default-deny applies; partial matching cannot grant authority.
 - Given a completed evaluation, then its decision uses the shared typed result vocabulary and carries the active policy ID/version when one was evaluated plus a non-empty reason suitable for evidence.
-- Given `Deny` or `ApprovalRequired`, then the submission path must not treat it as granted authority or invoke the authorized continuation.
+- Given `Deny` or `ApprovalRequired`, then the submission path must not treat it as granted authority or enter #28.
 - Given pre-claim denial, then evidence is correlated by request and decision without fabricating claim or backend identity.
 
 ## Ordering Boundary
@@ -61,7 +61,7 @@ trusted Principal + validated ClaimRequest
        -> runtime allocation (E3)
 ```
 
-The implementation may use a narrow callback or interface for the authorized continuation so tests can prove ordering without implementing #28, #29, or E3 inside this Ticket. The seam must not expose backend types or become a second claim-issuance interface.
+The production entry point may remain one assignment-resolution operation that calls #27 and then #28 internally. Do not create a callback framework, network boundary, or persisted intermediate state merely to mirror the Ticket split. Focused tests may use simple spies to prove that non-`Allow` results cannot reach later claim/backend side effects.
 
 ## Negative Cases
 
