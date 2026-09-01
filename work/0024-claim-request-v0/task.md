@@ -62,13 +62,13 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
-- [ ] Rebase onto merged #93 and reuse its shared validation primitives.
-- [ ] Define the public ClaimRequest v0 types and both parsing surfaces per the feature specification.
-- [ ] Implement path-based semantic validation with typed category/field data, including the nested required-field invariants.
-- [ ] Add fixture-driven tests covering all seven shared cases, the YAML/JSON equivalence proof, and focused units for the nested invariants, the structured task-input round-trip, and empty task input / default-deny requested access.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
+- [x] Sync with merged #93 and reuse its shared validation primitives (merge instead of rebase: the branch was already pushed and force-push is not allowed).
+- [x] Define the public ClaimRequest v0 types and both parsing surfaces per the feature specification.
+- [x] Implement path-based semantic validation with typed category/field data, including the nested required-field invariants.
+- [x] Add fixture-driven tests covering all seven shared cases, the YAML/JSON equivalence proof, and focused units for the nested invariants, the structured task-input round-trip, and empty task input / default-deny requested access.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -101,5 +101,5 @@ Out of scope:
   3. `validateMapping`'s reserved-field and unknown-field `Detail` strings must be contract-neutral in the shared helper. #93 currently names AgentTemplate, which would mislabel ClaimRequest failures; this branch uses neutral wording. Category and field path are unaffected, and tests assert only those two, so a careless fold would pass while emitting misleading text.
 - Decision (planning re-review, 2026-08-31): `spec.task.input` is JSON-compatible structured task data, not `map[string]string` — the field is task-specific and the contract must not freeze it to the current all-string fixture. Non-JSON-representable YAML constructs fail closed, and one focused structured-input round-trip case is required.
 - Decision (2026-08-31): the JSON-compatibility rules for `task.input` are enforced twice by design — on the YAML document tree before decoding (a tag such as `!!binary` need not survive decoding) and again on decoded Go values from `ValidateClaimRequest` (callers can construct the public `map[string]any` directly, including with NaN or binary values). Aliases and merge keys inside `task.input` are rejected in v0 to avoid expansion and duplicate-key ambiguity; anchors without aliases are inert. The round-trip fixture authors numbers with identical spellings on both surfaces and uses direct value equality, because a numeric-tolerant comparison could hide precision loss.
-- Owner/Reviewer approval: pending planning approval on #24.
-- Blockers: #93 (E1-T2) must merge first so the shared validation primitives can be reused rather than duplicated; implementation commits land after that rebase.
+- Owner/Reviewer approval: granted 2026-09-01. After the two re-review items were addressed in `a62229d`, the Owner delegated the final check: implementation may proceed once the self-review against the acceptance criteria passes. The self-review passed (all focused tests, fold instructions verified, `check.ps1 -All` green after merging main).
+- Blockers: none. #93 (E1-T2) merged on 2026-08-31; this branch merged `origin/main` (`ac08840`) and folded the duplicate shared primitives per the instructions above.
