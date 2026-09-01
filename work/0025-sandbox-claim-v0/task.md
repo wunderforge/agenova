@@ -2,7 +2,7 @@
 
 - Ticket: [#25](https://github.com/wunderforge/agenova/issues/25)
 - Mission: Implement and validate the backend-neutral effective-authority, `SandboxClaim`, authorization-decision, and evidence shapes so downstream work has one immutable issued-state snapshot and a stable Allow/Deny/ApprovalRequired vocabulary.
-- Target: `api/v1alpha1` (new file(s) for the v0 issued-state contract) and its focused tests. **Owner review on #100 rejects the "leave the legacy runtime-spike types unchanged" premise** — see Decisions and Blockers below; the legacy `SandboxClaim`/`Spec`/`Status` prototype must be moved/renamed either as part of this ticket or a recorded prerequisite ticket, pending an explicit scope call.
+- Target: `api/v1alpha1` (new file(s) for the v0 issued-state contract) and its focused tests, **plus migrating the legacy `SandboxClaim`/`Spec`/`Status` runtime-spike type to `internal/runtime.BackendClaim` and updating its consumers** — owner decision, confirmed 2026-09-01, no prerequisite ticket. See Decisions and Blockers.
 - User value: Contributors can validate a real claim-issuance snapshot (or a pre-claim denial) against one reviewable, backend-neutral schema instead of inventing ad hoc shapes per consumer.
 - PRD outcome: [Declarative request and authorization resolution](../../docs/product/prd.md#1-declarative-request-and-authorization-resolution), [Claim-scoped authority](../../docs/product/prd.md#4-claim-scoped-authority), and [Facts and accountability](../../docs/product/prd.md#5-facts-and-accountability)
 
@@ -27,12 +27,13 @@ Additional task-specific context:
 
 In scope:
 
-- Public Go types for `Principal` (as carried in issued state), `Action`, `PolicyReference`, `EffectiveAuthority`, `SandboxClaim` (id, requestRef, templateRef, authorityRef, phase, backendIdentity — canonical public name; see Decisions and Blockers on the legacy-type migration this now requires), `Decision` (id, principalRef, action, typed `result`, policyRef, reason), and `Evidence` (requestRef, claimId, decisionIds, runtimeEvents, toolInvocations, modelInvocations).
+- Public Go types for `Principal` (as carried in issued state), `Action`, `PolicyReference`, `EffectiveAuthority`, `SandboxClaim` (id, requestRef, templateRef, authorityRef, phase, backendIdentity — canonical public name), `Decision` (id, principalRef, action, typed `result`, policyRef, reason), and `Evidence` (requestRef, claimId, decisionIds, runtimeEvents, toolInvocations, modelInvocations).
+- Migrating the legacy `api/v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` prototype to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus` (same package as the `RuntimeBackend` interface) and updating every consumer: the `RuntimeBackend` interface, `internal/operator/runtime.go`, `internal/runtime/agentsandbox/adapter.go` (+ unit test), `internal/runtime/contracttest/run.go`, `internal/sandbox/pool.go`, both gateways (+ tests), `internal/cli/cli_test.go`, and the `harness/` e2e/integration claim-lifecycle tests. `ClaimPhase`/`ObjectMeta` stay in `api/v1alpha1` (shared, not renamed); `SandboxWarmPool*` is unaffected.
 - A typed `DecisionResult` vocabulary of `Allow`, `Deny`, `ApprovalRequired`; no `allowed`-style boolean in the public contract.
 - Two distinct parsing entrypoints driven by trusted-caller input, not a payload field: a caller-origin path that rejects caller-supplied `effectiveAuthority`, `claim.phase`, and `claim.backendIdentity` with the shared `system-managed-field` category, and a system-issued path that accepts them. See spec.md Requirements.
 - Cross-object invariant validation across one snapshot (request/principal/action/policy/authority/claim/decision/evidence reference correlation); `Allow` may carry claim + authority, `Deny`/`ApprovalRequired` must not.
 - Lifecycle validation that a `Pending` claim is valid without `backendIdentity` (system allocates it only after binding).
-- Explicit evidence-view DTOs for `runtimeEvents`/`toolInvocations`/`modelInvocations` distinct from the existing `RuntimeEvent`/`ToolInvocation`/`ModelInvocation` fact structs (fixture items are a lighter view, e.g. `{"kind": "ClaimRunning"}` with no `ClaimID`/timestamp).
+- Explicit `EvidenceRuntimeEvent{Kind string}` DTO distinct from the existing `RuntimeEvent` fact struct (fixture items are a lighter view, e.g. `{"kind": "ClaimRunning"}` with no `ClaimID`/timestamp). Minimal placeholder DTOs for `toolInvocations`/`modelInvocations` only — their detailed item schemas are owned by #33/#37, not this ticket.
 - Validation that evidence can stand alone (pre-claim denial) without a fabricated `claim` or `decision.result != Deny`/`Allow` confusion.
 - Focused tests consuming the five shared `issued-state.*` fixtures from `harness/fixtures/contract/v0/manifest.json` directly (no second fixture set).
 
@@ -43,8 +44,8 @@ Out of scope:
 - Approval interruption, approval records, or resume behavior for `ApprovalRequired` (owned by #90).
 - Any backend/provider-specific shape (Kubernetes, etc.).
 - Changes to the PRD or architecture contract.
-
-**Superseded by owner review on #100:** the previous line here ("no change to the existing `api/v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` runtime-spike types") is no longer accurate — the owner determined that legacy type is an incomplete reference-runtime prototype, not a compatibility authority, and must be moved/renamed to an internal boundary as part of establishing the canonical public `SandboxClaim`. Whether that migration happens inside this ticket or a recorded prerequisite ticket is an open decision — see Decisions and Blockers.
+- Detailed `toolInvocations`/`modelInvocations` evidence-item schemas (owned by #33/#37).
+- Behavioral changes to the runtime backend itself — the `internal/runtime.BackendClaim` migration is a rename/move of the existing prototype's identifiers and consumers, not a change to its logic.
 
 ## Acceptance Criteria
 
@@ -66,8 +67,8 @@ Out of scope:
 ## Execution Todo
 
 - [ ] Scout the relevant implementation, tests, risks, and dependencies (including the merged PR #93 `ValidationError`/`ValidationCategory` pattern in `api/v1alpha1/agent_template.go`).
-- [ ] Resolve the legacy-`SandboxClaim` migration scope decision (in-ticket vs. recorded prerequisite ticket) with the Owner.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation — including the open decisions below.
+- [ ] Rebase `codex/e1-t4-sandboxclaim-v0` onto current `main`; update PR #100 body to add `Closes #25`.
+- [ ] Migrate the legacy `api/v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus` and update every consumer (`RuntimeBackend` interface, `internal/operator/runtime.go`, `agentsandbox` adapter, `internal/runtime/contracttest/run.go`, `internal/sandbox/pool.go`, both gateways, `internal/cli/cli_test.go`, `harness/` e2e/integration tests); confirm `go build ./...` and `go test ./...` still pass with the rename alone before adding new types.
 - [ ] Add the v0 issued-state types (effective authority, SandboxClaim, decision, evidence) with strict JSON decoding, the caller/system-issued parsing split, cross-object invariants, and system-managed-field rejection.
 - [ ] Add focused tests consuming the five shared `issued-state.*` fixtures by case ID, covering both parsing paths and the invariant/lifecycle rules.
 - [ ] Run the focused gate and `.\scripts\check.ps1 -All`.
@@ -83,7 +84,7 @@ Out of scope:
 
 - Passing focused test output naming all five shared `issued-state.*` case IDs.
 - Passing `go test ./...` and repository baseline output.
-- PR diff audit confirming the legacy `SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus`/`SandboxWarmPool*` prototype was migrated (renamed/moved to an internal boundary, consumers updated) rather than left duplicated alongside the new canonical `SandboxClaim`, per the resolved migration-scope decision below.
+- PR diff audit confirming the legacy `SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` identifiers no longer exist in `api/v1alpha1` (moved to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus`, every consumer updated) rather than left duplicated alongside the new canonical `SandboxClaim`. `SandboxWarmPool*` untouched.
 
 ## Constraints
 
@@ -96,9 +97,7 @@ Out of scope:
 
 ## Decisions and Blockers
 
-- **Naming collision — CHANGES REQUESTED by Owner review on PR #100 (2026-08-31).** The Option (a) approach (`SandboxClaimV0` alongside the untouched legacy type) is **rejected**. Owner's ruling: the existing `api/v1alpha1.SandboxClaim` is an incomplete reference-runtime prototype, not a Kubernetes/provider type and not a compatibility authority — the canonical public name `SandboxClaim` is reserved for this ticket's backend-neutral issued-state type per the architecture contract and PRD. Corrected direction: keep the public name `SandboxClaim`; move/rename the legacy prototype into an internal runtime boundary and migrate its consumers. **Open decision needing an explicit call: does that legacy-type migration happen inside this ticket, or does it get split into a recorded prerequisite ticket?** Owner explicitly allows either, but forbids landing two competing public claim types. See `spec.md` Open Decisions.
-  - **Blast-radius finding (assignee, 2026-09-01):** the legacy type is wired into the `RuntimeBackend` interface (`internal/runtime/backend.go`) and threaded through `internal/operator/runtime.go`, `internal/runtime/agentsandbox/adapter.go`, `internal/runtime/contracttest/run.go`, `internal/sandbox/pool.go`, `internal/modelgateway/gateway.go`, `internal/toolgateway/gateway.go`, `internal/cli/cli_test.go`, and `harness/` e2e/integration tests — roughly 6 production files + 7-8 test files across 6 packages, including one exported interface signature. **Assignee recommends splitting into a prerequisite ticket**: the rename is mechanical/compiler-checked (low risk), but bundling it here would make the PR 3-5x larger than the actual contract work and mix an interface refactor into a contract-definition ticket. Posted to Owner on PR #100 for the final call.
-- **Trusted parsing boundary, cross-object invariants, and lifecycle/evidence-view semantics — new design requirements from the same review**, now specified in `spec.md` Requirements/Compatibility. Not blocking a decision, but must be implemented as scoped there (not left to ad hoc implementation choices).
-- ~~Open decision: PR #93 sequencing~~ — **Resolved.** PR #93 merged 2026-08-31T22:46 UTC; `ValidationError`/`ValidationCategory` live in `api/v1alpha1/agent_template.go`. This ticket branches from current `main` and reuses that vocabulary directly.
+- **Naming collision — RESOLVED (owner, confirmed via assignee 2026-09-01).** Canonical public name stays `SandboxClaim`. The legacy `api/v1alpha1.SandboxClaim`/`Spec`/`Status` prototype migrates to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus` **inside this ticket** — no prerequisite ticket. Blast-radius (assignee finding, still accurate, now scoped as ticket work rather than a split decision): the `RuntimeBackend` interface (`internal/runtime/backend.go`) plus `internal/operator/runtime.go`, `internal/runtime/agentsandbox/adapter.go` (+ test), `internal/runtime/contracttest/run.go`, `internal/sandbox/pool.go`, both gateways (+ tests), `internal/cli/cli_test.go`, and `harness/` e2e/integration tests — ~6 production files + 7-8 test files across 6 packages. `ClaimPhase`/`ObjectMeta` do not move; `SandboxWarmPool*` is unaffected. See `spec.md` Compatibility.
+- **Trusted parsing boundary, cross-object invariants, and lifecycle/evidence-view semantics** — specified in `spec.md` Requirements/Compatibility, resolved design (not open).
 - Planning depth: Task + Spec, because this ticket defines authority/decision semantics that multiple downstream consumers (#26, #30, #33, #37, #44, #59, #67) must agree on; no Design doc because the shared fixtures already fix the one bounded shape and there is no competing technical approach to choose between.
-- Blockers: none on GitHub (`blocked-by #22`, merged). Before implementation proceeds past scouting: (1) Owner/Reviewer must confirm the legacy-type migration scope (in-ticket vs. prerequisite ticket), (2) the packet (this file + spec.md) must be re-reviewed and approved on PR #100 with `Closes #25` added to the PR body.
+- Blockers: none. All prior open decisions are resolved. Remaining before coding starts: rebase the branch onto current `main` and add `Closes #25` to PR #100's body (see Execution Todo).
