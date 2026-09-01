@@ -1,6 +1,6 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-08-24
+Updated: 2026-08-31
 
 This file is the evidence-backed snapshot of what the merged repository currently proves. Product vision is not implementation status, and this file does not track ticket owners, readiness, sequence, or work-in-progress; those remain in GitHub Issues and the Delivery Project.
 
@@ -34,6 +34,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - In-memory `RuntimeEvent`, `ToolInvocation`, and `ModelInvocation` storage and claim queries.
 - In-memory engineer/orchestrator-style multi-agent reference scenario.
 - Static check preventing known Agent Sandbox types from leaking outside its adapter package.
+- Backend-neutral `agenova` composition root: `--help` and `version` work; invalid command/configuration (including a missing `--backend` value) exits non-zero; the process hosts the in-memory reference backend and accepts test doubles. Command behavior and shared contracts stay provider-neutral; the composition edge may import a concrete adapter constructor.
 
 ## Backend Spike
 
@@ -43,7 +44,7 @@ It is not production-ready. Terminal outcomes are held in adapter memory, pool s
 
 ## Scaffolds or Missing Product Surfaces
 
-- No usable `agenova run` command.
+- No usable `agenova run` command. The composition root exists; it does not submit ClaimRequest YAML.
 - No `ClaimRequest` API type, YAML validator, or request-to-claim resolver.
 - No trusted-principal, static-policy, control-plane action-authorization, or decision-evidence path.
 - No running operator or controller.
