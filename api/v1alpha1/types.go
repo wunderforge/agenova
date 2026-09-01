@@ -6,7 +6,7 @@ package v1alpha1
 import "time"
 
 type ObjectMeta struct {
-	Name string
+	Name string `json:"name" yaml:"name"`
 }
 
 type AgentSandboxTemplate struct {
