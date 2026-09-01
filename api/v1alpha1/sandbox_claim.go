@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+	"time"
 )
 
 // DecisionResult is the typed outcome vocabulary for one authorization
@@ -177,17 +178,19 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 	if state == nil {
 		return validationError(ValidationCategoryRequiredField, "$", "issued state is required")
 	}
-	if strings.TrimSpace(state.RequestRef) == "" {
-		return validationError(ValidationCategoryRequiredField, "requestRef", "value is required")
+	requiredFields := []struct {
+		path  string
+		value string
+	}{
+		{"requestRef", state.RequestRef},
+		{"principal.subject", state.Principal.Subject},
+		{"action.name", state.Action.Name},
+		{"decision.id", state.Decision.ID},
 	}
-	if strings.TrimSpace(state.Principal.Subject) == "" {
-		return validationError(ValidationCategoryRequiredField, "principal.subject", "value is required")
-	}
-	if strings.TrimSpace(state.Action.Name) == "" {
-		return validationError(ValidationCategoryRequiredField, "action.name", "value is required")
-	}
-	if strings.TrimSpace(state.Decision.ID) == "" {
-		return validationError(ValidationCategoryRequiredField, "decision.id", "value is required")
+	for _, field := range requiredFields {
+		if strings.TrimSpace(field.value) == "" {
+			return validationError(ValidationCategoryRequiredField, field.path, "value is required")
+		}
 	}
 	switch state.Decision.Result {
 	case DecisionResultAllow, DecisionResultDeny, DecisionResultApprovalRequired:
@@ -211,24 +214,25 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		if state.EffectiveAuthority == nil {
 			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority", "required when decision.result is Allow")
 		}
+		if state.Claim.RequestRef != state.RequestRef {
+			return validationError(ValidationCategoryInvalidValue, "claim.requestRef", "must match the top-level requestRef")
+		}
+		if state.Claim.AuthorityRef != state.EffectiveAuthority.ID {
+			return validationError(ValidationCategoryInvalidValue, "claim.authorityRef", "must match effectiveAuthority.id")
+		}
+		if state.Claim.Phase == ClaimPhasePending && state.Claim.BackendIdentity != nil {
+			return validationError(ValidationCategoryInvalidValue, "claim.backendIdentity", "must be absent while the claim is Pending")
+		}
+		duration, err := time.ParseDuration(state.EffectiveAuthority.Runtime.Timeout)
+		if err != nil || duration <= 0 {
+			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout", "must be a positive Go duration")
+		}
 	} else {
 		if state.Claim != nil {
 			return validationError(ValidationCategoryInvalidValue, "claim", "must be absent unless decision.result is Allow")
 		}
 		if state.EffectiveAuthority != nil {
 			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority", "must be absent unless decision.result is Allow")
-		}
-	}
-
-	if state.Claim != nil {
-		if state.Claim.RequestRef != state.RequestRef {
-			return validationError(ValidationCategoryInvalidValue, "claim.requestRef", "must match the top-level requestRef")
-		}
-		if state.EffectiveAuthority != nil && state.Claim.AuthorityRef != state.EffectiveAuthority.ID {
-			return validationError(ValidationCategoryInvalidValue, "claim.authorityRef", "must match effectiveAuthority.id")
-		}
-		if state.Claim.Phase == ClaimPhasePending && state.Claim.BackendIdentity != nil {
-			return validationError(ValidationCategoryInvalidValue, "claim.backendIdentity", "must be absent while the claim is Pending")
 		}
 	}
 
@@ -278,22 +282,28 @@ func decodeIssuedState(data []byte) (*IssuedState, *ValidationError) {
 // "source"-style field — origin is established by which parse function the
 // caller invoked, not by payload content.
 func rejectCallerManagedFields(data []byte) *ValidationError {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	var top struct {
+		EffectiveAuthority json.RawMessage `json:"effectiveAuthority"`
+		Claim              json.RawMessage `json:"claim"`
+	}
+	if err := json.Unmarshal(data, &top); err != nil {
 		return validationError(ValidationCategoryInvalidDocument, "$", err.Error())
 	}
-	if _, present := raw["effectiveAuthority"]; present {
+	if top.EffectiveAuthority != nil {
 		return validationError(ValidationCategorySystemManagedField, "effectiveAuthority", "field is system-managed and cannot be caller-supplied")
 	}
-	if claimRaw, present := raw["claim"]; present {
-		var claim map[string]json.RawMessage
-		if err := json.Unmarshal(claimRaw, &claim); err != nil {
+	if top.Claim != nil {
+		var claim struct {
+			Phase           json.RawMessage `json:"phase"`
+			BackendIdentity json.RawMessage `json:"backendIdentity"`
+		}
+		if err := json.Unmarshal(top.Claim, &claim); err != nil {
 			return validationError(ValidationCategoryInvalidDocument, "claim", err.Error())
 		}
-		if _, present := claim["phase"]; present {
+		if claim.Phase != nil {
 			return validationError(ValidationCategorySystemManagedField, "claim.phase", "field is system-managed and cannot be caller-supplied")
 		}
-		if _, present := claim["backendIdentity"]; present {
+		if claim.BackendIdentity != nil {
 			return validationError(ValidationCategorySystemManagedField, "claim.backendIdentity", "field is system-managed and cannot be caller-supplied")
 		}
 	}

@@ -72,7 +72,7 @@ Out of scope:
 - [x] Add the v0 issued-state types (effective authority, SandboxClaim, decision, evidence) with strict JSON decoding, the caller/system-issued parsing split, cross-object invariants, and system-managed-field rejection. (`api/v1alpha1/sandbox_claim.go`)
 - [x] Add focused tests consuming the five shared `issued-state.*` fixtures by case ID, covering both parsing paths and the invariant/lifecycle rules. (`api/v1alpha1/sandbox_claim_test.go`)
 - [x] Run the focused gate and `.\scripts\check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Review the diff for scope, regressions, and source-of-truth updates. Multi-angle review confirmed: the `BackendClaim` rename is a clean, behavior-preserving move (no dropped guards/assertions, zero remaining `v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` references via repo-wide grep); no scope beyond the files task.md/spec.md name. Review also surfaced and fixed four issues in `sandbox_claim.go` before merge: `effectiveAuthority.runtime.timeout` now validated as a positive Go duration (was an unvalidated bare string), a dead/redundant nil guard in `ValidateIssuedState`'s claim invariants removed, five copy-pasted required-field checks collapsed into one loop, and `rejectCallerManagedFields` changed from a full-document `map[string]json.RawMessage` unmarshal to a minimal two-field struct scan (same presence semantics, less allocation). All covered by new/existing tests; `go test ./...` and `.\scripts\check.ps1 -All` pass.
 
 ## Quality Gates
 

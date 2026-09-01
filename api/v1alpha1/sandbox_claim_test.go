@@ -191,6 +191,18 @@ func TestValidateIssuedState_ApprovalRequiredIsNotGrantedAuthority(t *testing.T)
 	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "claim")
 }
 
+func TestValidateIssuedState_RejectsMalformedTimeout(t *testing.T) {
+	state := validAllowIssuedState()
+	state.EffectiveAuthority.Runtime.Timeout = "banana"
+	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout")
+}
+
+func TestValidateIssuedState_RejectsNonPositiveTimeout(t *testing.T) {
+	state := validAllowIssuedState()
+	state.EffectiveAuthority.Runtime.Timeout = "-5m"
+	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout")
+}
+
 func TestParseCallerIssuedState_IgnoresSpoofedSourceField(t *testing.T) {
 	// A caller-supplied "source": "system" field must not grant trust; only
 	// which parse function is invoked determines the trust boundary.
