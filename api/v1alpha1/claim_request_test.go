@@ -507,16 +507,26 @@ func TestParseClaimRequestRejectsNonJSONTaskInput(t *testing.T) {
 // The same JSON-compatibility invariants protect directly constructed
 // requests: the public contract fails closed, not only the parser.
 func TestValidateClaimRequestRejectsNonJSONTaskInputValues(t *testing.T) {
+	cyclicSlice := make([]any, 1)
+	cyclicSlice[0] = cyclicSlice
+	cyclicMap := map[string]any{}
+	cyclicMap["self"] = cyclicMap
+
 	cases := map[string]struct {
 		input map[string]any
 		path  string
 	}{
-		"NaN float":       {map[string]any{"bad": math.NaN()}, "spec.task.input.bad"},
-		"infinite float":  {map[string]any{"bad": math.Inf(1)}, "spec.task.input.bad"},
-		"time value":      {map[string]any{"at": time.Now()}, "spec.task.input.at"},
-		"binary value":    {map[string]any{"blob": []byte("hi")}, "spec.task.input.blob"},
-		"nested bad item": {map[string]any{"steps": []any{"ok", time.Now()}}, "spec.task.input.steps[1]"},
-		"nested bad map":  {map[string]any{"limits": map[string]any{"cpu": math.NaN()}}, "spec.task.input.limits.cpu"},
+		"NaN float":          {map[string]any{"bad": math.NaN()}, "spec.task.input.bad"},
+		"infinite float":     {map[string]any{"bad": math.Inf(1)}, "spec.task.input.bad"},
+		"time value":         {map[string]any{"at": time.Now()}, "spec.task.input.at"},
+		"binary value":       {map[string]any{"blob": []byte("hi")}, "spec.task.input.blob"},
+		"nested bad item":    {map[string]any{"steps": []any{"ok", time.Now()}}, "spec.task.input.steps[1]"},
+		"nested bad map":     {map[string]any{"limits": map[string]any{"cpu": math.NaN()}}, "spec.task.input.limits.cpu"},
+		"non-string-key map": {map[string]any{"byID": map[int]string{1: "x"}}, "spec.task.input.byID"},
+		"cyclic slice":       {map[string]any{"loop": cyclicSlice}, "spec.task.input.loop[0]"},
+		"cyclic map":         {map[string]any{"loop": cyclicMap}, "spec.task.input.loop.self"},
+		"typed bad element":  {map[string]any{"times": []time.Time{time.Now()}}, "spec.task.input.times[0]"},
+		"pointer value":      {map[string]any{"ref": new(int)}, "spec.task.input.ref"},
 	}
 
 	for name, tc := range cases {
@@ -525,6 +535,26 @@ func TestValidateClaimRequestRejectsNonJSONTaskInputValues(t *testing.T) {
 			request.Spec.Task.Input = tc.input
 			assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategoryInvalidValue, tc.path)
 		})
+	}
+}
+
+// Typed Go containers are JSON-compatible when their shape is: the validator
+// walks slices, arrays, and string-keyed maps by kind, so direct callers are
+// not forced to convert everything to []any / map[string]any first. A shared
+// (non-cyclic) container referenced from two sibling paths stays valid.
+func TestValidateClaimRequestAcceptsTypedTaskInputContainers(t *testing.T) {
+	shared := []string{"build", "test"}
+	request := validClaimRequest()
+	request.Spec.Task.Input = map[string]any{
+		"steps":   shared,
+		"again":   shared,
+		"labels":  map[string]string{"team": "a"},
+		"matrix":  [2]int{1, 2},
+		"weights": []float64{0.5, 1},
+		"nested":  map[string]any{"inner": []any{map[string]string{"k": "v"}}},
+	}
+	if err := ValidateClaimRequest(request); err != nil {
+		t.Fatalf("typed JSON-compatible containers must be valid, got %#v", err)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -186,22 +187,14 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 // Go values, because callers can construct or mutate the public
 // map[string]any directly — including with NaN, time.Time, or []byte — and
 // the contract must fail closed there too, not only at the parser. Keys are
-// walked in sorted order so the reported path is deterministic.
+// walked in sorted order so the reported path is deterministic, and containers
+// on the current path are tracked so a cyclic value is rejected instead of
+// recursing without bound.
 func validateTaskInputValues(path string, values map[string]any) *ValidationError {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		if err := validateTaskInputValue(joinPath(path, key), values[key]); err != nil {
-			return err
-		}
-	}
-	return nil
+	return validateTaskInputValue(path, values, make(map[uintptr]struct{}))
 }
 
-func validateTaskInputValue(path string, value any) *ValidationError {
+func validateTaskInputValue(path string, value any, active map[uintptr]struct{}) *ValidationError {
 	switch v := value.(type) {
 	case nil, string, bool:
 		return nil
@@ -211,15 +204,56 @@ func validateTaskInputValue(path string, value any) *ValidationError {
 		return validateTaskInputFloat(path, float64(v))
 	case float64:
 		return validateTaskInputFloat(path, v)
-	case []any:
-		for i, item := range v {
-			if err := validateTaskInputValue(fmt.Sprintf("%s[%d]", path, i), item); err != nil {
+	case []byte:
+		// encoding/json emits []byte as base64, not as a JSON array, so its
+		// representation is inconsistent across the two surfaces.
+		return validationError(ValidationCategoryInvalidValue, path, "value has no consistent JSON representation")
+	}
+	// Typed containers such as []string, [2]int, or map[string]string are
+	// JSON-compatible too; walk them by kind rather than by concrete type.
+	container := reflect.ValueOf(value)
+	switch container.Kind() {
+	case reflect.Slice:
+		if container.Len() == 0 {
+			return nil
+		}
+		if _, cyclic := active[container.Pointer()]; cyclic {
+			return validationError(ValidationCategoryInvalidValue, path, "cyclic value has no JSON representation")
+		}
+		active[container.Pointer()] = struct{}{}
+		defer delete(active, container.Pointer())
+		fallthrough
+	case reflect.Array:
+		for i := 0; i < container.Len(); i++ {
+			if err := validateTaskInputValue(fmt.Sprintf("%s[%d]", path, i), container.Index(i).Interface(), active); err != nil {
 				return err
 			}
 		}
 		return nil
-	case map[string]any:
-		return validateTaskInputValues(path, v)
+	case reflect.Map:
+		if container.Type().Key().Kind() != reflect.String {
+			return validationError(ValidationCategoryInvalidValue, path, "mapping keys must be strings")
+		}
+		if container.Len() == 0 {
+			return nil
+		}
+		if _, cyclic := active[container.Pointer()]; cyclic {
+			return validationError(ValidationCategoryInvalidValue, path, "cyclic value has no JSON representation")
+		}
+		active[container.Pointer()] = struct{}{}
+		defer delete(active, container.Pointer())
+		keys := make([]string, 0, container.Len())
+		for _, key := range container.MapKeys() {
+			keys = append(keys, key.String())
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			item := container.MapIndex(reflect.ValueOf(key).Convert(container.Type().Key())).Interface()
+			if err := validateTaskInputValue(joinPath(path, key), item, active); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return validationError(ValidationCategoryInvalidValue, path, "value has no consistent JSON representation")
 	}
