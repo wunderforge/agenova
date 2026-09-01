@@ -66,25 +66,25 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Scout the relevant implementation, tests, risks, and dependencies (including the merged PR #93 `ValidationError`/`ValidationCategory` pattern in `api/v1alpha1/agent_template.go`).
-- [ ] Rebase `codex/e1-t4-sandboxclaim-v0` onto current `main`; update PR #100 body to add `Closes #25`.
-- [ ] Migrate the legacy `api/v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus` and update every consumer (`RuntimeBackend` interface, `internal/operator/runtime.go`, `agentsandbox` adapter, `internal/runtime/contracttest/run.go`, `internal/sandbox/pool.go`, both gateways, `internal/cli/cli_test.go`, `harness/` e2e/integration tests); confirm `go build ./...` and `go test ./...` still pass with the rename alone before adding new types.
-- [ ] Add the v0 issued-state types (effective authority, SandboxClaim, decision, evidence) with strict JSON decoding, the caller/system-issued parsing split, cross-object invariants, and system-managed-field rejection.
-- [ ] Add focused tests consuming the five shared `issued-state.*` fixtures by case ID, covering both parsing paths and the invariant/lifecycle rules.
-- [ ] Run the focused gate and `.\scripts\check.ps1 -All`.
+- [x] Scout the relevant implementation, tests, risks, and dependencies (including the merged PR #93 `ValidationError`/`ValidationCategory` pattern in `api/v1alpha1/agent_template.go`).
+- [x] Rebase `codex/e1-t4-sandboxclaim-v0` onto current `main`; update PR #100 body to add `Closes #25`.
+- [x] Migrate the legacy `api/v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus` and update every consumer (`RuntimeBackend` interface, `internal/operator/runtime.go`, `agentsandbox` adapter, `internal/runtime/contracttest/run.go`, both gateway tests, `internal/cli/cli_test.go`, `harness/` e2e/integration tests); confirmed `go build ./...` and `go test ./...` passed with the rename alone before adding new types. (`internal/sandbox/pool.go` and the gateways' non-test code turned out not to reference `SandboxClaim` directly, so needed no change.)
+- [x] Add the v0 issued-state types (effective authority, SandboxClaim, decision, evidence) with strict JSON decoding, the caller/system-issued parsing split, cross-object invariants, and system-managed-field rejection. (`api/v1alpha1/sandbox_claim.go`)
+- [x] Add focused tests consuming the five shared `issued-state.*` fixtures by case ID, covering both parsing paths and the invariant/lifecycle rules. (`api/v1alpha1/sandbox_claim_test.go`)
+- [x] Run the focused gate and `.\scripts\check.ps1 -All`.
 - [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
-- `go test -count=1 -v ./api/v1alpha1 -run <FocusedTestName>` (exact name recorded once the test is written)
+- `go test -count=1 -v ./api/v1alpha1 -run TestIssuedStateFixtures`
 - `go test ./...`
 - `.\scripts\check.ps1 -All`
 
 ## Evidence Required
 
-- Passing focused test output naming all five shared `issued-state.*` case IDs.
-- Passing `go test ./...` and repository baseline output.
-- PR diff audit confirming the legacy `SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` identifiers no longer exist in `api/v1alpha1` (moved to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus`, every consumer updated) rather than left duplicated alongside the new canonical `SandboxClaim`. `SandboxWarmPool*` untouched.
+- Passing focused test output naming all five shared `issued-state.*` case IDs: `go test -count=1 -v ./api/v1alpha1 -run TestIssuedStateFixtures` — all 5 subtests pass (`issued-state.valid.team-a-engineer`, `issued-state.valid.team-b-denial`, `issued-state.invalid.caller-effective-authority`, `issued-state.invalid.caller-claim-phase`, `issued-state.invalid.caller-backend-identity`).
+- Passing `go test ./...` and repository baseline output: `.\scripts\check.ps1 -All` passes in full (docs gate, `go vet ./...`, `go test ./...`, integration-package compile check).
+- PR diff audit confirming the legacy `SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` identifiers no longer exist in `api/v1alpha1` (moved to `internal/runtime.BackendClaim`/`BackendClaimSpec`/`BackendClaimStatus`, every consumer updated) rather than left duplicated alongside the new canonical `SandboxClaim`. `SandboxWarmPool*` untouched. Confirmed via repo-wide grep: zero remaining `v1alpha1.SandboxClaim`/`SandboxClaimSpec`/`SandboxClaimStatus` references.
 
 ## Constraints
 
