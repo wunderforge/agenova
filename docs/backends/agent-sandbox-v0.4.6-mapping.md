@@ -12,6 +12,17 @@ This report maps the current Agenova `RuntimeBackend` semantics to the pinned Ku
 - Agenova boundary: [`internal/runtime/backend.go`](../../internal/runtime/backend.go), interpreted under [Backend Neutrality](../product/architecture-contract.md#backend-neutrality) and [Claim Lifecycle](../product/architecture-contract.md#claim-lifecycle).
 - Existing spike adapter: [`internal/runtime/agentsandbox`](../../internal/runtime/agentsandbox), used here as evidence of current translation choices rather than evidence of upstream behavior.
 
+The pinned source lookup is reproducible without a Kubernetes cluster:
+
+```text
+gh api repos/kubernetes-sigs/agent-sandbox/git/ref/tags/v0.4.6
+gh api repos/kubernetes-sigs/agent-sandbox/git/tags/9d2acac65b7903ab2c8d4a7e55ad2d8c06568d26
+gh api -H "Accept: application/vnd.github.raw+json" "repos/kubernetes-sigs/agent-sandbox/contents/extensions/api/v1alpha1/sandboxclaim_types.go?ref=v0.4.6"
+gh api -H "Accept: application/vnd.github.raw+json" "repos/kubernetes-sigs/agent-sandbox/contents/extensions/api/v1alpha1/sandboxwarmpool_types.go?ref=v0.4.6"
+gh api -H "Accept: application/vnd.github.raw+json" "repos/kubernetes-sigs/agent-sandbox/contents/extensions/controllers/sandboxclaim_controller.go?ref=v0.4.6"
+gh api -H "Accept: application/vnd.github.raw+json" "repos/kubernetes-sigs/agent-sandbox/contents/extensions/controllers/sandboxwarmpool_controller.go?ref=v0.4.6"
+```
+
 The classifications below use:
 
 - `native`: the pinned upstream API or controller directly exposes the required semantic.
