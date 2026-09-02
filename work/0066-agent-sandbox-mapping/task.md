@@ -65,7 +65,7 @@ Out of scope:
 ## Execution Todo
 
 - [ ] Stand up the pinned `v0.4.6` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}` .
-- [ ] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, and cite the evidence.
+- [x] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, and cite the source-inspection evidence; retain cluster-dependent rows as provisional until #99 merges.
 - [ ] Build and run experimental manifests that demonstrate at least one unsupported/ambiguous case; capture the output.
 - [ ] Write `docs/backends/agent-sandbox-v0.4.6-mapping.md` (mapping table + gap report + open questions + `#30` sensitivity note).
 - [ ] Add `harness/spike/agent-sandbox-mapping/` (manifests + a short README with the exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
@@ -97,14 +97,15 @@ Out of scope:
 ## Decisions and Blockers
 
 - Planning depth: Task only. A time-boxed research spike whose deliverable is a provisional report; it freezes no contract and needs no `spec.md`/`design.md`.
+- Owner authorization (2026-09-02): the project lead assigned `@yanyang15037755` as Owner, with `@Leo1piece` contributing commits and pairing as agreed between them. The final mapping report is the spike deliverable; independent review remains a PR gate.
+- Collaboration decision: this work branch starts from the latest `main` and preserves Leo's three task-packet commits by cherry-pick. The Owner integrates the report, evidence, and quality gates in one #66 delivery lane.
 - Decision: map against the current `internal/runtime/backend.go` `RuntimeBackend` interface as-is, and separately flag rows that `#30` (E3-T1, "Reduce RuntimeBackend to the MVP contract") is likely to change, so `#48` consumes this report in the right order.
 - Decision: the report lives in a new `docs/backends/agent-sandbox-v0.4.6-mapping.md`, not by editing the `#48`-owned `docs/backends/agent-sandbox.md`.
 - Decision: reuse the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`) to provision the pinned `v0.4.6` cluster rather than adding a second cluster bootstrapper.
 - Decision (2026-09-02): map against `v0.4.6` / `extensions.agents.x-k8s.io/v1alpha1` — the version the shipped `internal/runtime/agentsandbox` adapter, `docs/backends/agent-sandbox.md`, and the E8-T3 substrate are all on. An earlier draft of this packet targeted `v1.0.0` / `v1beta1`; that was dropped so the mapping baseline matches the code `#48` will freeze against. Looking ahead to a newer upstream release is a separate follow-up.
-- Open question for Owner/Reviewer: confirm the deliverable path for the mapping doc (`docs/backends/agent-sandbox-v0.4.6-mapping.md` vs `harness/spike/agent-sandbox-mapping/MAPPING.md`).
-- Open question for Owner/Reviewer — substrate availability / branch base: this branch (`neo/e8-s1-agent-sandbox-mapping`) is cut from `main`, and `main` does not yet contain the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`), which lands with `#50` (PR #99, in review). Pick one before implementation starts — (a) rebase this branch onto `neo/e8-t3-kind-agent-sandbox`; (b) keep the base at `main` and run `reproduce.sh` from a `git worktree` of that branch; or (c) wait for `#99` to merge. E8-S1 only adds new files, so a later rebase onto `main` is clean under any choice.
+- Decision (2026-09-02): source research and the provisional table may proceed immediately. Real-cluster environment design, manifests, reproduction, and captured validation wait for `#99` to merge into `main`; #66 does not stack implementation on the unmerged E8-T3 branch.
 - Blockers / sequencing:
   - GitHub `blocked-by`: `#22` (E1-T1) — **merged**, so this ticket is unblocked.
-  - Soft sequencing: the substrate this spike runs on lands with `#50` (PR #99, in review); see the substrate/branch-base open question above. The PR for `#66` should land after or alongside `#50`.
+  - Validation blocker: the substrate this spike runs on lands with `#50` (PR #99). As of 2026-09-02 it has changes requested; cluster manifests, commands, and captured evidence remain blocked until it is corrected and merged.
   - `#48` only integrates this report after `#30` stabilises `RuntimeBackend v0`; that is a downstream sequencing note, not a blocker on producing the spike.
   - Environment: a running Docker daemon and network to `github.com` / `dl.k8s.io` / `registry.k8s.io`.
