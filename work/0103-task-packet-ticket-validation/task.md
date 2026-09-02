@@ -63,7 +63,7 @@ Out of scope:
 - `.\scripts\check-pr-body.ps1 -BodyPath harness/fixtures/contracts/pr-valid.md` — pass (2026-09-02), including the embedded invalid-reference cases.
 - `.\scripts\check.ps1 -Docs` — pass (2026-09-02).
 - `.\scripts\check.ps1 -All` — pass (2026-09-02) with worktree Git metadata access.
-- GitHub `baseline` — pending PR creation.
+- GitHub `baseline` — recorded in the PR because GitHub owns that mutable run status.
 
 ## Constraints
 
