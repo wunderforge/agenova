@@ -74,4 +74,3 @@ Out of scope:
 ## Decisions and Blockers
 
 - The Owner approved implementation through the #101 decision comment and follow-up request on 2026-09-02.
-
