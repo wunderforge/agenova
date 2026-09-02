@@ -2,6 +2,13 @@
 
 Closes #19
 
+## Review context
+
+- Task packet: `work/0019-delivery-contract/task.md`
+- Additional Spec/Design: `None`
+- Product or architecture boundary: `docs/development/AIDLC.md#Agent Context Contract`
+- Shared fixture or contract test: `harness/fixtures/contracts/pr-valid.md`
+
 ## MVP-path outcome
 
 Every contribution carries enough information for independent implementation and review.
@@ -9,6 +16,11 @@ Every contribution carries enough information for independent implementation and
 ## Changes
 
 Added the bounded delivery-contract templates and their deterministic validator.
+
+## Scope and deferrals
+
+- Contract or boundary changed: Delivery-harness review context only; no product contract changes.
+- Deferred / non-goal: Automatic-review provider configuration and merge protection settings.
 
 ## Verification
 

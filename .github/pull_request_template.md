@@ -2,6 +2,13 @@
 
 Closes #<!-- issue number -->
 
+## Review context
+
+- Task packet: `<!-- work/<issue>-<slug>/task.md -->`
+- Additional Spec/Design: `<!-- path, or None -->`
+- Product or architecture boundary: `<!-- path + relevant heading, or None -->`
+- Shared fixture or contract test: `<!-- path, or None -->`
+
 ## MVP-path outcome
 
 <!-- Which observable step in the golden flow improves? -->
@@ -9,6 +16,11 @@ Closes #<!-- issue number -->
 ## Changes
 
 <!-- What changed, within the linked ticket's scope? -->
+
+## Scope and deferrals
+
+- Contract or boundary changed: <!-- Describe the boundary, or None -->
+- Deferred / non-goal: <!-- State the nearest intentionally excluded work -->
 
 ## Verification
 
