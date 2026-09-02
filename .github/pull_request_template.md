@@ -2,6 +2,11 @@
 
 Closes #<!-- issue number -->
 
+## Review context
+
+- Task packet: `<!-- work/<issue>-<slug>/task.md -->`
+- Review focus: <!-- Optional one-off concern; use None when the task packet is sufficient. -->
+
 ## MVP-path outcome
 
 <!-- Which observable step in the golden flow improves? -->
@@ -9,6 +14,11 @@ Closes #<!-- issue number -->
 ## Changes
 
 <!-- What changed, within the linked ticket's scope? -->
+
+## Scope and deferrals
+
+- Contract or boundary changed: <!-- Describe the boundary, or None -->
+- Deferred / non-goal: <!-- State the nearest intentionally excluded work -->
 
 ## Verification
 

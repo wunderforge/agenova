@@ -26,6 +26,21 @@ function Assert-CompletedSection {
   return $content
 }
 
+function Assert-NonBlankLabeledBullet {
+  param(
+    [Parameter(Mandatory=$true)][string]$Body,
+    [Parameter(Mandatory=$true)][string]$Field,
+    [Parameter(Mandatory=$true)][string]$Section
+  )
+
+  $escapedField = [regex]::Escape($Field)
+  $match = [regex]::Match($Body, "(?im)^\s*-\s*${escapedField}:[ \t]*(?<value>[^\r\n]*)$")
+  $value = if ($match.Success) { $match.Groups["value"].Value.Trim().Trim([char]96) } else { "" }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    throw "${Section} must contain a non-empty ${Field} value"
+  }
+}
+
 function Assert-NonBlankEvidenceInput {
   param(
     [Parameter(Mandatory=$true)][string]$Name,
@@ -50,13 +65,23 @@ function Test-PullRequestContract {
 
   foreach ($heading in @(
     "Linked ticket",
+    "Review context",
     "MVP-path outcome",
     "Changes",
+    "Scope and deferrals",
     "Verification",
     "Backend neutrality",
     "Risks and blockers"
   )) {
     Assert-CompletedSection -Body $Body -Heading $heading | Out-Null
+  }
+
+  $reviewContext = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Review context")
+  Assert-NonBlankLabeledBullet -Body $reviewContext -Field "Task packet" -Section "Review context"
+
+  $scope = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Scope and deferrals")
+  foreach ($field in @("Contract or boundary changed", "Deferred / non-goal")) {
+    Assert-NonBlankLabeledBullet -Body $scope -Field $field -Section "Scope and deferrals"
   }
 
   $verification = Get-MarkdownSection -Body $Body -Heading "Verification"
@@ -71,9 +96,7 @@ function Test-PullRequestContract {
 
   $risks = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Risks and blockers")
   foreach ($field in @("Risks", "Blockers")) {
-    if ($risks -notmatch "(?im)^\s*-\s*${field}:\s*\S.+$") {
-      throw "Risks and blockers must contain a non-empty ${field} value"
-    }
+    Assert-NonBlankLabeledBullet -Body $risks -Field $field -Section "Risks and blockers"
   }
 }
 
@@ -216,8 +239,10 @@ function Test-DeliveryContracts {
 
   $headings = @(
     "Linked ticket",
+    "Review context",
     "MVP-path outcome",
     "Changes",
+    "Scope and deferrals",
     "Verification",
     "Backend neutrality",
     "Risks and blockers"
@@ -248,6 +273,28 @@ function Test-DeliveryContracts {
     $rejected = $true
   }
   if (-not $rejected) { throw "invalid PR contract fixture was accepted" }
+
+  foreach ($case in @(
+    @{
+      Name = "review-context task packet"
+      From = '- Task packet: `work/0019-delivery-contract/task.md`'
+      To = '- Task packet:'
+    },
+    @{
+      Name = "scope deferred non-goal"
+      From = '- Deferred / non-goal: Automatic-review provider configuration and merge protection settings.'
+      To = '- Deferred / non-goal:'
+    }
+  )) {
+    $rejected = $false
+    try {
+      Test-PullRequestContract -Body $valid.Replace($case.From, $case.To)
+    }
+    catch {
+      $rejected = $true
+    }
+    if (-not $rejected) { throw "PR contract accepted a missing $($case.Name)" }
+  }
 
   foreach ($case in @(
     @{ Name = "Ticket"; Value = " " },

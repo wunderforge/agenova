@@ -45,6 +45,25 @@ Every Ticket starts with this minimal context:
 
 Reading the PRD does not enlarge the Ticket. The task packet remains the execution boundary; a conflict with the PRD or architecture contract stops implementation and requires a human decision.
 
+## PR Review Context
+
+The PR description is the reviewer routing layer. It must link the Ticket and
+name the active task packet; the task packet owns links to relevant product,
+architecture, spec, fixture, test, and playbook context. The PR may add a
+one-off review focus, but must not duplicate that context list. It must also
+state the changed boundary (or `None`), the nearest deferred non-goal, and
+exact verification results.
+
+Reviewers start with that task context, then apply the repository's
+`AGENTS.md` review rules. Deterministic CI proves mechanical checks; automatic
+review flags likely contract, scope, or evidence gaps; a human Owner/Reviewer
+still decides product fit, architecture trade-offs, approval, and merge.
+
+Codex automatically reviews a PR when it is opened. After substantive changes,
+request another pass by commenting `@codex review` on the PR; do not request a
+new review for every small commit. Codex findings are advisory: a human Reviewer
+still owns approval and merge.
+
 ## From Existing Ticket to Task Packet
 
 For the current MVP, work starts from an accepted GitHub Ticket:
