@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 )
 
@@ -70,9 +71,9 @@ func TestClaimLifecycle_CreateBindStartSucceed(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// 3. AddClaim
-	claim := v1alpha1.SandboxClaim{
+	claim := runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "e2e-smoke-run"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "busybox-e2e-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "busybox-e2e-pool"},
 	}
 	if err := adapter.AddClaim(claim); err != nil {
 		t.Fatalf("AddClaim: %v", err)
@@ -136,9 +137,9 @@ func TestClaimLifecycle_ExpirePendingClaim(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddWarmPool: %v", err)
 	}
-	if err := adapter.AddClaim(v1alpha1.SandboxClaim{
+	if err := adapter.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "e2e-expire-run"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "busybox-e2e-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "busybox-e2e-pool"},
 	}); err != nil {
 		t.Fatalf("AddClaim: %v", err)
 	}
@@ -184,7 +185,7 @@ func cleanupResources(t *testing.T) {
 	}
 }
 
-func assertClaimPhase(t *testing.T, a *agentsandbox.SpikeAdapter, name string, want v1alpha1.ClaimPhase) v1alpha1.SandboxClaim {
+func assertClaimPhase(t *testing.T, a *agentsandbox.SpikeAdapter, name string, want v1alpha1.ClaimPhase) runtime.BackendClaim {
 	t.Helper()
 	claim, ok := a.Claim(name)
 	if !ok {

@@ -41,17 +41,6 @@ type SandboxWarmPoolStatus struct {
 	ReplacedSandboxes int
 }
 
-type SandboxClaim struct {
-	Metadata ObjectMeta
-	Spec     SandboxClaimSpec
-	Status   SandboxClaimStatus
-}
-
-type SandboxClaimSpec struct {
-	PoolRef string
-	Input   map[string]string
-}
-
 type ClaimPhase string
 
 const (
@@ -62,20 +51,6 @@ const (
 	ClaimPhaseFailed    ClaimPhase = "Failed"
 	ClaimPhaseExpired   ClaimPhase = "Expired"
 )
-
-type SandboxClaimStatus struct {
-	Phase     ClaimPhase
-	SandboxID string
-	Error     string
-
-	// SandboxReplaced records the resource-side fact that the sandbox bound
-	// to this claim was destroyed and replaced after the claim reached a
-	// terminal phase. In the Kubernetes-facing shape this becomes a status
-	// condition (SandboxReplaced=True), not a claim phase: claim phases keep
-	// the business outcome (Succeeded/Failed/Expired); sandbox cleanup is a
-	// resource fact.
-	SandboxReplaced bool
-}
 
 // ToolInvocation records one concrete tool call inside a claim.
 type ToolInvocation struct {

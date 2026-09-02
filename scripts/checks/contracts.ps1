@@ -26,6 +26,32 @@ function Assert-CompletedSection {
   return $content
 }
 
+function Get-NonBlankLabeledBulletValue {
+  param(
+    [Parameter(Mandatory=$true)][string]$Body,
+    [Parameter(Mandatory=$true)][string]$Field,
+    [Parameter(Mandatory=$true)][string]$Section
+  )
+
+  $escapedField = [regex]::Escape($Field)
+  $match = [regex]::Match($Body, "(?im)^\s*-\s*${escapedField}:[ \t]*(?<value>[^\r\n]*)$")
+  $value = if ($match.Success) { $match.Groups["value"].Value.Trim().Trim([char]96) } else { "" }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    throw "${Section} must contain a non-empty ${Field} value"
+  }
+  return $value
+}
+
+function Assert-NonBlankLabeledBullet {
+  param(
+    [Parameter(Mandatory=$true)][string]$Body,
+    [Parameter(Mandatory=$true)][string]$Field,
+    [Parameter(Mandatory=$true)][string]$Section
+  )
+
+  Get-NonBlankLabeledBulletValue -Body $Body -Field $Field -Section $Section | Out-Null
+}
+
 function Assert-NonBlankEvidenceInput {
   param(
     [Parameter(Mandatory=$true)][string]$Name,
@@ -44,19 +70,48 @@ function Test-PullRequestContract {
   param([AllowEmptyString()][string]$Body)
 
   if ([string]::IsNullOrWhiteSpace($Body)) { throw "PR body must not be empty" }
-  if ($Body -notmatch "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+\b") {
-    throw "PR body must close a linked ticket, for example: Closes #19"
-  }
-
   foreach ($heading in @(
     "Linked ticket",
+    "Review context",
     "MVP-path outcome",
     "Changes",
+    "Scope and deferrals",
     "Verification",
     "Backend neutrality",
     "Risks and blockers"
   )) {
     Assert-CompletedSection -Body $Body -Heading $heading | Out-Null
+  }
+
+  $linkedTicket = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Linked ticket")
+  $closingTicketMatches = [regex]::Matches($linkedTicket, "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?<issue>\d+)\b")
+  if ($closingTicketMatches.Count -eq 0) {
+    throw "Linked ticket must close a ticket, for example: Closes #19"
+  }
+  $closingTicketIds = @($closingTicketMatches | ForEach-Object {
+    [int64]::Parse($_.Groups["issue"].Value)
+  } | Select-Object -Unique)
+
+  $reviewContext = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Review context")
+  $taskPacket = Get-NonBlankLabeledBulletValue -Body $reviewContext -Field "Task packet" -Section "Review context"
+  $taskPacketMatch = [regex]::Match($taskPacket, "^work/(?<issue>0*[1-9]\d*)-[a-z0-9]+(?:-[a-z0-9]+)*/task\.md$")
+  if (-not $taskPacketMatch.Success) {
+    throw "Review context Task packet must use the canonical path: work/<issue>-<slug>/task.md"
+  }
+
+  $taskPacketIssue = [int64]::Parse($taskPacketMatch.Groups["issue"].Value)
+  if ($closingTicketIds -notcontains $taskPacketIssue) {
+    throw "Review context Task packet issue #$taskPacketIssue does not match a ticket closed by the PR"
+  }
+
+  $taskPacketPath = Join-Path $Root ($taskPacket.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+  if (-not (Test-Path -LiteralPath $taskPacketPath -PathType Leaf)) {
+    throw "Review context Task packet does not exist: $taskPacket"
+  }
+
+  $scope = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Scope and deferrals")
+  foreach ($field in @("Contract or boundary changed", "Deferred / non-goal")) {
+    Assert-NonBlankLabeledBullet -Body $scope -Field $field -Section "Scope and deferrals"
   }
 
   $verification = Get-MarkdownSection -Body $Body -Heading "Verification"
@@ -71,9 +126,7 @@ function Test-PullRequestContract {
 
   $risks = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Risks and blockers")
   foreach ($field in @("Risks", "Blockers")) {
-    if ($risks -notmatch "(?im)^\s*-\s*${field}:\s*\S.+$") {
-      throw "Risks and blockers must contain a non-empty ${field} value"
-    }
+    Assert-NonBlankLabeledBullet -Body $risks -Field $field -Section "Risks and blockers"
   }
 }
 
@@ -216,8 +269,10 @@ function Test-DeliveryContracts {
 
   $headings = @(
     "Linked ticket",
+    "Review context",
     "MVP-path outcome",
     "Changes",
+    "Scope and deferrals",
     "Verification",
     "Backend neutrality",
     "Risks and blockers"
@@ -248,6 +303,89 @@ function Test-DeliveryContracts {
     $rejected = $true
   }
   if (-not $rejected) { throw "invalid PR contract fixture was accepted" }
+
+  foreach ($case in @(
+    @{
+      Name = "review-context task packet"
+      From = '- Task packet: `work/0103-task-packet-ticket-validation/task.md`'
+      To = '- Task packet:'
+    },
+    @{
+      Name = "scope deferred non-goal"
+      From = '- Deferred / non-goal: Automatic-review provider configuration and merge protection settings.'
+      To = '- Deferred / non-goal:'
+    }
+  )) {
+    $rejected = $false
+    try {
+      Test-PullRequestContract -Body $valid.Replace($case.From, $case.To)
+    }
+    catch {
+      $rejected = $true
+    }
+    if (-not $rejected) { throw "PR contract accepted a missing $($case.Name)" }
+  }
+
+  foreach ($case in @(
+    @{
+      Name = "None task packet"
+      To = '- Task packet: `None`'
+      Error = "must use the canonical path"
+    },
+    @{
+      Name = "malformed task packet"
+      To = '- Task packet: `work/0103-task-packet-ticket-validation/task.txt`'
+      Error = "must use the canonical path"
+    },
+    @{
+      Name = "mismatched task packet ticket"
+      To = '- Task packet: `work/0102-review-context-contract/task.md`'
+      Error = "does not match a ticket closed by the PR"
+    },
+    @{
+      Name = "missing task packet file"
+      To = '- Task packet: `work/0103-missing-task-packet/task.md`'
+      Error = "does not exist"
+    }
+  )) {
+    $errorMessage = $null
+    try {
+      Test-PullRequestContract -Body $valid.Replace(
+        '- Task packet: `work/0103-task-packet-ticket-validation/task.md`',
+        $case.To
+      )
+    }
+    catch {
+      $errorMessage = $_.Exception.Message
+    }
+    if ([string]::IsNullOrWhiteSpace($errorMessage)) {
+      throw "PR contract accepted a $($case.Name)"
+    }
+    if ($errorMessage -notlike "*$($case.Error)*") {
+      throw "PR contract rejected $($case.Name) for the wrong reason: $errorMessage"
+    }
+  }
+
+  $spoofedClosingTicket = $valid.Replace(
+    "Closes #103",
+    "Closes #104"
+  ).Replace(
+    "## Changes",
+    "## Changes`r`n`r`n<!-- Closes #103 -->"
+  )
+  $errorMessage = $null
+  try {
+    Test-PullRequestContract -Body $spoofedClosingTicket
+  }
+  catch {
+    $errorMessage = $_.Exception.Message
+  }
+  if ([string]::IsNullOrWhiteSpace($errorMessage)) {
+    throw "PR contract accepted a closing-ticket reference outside Linked ticket"
+  }
+  if ($errorMessage -notlike "*does not match a ticket closed by the PR*") {
+    throw "PR contract rejected a spoofed closing ticket for the wrong reason: $errorMessage"
+  }
 
   foreach ($case in @(
     @{ Name = "Ticket"; Value = " " },

@@ -159,7 +159,7 @@ func (a *SpikeAdapter) AddWarmPool(pool v1alpha1.SandboxWarmPool) error {
 // The claim is linked to the SandboxTemplate derived from the Agenova pool.
 // The upstream controller assigns a sandbox asynchronously - call BindClaim to
 // wait for that assignment.
-func (a *SpikeAdapter) AddClaim(claim v1alpha1.SandboxClaim) error {
+func (a *SpikeAdapter) AddClaim(claim runtime.BackendClaim) error {
 	if claim.Metadata.Name == "" {
 		return fmt.Errorf("claim name is required")
 	}
@@ -340,17 +340,17 @@ func (a *SpikeAdapter) ExpireClaim(name string, summary string) error {
 
 // Claim returns the Agenova view of a claim. For non-terminal phases,
 // it reconciles with the upstream CRD status to keep the phase current.
-func (a *SpikeAdapter) Claim(name string) (v1alpha1.SandboxClaim, bool) {
+func (a *SpikeAdapter) Claim(name string) (runtime.BackendClaim, bool) {
 	a.mu.Lock()
 	entry, ok := a.claims[name]
 	a.mu.Unlock()
 	if !ok {
-		return v1alpha1.SandboxClaim{}, false
+		return runtime.BackendClaim{}, false
 	}
-	return v1alpha1.SandboxClaim{
+	return runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec:     v1alpha1.SandboxClaimSpec{},
-		Status: v1alpha1.SandboxClaimStatus{
+		Spec:     runtime.BackendClaimSpec{},
+		Status: runtime.BackendClaimStatus{
 			Phase:           entry.phase,
 			SandboxID:       entry.sandboxID,
 			Error:           entry.errMsg,
