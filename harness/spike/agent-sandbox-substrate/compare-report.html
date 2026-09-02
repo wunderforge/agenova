@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Warm Pool vs Cold Start &mdash; Agent Sandbox v0.4.6 (E8-T3)</title>
+<meta name="description" content="Time-to-Ready measurements for Agent Sandbox v0.4.6 warm-pool vs cold-start claims across three image sizes, from the E8-T3 kind spike." />
+<!--
+  Standalone report generated from `reproduce.sh compare` (E8-T3 / #50).
+  Open directly in a browser. Data source: the compare run recorded in
+  work/0050-agent-sandbox-substrate/task.md and this RUNBOOK's "compare" section.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" />
+
+<style>
+  :root {
+    --ground: #f5f6f9;
+    --surface: #ffffff;
+    --surface-2: #eef1f5;
+    --ink: #1a2130;
+    --ink-mid: #5b6473;
+    --rule: #e0e4ec;
+    --accent: #3a4ea8;
+    --cold: #b26313;
+    --warm: #1f7355;
+    --cold-fill: #e2a04c;
+    --warm-fill: #3aa580;
+    --cold-wash: #f8eee1;
+    --warm-wash: #e6f2ec;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f131b;
+      --surface: #161c27;
+      --surface-2: #1d2532;
+      --ink: #e9edf3;
+      --ink-mid: #9aa5b4;
+      --rule: #29323f;
+      --accent: #9db0ff;
+      --cold: #e7a24e;
+      --warm: #56c6a0;
+      --cold-fill: #d8913f;
+      --warm-fill: #3f9f7c;
+      --cold-wash: #29211a;
+      --warm-wash: #16261f;
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0f131b;
+    --surface: #161c27;
+    --surface-2: #1d2532;
+    --ink: #e9edf3;
+    --ink-mid: #9aa5b4;
+    --rule: #29323f;
+    --accent: #9db0ff;
+    --cold: #e7a24e;
+    --warm: #56c6a0;
+    --cold-fill: #d8913f;
+    --warm-fill: #3f9f7c;
+    --cold-wash: #29211a;
+    --warm-wash: #16261f;
+    color-scheme: dark;
+  }
+
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img { max-width: 100%; height: auto; }
+  [hidden] { display: none !important; }
+
+  .sheet {
+    max-width: 856px;
+    margin: 0 auto;
+    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.25rem, 5vw, 3.25rem) 4rem;
+  }
+
+  .prose { max-width: 63ch; }
+
+  h1, h2, h3, .eyebrow, .legend, th, .stat-num, .kv-key, figcaption, .fig-title, caption {
+    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1.1rem;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 5.4vw, 3.1rem);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+
+  .dek {
+    font-size: 1.24rem;
+    line-height: 1.55;
+    color: var(--ink-mid);
+    margin: 0 0 2.25rem;
+    max-width: 54ch;
+  }
+
+  .dek strong { color: var(--ink); font-weight: 500; }
+
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.4rem;
+    padding: 0.85rem 0 0;
+    border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--ink-mid);
+  }
+  .meta-strip span { white-space: nowrap; }
+  .meta-strip b { color: var(--ink); font-weight: 500; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 2.75rem 0 3rem;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 1.35rem 1.25rem 1.2rem;
+  }
+  .stat-num {
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat.cold .stat-num { color: var(--cold); }
+  .stat.warm .stat-num { color: var(--warm); }
+  .stat-label {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: var(--ink-mid);
+    margin-top: 0.5rem;
+  }
+
+  section { margin: 3rem 0 0; }
+
+  h2 {
+    font-size: 1.32rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.35rem;
+  }
+  .section-num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  p { margin: 0 0 1.1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em;
+  }
+  p code, li code {
+    background: var(--surface-2);
+    padding: 0.1em 0.38em;
+    border-radius: 4px;
+  }
+
+  /* ---- figure ---- */
+  figure {
+    margin: 1.75rem 0 0;
+    padding: 1.5rem 1.5rem 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+  }
+  .fig-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.1rem;
+    margin: 0.5rem 0 1.1rem;
+    font-size: 0.8rem;
+    color: var(--ink-mid);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+  .swatch.cold { background: var(--cold-fill); }
+  .swatch.warm { background: var(--warm-fill); }
+
+  .chart-wrap { overflow-x: auto; }
+  svg.chart { width: 100%; min-width: 460px; height: auto; display: block; }
+  .chart .grid { stroke: var(--rule); stroke-width: 1; }
+  .chart .axis-label { fill: var(--ink-mid); font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+  .chart .row-name { fill: var(--ink); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .chart .row-size { fill: var(--ink-mid); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+  .chart .bar-cold { fill: var(--cold-fill); }
+  .chart .bar-warm { fill: var(--warm-fill); }
+  .chart .val { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; }
+  .chart .val-cold { fill: var(--cold); }
+  .chart .val-warm { fill: var(--warm); }
+
+  figcaption {
+    font-size: 0.78rem;
+    color: var(--ink-mid);
+    margin-top: 1rem;
+    line-height: 1.5;
+  }
+
+  /* ---- table ---- */
+  .table-wrap { overflow-x: auto; margin: 1.75rem 0 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    min-width: 520px;
+  }
+  caption {
+    text-align: left;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.7rem;
+  }
+  th, td {
+    padding: 0.7rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid var(--rule);
+  }
+  thead th {
+    font-size: 0.73rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    font-weight: 600;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  tbody td { font-family: "IBM Plex Mono", monospace; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.cold { color: var(--cold); background: var(--cold-wash); }
+  td.warm { color: var(--warm); background: var(--warm-wash); }
+  td.saved { font-weight: 500; color: var(--ink); }
+  tbody tr:last-child td { border-bottom: 1.5px solid var(--ink); }
+
+  /* ---- findings ---- */
+  .finding {
+    border-left: 3px solid var(--accent);
+    padding-left: 1.25rem;
+    margin: 1.5rem 0 0;
+  }
+  .finding h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+  .finding p { font-size: 1rem; }
+
+  ul.caveats { padding-left: 1.15rem; margin: 0.5rem 0 0; }
+  ul.caveats li { margin-bottom: 0.6rem; font-size: 0.98rem; }
+
+  /* ---- provenance ---- */
+  .provenance {
+    margin-top: 3rem;
+    padding: 1.4rem 1.5rem;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+  }
+  .provenance dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.35rem 1.1rem;
+    margin: 0;
+  }
+  .kv-key { color: var(--ink-mid); }
+  .provenance dd { margin: 0; color: var(--ink); word-break: break-word; }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--ink-mid);
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .anim { animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+  }
+
+  @media (max-width: 560px) {
+    .stats { grid-template-columns: 1fr; }
+    .provenance dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+    .kv-key { margin-top: 0.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <p class="eyebrow">E8-T3 &nbsp;&middot;&nbsp; #50 &nbsp;&middot;&nbsp; spike finding</p>
+  <h1>Warm pool vs cold start</h1>
+  <p class="dek">
+    A pre-warmed <code>SandboxWarmPool</code> makes a claim <strong>Ready in about zero seconds
+    regardless of image size</strong>. Without one, the claim pays for the image pull inline &mdash;
+    and that cost grows with the image.
+  </p>
+  <div class="meta-strip">
+    <span><b>Agent Sandbox</b> v0.4.6</span>
+    <span><b>kind</b> &middot; single node</span>
+    <span><b>measured</b> 2026-08-31</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat cold">
+      <div class="stat-num">6&ndash;13s</div>
+      <div class="stat-label">cold-start <code>claim&nbsp;&rarr;&nbsp;Ready</code>, rising as the image grows from ~4&nbsp;MB to ~250&nbsp;MB</div>
+    </div>
+    <div class="stat warm">
+      <div class="stat-num">&asymp;&nbsp;0s</div>
+      <div class="stat-label">warm-pool <code>claim&nbsp;&rarr;&nbsp;Ready</code> at every image size &mdash; the pull already happened</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">up to&nbsp;13s</div>
+      <div class="stat-label">saved per sandbox start on the largest image tested</div>
+    </div>
+  </div>
+
+  <section>
+    <h2><span class="section-num">01</span>&nbsp;&nbsp;The measurement</h2>
+    <div class="prose">
+      <p>
+        <code>reproduce.sh compare</code> runs each image twice. In the <strong>cold</strong> path a
+        <code>SandboxClaim</code> references only <code>sandboxTemplateRef</code> &mdash; the controller
+        provisions a fresh <code>Sandbox</code> and pod on demand, so <code>claim&nbsp;&rarr;&nbsp;Ready</code>
+        includes the image pull, pod create, and container start. In the <strong>warm</strong> path a
+        <code>SandboxWarmPool</code> with <code>replicas:&nbsp;1</code> is brought up first &mdash; it absorbs
+        the pull &mdash; and then a <code>warmpool:</code>-backed claim adopts the already-running pod.
+      </p>
+      <p>
+        Each image is evicted from the node's containerd cache (<code>crictl rmi</code>) before its cold run,
+        so the cold number reflects a real pull rather than a cache hit.
+      </p>
+    </div>
+
+    <figure class="anim">
+      <div class="fig-title">SandboxClaim &rarr; Ready &mdash; wall-clock seconds</div>
+      <div class="legend">
+        <span><i class="swatch cold"></i> cold start &middot; no warm pool</span>
+        <span><i class="swatch warm"></i> warm pool &middot; <span class="mono">replicas: 1</span></span>
+      </div>
+      <div class="chart-wrap">
+        <svg class="chart" viewBox="0 0 700 300" role="img" aria-label="Bar chart: cold-start claim-to-Ready is 6 seconds for busybox 1.36, 10 seconds for python 3.12-slim, and 13 seconds for node 22-slim; the warm-pool path is about 0 seconds for all three.">
+          <line class="grid" x1="150" y1="24" x2="150" y2="250"></line>
+          <line class="grid" x1="324" y1="24" x2="324" y2="250"></line>
+          <line class="grid" x1="498" y1="24" x2="498" y2="250"></line>
+          <line class="grid" x1="672" y1="24" x2="672" y2="250"></line>
+          <text class="axis-label" x="150" y="268" text-anchor="middle">0s</text>
+          <text class="axis-label" x="324" y="268" text-anchor="middle">5s</text>
+          <text class="axis-label" x="498" y="268" text-anchor="middle">10s</text>
+          <text class="axis-label" x="672" y="268" text-anchor="middle">15s</text>
+
+          <text class="row-name" x="138" y="55" text-anchor="end">busybox:1.36</text>
+          <text class="row-size" x="138" y="69" text-anchor="end">~4 MB</text>
+          <rect class="bar-cold" x="150" y="38" width="208.8" height="20" rx="2"></rect>
+          <text class="val val-cold" x="366" y="53">6s</text>
+          <rect class="bar-warm" x="150" y="66" width="3" height="20" rx="1.5"></rect>
+          <text class="val val-warm" x="161" y="81">0s</text>
+
+          <text class="row-name" x="138" y="130" text-anchor="end">python:3.12-slim</text>
+          <text class="row-size" x="138" y="144" text-anchor="end">~130 MB</text>
+          <rect class="bar-cold" x="150" y="113" width="348" height="20" rx="2"></rect>
+          <text class="val val-cold" x="506" y="128">10s</text>
+          <rect class="bar-warm" x="150" y="141" width="3" height="20" rx="1.5"></rect>
+          <text class="val val-warm" x="161" y="156">0s</text>
+
+          <text class="row-name" x="138" y="205" text-anchor="end">node:22-slim</text>
+          <text class="row-size" x="138" y="219" text-anchor="end">~250 MB</text>
+          <rect class="bar-cold" x="150" y="188" width="452.4" height="20" rx="2"></rect>
+          <text class="val val-cold" x="610" y="203">13s</text>
+          <rect class="bar-warm" x="150" y="216" width="3" height="20" rx="1.5"></rect>
+          <text class="val val-warm" x="161" y="231">0s</text>
+        </svg>
+      </div>
+      <figcaption>
+        One run per cell, 1&nbsp;s poll resolution &mdash; read small values as approximate. kind
+        <span class="mono">agenova-k8s-lab</span>, single node, Darwin&nbsp;arm64. The warm-pool bars are
+        drawn as a 3&nbsp;px stub; every measured value was <span class="mono">0s</span>.
+      </figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <caption>Per-image detail</caption>
+        <thead>
+          <tr>
+            <th scope="col">Image</th>
+            <th scope="col" class="num">Approx. size</th>
+            <th scope="col" class="num">Cold start<br />(no pool)</th>
+            <th scope="col" class="num">Warm pool<br />(replicas 1)</th>
+            <th scope="col" class="num">Saved</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>busybox:1.36</td>
+            <td class="num">~4 MB</td>
+            <td class="num cold">6s</td>
+            <td class="num warm">0s</td>
+            <td class="num saved">6s</td>
+          </tr>
+          <tr>
+            <td>python:3.12-slim</td>
+            <td class="num">~130 MB</td>
+            <td class="num cold">10s</td>
+            <td class="num warm">0s</td>
+            <td class="num saved">10s</td>
+          </tr>
+          <tr>
+            <td>node:22-slim</td>
+            <td class="num">~250 MB</td>
+            <td class="num cold">13s</td>
+            <td class="num warm">0s</td>
+            <td class="num saved">13s</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="section-num">02</span>&nbsp;&nbsp;Findings</h2>
+
+    <div class="finding">
+      <h3>Cold-start time tracks image size</h3>
+      <p>
+        Cold <code>claim&nbsp;&rarr;&nbsp;Ready</code> rose 6s&nbsp;&rarr;&nbsp;10s&nbsp;&rarr;&nbsp;13s
+        as the image grew ~4&nbsp;MB&nbsp;&rarr;&nbsp;~130&nbsp;MB&nbsp;&rarr;&nbsp;~250&nbsp;MB &mdash; the
+        pull dominates. The warm-pool path stayed at ~0s because that pull is paid once, up front, while the
+        pool pre-warms. On kind with a fast registry path the absolute cold numbers are modest; on a slower
+        network or with larger images the gap widens.
+      </p>
+    </div>
+
+    <div class="finding">
+      <h3>Deleting a warm-pool claim doesn't drain the pool</h3>
+      <p>
+        On v0.4.6, deleting a warm-pool-backed <code>SandboxClaim</code> terminates the <em>claimed</em> pod,
+        but the <code>SandboxWarmPool</code> immediately provisions a replacement to hold
+        <code>spec.replicas</code> &mdash; so the namespace pod count settles back to <code>replicas</code>,
+        not zero. Only deleting the claim <em>and</em> the pool <em>and</em> the template drives it to zero.
+        A cold-start claim (no pool) instead deletes its <code>Sandbox</code> and pod outright. The harness
+        <code>teardown</code> phase deletes all three and asserts the pod count reaches zero.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="section-num">03</span>&nbsp;&nbsp;Read with care</h2>
+    <ul class="caveats">
+      <li>Single run per cell, not averaged; 1&nbsp;s poll resolution. Small values (busybox) are order-of-magnitude, not precise.</li>
+      <li>kind is a single-node cluster with a fast local image path &mdash; absolute pull times are optimistic versus a remote multi-node cluster.</li>
+      <li>The warm-pool figure is measured <em>after</em> the pool pod reached <code>Running</code>; it excludes pre-warm time, which is where the pull cost moves to.</li>
+      <li>Image sizes are approximate published compressed sizes for context, not measured layer bytes.</li>
+    </ul>
+  </section>
+
+  <div class="provenance">
+    <dl>
+      <dt class="kv-key">tool</dt>
+      <dd>reproduce.sh compare &mdash; harness/spike/agent-sandbox-substrate</dd>
+      <dt class="kv-key">upstream</dt>
+      <dd>Agent Sandbox v0.4.6 &middot; extensions.agents.x-k8s.io/v1alpha1</dd>
+      <dt class="kv-key">controller</dt>
+      <dd>registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6</dd>
+      <dt class="kv-key">cluster</dt>
+      <dd>kind agenova-k8s-lab &middot; Kubernetes v1.36.1 node &middot; Darwin arm64</dd>
+      <dt class="kv-key">metric</dt>
+      <dd>apply(SandboxClaim) &rarr; status.conditions[Ready]=True, wall seconds</dd>
+      <dt class="kv-key">run</dt>
+      <dd>2026-08-31 &middot; branch neo/e8-t3-kind-agent-sandbox &middot; PR #99</dd>
+    </dl>
+  </div>
+
+  <footer>
+    Draft finding for #48, recorded as a prose note &mdash; no contract change. Also captured in
+    <span class="mono">work/0050-agent-sandbox-substrate/task.md</span> and the substrate RUNBOOK
+    (<span class="mono">RUNBOOK.md</span>, &ldquo;compare&rdquo; section).
+  </footer>
+</div>
+</body>
+</html>

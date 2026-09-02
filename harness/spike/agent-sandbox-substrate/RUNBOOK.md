@@ -118,6 +118,10 @@ Cold `claim -> Ready` grows with image size (pull-dominated); the warm path is
 ~0 s regardless because the pull already happened during pre-warm. The gap
 widens on slower networks and larger images.
 
+A formatted writeup of this run — chart, per-image table, findings, and
+provenance — is in [`compare-report.html`](compare-report.html) (open in a
+browser).
+
 ## What gets created, and what cleanup removes
 
 - kind cluster `agenova-k8s-lab` (kube context `kind-agenova-k8s-lab`) — the same
