@@ -174,14 +174,14 @@ type stubBackend struct{}
 
 func (s *stubBackend) AddTemplate(v1alpha1.AgentSandboxTemplate) error { return nil }
 func (s *stubBackend) AddWarmPool(v1alpha1.SandboxWarmPool) error      { return nil }
-func (s *stubBackend) AddClaim(v1alpha1.SandboxClaim) error            { return nil }
+func (s *stubBackend) AddClaim(runtime.BackendClaim) error             { return nil }
 func (s *stubBackend) BindClaim(string) error                          { return nil }
 func (s *stubBackend) StartClaim(string) error                         { return nil }
 func (s *stubBackend) SucceedClaim(string) error                       { return nil }
 func (s *stubBackend) FailClaim(string, string) error                  { return nil }
 func (s *stubBackend) ExpireClaim(string, string) error                { return nil }
-func (s *stubBackend) Claim(string) (v1alpha1.SandboxClaim, bool) {
-	return v1alpha1.SandboxClaim{}, false
+func (s *stubBackend) Claim(string) (runtime.BackendClaim, bool) {
+	return runtime.BackendClaim{}, false
 }
 func (s *stubBackend) PoolStatus(string) (v1alpha1.SandboxWarmPoolStatus, bool) {
 	return v1alpha1.SandboxWarmPoolStatus{}, false
