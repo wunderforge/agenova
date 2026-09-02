@@ -26,7 +26,7 @@ function Assert-CompletedSection {
   return $content
 }
 
-function Assert-NonBlankLabeledBullet {
+function Get-NonBlankLabeledBulletValue {
   param(
     [Parameter(Mandatory=$true)][string]$Body,
     [Parameter(Mandatory=$true)][string]$Field,
@@ -39,6 +39,17 @@ function Assert-NonBlankLabeledBullet {
   if ([string]::IsNullOrWhiteSpace($value)) {
     throw "${Section} must contain a non-empty ${Field} value"
   }
+  return $value
+}
+
+function Assert-NonBlankLabeledBullet {
+  param(
+    [Parameter(Mandatory=$true)][string]$Body,
+    [Parameter(Mandatory=$true)][string]$Field,
+    [Parameter(Mandatory=$true)][string]$Section
+  )
+
+  Get-NonBlankLabeledBulletValue -Body $Body -Field $Field -Section $Section | Out-Null
 }
 
 function Assert-NonBlankEvidenceInput {
@@ -59,9 +70,13 @@ function Test-PullRequestContract {
   param([AllowEmptyString()][string]$Body)
 
   if ([string]::IsNullOrWhiteSpace($Body)) { throw "PR body must not be empty" }
-  if ($Body -notmatch "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+\b") {
+  $closingTicketMatches = [regex]::Matches($Body, "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?<issue>\d+)\b")
+  if ($closingTicketMatches.Count -eq 0) {
     throw "PR body must close a linked ticket, for example: Closes #19"
   }
+  $closingTicketIds = @($closingTicketMatches | ForEach-Object {
+    [int64]::Parse($_.Groups["issue"].Value)
+  } | Select-Object -Unique)
 
   foreach ($heading in @(
     "Linked ticket",
@@ -77,7 +92,21 @@ function Test-PullRequestContract {
   }
 
   $reviewContext = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Review context")
-  Assert-NonBlankLabeledBullet -Body $reviewContext -Field "Task packet" -Section "Review context"
+  $taskPacket = Get-NonBlankLabeledBulletValue -Body $reviewContext -Field "Task packet" -Section "Review context"
+  $taskPacketMatch = [regex]::Match($taskPacket, "^work/(?<issue>0*[1-9]\d*)-[a-z0-9]+(?:-[a-z0-9]+)*/task\.md$")
+  if (-not $taskPacketMatch.Success) {
+    throw "Review context Task packet must use the canonical path: work/<issue>-<slug>/task.md"
+  }
+
+  $taskPacketIssue = [int64]::Parse($taskPacketMatch.Groups["issue"].Value)
+  if ($closingTicketIds -notcontains $taskPacketIssue) {
+    throw "Review context Task packet issue #$taskPacketIssue does not match a ticket closed by the PR"
+  }
+
+  $taskPacketPath = Join-Path $Root ($taskPacket.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+  if (-not (Test-Path -LiteralPath $taskPacketPath -PathType Leaf)) {
+    throw "Review context Task packet does not exist: $taskPacket"
+  }
 
   $scope = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Scope and deferrals")
   foreach ($field in @("Contract or boundary changed", "Deferred / non-goal")) {
@@ -277,7 +306,7 @@ function Test-DeliveryContracts {
   foreach ($case in @(
     @{
       Name = "review-context task packet"
-      From = '- Task packet: `work/0019-delivery-contract/task.md`'
+      From = '- Task packet: `work/0103-task-packet-ticket-validation/task.md`'
       To = '- Task packet:'
     },
     @{
@@ -294,6 +323,46 @@ function Test-DeliveryContracts {
       $rejected = $true
     }
     if (-not $rejected) { throw "PR contract accepted a missing $($case.Name)" }
+  }
+
+  foreach ($case in @(
+    @{
+      Name = "None task packet"
+      To = '- Task packet: `None`'
+      Error = "must use the canonical path"
+    },
+    @{
+      Name = "malformed task packet"
+      To = '- Task packet: `work/0103-task-packet-ticket-validation/task.txt`'
+      Error = "must use the canonical path"
+    },
+    @{
+      Name = "mismatched task packet ticket"
+      To = '- Task packet: `work/0102-review-context-contract/task.md`'
+      Error = "does not match a ticket closed by the PR"
+    },
+    @{
+      Name = "missing task packet file"
+      To = '- Task packet: `work/0103-missing-task-packet/task.md`'
+      Error = "does not exist"
+    }
+  )) {
+    $errorMessage = $null
+    try {
+      Test-PullRequestContract -Body $valid.Replace(
+        '- Task packet: `work/0103-task-packet-ticket-validation/task.md`',
+        $case.To
+      )
+    }
+    catch {
+      $errorMessage = $_.Exception.Message
+    }
+    if ([string]::IsNullOrWhiteSpace($errorMessage)) {
+      throw "PR contract accepted a $($case.Name)"
+    }
+    if ($errorMessage -notlike "*$($case.Error)*") {
+      throw "PR contract rejected $($case.Name) for the wrong reason: $errorMessage"
+    }
   }
 
   foreach ($case in @(

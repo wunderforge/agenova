@@ -1,10 +1,10 @@
 ## Linked ticket
 
-Closes #19
+Closes #103
 
 ## Review context
 
-- Task packet: `work/0019-delivery-contract/task.md`
+- Task packet: `work/0103-task-packet-ticket-validation/task.md`
 - Review focus: None
 
 ## MVP-path outcome
