@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIssuedStateFixtures(t *testing.T) {
@@ -112,7 +114,7 @@ func validAllowIssuedState() *IssuedState {
 		PolicyRef:  PolicyReference{ID: "policy-1", Version: "1"},
 		EffectiveAuthority: &EffectiveAuthority{
 			ID:      "authority-1",
-			Runtime: EffectiveAuthorityRuntime{ProfileRef: "standard", Timeout: "20m"},
+			Runtime: EffectiveAuthorityRuntime{ProfileRef: "standard", Timeout: Duration(20 * time.Minute)},
 		},
 		Claim: &SandboxClaim{
 			ID:              "claim-1",
@@ -128,6 +130,7 @@ func validAllowIssuedState() *IssuedState {
 			Action:       "claim.create",
 			Result:       DecisionResultAllow,
 			PolicyRef:    PolicyReference{ID: "policy-1", Version: "1"},
+			Reason:       "user:a may create the engineer assignment for the payments project",
 		},
 		Evidence: Evidence{
 			RequestRef:  "req-1",
@@ -191,15 +194,52 @@ func TestValidateIssuedState_ApprovalRequiredIsNotGrantedAuthority(t *testing.T)
 	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "claim")
 }
 
-func TestValidateIssuedState_RejectsMalformedTimeout(t *testing.T) {
-	state := validAllowIssuedState()
-	state.EffectiveAuthority.Runtime.Timeout = "banana"
-	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout")
+func TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields(t *testing.T) {
+	cases := []struct {
+		name     string
+		mutate   func(*IssuedState)
+		category ValidationCategory
+		path     string
+	}{
+		{"blank policyRef.id", func(s *IssuedState) { s.PolicyRef.ID = ""; s.Decision.PolicyRef.ID = "" }, ValidationCategoryRequiredField, "policyRef.id"},
+		{"blank policyRef.version", func(s *IssuedState) { s.PolicyRef.Version = ""; s.Decision.PolicyRef.Version = "" }, ValidationCategoryRequiredField, "policyRef.version"},
+		{"blank decision.reason", func(s *IssuedState) { s.Decision.Reason = "" }, ValidationCategoryRequiredField, "decision.reason"},
+		{"blank claim.id", func(s *IssuedState) { s.Claim.ID = "" }, ValidationCategoryRequiredField, "claim.id"},
+		{"unknown claim.phase", func(s *IssuedState) { s.Claim.Phase = ClaimPhase("Deleted") }, ValidationCategoryInvalidValue, "claim.phase"},
+		{"blank claim.phase", func(s *IssuedState) { s.Claim.Phase = ClaimPhase("") }, ValidationCategoryInvalidValue, "claim.phase"},
+		{"claim.templateRef mismatched with action.templateRef", func(s *IssuedState) { s.Claim.TemplateRef = "other-template" }, ValidationCategoryInvalidValue, "claim.templateRef"},
+		{"blank backendIdentity.backend", func(s *IssuedState) { s.Claim.BackendIdentity.Backend = "" }, ValidationCategoryRequiredField, "claim.backendIdentity.backend"},
+		{"blank backendIdentity.workerId", func(s *IssuedState) { s.Claim.BackendIdentity.WorkerID = "" }, ValidationCategoryRequiredField, "claim.backendIdentity.workerId"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := validAllowIssuedState()
+			tc.mutate(state)
+			assertValidationError(t, ValidateIssuedState(state), tc.category, tc.path)
+		})
+	}
+}
+
+func TestParseSystemIssuedState_RejectsMalformedTimeoutSyntax(t *testing.T) {
+	// A malformed duration string cannot be represented by the typed Duration
+	// field at all; it can only be exercised at JSON-decode time, where the
+	// Duration.UnmarshalJSON parse failure surfaces as an invalid-document error.
+	data, err := json.Marshal(validAllowIssuedState())
+	if err != nil {
+		t.Fatalf("marshal fixture: %v", err)
+	}
+	corrupted := strings.Replace(string(data), `"20m0s"`, `"banana"`, 1)
+	if corrupted == string(data) {
+		t.Fatal("fixture did not contain the expected timeout literal to corrupt")
+	}
+	_, validationErr := ParseSystemIssuedState([]byte(corrupted))
+	assertValidationError(t, validationErr, ValidationCategoryInvalidDocument, "$")
 }
 
 func TestValidateIssuedState_RejectsNonPositiveTimeout(t *testing.T) {
 	state := validAllowIssuedState()
-	state.EffectiveAuthority.Runtime.Timeout = "-5m"
+	state.EffectiveAuthority.Runtime.Timeout = Duration(-5 * time.Minute)
 	assertValidationError(t, ValidateIssuedState(state), ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout")
 }
 
@@ -253,4 +293,61 @@ func TestParseIssuedState_RejectsDecisionResultOutsideVocabulary(t *testing.T) {
 
 	_, validationErr := ParseSystemIssuedState(corrupted)
 	assertValidationError(t, validationErr, ValidationCategoryInvalidValue, "decision.result")
+}
+
+// TestIssuedStateFixtures_RoundTrip carries the shared-fixture round-trip
+// requirement: parse -> marshal -> parse must reach the same semantic value,
+// not just decode without error. Before decodeIssuedState normalized
+// evidence-item slices, an explicit `[]` in the fixture decoded to a non-nil
+// empty slice but re-encoded (with `omitempty`) as an omitted field, which
+// then reparsed as nil — a silent drift across the round trip.
+func TestIssuedStateFixtures_RoundTrip(t *testing.T) {
+	fixtureRoot := filepath.Join("..", "..", "harness", "fixtures", "contract", "v0")
+	manifestData, err := os.ReadFile(filepath.Join(fixtureRoot, "manifest.json"))
+	if err != nil {
+		t.Fatalf("read shared fixture manifest: %v", err)
+	}
+
+	var manifest fixtureManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatalf("decode shared fixture manifest: %v", err)
+	}
+
+	count := 0
+	for _, fixture := range manifest.Cases {
+		if fixture.Subject != "IssuedState" || fixture.Expected.Outcome != "valid" {
+			continue
+		}
+		count++
+		fixture := fixture
+		t.Run(fixture.ID, func(t *testing.T) {
+			input, err := os.ReadFile(filepath.Join(fixtureRoot, filepath.FromSlash(fixture.Input)))
+			if err != nil {
+				t.Fatalf("read shared fixture input: %v", err)
+			}
+
+			first, validationErr := ParseSystemIssuedState(input)
+			if validationErr != nil {
+				t.Fatalf("Parse(%s) error = %#v", fixture.ID, validationErr)
+			}
+
+			marshaled, err := json.Marshal(first)
+			if err != nil {
+				t.Fatalf("marshal parsed state: %v", err)
+			}
+
+			second, validationErr := ParseSystemIssuedState(marshaled)
+			if validationErr != nil {
+				t.Fatalf("re-parse marshaled state: %#v", validationErr)
+			}
+
+			if !reflect.DeepEqual(first, second) {
+				t.Fatalf("round trip not semantically equivalent:\nfirst  = %#v\nsecond = %#v", first, second)
+			}
+		})
+	}
+
+	if count != 2 {
+		t.Fatalf("valid IssuedState fixture count = %d, want 2", count)
+	}
 }

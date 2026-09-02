@@ -53,8 +53,8 @@ type EffectiveAuthority struct {
 }
 
 type EffectiveAuthorityRuntime struct {
-	ProfileRef string `json:"profileRef"`
-	Timeout    string `json:"timeout"`
+	ProfileRef string   `json:"profileRef"`
+	Timeout    Duration `json:"timeout"`
 }
 
 // SandboxClaimBackendIdentity is the system-allocated backend/worker binding.
@@ -89,7 +89,7 @@ type Decision struct {
 	Action       string          `json:"action"`
 	Result       DecisionResult  `json:"result"`
 	PolicyRef    PolicyReference `json:"policyRef"`
-	Reason       string          `json:"reason,omitempty"`
+	Reason       string          `json:"reason"`
 }
 
 // EvidenceRuntimeEvent is the lightweight evidence-view of a runtime
@@ -114,13 +114,19 @@ type EvidenceModelInvocation struct {
 
 // Evidence is the standalone evidentiary envelope for one request. It
 // validates on its own even for a pre-claim denial, with no fabricated claim.
+//
+// RuntimeEvents, ToolInvocations, and ModelInvocations always round-trip as a
+// non-nil (possibly empty) slice, never as an omitted/null field: decodeIssuedState
+// normalizes a decoded nil to an empty slice, and the lack of `omitempty` on
+// these three fields keeps json.Marshal from turning that back into `null`.
+// This is the one canonical representation both shared fixtures use.
 type Evidence struct {
 	RequestRef       string                    `json:"requestRef"`
 	ClaimID          string                    `json:"claimId,omitempty"`
 	DecisionIDs      []string                  `json:"decisionIds,omitempty"`
-	RuntimeEvents    []EvidenceRuntimeEvent    `json:"runtimeEvents,omitempty"`
-	ToolInvocations  []EvidenceToolInvocation  `json:"toolInvocations,omitempty"`
-	ModelInvocations []EvidenceModelInvocation `json:"modelInvocations,omitempty"`
+	RuntimeEvents    []EvidenceRuntimeEvent    `json:"runtimeEvents"`
+	ToolInvocations  []EvidenceToolInvocation  `json:"toolInvocations"`
+	ModelInvocations []EvidenceModelInvocation `json:"modelInvocations"`
 }
 
 // IssuedState is one immutable snapshot of everything decided, and (only on
@@ -170,10 +176,11 @@ func ParseCallerIssuedState(data []byte) (*IssuedState, *ValidationError) {
 	return state, nil
 }
 
-// ValidateIssuedState checks the cross-object invariants that keep one
-// snapshot from contradicting itself: reference correlation across request,
-// principal, action, policy, authority, claim, decision, and evidence, plus
-// the Allow-only-carries-authority and Pending-has-no-backendIdentity rules.
+// ValidateIssuedState fails closed on required fields, invalid enum values,
+// and the cross-object invariants that keep one snapshot from contradicting
+// itself: reference correlation across request, principal, action, policy,
+// authority, claim, decision, and evidence, plus the
+// Allow-only-carries-authority and Pending-has-no-backendIdentity rules.
 func ValidateIssuedState(state *IssuedState) *ValidationError {
 	if state == nil {
 		return validationError(ValidationCategoryRequiredField, "$", "issued state is required")
@@ -185,7 +192,10 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		{"requestRef", state.RequestRef},
 		{"principal.subject", state.Principal.Subject},
 		{"action.name", state.Action.Name},
+		{"policyRef.id", state.PolicyRef.ID},
+		{"policyRef.version", state.PolicyRef.Version},
 		{"decision.id", state.Decision.ID},
+		{"decision.reason", state.Decision.Reason},
 	}
 	for _, field := range requiredFields {
 		if strings.TrimSpace(field.value) == "" {
@@ -214,8 +224,19 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		if state.EffectiveAuthority == nil {
 			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority", "required when decision.result is Allow")
 		}
+		if strings.TrimSpace(state.Claim.ID) == "" {
+			return validationError(ValidationCategoryRequiredField, "claim.id", "value is required")
+		}
+		switch state.Claim.Phase {
+		case ClaimPhasePending, ClaimPhaseBound, ClaimPhaseRunning, ClaimPhaseSucceeded, ClaimPhaseFailed, ClaimPhaseExpired:
+		default:
+			return validationError(ValidationCategoryInvalidValue, "claim.phase", "must be one of the known ClaimPhase lifecycle values")
+		}
 		if state.Claim.RequestRef != state.RequestRef {
 			return validationError(ValidationCategoryInvalidValue, "claim.requestRef", "must match the top-level requestRef")
+		}
+		if state.Claim.TemplateRef != state.Action.TemplateRef {
+			return validationError(ValidationCategoryInvalidValue, "claim.templateRef", "must match action.templateRef")
 		}
 		if state.Claim.AuthorityRef != state.EffectiveAuthority.ID {
 			return validationError(ValidationCategoryInvalidValue, "claim.authorityRef", "must match effectiveAuthority.id")
@@ -223,9 +244,16 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		if state.Claim.Phase == ClaimPhasePending && state.Claim.BackendIdentity != nil {
 			return validationError(ValidationCategoryInvalidValue, "claim.backendIdentity", "must be absent while the claim is Pending")
 		}
-		duration, err := time.ParseDuration(state.EffectiveAuthority.Runtime.Timeout)
-		if err != nil || duration <= 0 {
-			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout", "must be a positive Go duration")
+		if state.Claim.BackendIdentity != nil {
+			if strings.TrimSpace(state.Claim.BackendIdentity.Backend) == "" {
+				return validationError(ValidationCategoryRequiredField, "claim.backendIdentity.backend", "value is required")
+			}
+			if strings.TrimSpace(state.Claim.BackendIdentity.WorkerID) == "" {
+				return validationError(ValidationCategoryRequiredField, "claim.backendIdentity.workerId", "value is required")
+			}
+		}
+		if time.Duration(state.EffectiveAuthority.Runtime.Timeout) <= 0 {
+			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout", "must be a positive duration")
 		}
 	} else {
 		if state.Claim != nil {
@@ -272,6 +300,16 @@ func decodeIssuedState(data []byte) (*IssuedState, *ValidationError) {
 			return nil, validationError(ValidationCategoryInvalidDocument, "$", err.Error())
 		}
 		return nil, validationError(ValidationCategoryInvalidDocument, "$", "multiple JSON documents are not allowed")
+	}
+
+	if state.Evidence.RuntimeEvents == nil {
+		state.Evidence.RuntimeEvents = []EvidenceRuntimeEvent{}
+	}
+	if state.Evidence.ToolInvocations == nil {
+		state.Evidence.ToolInvocations = []EvidenceToolInvocation{}
+	}
+	if state.Evidence.ModelInvocations == nil {
+		state.Evidence.ModelInvocations = []EvidenceModelInvocation{}
 	}
 	return &state, nil
 }
