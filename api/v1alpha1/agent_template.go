@@ -329,11 +329,11 @@ func validateMapping(node *yaml.Node, path string, allowed map[string]nodeValida
 		}
 		seen[key.Value] = struct{}{}
 		if category, ok := reserved[key.Value]; ok {
-			return validationError(category, fieldPath, "field is not allowed in reusable configuration")
+			return validationError(category, fieldPath, "reserved field is not allowed in caller-authored input")
 		}
 		validator, ok := allowed[key.Value]
 		if !ok {
-			return validationError(ValidationCategoryUnknownField, fieldPath, "field is not defined by AgentTemplate v0")
+			return validationError(ValidationCategoryUnknownField, fieldPath, "field is not defined by this v0 contract")
 		}
 		if err := validator(value, fieldPath); err != nil {
 			return err
