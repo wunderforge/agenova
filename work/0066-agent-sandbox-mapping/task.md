@@ -1,8 +1,8 @@
-# Task: Spike the provisional RuntimeBackend-to-Agent-Sandbox v1.0.0 mapping
+# Task: Spike the provisional RuntimeBackend-to-Agent-Sandbox v0.4.6 mapping
 
 - Ticket: [#66](https://github.com/wunderforge/agenova/issues/66)
-- Mission: Produce a time-boxed, evidence-backed provisional mapping that classifies each Agenova runtime semantic (`allocation`, `readiness`, `backend identity`, `start`, `termination`, `cleanup`, `durability`, `isolation`) as `native` / `translated` / `adapter-held` / `unsupported` / `unknown` against the pinned upstream Agent Sandbox `v1.0.0`, with at least one unsupported or ambiguous case demonstrated rather than assumed.
-- Target: `harness/spike/agent-sandbox-mapping/` (experimental `v1beta1` manifests + exact reproduction commands), `docs/backends/agent-sandbox-v1beta1-mapping.md` (the provisional mapping + gap report, kept separate from the `#48`-owned note), and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
+- Mission: Produce a time-boxed, evidence-backed provisional mapping that classifies each Agenova runtime semantic (`allocation`, `readiness`, `backend identity`, `start`, `termination`, `cleanup`, `durability`, `isolation`) as `native` / `translated` / `adapter-held` / `unsupported` / `unknown` against the pinned upstream Agent Sandbox `v0.4.6`, with at least one unsupported or ambiguous case demonstrated rather than assumed.
+- Target: `harness/spike/agent-sandbox-mapping/` (experimental `v1alpha1` manifests + exact reproduction commands), `docs/backends/agent-sandbox-v0.4.6-mapping.md` (the provisional mapping + gap report, kept separate from the `#48`-owned note), and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
 - User value: `#48` (E8-T1) can freeze the *supported* Agent Sandbox mapping and gap list from a reproducible baseline instead of re-deriving it, and `#49`/`#51` inherit a known set of adapter-held vs unsupported semantics.
 - PRD outcome: [Backend-neutral execution](../../docs/product/prd.md#3-backend-neutral-execution) — this spike characterises how far one real backend can carry the shared `RuntimeBackend` semantics before `#48` commits the supported subset.
 
@@ -24,23 +24,23 @@ Additional task-specific context:
 - [`internal/runtime/agentsandbox/`](../../internal/runtime/agentsandbox/) — the existing `v1alpha1` SpikeAdapter, its `doc.go` gap summary, and `types.go`
 - [`docs/backends/agent-sandbox.md`](../../docs/backends/agent-sandbox.md) — the current (`v0.4.6`) verified-spike behaviour and Known Gaps that `#48` owns
 - [`harness/fixtures/contract/v0/manifest.json`](../../harness/fixtures/contract/v0/manifest.json) — the E1 fixtures that stay authoritative (`#22`, merged)
-- [E8-T3 substrate](https://github.com/wunderforge/agenova/pull/99) — `harness/spike/agent-sandbox-substrate/reproduce.sh` stands up the pinned `v1.0.0` cluster this spike runs against
+- [E8-T3 substrate](https://github.com/wunderforge/agenova/pull/99) — `harness/spike/agent-sandbox-substrate/reproduce.sh` stands up the pinned `v0.4.6` cluster this spike runs against
 - [`#30` E3-T1](https://github.com/wunderforge/agenova/issues/30) and [`#48` E8-T1](https://github.com/wunderforge/agenova/issues/48) — the consumers; `#48` integrates this report after `#30` stabilises `RuntimeBackend v0`
 
 ## Scope
 
 In scope:
 
-- A written **provisional mapping table** covering every Agenova runtime semantic named in the mission, each classified `native` / `translated` / `adapter-held` / `unsupported` / `unknown`, with the upstream `v1.0.0` API field, condition, or reproducible behaviour cited as evidence for each row.
+- A written **provisional mapping table** covering every Agenova runtime semantic named in the mission, each classified `native` / `translated` / `adapter-held` / `unsupported` / `unknown`, with the upstream `v0.4.6` API field, condition, or reproducible behaviour cited as evidence for each row.
 - A **gap report** listing every `translated` / `adapter-held` / `unsupported` / `unknown` row as an explicit adapter gap or supported-gap candidate, with verified facts kept separate from open questions.
-- Experimental `extensions.agents.x-k8s.io/v1beta1` manifests and the exact `kubectl` / `reproduce.sh` commands used, kept under `harness/spike/agent-sandbox-mapping/`.
+- Experimental `extensions.agents.x-k8s.io/v1alpha1` manifests and the exact `kubectl` / `reproduce.sh` commands used, kept under `harness/spike/agent-sandbox-mapping/`.
 - At least one **demonstrated** unsupported or ambiguous case (e.g. no upstream `Succeeded`/`Failed`/`Expired` phase; claim-only deletion vs warm-pool recycle; per-pool status breakdown; original-spec retrieval; restart durability of terminal state), captured as reproducible evidence, not prose assertion.
 - A short note recording which classifications are sensitive to `#30`'s planned `RuntimeBackend` reduction, so `#48` re-checks them in the right order.
 - Evidence under `docs/evidence/E8-S1/agent-sandbox-mapping/` (`summary.md` + `output.txt` / captured `kubectl` output) and pinned-source references (upstream version tag, CRD schema, doc links).
 
 Out of scope:
 
-- Implementing or rewriting the production adapter, or porting `internal/runtime/agentsandbox/` from `v1alpha1` to `v1beta1` (that is adapter work for a later E8 ticket).
+- Implementing or rewriting the production adapter in `internal/runtime/agentsandbox/` (that is adapter work for a later E8 ticket). This spike maps the same `extensions.agents.x-k8s.io/v1alpha1` group the existing SpikeAdapter already uses.
 - Changing shared API types, the `RuntimeBackend` interface, claim lifecycle, authority semantics, or gateway contracts.
 - Freezing `RuntimeBackend v0` or any "final" adapter contract — this report is explicitly provisional and advisory to `#48`.
 - Editing `docs/backends/agent-sandbox.md` (owned by `#48`) or `docs/project-status.md` beyond what a new spike doc requires.
@@ -49,7 +49,7 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- The report names the exact upstream version (`v1.0.0`) and, for every row, the authoritative API/CRD field, status condition, or reproducible behaviour used as evidence.
+- The report names the exact upstream version (`v0.4.6`) and, for every row, the authoritative API/CRD field, status condition, or reproducible behaviour used as evidence.
 - Every Agenova runtime semantic in the mission is classified as exactly one of `native` / `translated` / `adapter-held` / `unsupported` / `unknown`.
 - At least one unsupported or ambiguous case is demonstrated with reproducible commands + captured output, not assumed parity.
 - All provider-specific types, API group strings, and manifests introduced by this task stay under `harness/spike/agent-sandbox-mapping/` (or the existing `internal/runtime/agentsandbox/` package); `./scripts/check.ps1 -Docs` still reports the Agent Sandbox shape staying inside its adapter.
@@ -64,10 +64,10 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Stand up the pinned `v1.0.0` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}` .
-- [ ] For each Agenova semantic, locate the upstream `v1beta1` field/condition/behaviour, classify it, and cite the evidence.
+- [ ] Stand up the pinned `v0.4.6` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}` .
+- [ ] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, and cite the evidence.
 - [ ] Build and run experimental manifests that demonstrate at least one unsupported/ambiguous case; capture the output.
-- [ ] Write `docs/backends/agent-sandbox-v1beta1-mapping.md` (mapping table + gap report + open questions + `#30` sensitivity note).
+- [ ] Write `docs/backends/agent-sandbox-v0.4.6-mapping.md` (mapping table + gap report + open questions + `#30` sensitivity note).
 - [ ] Add `harness/spike/agent-sandbox-mapping/` (manifests + a short README with the exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
 - [ ] Run `./scripts/check.ps1 -Docs`; review the diff for scope, boundary, and source-of-truth updates.
 - [ ] Stop at the time box even if the result is an unsupported gap; record residual `unknown` rows.
@@ -75,14 +75,14 @@ Out of scope:
 ## Quality Gates
 
 - `./scripts/check.ps1 -Docs` — Markdown links, docs structure, and `Test-RuntimeBoundary` (provider shape stays inside the adapter)
-- `./harness/spike/agent-sandbox-substrate/reproduce.sh up` + the mapping spike's own `kubectl` commands — real `v1.0.0` cluster evidence for the demonstrated case
+- `./harness/spike/agent-sandbox-substrate/reproduce.sh up` + the mapping spike's own `kubectl` commands — real `v0.4.6` cluster evidence for the demonstrated case
 - `./scripts/check.ps1 -All` — repository baseline (no Go code changes expected; confirms nothing regressed)
 
 ## Evidence Required
 
-- `docs/backends/agent-sandbox-v1beta1-mapping.md`: the classified mapping table, per-row evidence citations, gap report, verified-facts-vs-open-questions split, and `#30` sensitivity note.
+- `docs/backends/agent-sandbox-v0.4.6-mapping.md`: the classified mapping table, per-row evidence citations, gap report, verified-facts-vs-open-questions split, and `#30` sensitivity note.
 - `docs/evidence/E8-S1/agent-sandbox-mapping/summary.md` + captured output: pinned version, exact commands/manifests, and the reproduced unsupported/ambiguous case.
-- Pinned-source references: upstream `v1.0.0` tag and the CRD schema / doc used per row.
+- Pinned-source references: upstream `v0.4.6` tag and the CRD schema / doc used per row.
 - Passing `./scripts/check.ps1 -Docs`. Prose-only confirmation is not evidence.
 
 ## Constraints
@@ -98,9 +98,10 @@ Out of scope:
 
 - Planning depth: Task only. A time-boxed research spike whose deliverable is a provisional report; it freezes no contract and needs no `spec.md`/`design.md`.
 - Decision: map against the current `internal/runtime/backend.go` `RuntimeBackend` interface as-is, and separately flag rows that `#30` (E3-T1, "Reduce RuntimeBackend to the MVP contract") is likely to change, so `#48` consumes this report in the right order.
-- Decision: the report lives in a new `docs/backends/agent-sandbox-v1beta1-mapping.md`, not by editing the `#48`-owned `docs/backends/agent-sandbox.md`.
-- Decision: reuse the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`) to provision the pinned `v1.0.0` cluster rather than adding a second cluster bootstrapper.
-- Open question for Owner/Reviewer: confirm the deliverable path for the mapping doc (`docs/backends/agent-sandbox-v1beta1-mapping.md` vs `harness/spike/agent-sandbox-mapping/MAPPING.md`).
+- Decision: the report lives in a new `docs/backends/agent-sandbox-v0.4.6-mapping.md`, not by editing the `#48`-owned `docs/backends/agent-sandbox.md`.
+- Decision: reuse the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`) to provision the pinned `v0.4.6` cluster rather than adding a second cluster bootstrapper.
+- Decision (2026-09-02): map against `v0.4.6` / `extensions.agents.x-k8s.io/v1alpha1` — the version the shipped `internal/runtime/agentsandbox` adapter, `docs/backends/agent-sandbox.md`, and the E8-T3 substrate are all on. An earlier draft of this packet targeted `v1.0.0` / `v1beta1`; that was dropped so the mapping baseline matches the code `#48` will freeze against. Looking ahead to a newer upstream release is a separate follow-up.
+- Open question for Owner/Reviewer: confirm the deliverable path for the mapping doc (`docs/backends/agent-sandbox-v0.4.6-mapping.md` vs `harness/spike/agent-sandbox-mapping/MAPPING.md`).
 - Blockers / sequencing:
   - GitHub `blocked-by`: `#22` (E1-T1) — **merged**, so this ticket is unblocked.
   - Soft sequencing: the substrate this spike runs on lands with `#50` (PR #99, in review). Execution can start against a locally checked-out `reproduce.sh`; the PR for `#66` should land after or alongside `#50`.
