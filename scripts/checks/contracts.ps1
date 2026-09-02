@@ -70,14 +70,6 @@ function Test-PullRequestContract {
   param([AllowEmptyString()][string]$Body)
 
   if ([string]::IsNullOrWhiteSpace($Body)) { throw "PR body must not be empty" }
-  $closingTicketMatches = [regex]::Matches($Body, "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?<issue>\d+)\b")
-  if ($closingTicketMatches.Count -eq 0) {
-    throw "PR body must close a linked ticket, for example: Closes #19"
-  }
-  $closingTicketIds = @($closingTicketMatches | ForEach-Object {
-    [int64]::Parse($_.Groups["issue"].Value)
-  } | Select-Object -Unique)
-
   foreach ($heading in @(
     "Linked ticket",
     "Review context",
@@ -90,6 +82,15 @@ function Test-PullRequestContract {
   )) {
     Assert-CompletedSection -Body $Body -Heading $heading | Out-Null
   }
+
+  $linkedTicket = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Linked ticket")
+  $closingTicketMatches = [regex]::Matches($linkedTicket, "(?im)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?<issue>\d+)\b")
+  if ($closingTicketMatches.Count -eq 0) {
+    throw "Linked ticket must close a ticket, for example: Closes #19"
+  }
+  $closingTicketIds = @($closingTicketMatches | ForEach-Object {
+    [int64]::Parse($_.Groups["issue"].Value)
+  } | Select-Object -Unique)
 
   $reviewContext = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Review context")
   $taskPacket = Get-NonBlankLabeledBulletValue -Body $reviewContext -Field "Task packet" -Section "Review context"
@@ -363,6 +364,27 @@ function Test-DeliveryContracts {
     if ($errorMessage -notlike "*$($case.Error)*") {
       throw "PR contract rejected $($case.Name) for the wrong reason: $errorMessage"
     }
+  }
+
+  $spoofedClosingTicket = $valid.Replace(
+    "Closes #103",
+    "Closes #104"
+  ).Replace(
+    "## Changes",
+    "## Changes`r`n`r`n<!-- Closes #103 -->"
+  )
+  $errorMessage = $null
+  try {
+    Test-PullRequestContract -Body $spoofedClosingTicket
+  }
+  catch {
+    $errorMessage = $_.Exception.Message
+  }
+  if ([string]::IsNullOrWhiteSpace($errorMessage)) {
+    throw "PR contract accepted a closing-ticket reference outside Linked ticket"
+  }
+  if ($errorMessage -notlike "*does not match a ticket closed by the PR*") {
+    throw "PR contract rejected a spoofed closing ticket for the wrong reason: $errorMessage"
   }
 
   foreach ($case in @(

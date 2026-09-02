@@ -26,6 +26,7 @@ In scope:
 
 - Require the task-packet value to use `work/<issue>-<slug>/task.md` with a lowercase kebab-case slug.
 - Require the path issue number to match the ticket closed by the PR, ignoring leading zeroes.
+- Extract closing references only from the comment-stripped `Linked ticket` section.
 - Require the referenced task packet to exist in the checked-out repository.
 - Cover `None`, malformed path, mismatched ticket, and missing file as deterministic negative cases.
 
@@ -42,6 +43,7 @@ Out of scope:
 ## Negative Case
 
 - A non-empty value such as `None`, another ticket's task path, or a missing canonical path must not pass validation.
+- A matching `Closes #...` string outside `Linked ticket` must not bypass a mismatched ticket.
 
 ## Execution Todo
 
@@ -75,4 +77,5 @@ Out of scope:
 
 - The Owner approved this follow-up implementation in the request to raise a new PR on 2026-09-02.
 - The restricted local run could not read worktree VCS metadata during the CLI smoke build; the identical full check passed when Git metadata access was allowed.
+- Codex review on PR #104 identified whole-body closing-ticket extraction as bypassable; the implementation now scopes extraction to `Linked ticket` and covers the bypass directly.
 
