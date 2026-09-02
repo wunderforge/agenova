@@ -41,19 +41,9 @@ Prose alone is not evidence. Backend claims require real-backend output or an ex
 
 ## Code Review Rules
 
-For a PR, read the linked Ticket, its active task packet, and only the
-product, architecture, spec, fixture, and test paths declared in the PR's
-**Review context**. Go upward to the PRD or architecture contract when the
-change touches a shared contract or stable boundary.
-
-- For claim, authority, decision, evidence, or gateway changes, verify that
-  caller intent remains distinct from system-issued state; missing,
-  ambiguous, or mismatched authority data must fail closed.
-- For application-facing changes, reject backend/provider vocabulary leaking
-  from an adapter into shared contracts. Shared contract changes must consume
-  their named fixtures directly and cover the stated positive and negative
-  behavior.
-- Review product scope and observable evidence before code style. Formatting,
-  static analysis, links, and other mechanical checks belong to CI; do not
-  report them as review findings when the deterministic gate already covers
-  them.
+- Review against the linked Ticket and task packet; follow the context linked
+  there, and check the PRD or architecture contract for shared-boundary changes.
+- For shared contracts, verify fail-closed authority handling, backend
+  neutrality, and the named positive and negative evidence.
+- Prioritize product scope and observable evidence; leave deterministic
+  formatting, static analysis, and link checks to CI.

@@ -77,9 +77,7 @@ function Test-PullRequestContract {
   }
 
   $reviewContext = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Review context")
-  foreach ($field in @("Task packet", "Additional Spec/Design", "Product or architecture boundary", "Shared fixture or contract test")) {
-    Assert-NonBlankLabeledBullet -Body $reviewContext -Field $field -Section "Review context"
-  }
+  Assert-NonBlankLabeledBullet -Body $reviewContext -Field "Task packet" -Section "Review context"
 
   $scope = Remove-MarkdownComments (Get-MarkdownSection -Body $Body -Heading "Scope and deferrals")
   foreach ($field in @("Contract or boundary changed", "Deferred / non-goal")) {

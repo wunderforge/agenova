@@ -5,9 +5,7 @@ Closes #<!-- issue number -->
 ## Review context
 
 - Task packet: `<!-- work/<issue>-<slug>/task.md -->`
-- Additional Spec/Design: `<!-- path, or None -->`
-- Product or architecture boundary: `<!-- path + relevant heading, or None -->`
-- Shared fixture or contract test: `<!-- path, or None -->`
+- Review focus: <!-- Optional one-off concern; use None when the task packet is sufficient. -->
 
 ## MVP-path outcome
 

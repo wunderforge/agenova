@@ -26,7 +26,7 @@ Additional task-specific context:
 In scope:
 
 - Declare the durable review-context chain and contract-sensitive review rules.
-- Require a task packet, review inputs, changed boundary, deferred non-goal, and evidence in a PR body.
+- Require a task packet, optional one-off review focus, changed boundary, deferred non-goal, and evidence in a PR body.
 - Validate the new PR-body fields through the existing deterministic PR contract check.
 - Explain the CI / automatic review / human review responsibility split in AIDLC.
 
@@ -38,7 +38,7 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- A PR template routes reviewers to the active task packet and any relevant spec/design, contract boundary, and shared fixture/test.
+- A PR template routes reviewers to the active task packet without duplicating the detailed context owned there; it allows an optional one-off review focus.
 - The PR-body validator rejects missing review-context or scope/deferral fields; its valid fixture proves the accepted format.
 - `AGENTS.md` gives a concise, stable checklist for contract-sensitive review and defers mechanical checks to CI.
 - AIDLC explains the distinct responsibilities of CI, automatic review, and human approval.

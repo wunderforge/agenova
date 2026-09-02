@@ -5,9 +5,7 @@ Closes #19
 ## Review context
 
 - Task packet: `work/0019-delivery-contract/task.md`
-- Additional Spec/Design: `None`
-- Product or architecture boundary: `docs/development/AIDLC.md#Agent Context Contract`
-- Shared fixture or contract test: `harness/fixtures/contracts/pr-valid.md`
+- Review focus: None
 
 ## MVP-path outcome
 
