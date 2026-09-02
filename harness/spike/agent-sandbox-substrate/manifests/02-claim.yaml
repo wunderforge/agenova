@@ -1,0 +1,14 @@
+# One upstream-native SandboxClaim adopting a sandbox from smoke-pool.
+# Agent Sandbox v0.4.6 / extensions.agents.x-k8s.io/v1alpha1: the claim points
+# at the template and names its warm pool via `warmpool` (a string field in
+# v1alpha1). Deleting this claim recycles the sandbox back into the pool; the
+# script also tears down the pool and template and asserts pods reach zero.
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: smoke-claim
+  namespace: agent-sandbox-smoke
+spec:
+  sandboxTemplateRef:
+    name: smoke-template
+  warmpool: smoke-pool

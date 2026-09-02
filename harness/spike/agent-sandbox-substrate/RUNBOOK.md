@@ -1,0 +1,190 @@
+# Agent Sandbox Test Substrate — Runbook (E8-T3 / #50)
+
+> **Where to run this**
+> - **macOS / Linux:** run `reproduce.sh` directly.
+> - **Windows:** run it inside **WSL2** (recommended) — or Git Bash. Not
+>   PowerShell or `cmd`. See [Platforms](#platforms) for details.
+
+Reproduces the upstream [Agent Sandbox](https://agent-sandbox.sigs.k8s.io/) test
+substrate on a disposable local `kind` cluster: a pinned upstream install, and one
+minimal `SandboxTemplate` → `SandboxWarmPool` → `SandboxClaim` lifecycle observed
+and cleaned up with plain `kubectl`.
+
+**This is upstream-native only.** It never touches Agenova's `RuntimeBackend`,
+claim types, or `internal/runtime/agentsandbox` adapter — that proof is E8-T4 (#51).
+
+## Prerequisites
+
+You must install and start these yourself before running the script:
+
+| Requirement | Install | Check | Why the script needs it |
+| --- | --- | --- | --- |
+| **Docker Desktop** (or a compatible engine) — **must be running** | <https://docs.docker.com/desktop/> (macOS/Windows) or Docker Engine / Podman on Linux | `docker info` | `kind` runs the Kubernetes node as a container. The script calls `docker info` first and exits non-zero with `docker daemon is not reachable` if it is stopped. |
+| `curl` | preinstalled on macOS and most Linux | `curl --version` | Fetches the pinned upstream manifests and, when needed, the pinned `kind`/`kubectl` binaries. |
+| Network access | — | — | Needs `github.com`, `dl.k8s.io`, and `registry.k8s.io`. |
+
+The script installs these for you when missing (an existing one on `PATH` is
+used as-is), so they are **not** manual prerequisites:
+
+| Tool | If already on `PATH` | If absent |
+| --- | --- | --- |
+| `kind` | used as-is, version recorded | pinned `v0.33.0` downloaded, SHA256-verified, cached under `.tmp/agenova-k8s-lab-tools/` |
+| `kubectl` | used as-is, version recorded | pinned `v1.34.0` downloaded, SHA256-verified, cached under `.tmp/agenova-k8s-lab-tools/` |
+
+The script never writes into your system `PATH`; downloaded binaries live only
+under the gitignored `.tmp/` directory.
+
+## Pinned versions
+
+`reproduce.sh` holds the pins; change them there.
+
+| Pin | Value | Meaning | Bump when |
+| --- | --- | --- | --- |
+| `AGENT_SANDBOX_VERSION` | `v0.4.6` (`v1alpha1` APIs) | installed on every run | the team adopts a newer upstream Agent Sandbox release |
+| `KIND_FALLBACK_VERSION` | `v0.33.0` | used only to bootstrap `kind` on a machine that lacks it | a clean machine should bootstrap a newer `kind` |
+| `KUBECTL_FALLBACK_VERSION` | `v1.34.0` | used only to bootstrap `kubectl` on a machine that lacks it | the `kind` node Kubernetes version moves a minor |
+
+Values verified working on Darwin arm64 on 2026-08-31.
+
+## Platforms
+
+`reproduce.sh` is a `bash` script (it uses `bash` process substitution, not just
+POSIX `sh`). It runs on:
+
+- **macOS / Linux** — run it directly.
+- **Windows** — run it from a `bash` shell, not PowerShell or `cmd`:
+  - **WSL2 (recommended).** Docker Desktop's Kubernetes/`kind` support on Windows
+    uses the WSL2 backend anyway, so run the whole flow inside your WSL2 distro
+    with Docker Desktop's WSL integration enabled.
+  - **Git Bash** (ships with Git for Windows) also works. The script detects the
+    MSYS/MinGW environment and fetches the `windows/amd64` `kind`/`kubectl`
+    binaries (with `.exe`) when they are not already on `PATH`.
+
+There is no native PowerShell port; on Windows without WSL2 or Git Bash, install
+one of them (or run `kind`/`kubectl` by hand following this runbook).
+
+## Run it
+
+```sh
+./harness/spike/agent-sandbox-substrate/reproduce.sh all
+```
+
+`all` = `up` (create cluster + install pinned Agent Sandbox) → `smoke`
+(create one claim and observe it reach Ready) → `teardown` (delete the
+claim/pool/template and assert every sandbox pod terminates) → `down` (delete the
+cluster). It is safe to re-run: cluster and namespace creation are idempotent,
+`teardown` uses `--ignore-not-found`, and `down` is a no-op when nothing exists.
+
+`smoke` **leaves its fixtures in place** so you can inspect them
+(`kubectl -n agent-sandbox-smoke get sandbox,pod`, `kubectl ... exec`, …). Clean
+up afterwards with `reproduce.sh teardown` (deletes just the smoke namespace) or
+`reproduce.sh down` (deletes the whole cluster).
+
+### Individual phases
+
+```sh
+./harness/spike/agent-sandbox-substrate/reproduce.sh tools     # read-only: resolve kind/kubectl, print versions
+./harness/spike/agent-sandbox-substrate/reproduce.sh status    # read-only: context, cluster, CRDs, controller readiness
+./harness/spike/agent-sandbox-substrate/reproduce.sh up        # cluster + controller only, cluster stays up
+./harness/spike/agent-sandbox-substrate/reproduce.sh smoke     # requires `up` first; leaves fixtures in place
+./harness/spike/agent-sandbox-substrate/reproduce.sh teardown  # delete smoke claim/pool/template, assert pods -> 0, drop the namespace
+./harness/spike/agent-sandbox-substrate/reproduce.sh compare   # requires `up`; warm-pool vs cold-start time-to-Ready per image, self-cleans
+./harness/spike/agent-sandbox-substrate/reproduce.sh down      # delete only the kind cluster this script created
+```
+
+### `compare` — warm pool vs cold start
+
+`compare` quantifies what the warm pool buys you. For each image in
+`COMPARE_IMAGES` (edit the array near the top of `reproduce.sh`) it evicts the
+image from the node cache, then times `SandboxClaim -> Ready` twice:
+
+- **cold** — a claim with only `sandboxTemplateRef` (no `warmpool`). The
+  controller provisions a fresh `Sandbox` + pod on demand, so the time includes
+  the image pull + pod create + start.
+- **warm** — a `SandboxWarmPool(replicas:1)` is pre-warmed first (it absorbs the
+  pull), then a `warmpool:`-backed claim adopts the ready pod.
+
+It runs in its own `agent-sandbox-compare` namespace and deletes everything it
+creates. It is **not** part of `all`. Sample run (kind, Darwin arm64,
+2026-08-31):
+
+| image | approx size | cold (no pool) | warm (pool) |
+| --- | --- | --- | --- |
+| `busybox:1.36` | ~4 MB | 6 s | 0 s |
+| `python:3.12-slim` | ~130 MB | 10 s | 0 s |
+| `node:22-slim` | ~250 MB | 13 s | 0 s |
+
+Cold `claim -> Ready` grows with image size (pull-dominated); the warm path is
+~0 s regardless because the pull already happened during pre-warm. The gap
+widens on slower networks and larger images.
+
+A formatted writeup of this run — chart, per-image table, findings, and
+provenance — is in [`compare-report.html`](compare-report.html) (open in a
+browser).
+
+## What gets created, and what cleanup removes
+
+- kind cluster `agenova-k8s-lab` (kube context `kind-agenova-k8s-lab`) — the same
+  context name `./scripts/check.ps1 -Integration -KubeContext kind-agenova-k8s-lab`
+  already expects, so this substrate is reusable by that gate later.
+- Namespace `agent-sandbox-smoke` holding the three fixtures in `manifests/`.
+  `smoke` creates them and leaves them; `teardown` removes them.
+- Namespace `agent-sandbox-compare` — created and fully removed within a single
+  `compare` run.
+- Namespace `agent-sandbox-system` (from the upstream `manifest.yaml`), removed with
+  the cluster.
+
+`down` deletes **only** the `agenova-k8s-lab` kind cluster. `teardown` deletes
+**only** the `agent-sandbox-smoke` namespace and its contents; `compare` deletes
+**only** the `agent-sandbox-compare` namespace. Before any mutating step —
+including cleanup — the script re-resolves `kubectl config current-context` and
+refuses to proceed unless it is exactly `kind-agenova-k8s-lab`.
+
+## Safety / honesty behavior
+
+- Missing Docker daemon or `curl` aborts immediately with a specific message and a
+  non-zero exit — never a silent pass.
+- A tool download whose SHA256 does not match the published checksum aborts.
+- If the `SandboxClaim` never reaches `Ready=True`, or a sandbox pod never
+  terminates after claim/pool/template teardown, the script prints an explicit
+  failure (with `kubectl get` / events / controller-log dumps) and exits non-zero.
+- A kube-context mismatch aborts every mutating subcommand, including `down`.
+
+## Evidence
+
+Every invocation writes, under `docs/evidence/E8-T3/agent-sandbox-substrate/`:
+
+- `output.txt` — full command output.
+- `summary.md` — ticket, gate, date, branch/commit, command, pinned Agent Sandbox
+  version, resolved `kind`/`kubectl` (existing vs pinned), context, and pass/fail.
+
+## Upstream notes (v0.4.6)
+
+- Pinned to `v0.4.6` on purpose: the `internal/runtime/agentsandbox` adapter,
+  `docs/backends/agent-sandbox.md`, `THIRD_PARTY_NOTICES.md`, and the
+  `scripts/checks/repository.ps1` check are all on `v0.4.6` /
+  `extensions.agents.x-k8s.io/v1alpha1`. Adopting a newer upstream Agent Sandbox
+  release across E8 is a separate change tracked by the #66 mapping spike.
+- Release assets for `v0.4.6` are `manifest.yaml` (core CRDs + controller) and
+  `extensions.yaml` (Template/WarmPool/Claim CRDs).
+- The `v1alpha1` `SandboxClaim` names its warm pool with the string field
+  `spec.warmpool` and points at the template via `spec.sandboxTemplateRef`.
+- Deleting a warm-pool-backed `SandboxClaim` on `v0.4.6` recycles its `Sandbox`
+  back into the pool; the pod is only removed once the pool and template are
+  deleted too. The `teardown` phase deletes all three before asserting pod count
+  zero.
+
+## Troubleshooting
+
+- **`docker daemon is not reachable`** — start Docker Desktop and re-run.
+- **Controller image `ImagePullBackOff`** — check network to `registry.k8s.io`;
+  `kubectl -n agent-sandbox-system get pods` then `describe` the pod.
+- **Controller `CrashLoopBackOff`** — usually a CRD/controller version mismatch;
+  don't hand-edit the downloaded manifests. Check
+  `kubectl -n agent-sandbox-system logs deploy/agent-sandbox-controller`.
+- **`resolved kube context is ... expected kind-agenova-k8s-lab`** — another
+  context is active; run `kubectl config use-context kind-agenova-k8s-lab` (or
+  `down` the stray cluster) and retry.
+- **`SandboxClaim never reached Ready=True`** — the warm pool may not have
+  provisioned; check `kubectl -n agent-sandbox-smoke get sandboxwarmpool,pod -o wide`
+  and the controller logs.

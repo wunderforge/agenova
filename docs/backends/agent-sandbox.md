@@ -4,6 +4,8 @@ Status: verified spike, not a production backend.
 
 Kubernetes Agent Sandbox is the first real substrate used to test the `RuntimeBackend` boundary. It is not the Agenova product API and is not required by application agents.
 
+To reproduce the pinned upstream substrate itself (disposable `kind` cluster + one upstream-native sandbox lifecycle, no Agenova adapter), see [`harness/spike/agent-sandbox-substrate/RUNBOOK.md`](../../harness/spike/agent-sandbox-substrate/RUNBOOK.md) (E8-T3 / #50).
+
 ## Verified Spike Behavior
 
 - Agenova runtime image and command map to an upstream `SandboxTemplate`.
