@@ -58,6 +58,11 @@ Reviewers start with that declared context, then apply the repository's
 review flags likely contract, scope, or evidence gaps; a human Owner/Reviewer
 still decides product fit, architecture trade-offs, approval, and merge.
 
+Codex automatically reviews a PR when it is opened. After substantive changes,
+request another pass by commenting `@codex review` on the PR; do not request a
+new review for every small commit. Codex findings are advisory: a human Reviewer
+still owns approval and merge.
+
 ## From Existing Ticket to Task Packet
 
 For the current MVP, work starts from an accepted GitHub Ticket:
