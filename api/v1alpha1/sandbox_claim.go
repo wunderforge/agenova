@@ -192,6 +192,8 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		{"requestRef", state.RequestRef},
 		{"principal.subject", state.Principal.Subject},
 		{"action.name", state.Action.Name},
+		{"action.project", state.Action.Project},
+		{"action.templateRef", state.Action.TemplateRef},
 		{"policyRef.id", state.PolicyRef.ID},
 		{"policyRef.version", state.PolicyRef.Version},
 		{"decision.id", state.Decision.ID},
@@ -226,6 +228,12 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		}
 		if strings.TrimSpace(state.Claim.ID) == "" {
 			return validationError(ValidationCategoryRequiredField, "claim.id", "value is required")
+		}
+		if strings.TrimSpace(state.EffectiveAuthority.ID) == "" {
+			return validationError(ValidationCategoryRequiredField, "effectiveAuthority.id", "value is required")
+		}
+		if strings.TrimSpace(state.EffectiveAuthority.Runtime.ProfileRef) == "" {
+			return validationError(ValidationCategoryRequiredField, "effectiveAuthority.runtime.profileRef", "value is required")
 		}
 		switch state.Claim.Phase {
 		case ClaimPhasePending, ClaimPhaseBound, ClaimPhaseRunning, ClaimPhaseSucceeded, ClaimPhaseFailed, ClaimPhaseExpired:
