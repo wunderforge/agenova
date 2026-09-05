@@ -81,11 +81,11 @@ Omitted access dimensions remain omitted. An empty requested list is valid defau
 - CLI/API/UI may display requested versus effective values but cannot compute a different intersection.
 - RuntimeBackend and provider adapters remain unchanged.
 
-## Open Decisions
+## Contract Decisions
 
-1. **Policy capability limits:** proposed MVP interpretation is that #27's matching rule gates the principal/project/template, while #28 intersects capabilities against the platform-approved AgentTemplate ceiling and runtime ceiling. Adding per-principal capability limits to PolicyBundle is a separate scope decision, not an implicit #28 type.
-2. **Resource containment:** approve or replace the bounded exact/terminal-`*` rule required by the existing `repo:acme/*` fixture.
-3. **Complete removal:** approve the rule that a partially allowed list is narrowed, while an explicitly non-empty dimension resolving completely empty fails.
-4. **Defaults:** approve the rule that AgentTemplate defaults do not add unrequested claim authority.
+1. **Resolved — Policy capability limits:** #27's matching rule gates the principal/project/template, while #28 intersects capabilities against the platform-approved AgentTemplate ceiling and runtime ceiling. Adding per-principal capability limits to PolicyBundle is separate scope.
+2. **Resolved — Resource containment:** v0 accepts exact scope equality or one terminal-`*` ceiling and emits only the concrete requested scope.
+3. **Resolved — Complete removal:** a partially allowed list is narrowed, while an explicitly non-empty dimension resolving completely empty fails.
+4. **Resolved — Defaults:** AgentTemplate defaults do not add unrequested claim authority.
 
-Implementation remains paused until these behavior decisions are approved and the producer contracts merge.
+The implementation is complete as a stacked change; #72 and #96 must merge before this Ticket can merge in dependency order.

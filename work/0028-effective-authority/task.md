@@ -64,12 +64,12 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant producer contracts, fixtures, risks, and dependencies.
-- [ ] Confirm this packet and its resolution rules with the Owner and Reviewer before implementation.
-- [ ] Rebase on merged #23 through #27 contracts; do not create provisional duplicate public types.
-- [ ] Add the smallest pure backend-neutral EffectiveAuthority resolver.
-- [ ] Add fixture-driven and table-driven intersection, narrowing, empty-result, scope, runtime, and immutability tests.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Confirm the documented resolution rules through the explicit implementation request; retain normal PR review before merge.
+- [x] Stack on #96 and consume the #23 through #27 contracts without provisional duplicate public types.
+- [x] Add the smallest pure backend-neutral EffectiveAuthority resolver.
+- [x] Add fixture-driven and table-driven intersection, narrowing, empty-result, scope, runtime, and immutability tests.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -96,10 +96,15 @@ Out of scope:
 
 - Planning depth: Task + Spec because the intersection behavior is a shared authority contract consumed by claim issuance, gateways, evidence, CLI, and UI; no separate Design is needed for the pure resolver.
 - Decision: #27 and #28 are separate logical checks inside one assignment-resolution pipeline, not separate services or external API calls.
-- Proposed MVP rule: the matching #27 policy decision is the caller/project/platform gate. #28 performs capability-level intersection against requested access, AgentTemplate ceiling, and runtime limits without introducing another policy type.
-- Proposed narrowing rule: preserve the allowed subset of a partially over-broad list, but fail if an explicitly non-empty requested dimension resolves entirely empty. Disallowed scalar model/runtime profiles fail rather than being replaced.
-- Proposed default rule: AgentTemplate defaults configure reusable behavior but do not create claim authority absent matching requested access.
-- Proposed scope rule: v0 supports exact scope equality or one terminal `*` ceiling such as `repo:acme/*`; any other wildcard form fails closed. EffectiveAuthority records only concrete requested scopes.
-- Blocker: #23 must merge the AgentTemplate ceiling contract; #24 must merge ClaimRequest requested-access/runtime fields; #25 must freeze EffectiveAuthority; #26 and #27 must produce the approved policy/admission result.
-- Shared decision with #27: authorization still needs an explicit requested project source. The current recommendation remains `ClaimRequest.spec.projectRef`; #28 must not infer project from task input.
-- Implementation remains paused until the packet is approved and the producer contracts merge.
+- Decision: the matching #27 policy decision is the caller/project/platform gate. #28 performs capability-level intersection against requested access, AgentTemplate ceiling, and runtime limits without introducing another policy type.
+- Decision: preserve the allowed subset of a partially over-broad list, but fail if an explicitly non-empty requested dimension resolves entirely empty. Disallowed scalar model/runtime profiles fail rather than being replaced.
+- Decision: AgentTemplate defaults configure reusable behavior but do not create claim authority absent matching requested access.
+- Decision: v0 supports exact scope equality or one terminal `*` ceiling such as `repo:acme/*`; any other wildcard form fails closed. EffectiveAuthority records only concrete requested scopes.
+- Resolved dependencies: #23 through #25 are merged; this PR is stacked on #96, which is stacked on #72, until #26/#27 merge in order.
+- Shared decision with #27: `ClaimRequest.spec.projectRef` is explicit requested context; #28 does not infer project from task input or reevaluate admission.
+
+## Verification Evidence
+
+- `go test -race -count=1 -v ./internal/authority/...` passed with the canonical Team A fixture and table-driven admission, narrowing, empty-intersection, scope, scalar, timeout, defaults, and immutability cases.
+- The canonical result matches the shared issued-state EffectiveAuthority after omitting the later-issued authority ID.
+- `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` passed on the stacked implementation tree.
