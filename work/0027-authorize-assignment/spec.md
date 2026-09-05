@@ -84,9 +84,9 @@ The production entry point may remain one assignment-resolution operation that c
 - RuntimeBackend and provider adapters remain unchanged.
 - The later upstream-identity contract may enrich trusted Principal metadata without changing the rule that identity arrives outside ClaimRequest.
 
-## Open Decisions
+## Contract Decisions
 
-1. **Principal match in PolicyBundle:** after #25 freezes Principal, #26 needs one exact principal-scoped rule dimension. Recommended v0: exact match on the canonical trusted `team` value. Do not add wildcards or a generic selector engine in #27.
-2. **Requested project source:** the current ClaimRequest fixture does not carry the `payments` project used by Action/Policy. Recommended v0: add `spec.projectRef: payments` to ClaimRequest and treat it like `templateRef`—caller-requested, validated, and authorized, but never authority by itself. Do not derive it from `task.input.repository`.
+1. **Resolved — Principal match in PolicyBundle:** merged #25 exposes canonical trusted `Principal.Team`; #26 PR #72 implements exact `policy.Match.Team` matching without wildcards or a generic selector engine. #27 consumes that value only from the trusted out-of-band Principal.
+2. **Open — Requested project source:** the merged ClaimRequest fixture does not carry the `payments` project used by Action/Policy. Recommended v0: add `spec.projectRef: payments` to ClaimRequest and treat it like `templateRef`—caller-requested, validated, and authorized, but never authority by itself. Do not derive it from `task.input.repository`.
 
-Implementation cannot begin safely until both decisions are accepted and reflected in the producer contracts.
+Implementation cannot begin safely until #72 merges, the remaining project-source decision is accepted and reflected in the ClaimRequest producer contract, and this packet is approved.

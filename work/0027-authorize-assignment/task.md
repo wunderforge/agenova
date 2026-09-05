@@ -59,8 +59,9 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant contracts, fixtures, adjacent Tickets, risks, and dependencies.
-- [ ] Confirm this packet and its two contract-alignment decisions with the Owner and Reviewer before implementation.
-- [ ] Rebase on the merged #24, #25, and #26 contracts; do not create provisional duplicate public types.
+- [ ] Confirm this packet and its remaining `spec.projectRef` contract decision with the Owner and Reviewer before implementation.
+- [x] Merge current `main` and confirm the merged #24/#25 request, Principal, Action, Decision, and Evidence shapes; do not create provisional duplicate public types.
+- [ ] Rebase on merged #26 before implementation and consume its `PolicyBundle`/`Match` types directly.
 - [ ] Add the smallest backend-neutral assignment authorizer and pre-side-effect gate.
 - [ ] Add fixture-driven Team A/Team B and table-driven default-deny tests with claim/backend spies.
 - [ ] Run the focused gate and `./scripts/check.ps1 -All`.
@@ -96,7 +97,7 @@ Out of scope:
 - Decision: authorization is a backend-neutral precondition. A denied request never reaches authority resolution, claim issuance, or runtime allocation.
 - Decision: the v0 evaluator is exact-match and default-deny. It does not introduce wildcard, hierarchy, or policy-merging semantics.
 - Decision: `ApprovalRequired` remains part of the shared result vocabulary but is not an allow result and is not produced by this assignment-creation MVP path.
-- Blocker: #25 must first freeze the trusted Principal, Action, Decision, policy-reference, and pre-claim Evidence shapes.
-- Blocker: #26 currently matches only action/project/template. It must consume the approved #25 Principal shape and add one exact trusted-principal dimension so Team A and Team B can produce different outcomes. The recommended MVP match is the canonical trusted `team` value; broader metadata selectors remain outside this Ticket.
+- Resolved dependency: merged #25 defines canonical `Principal.Team`, `Action`, `Decision`, `PolicyReference`, and pre-claim `Evidence` shapes.
+- Resolved producer alignment pending merge: #26 PR #72 maps exact trusted team, action, project, and template fields through `policy.Match`; #27 will consume those types after #72 merges.
 - Owner decision required: the current ClaimRequest fixture has no explicit project reference even though authorization requires project. Recommendation: add a requested `spec.projectRef` to ClaimRequest v0 and the shared fixture; it is caller-requested context, not granted authority. Do not infer project from arbitrary task input or repository naming.
-- Implementation remains paused until these alignments are recorded in #24 through #26 and the packet is approved.
+- Implementation remains paused until #72 merges, the `spec.projectRef` contract adjustment is approved and recorded in #24/shared fixtures, and this packet is approved.
