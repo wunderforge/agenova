@@ -69,7 +69,7 @@ Out of scope:
 
 - Passing focused race-detector output for `./internal/policy`.
 - Passing repository baseline output after merging the latest `main`.
-- Explicit confirmation that Ticket #25 remains a dependency for final Principal and issued-state field alignment.
+- Explicit confirmation that the merged Ticket #25 `Principal.Team` and issued-state policy reference align with this package.
 
 ## Constraints
 
@@ -85,10 +85,9 @@ Out of scope:
 - Decision: treat `ID@Version` as immutable content identity for the Loader lifetime; structurally identical ordered-rule reloads are idempotent, while a changed or reordered rule set requires a new version.
 - Decision: expose a structured `Match` value rather than positional string arguments so #27 can explicitly map trusted `Principal.team` and `Action` fields into the four exact-match dimensions.
 - Decision: align canonical test policy references with the merged v0 fixture (`reference-default-deny@1`).
-- Dependency: after #25 merges, rebase and confirm that `Rule.Team` consumes its canonical trusted `Principal.team` field without creating a duplicate public Principal type.
+- Dependency resolved: merged Ticket #25 exposes canonical `Principal.Team` and `PolicyReference`; `Rule.Team` consumes that trusted value through the later #27 boundary without creating a duplicate public Principal type.
 
 ## Verification Evidence
 
-- `go test -race ./internal/policy` passed after merging `main` at `2662a02`.
-- `go test ./...` passed on the merged tree.
-- `./scripts/check.ps1 -All` passed: delivery contracts, formatting, module tidy, `go vet`, all Go tests, and Agent Sandbox integration compilation.
+- `go test -race -count=1 -v ./internal/policy` passed after merging `main` at `3365cd0`.
+- `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` passed on the merged tree: delivery contracts, formatting, module tidy, `go vet`, all Go tests, and Agent Sandbox integration compilation.
