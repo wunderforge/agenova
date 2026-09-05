@@ -41,6 +41,7 @@ type ClaimRequest struct {
 
 type ClaimRequestSpec struct {
 	TemplateRef     string                    `json:"templateRef" yaml:"templateRef"`
+	ProjectRef      string                    `json:"projectRef,omitempty" yaml:"projectRef,omitempty"`
 	Task            *ClaimRequestTask         `json:"task" yaml:"task"`
 	RequestedAccess ClaimRequestedAccess      `json:"requestedAccess,omitempty" yaml:"requestedAccess,omitempty"`
 	Runtime         *ClaimRuntimeRequirements `json:"runtime" yaml:"runtime"`
@@ -314,6 +315,7 @@ func validateClaimRequestSpecShape(node *yaml.Node, path string) *ValidationErro
 	}
 	return validateMapping(node, path, map[string]nodeValidator{
 		"templateRef":     nullable(validateStringScalar),
+		"projectRef":      nullable(validateStringScalar),
 		"task":            nullable(validateClaimTaskShape),
 		"requestedAccess": nullable(validateClaimAccessShape),
 		"runtime":         nullable(validateClaimRuntimeShape),

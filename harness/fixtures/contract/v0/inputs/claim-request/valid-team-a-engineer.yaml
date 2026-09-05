@@ -4,6 +4,7 @@ metadata:
   name: fix-payment-timeout
 spec:
   templateRef: engineer
+  projectRef: payments
   task:
     type: repository-change
     input:

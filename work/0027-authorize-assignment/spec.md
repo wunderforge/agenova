@@ -87,6 +87,6 @@ The production entry point may remain one assignment-resolution operation that c
 ## Contract Decisions
 
 1. **Resolved — Principal match in PolicyBundle:** merged #25 exposes canonical trusted `Principal.Team`; #26 PR #72 implements exact `policy.Match.Team` matching without wildcards or a generic selector engine. #27 consumes that value only from the trusted out-of-band Principal.
-2. **Open — Requested project source:** the merged ClaimRequest fixture does not carry the `payments` project used by Action/Policy. Recommended v0: add `spec.projectRef: payments` to ClaimRequest and treat it like `templateRef`—caller-requested, validated, and authorized, but never authority by itself. Do not derive it from `task.input.repository`.
+2. **Resolved — Requested project source:** add optional `spec.projectRef: payments` to ClaimRequest and require it at assignment admission through `Action.Project`. It is caller-requested, validated authorization context, never authority by itself, and is not derived from `task.input.repository`.
 
-Implementation cannot begin safely until #72 merges, the remaining project-source decision is accepted and reflected in the ClaimRequest producer contract, and this packet is approved.
+The implementation consumes #72 directly while the PRs are stacked; #72 must merge before this Ticket can merge cleanly to `main`.
