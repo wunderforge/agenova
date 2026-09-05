@@ -10,6 +10,7 @@ import (
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/governance"
 	"github.com/wunderforge/agenova/internal/operator"
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // newFixture returns a gateway backed by the in-memory reference runtime.
@@ -41,9 +42,9 @@ func newFixture(t *testing.T) (*Gateway, *operator.Runtime, *facts.Store, *gover
 func runClaim(t *testing.T, r *operator.Runtime, name string) {
 	t.Helper()
 
-	if err := r.AddClaim(v1alpha1.SandboxClaim{
+	if err := r.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "agent-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
 	}); err != nil {
 		t.Fatalf("add claim %q: %v", name, err)
 	}
@@ -104,9 +105,9 @@ func TestGateway_DeniesUnknownClaim(t *testing.T) {
 func TestGateway_DeniesPendingClaim(t *testing.T) {
 	gw, r, store, _ := newFixture(t)
 
-	if err := r.AddClaim(v1alpha1.SandboxClaim{
+	if err := r.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "pending-claim"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "agent-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
 	}); err != nil {
 		t.Fatalf("add claim: %v", err)
 	}
@@ -122,9 +123,9 @@ func TestGateway_DeniesPendingClaim(t *testing.T) {
 func TestGateway_DeniesBoundClaim(t *testing.T) {
 	gw, r, store, _ := newFixture(t)
 
-	if err := r.AddClaim(v1alpha1.SandboxClaim{
+	if err := r.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "bound-claim"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "agent-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
 	}); err != nil {
 		t.Fatalf("add claim: %v", err)
 	}
@@ -175,9 +176,9 @@ func TestGateway_DeniesFailedClaim(t *testing.T) {
 func TestGateway_DeniesExpiredClaim(t *testing.T) {
 	gw, r, store, _ := newFixture(t)
 
-	if err := r.AddClaim(v1alpha1.SandboxClaim{
+	if err := r.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "expired-claim"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "agent-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
 	}); err != nil {
 		t.Fatalf("add claim: %v", err)
 	}

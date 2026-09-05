@@ -1,6 +1,11 @@
 ## Linked ticket
 
-Closes #19
+Closes #103
+
+## Review context
+
+- Task packet: `work/0103-task-packet-ticket-validation/task.md`
+- Review focus: None
 
 ## MVP-path outcome
 
@@ -9,6 +14,11 @@ Every contribution carries enough information for independent implementation and
 ## Changes
 
 Added the bounded delivery-contract templates and their deterministic validator.
+
+## Scope and deferrals
+
+- Contract or boundary changed: Delivery-harness review context only; no product contract changes.
+- Deferred / non-goal: Automatic-review provider configuration and merge protection settings.
 
 ## Verification
 

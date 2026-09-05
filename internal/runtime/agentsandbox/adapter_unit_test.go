@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // Unit tests cover adapter state machine logic without a running cluster.
@@ -113,9 +114,9 @@ func TestAddClaim_duplicateRejected(t *testing.T) {
 	}
 	a.claims["dup"] = claimEntry{phase: v1alpha1.ClaimPhasePending}
 
-	err := a.AddClaim(v1alpha1.SandboxClaim{
+	err := a.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "dup"},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "my-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "my-pool"},
 	})
 	if err == nil {
 		t.Fatal("expected duplicate claim to be rejected")
