@@ -35,7 +35,8 @@ The repository contains a working Go reference implementation for:
 - append-only in-memory runtime, tool, and model facts;
 - parent/child claim governance;
 - a multi-agent reference scenario;
-- a Kubernetes Agent Sandbox adapter spike with documented semantic gaps.
+- a Kubernetes Agent Sandbox adapter spike with documented semantic gaps;
+- a backend-neutral `agenova` composition root (`--help`, `version`, invalid command/configuration).
 
 It does **not** yet contain a usable `agenova run` CLI, networked gateways, durable facts or claims, production controllers, Helm packaging, a Memory Interface, OpenTelemetry integration, or a React demo UI. See [Current status](docs/project-status.md) for the exact boundary.
 
@@ -58,9 +59,21 @@ The Agent Sandbox integration test requires a prepared Kubernetes cluster and is
 .\scripts\check.ps1 -Integration -KubeContext kind-agenova-k8s-lab
 ```
 
+CLI composition-root smoke:
+
+```powershell
+go run ./cmd/agenova --help
+go run ./cmd/agenova version
+```
+
+Unknown commands and unknown `--backend` values exit non-zero. `agenova run -f` is not implemented yet.
+
 ## Repository Map
 
 - `api/v1alpha1/`: current product-type sketches.
+- `cmd/agenova/`: executable entrypoint that wires command behavior to the composition root.
+- `internal/cli/`: backend-neutral command behavior (`--help`, version, usage errors).
+- `internal/app/`: composition root that hosts the in-memory reference backend.
 - `internal/runtime/`: backend-neutral runtime contract and adapters.
 - `internal/operator/`: in-memory reference backend.
 - `internal/toolgateway/`, `internal/modelgateway/`: in-process governance reference paths.

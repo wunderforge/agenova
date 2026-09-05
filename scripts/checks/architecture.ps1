@@ -27,3 +27,57 @@ function Test-RuntimeBoundary {
   if ($bad) { Fail "backend-specific shape leaked outside adapter: $($bad -join '; ')" }
   Pass "backend-specific Agent Sandbox shape stays inside its adapter"
 }
+
+function Test-CLICompositionBoundary {
+  $cmdMain = Join-Path $Root "cmd/agenova/main.go"
+  if (-not (Test-Path -LiteralPath $cmdMain)) {
+    Fail "CLI composition root is missing: cmd/agenova/main.go"
+  }
+
+  # Command behavior and shared contracts must not contain provider SDKs,
+  # CRD vocabulary, or adapter packages. cmd/agenova and internal/app are
+  # the composition edge: they may import a concrete adapter constructor
+  # without leaking those types into application contracts.
+  $providerPatterns = @(
+    "k8s.io/",
+    "sigs.k8s.io/",
+    "github.com/kubernetes-sigs/",
+    "agentsandboxv1",
+    "AgentSandboxClaim",
+    "agents.x-k8s.io",
+    "extensions.agents.x-k8s.io",
+    "github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+  )
+
+  $targets = @(
+    @{ Rel = "api"; Extra = @() },
+    @{ Rel = "internal/cli"; Extra = @(
+        "github.com/wunderforge/agenova/internal/operator",
+        "github.com/wunderforge/agenova/internal/app",
+        "github.com/wunderforge/agenova/internal/sandbox"
+      )
+    }
+  )
+
+  $bad = @()
+  foreach ($target in $targets) {
+    $sourceRoot = Join-Path $Root $target.Rel
+    if (-not (Test-Path -LiteralPath $sourceRoot)) {
+      Fail "CLI composition path missing: $($target.Rel)"
+    }
+    $patterns = $providerPatterns + @($target.Extra)
+    foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Filter *.go) {
+      if ($file.Name -like "*_test.go") { continue }
+      $raw = Get-Content -LiteralPath $file.FullName -Raw
+      if ([string]::IsNullOrWhiteSpace($raw)) { continue }
+      foreach ($pattern in $patterns) {
+        if ($raw -match [regex]::Escape($pattern)) {
+          $bad += "$($file.FullName.Substring($Root.Length + 1)): $pattern"
+        }
+      }
+    }
+  }
+
+  if ($bad) { Fail "provider vocabulary leaked into command behavior or shared contracts: $($bad -join '; ')" }
+  Pass "command behavior and shared contracts stay provider-neutral"
+}

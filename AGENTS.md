@@ -38,3 +38,12 @@ The architecture contract is authoritative. Stop and request a maintainer decisi
 8. Report exact evidence and residual risk in the PR and Ticket.
 
 Prose alone is not evidence. Backend claims require real-backend output or an explicit blocker; user-facing flows require executable smoke/E2E evidence and rendered proof when visual behavior matters.
+
+## Code Review Rules
+
+- Review against the linked Ticket and task packet; follow the context linked
+  there, and check the PRD or architecture contract for shared-boundary changes.
+- For shared contracts, verify fail-closed authority handling, backend
+  neutrality, and the named positive and negative evidence.
+- Prioritize product scope and observable evidence; leave deterministic
+  formatting, static analysis, and link checks to CI.

@@ -17,12 +17,42 @@ import "github.com/wunderforge/agenova/api/v1alpha1"
 type RuntimeBackend interface {
 	AddTemplate(template v1alpha1.AgentSandboxTemplate) error
 	AddWarmPool(pool v1alpha1.SandboxWarmPool) error
-	AddClaim(claim v1alpha1.SandboxClaim) error
+	AddClaim(claim BackendClaim) error
 	BindClaim(name string) error
 	StartClaim(name string) error
 	SucceedClaim(name string) error
 	FailClaim(name string, summary string) error
 	ExpireClaim(name string, summary string) error
-	Claim(name string) (v1alpha1.SandboxClaim, bool)
+	Claim(name string) (BackendClaim, bool)
 	PoolStatus(name string) (v1alpha1.SandboxWarmPoolStatus, bool)
+}
+
+// BackendClaim is the runtime backend's own reference-runtime view of a claim
+// assignment. It is distinct from the public, backend-neutral api/v1alpha1
+// authority/decision contract (SandboxClaim et al.): this shape is an
+// implementation-internal projection used to drive the lifecycle state
+// machine across RuntimeBackend implementations, not a public contract.
+type BackendClaim struct {
+	Metadata v1alpha1.ObjectMeta
+	Spec     BackendClaimSpec
+	Status   BackendClaimStatus
+}
+
+type BackendClaimSpec struct {
+	PoolRef string
+	Input   map[string]string
+}
+
+type BackendClaimStatus struct {
+	Phase     v1alpha1.ClaimPhase
+	SandboxID string
+	Error     string
+
+	// SandboxReplaced records the resource-side fact that the sandbox bound
+	// to this claim was destroyed and replaced after the claim reached a
+	// terminal phase. In the Kubernetes-facing shape this becomes a status
+	// condition (SandboxReplaced=True), not a claim phase: claim phases keep
+	// the business outcome (Succeeded/Failed/Expired); sandbox cleanup is a
+	// resource fact.
+	SandboxReplaced bool
 }

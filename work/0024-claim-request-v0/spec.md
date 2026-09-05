@@ -1,0 +1,60 @@
+# Feature Specification: Define and validate ClaimRequest v0
+
+- Ticket: [#24](https://github.com/wunderforge/agenova/issues/24)
+- PRD outcome: [Declarative request and authorization resolution](../../docs/product/prd.md#1-declarative-request-and-authorization-resolution)
+
+## Intent
+
+Define one declarative, backend-neutral v0 contract for requesting an agent worker assignment: which reusable template, what task, what requested access, and what runtime requirements. The same request must be expressible as human-authored YAML and as API JSON with identical meaning. Requested access is intent for later resolution — the request can never carry an authoritative principal, issued authority, or credential values.
+
+## In Scope
+
+- Public Go types in `api/v1alpha1` for `ClaimRequest`, its spec, task definition, requested access, and runtime requirements, shaped exactly after the frozen fixture surfaces.
+- Parsing for the canonical YAML surface and the equivalent API JSON surface, plus a semantic-equivalence proof between the fixture pair.
+- Typed categorized validation failures containing at least `category` and `field/path`, compatible with the seven merged ClaimRequest fixture cases.
+- Fixture-driven tests using the canonical v0 manifest and input paths directly.
+
+## Out of Scope
+
+- Request storage, submission endpoints, CLI (#41), resolution and policy evaluation (#26–#28), claim issuance (#29), and effective-authority types (E1-T4 #25).
+- Trusted principal modeling; the control plane supplies the principal out-of-band (E6-T3).
+- Provider-specific runtime shapes; `runtime.profileRef` is an opaque backend-neutral reference.
+
+## Requirements
+
+- Given the canonical Team A YAML, when it is parsed and validated, then it yields `apiVersion=agenova.io/v1alpha1`, `kind=ClaimRequest`, metadata name `fix-payment-timeout`, template reference `engineer`, the declared task type and structured input, requested tools/resource scopes/model profile/memory scopes, and runtime profile/timeout.
+- Given the equivalent API JSON fixture, when both surfaces are parsed, then the resulting values are semantically equal, proven by direct comparison rather than string formatting.
+- Given a request missing `spec.templateRef`, `spec.task`, or `spec.runtime`, then validation fails with `required-field` and the responsible field/path.
+- Given a blank `metadata.name`, `spec.task.type`, or `spec.runtime.profileRef`, then validation fails with `required-field` and that path; given a missing or non-positive `spec.runtime.timeout`, validation fails with the timeout's path.
+- `spec.task.input` is JSON-compatible structured task data: a string-keyed mapping whose values may be strings, finite numbers, booleans, nulls, arrays, or nested string-keyed mappings, because the field is task-specific and Agenova is generic. Given a YAML construct inside it that cannot be represented consistently in JSON — a non-string or duplicate mapping key, an alias or merge key, a tag outside the JSON scalar set (for example `!!timestamp`, `!!binary`, `!!set`, or a custom tag), or a non-finite float — then parsing fails closed with typed data at the exact path. This check runs on the document tree before decoding, because decoding can erase the offending construct.
+- The same JSON-compatibility invariants hold for decoded values in semantic validation, so a directly constructed Go request carrying a non-JSON value (for example NaN, a timestamp, or binary data) under `spec.task.input` is rejected with typed data; the public contract fails closed, not only the parser.
+- Given a task input mixing nested mappings, arrays, booleans, and numbers, when it is authored on both surfaces, then the YAML and JSON forms decode to semantically equal values, proven by one focused structured-input round-trip case. The paired case authors numbers with identical spellings on both surfaces and compares decoded values directly; no numeric-tolerant comparison is used.
+- Given an absent or empty `spec.task.input`, then validation succeeds: task input shape is task-specific. Given an absent or explicitly empty `spec.requestedAccess`, then validation succeeds and the request means default-deny.
+- Given any optional field written with no value, then YAML null counts as that explicitly empty form and decodes to the zero value. Given a required field written with no value, then it is reported as `required-field` at its own path rather than as a document-shape error, because a null-valued required field is semantically missing.
+- Given the exact caller-authored path `spec.principal`, then parsing fails with `self-asserted-principal` and that path; the trusted principal never travels in the request.
+- Given the exact secret-bearing path `spec.secrets`, then parsing fails with `secret-value` and that path; v0 carries neither credential values nor a delivery mechanism.
+- Given any other unknown field, then parsing fails closed with `unknown-field` and the exact path; classification is deterministic and path-based, never a scan of names or values.
+- Given any validation failure, then the parser/validator returns typed data containing at least `category` and `field/path`; callers and tests must not derive either from error strings.
+- Given a mismatched apiVersion/kind, an invalid document, or multiple YAML documents, then parsing fails closed with typed data.
+- Given the shared manifest, when focused tests run, then they select the seven `ClaimRequest` cases by subject/ID, read the referenced files directly, and compare actual outcomes with `expected`.
+- Task input and resource scopes remain distinct fields with distinct meanings: `spec.task.input` is work data, `spec.requestedAccess.resourceScopes` is access intent; validation never merges or derives one from the other.
+
+## Negative Cases
+
+- Missing `spec.templateRef` (`required-field`).
+- Missing `spec.task` (`required-field`).
+- Missing `spec.runtime` (`required-field`).
+- Caller-supplied `spec.principal` (`self-asserted-principal`), classified only by its exact path.
+- Embedded `spec.secrets` values (`secret-value`), classified only by its exact path.
+- Unknown fields, unsupported `apiVersion`/`kind`, invalid documents, or multiple YAML documents (fail closed).
+
+## Compatibility
+
+- E1-T1 fixture IDs, paths, expected outcomes, and categories remain unchanged and are consumed rather than copied.
+- The approved E1-T2 AgentTemplate conventions (typed `category` + `field/path`, exact-path reserved-field classification, fail-closed parsing) are reused so the two human-authored contracts stay symmetric. Their shared primitives are consumed from the merged #93 source, not re-declared here.
+- `templateRef` names an `AgentTemplate` by `metadata.name` (the invariant fixed in the E1-T2 review); this Ticket references but does not resolve it.
+- Existing runtime-spike types, gateways, and backend adapters remain unchanged.
+
+## Open Decisions
+
+- None. This specification elaborates the Ticket against the frozen fixture surfaces; packet approval covers the `api/v1alpha1` placement beside AgentTemplate v0.
