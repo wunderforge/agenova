@@ -149,6 +149,9 @@ func assertTeamARequest(t *testing.T, request *ClaimRequest) {
 	if request.Spec.TemplateRef != "engineer" {
 		t.Errorf("templateRef = %q, want engineer", request.Spec.TemplateRef)
 	}
+	if request.Spec.ProjectRef != "payments" {
+		t.Errorf("projectRef = %q, want payments", request.Spec.ProjectRef)
+	}
 	if request.Spec.Task == nil || request.Spec.Task.Type != "repository-change" {
 		t.Fatalf("task = %+v, want type repository-change", request.Spec.Task)
 	}
@@ -192,6 +195,7 @@ func validClaimRequest() *ClaimRequest {
 		Metadata:   ObjectMeta{Name: "fix-payment-timeout"},
 		Spec: ClaimRequestSpec{
 			TemplateRef: "engineer",
+			ProjectRef:  "payments",
 			Task: &ClaimRequestTask{
 				Type:  "repository-change",
 				Input: map[string]any{"repository": "acme/payments"},
