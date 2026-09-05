@@ -184,9 +184,9 @@ func testDuplicateClaimIsRejected(t *testing.T, backend runtime.RuntimeBackend) 
 
 	addPendingClaim(t, backend, "duplicate")
 
-	err := backend.AddClaim(v1alpha1.SandboxClaim{
+	err := backend.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: "duplicate"},
-		Spec: v1alpha1.SandboxClaimSpec{
+		Spec: runtime.BackendClaimSpec{
 			PoolRef: "python-agent-pool",
 		},
 	})
@@ -234,9 +234,9 @@ func testInvalidTransitionsRemainRejected(t *testing.T, backend runtime.RuntimeB
 func addPendingClaim(t *testing.T, backend runtime.RuntimeBackend, name string) {
 	t.Helper()
 
-	claim := v1alpha1.SandboxClaim{
+	claim := runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec: v1alpha1.SandboxClaimSpec{
+		Spec: runtime.BackendClaimSpec{
 			PoolRef: "python-agent-pool",
 		},
 	}
@@ -245,7 +245,7 @@ func addPendingClaim(t *testing.T, backend runtime.RuntimeBackend, name string) 
 	}
 }
 
-func assertClaimPhase(t *testing.T, backend runtime.RuntimeBackend, name string, phase v1alpha1.ClaimPhase) v1alpha1.SandboxClaim {
+func assertClaimPhase(t *testing.T, backend runtime.RuntimeBackend, name string, phase v1alpha1.ClaimPhase) runtime.BackendClaim {
 	t.Helper()
 
 	claim, ok := backend.Claim(name)

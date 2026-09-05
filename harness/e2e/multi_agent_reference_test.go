@@ -13,6 +13,7 @@ import (
 	"github.com/wunderforge/agenova/internal/governance"
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/operator"
+	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 )
 
@@ -38,9 +39,9 @@ func newSharedRuntime(t *testing.T) *operator.Runtime {
 
 func addRunningClaim(t *testing.T, r *operator.Runtime, name string) {
 	t.Helper()
-	if err := r.AddClaim(v1alpha1.SandboxClaim{
+	if err := r.AddClaim(runtime.BackendClaim{
 		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec:     v1alpha1.SandboxClaimSpec{PoolRef: "agent-pool"},
+		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
 	}); err != nil {
 		t.Fatalf("add claim %q: %v", name, err)
 	}

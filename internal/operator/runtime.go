@@ -8,20 +8,21 @@ import (
 	"fmt"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/sandbox"
 )
 
 type Runtime struct {
 	templates map[string]v1alpha1.AgentSandboxTemplate
 	pools     map[string]*sandbox.WarmPool
-	claims    map[string]v1alpha1.SandboxClaim
+	claims    map[string]runtime.BackendClaim
 }
 
 func NewRuntime() *Runtime {
 	return &Runtime{
 		templates: make(map[string]v1alpha1.AgentSandboxTemplate),
 		pools:     make(map[string]*sandbox.WarmPool),
-		claims:    make(map[string]v1alpha1.SandboxClaim),
+		claims:    make(map[string]runtime.BackendClaim),
 	}
 }
 
@@ -48,7 +49,7 @@ func (r *Runtime) AddWarmPool(pool v1alpha1.SandboxWarmPool) error {
 	return nil
 }
 
-func (r *Runtime) AddClaim(claim v1alpha1.SandboxClaim) error {
+func (r *Runtime) AddClaim(claim runtime.BackendClaim) error {
 	if claim.Metadata.Name == "" {
 		return errors.New("claim name is required")
 	}
@@ -157,7 +158,7 @@ func (r *Runtime) ExpireClaim(name string, summary string) error {
 	return nil
 }
 
-func (r *Runtime) Claim(name string) (v1alpha1.SandboxClaim, bool) {
+func (r *Runtime) Claim(name string) (runtime.BackendClaim, bool) {
 	claim, ok := r.claims[name]
 	return claim, ok
 }
@@ -178,15 +179,15 @@ func (r *Runtime) PoolSandboxes(name string) ([]sandbox.Sandbox, bool) {
 	return pool.Sandboxes(), true
 }
 
-func (r *Runtime) claimForTransition(name string, from ...v1alpha1.ClaimPhase) (v1alpha1.SandboxClaim, error) {
+func (r *Runtime) claimForTransition(name string, from ...v1alpha1.ClaimPhase) (runtime.BackendClaim, error) {
 	claim, ok := r.claims[name]
 	if !ok {
-		return v1alpha1.SandboxClaim{}, fmt.Errorf("claim not found: %s", name)
+		return runtime.BackendClaim{}, fmt.Errorf("claim not found: %s", name)
 	}
 	for _, phase := range from {
 		if claim.Status.Phase == phase {
 			return claim, nil
 		}
 	}
-	return v1alpha1.SandboxClaim{}, fmt.Errorf("invalid claim transition from %s; expected one of %v", claim.Status.Phase, from)
+	return runtime.BackendClaim{}, fmt.Errorf("invalid claim transition from %s; expected one of %v", claim.Status.Phase, from)
 }
