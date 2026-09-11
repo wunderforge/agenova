@@ -1,0 +1,120 @@
+=== RUN   TestNewRuntimeHostsMemoryBackend
+=== PAUSE TestNewRuntimeHostsMemoryBackend
+=== RUN   TestNewRuntimeRejectsProviderBackends
+=== PAUSE TestNewRuntimeRejectsProviderBackends
+=== CONT  TestNewRuntimeHostsMemoryBackend
+=== CONT  TestNewRuntimeRejectsProviderBackends
+--- PASS: TestNewRuntimeHostsMemoryBackend (0.00s)
+--- PASS: TestNewRuntimeRejectsProviderBackends (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/app	0.832s
+=== RUN   TestProductionSourcesStayBackendNeutral
+=== PAUSE TestProductionSourcesStayBackendNeutral
+=== RUN   TestHelpAndVersion
+=== PAUSE TestHelpAndVersion
+=== RUN   TestUnknownCommand
+=== PAUSE TestUnknownCommand
+=== RUN   TestInvalidConfiguration
+=== PAUSE TestInvalidConfiguration
+=== RUN   TestFactoryAcceptsTestDouble
+=== PAUSE TestFactoryAcceptsTestDouble
+=== RUN   TestVersionHostsInMemoryReferenceBackend
+=== PAUSE TestVersionHostsInMemoryReferenceBackend
+=== RUN   TestInvalidBackendUsesCompositionRootError
+=== PAUSE TestInvalidBackendUsesCompositionRootError
+=== CONT  TestProductionSourcesStayBackendNeutral
+=== CONT  TestFactoryAcceptsTestDouble
+--- PASS: TestFactoryAcceptsTestDouble (0.00s)
+=== CONT  TestInvalidBackendUsesCompositionRootError
+--- PASS: TestInvalidBackendUsesCompositionRootError (0.00s)
+=== CONT  TestVersionHostsInMemoryReferenceBackend
+--- PASS: TestVersionHostsInMemoryReferenceBackend (0.00s)
+=== CONT  TestInvalidConfiguration
+=== CONT  TestUnknownCommand
+=== RUN   TestInvalidConfiguration/unknown_backend
+--- PASS: TestUnknownCommand (0.00s)
+=== CONT  TestHelpAndVersion
+=== PAUSE TestInvalidConfiguration/unknown_backend
+=== RUN   TestInvalidConfiguration/empty_backend
+=== PAUSE TestInvalidConfiguration/empty_backend
+--- PASS: TestHelpAndVersion (0.00s)
+=== RUN   TestInvalidConfiguration/missing_backend_value
+=== PAUSE TestInvalidConfiguration/missing_backend_value
+=== RUN   TestInvalidConfiguration/backend_value_is_another_flag
+=== PAUSE TestInvalidConfiguration/backend_value_is_another_flag
+=== RUN   TestInvalidConfiguration/backend_value_is_help_flag
+=== PAUSE TestInvalidConfiguration/backend_value_is_help_flag
+=== RUN   TestInvalidConfiguration/authority_flag
+=== PAUSE TestInvalidConfiguration/authority_flag
+=== RUN   TestInvalidConfiguration/unknown_flag
+=== PAUSE TestInvalidConfiguration/unknown_flag
+=== CONT  TestInvalidConfiguration/authority_flag
+=== CONT  TestInvalidConfiguration/empty_backend
+=== CONT  TestInvalidConfiguration/unknown_backend
+=== CONT  TestInvalidConfiguration/backend_value_is_help_flag
+=== CONT  TestInvalidConfiguration/backend_value_is_another_flag
+=== CONT  TestInvalidConfiguration/missing_backend_value
+=== CONT  TestInvalidConfiguration/unknown_flag
+--- PASS: TestInvalidConfiguration (0.00s)
+    --- PASS: TestInvalidConfiguration/empty_backend (0.00s)
+    --- PASS: TestInvalidConfiguration/authority_flag (0.00s)
+    --- PASS: TestInvalidConfiguration/unknown_backend (0.00s)
+    --- PASS: TestInvalidConfiguration/backend_value_is_help_flag (0.00s)
+    --- PASS: TestInvalidConfiguration/backend_value_is_another_flag (0.00s)
+    --- PASS: TestInvalidConfiguration/missing_backend_value (0.00s)
+    --- PASS: TestInvalidConfiguration/unknown_flag (0.00s)
+--- PASS: TestProductionSourcesStayBackendNeutral (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/cli	1.646s
+=== RUN   TestGateway_AllowsRunningClaim
+--- PASS: TestGateway_AllowsRunningClaim (0.00s)
+=== RUN   TestGateway_RecordsMultipleInvocations
+--- PASS: TestGateway_RecordsMultipleInvocations (0.00s)
+=== RUN   TestGateway_DeniesUnknownClaim
+--- PASS: TestGateway_DeniesUnknownClaim (0.00s)
+=== RUN   TestGateway_DeniesPendingClaim
+--- PASS: TestGateway_DeniesPendingClaim (0.00s)
+=== RUN   TestGateway_DeniesBoundClaim
+--- PASS: TestGateway_DeniesBoundClaim (0.00s)
+=== RUN   TestGateway_DeniesSucceededClaim
+--- PASS: TestGateway_DeniesSucceededClaim (0.00s)
+=== RUN   TestGateway_DeniesFailedClaim
+--- PASS: TestGateway_DeniesFailedClaim (0.00s)
+=== RUN   TestGateway_DeniesExpiredClaim
+--- PASS: TestGateway_DeniesExpiredClaim (0.00s)
+=== RUN   TestGateway_DeniesChildWithTerminalParent
+--- PASS: TestGateway_DeniesChildWithTerminalParent (0.00s)
+=== RUN   TestGateway_AllowsChildWithRunningParent
+--- PASS: TestGateway_AllowsChildWithRunningParent (0.00s)
+=== RUN   TestGateway_RejectsEmptyClaimID
+--- PASS: TestGateway_RejectsEmptyClaimID (0.00s)
+=== RUN   TestGateway_RejectsEmptyToolName
+--- PASS: TestGateway_RejectsEmptyToolName (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/toolgateway	2.347s
+=== RUN   TestGateway_AllowsRunningClaim
+--- PASS: TestGateway_AllowsRunningClaim (0.00s)
+=== RUN   TestGateway_DeniesUnknownClaim
+--- PASS: TestGateway_DeniesUnknownClaim (0.00s)
+=== RUN   TestGateway_DeniesPendingClaim
+--- PASS: TestGateway_DeniesPendingClaim (0.00s)
+=== RUN   TestGateway_DeniesTerminalClaim
+--- PASS: TestGateway_DeniesTerminalClaim (0.00s)
+=== RUN   TestGateway_DeniesChildWithTerminalParent
+--- PASS: TestGateway_DeniesChildWithTerminalParent (0.00s)
+=== RUN   TestGateway_RejectsEmptyClaimID
+--- PASS: TestGateway_RejectsEmptyClaimID (0.00s)
+=== RUN   TestGateway_RejectsEmptyModelName
+--- PASS: TestGateway_RejectsEmptyModelName (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/modelgateway	1.994s
+=== RUN   TestMultiAgentReference
+    multi_agent_reference_test.go:84: lineage: orchestrator -> [worker-a, worker-b]
+    multi_agent_reference_test.go:134: facts: tool and model invocations recorded under correct claim IDs
+    multi_agent_reference_test.go:154: lineage: parent/child relationships verified
+    multi_agent_reference_test.go:181: scope enforcement: workers denied after orchestrator terminates
+--- PASS: TestMultiAgentReference (0.00s)
+=== RUN   TestMultiAgentReference_WorkerWithoutParentIsIndependent
+--- PASS: TestMultiAgentReference_WorkerWithoutParentIsIndependent (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/harness/e2e	2.696s

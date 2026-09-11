@@ -1,0 +1,20 @@
+=== RUN   TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent
+--- PASS: TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent (0.00s)
+=== RUN   TestCleanup_sandboxStillPresentIsNotReleased
+--- PASS: TestCleanup_sandboxStillPresentIsNotReleased (0.02s)
+=== RUN   TestCleanup_queryFailureIsNotReleaseEvidence
+--- PASS: TestCleanup_queryFailureIsNotReleaseEvidence (0.00s)
+=== RUN   TestCleanup_deleteFailureReturnsIdentityAndNoRelease
+--- PASS: TestCleanup_deleteFailureReturnsIdentityAndNoRelease (0.00s)
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/different_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/read_failure
+--- PASS: TestCleanup_validatesCurrentBindingBeforeDelete (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/different_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/read_failure (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	1.436s

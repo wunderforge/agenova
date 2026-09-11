@@ -4,3 +4,4 @@ harness/**/reports/
 dist/
 .claude/
 .worktrees/
+node_modules/

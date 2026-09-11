@@ -1,271 +1,424 @@
 // Copyright 2026 Dapeng Zhang and Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package contracttest provides a reusable suite that exercises the
-// RuntimeBackend lifecycle contract. Import this package from any backend's
-// test file and call Run to verify behavioral parity with the in-memory
-// reference implementation.
+// Package contracttest provides the reusable behavioral suite for the reduced
+// RuntimeBackend contract. Import it from a backend's test file and call Run
+// to verify parity with the in-memory reference implementation.
+//
+// The suite asserts operation semantics only: identity association,
+// readiness versus explicit start, termination and cleanup evidence, and the
+// negative cases from the Ticket #30 specification. Pool counters and
+// application phases are implementation-specific and are not asserted here.
 package contracttest
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
-// Run exercises the RuntimeBackend lifecycle contract against any backend.
-// newBackendFn must return a fresh, pre-configured backend instance (with the
-// test template and pool already registered) for each subtest.
-func Run(t *testing.T, newBackendFn func(t *testing.T) runtime.RuntimeBackend) {
-	t.Helper()
+// Fixture is one fresh, pre-configured backend plus the control hooks the
+// suite needs to reach states a backend does not expose through the contract.
+//
+// HoldReadiness and ReleaseReadiness are REQUIRED for the reference suite:
+// without them the "known but not ready" cases cannot be proven and Run fails
+// instead of skipping. Started is an optional probe; when nil only the probe
+// assertions are omitted, the behavioral start assertions always run.
+// Failure hooks must inject one resource-operation error before side effects;
+// wrapping RuntimeBackend itself would not test backend state handling.
+type Fixture struct {
+	Backend     runtime.RuntimeBackend
+	TemplateRef string
 
-	t.Run("succeeded claim auto-replaces sandbox without growing active pool", func(t *testing.T) {
-		testSucceededClaimAutoReplacesSandbox(t, newBackendFn(t))
-	})
-	t.Run("failed claim auto-replaces sandbox and leaves pool claimable", func(t *testing.T) {
-		testFailedClaimAutoReplacesSandboxAndLeavesPoolClaimable(t, newBackendFn(t))
-	})
-	t.Run("bound claim can fail before start and replaces sandbox", func(t *testing.T) {
-		testBoundClaimCanFailBeforeStartAndReplacesSandbox(t, newBackendFn(t))
-	})
-	t.Run("pending claim can expire without binding sandbox", func(t *testing.T) {
-		testPendingClaimCanExpireWithoutBindingSandbox(t, newBackendFn(t))
-	})
-	t.Run("duplicate claim is rejected", func(t *testing.T) {
-		testDuplicateClaimIsRejected(t, newBackendFn(t))
-	})
-	t.Run("invalid transitions remain rejected", func(t *testing.T) {
-		testInvalidTransitionsRemainRejected(t, newBackendFn(t))
-	})
+	// HoldReadiness makes the next Allocate for claimID report Ready=false.
+	HoldReadiness func(claimID string)
+	// ReleaseReadiness flips a held allocation to ready.
+	ReleaseReadiness func(id v1alpha1.SandboxClaimBackendIdentity)
+	// Started reports whether the backend has acknowledged work start.
+	Started func(id v1alpha1.SandboxClaimBackendIdentity) bool
+
+	FailNextStart     func(id v1alpha1.SandboxClaimBackendIdentity, err error)
+	FailNextTerminate func(id v1alpha1.SandboxClaimBackendIdentity, err error)
+	FailNextCleanup   func(id v1alpha1.SandboxClaimBackendIdentity, err error)
 }
 
-func testSucceededClaimAutoReplacesSandbox(t *testing.T, backend runtime.RuntimeBackend) {
+// Run exercises the reduced RuntimeBackend contract. newFixture must return a
+// fresh fixture for each subtest.
+func Run(t *testing.T, newFixture func(t *testing.T) Fixture) {
 	t.Helper()
 
-	addPendingClaim(t, backend, "research-run")
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{IdleSandboxes: 1})
-
-	if err := backend.BindClaim("research-run"); err != nil {
-		t.Fatalf("bind claim: %v", err)
+	cases := []struct {
+		name string
+		fn   func(t *testing.T, f Fixture)
+	}{
+		{"allocate returns resolvable identity", testAllocateReturnsResolvableIdentity},
+		{"golden path allocate observe start terminate cleanup", testGoldenPath},
+		{"unknown identity is rejected by every operation", testUnknownIdentityRejected},
+		{"duplicate claim id is rejected without disturbing first allocation", testDuplicateClaimRejected},
+		{"start is rejected until readiness is released", testStartRejectedUntilReady},
+		{"observe never implies start and start is explicit once", testStartIsExplicitOnce},
+		{"terminate before start cancels idempotently and blocks start", testTerminateBeforeStart},
+		{"cleanup is idempotent and blocks start and terminate", testCleanupIdempotent},
+		{"failed start is not acknowledged and can be retried", testStartFailure},
+		{"failed termination remains retryable", testTerminateFailure},
+		{"failed cleanup preserves identity and retries without restarting", testCleanupFailure},
+		{"cleanup stops when implicit termination fails", testCleanupTerminationFailure},
 	}
-	bound := assertClaimPhase(t, backend, "research-run", v1alpha1.ClaimPhaseBound)
-	if bound.Status.SandboxID == "" {
-		t.Fatal("bound claim should record sandbox id")
-	}
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{BoundClaims: 1})
-
-	if err := backend.StartClaim("research-run"); err != nil {
-		t.Fatalf("start claim: %v", err)
-	}
-	assertClaimPhase(t, backend, "research-run", v1alpha1.ClaimPhaseRunning)
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{RunningClaims: 1})
-
-	if err := backend.SucceedClaim("research-run"); err != nil {
-		t.Fatalf("succeed claim: %v", err)
-	}
-
-	succeeded := assertClaimPhase(t, backend, "research-run", v1alpha1.ClaimPhaseSucceeded)
-	if succeeded.Status.SandboxID != bound.Status.SandboxID {
-		t.Fatalf("succeeded claim should keep original sandbox id, got %q want %q", succeeded.Status.SandboxID, bound.Status.SandboxID)
-	}
-	if !succeeded.Status.SandboxReplaced {
-		t.Fatal("succeeded claim should record the sandbox-replaced resource fact")
-	}
-	// Pool must stay at replicas=1 with a fresh idle sandbox after replacement.
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{
-		IdleSandboxes:     1,
-		ReplacedSandboxes: 1,
-	})
-
-	// Binding another claim proves the replacement sandbox is idle and usable,
-	// and that the original sandbox was not reused.
-	addPendingClaim(t, backend, "research-run-2")
-	if err := backend.BindClaim("research-run-2"); err != nil {
-		t.Fatalf("pool should be claimable after succeeded replacement: %v", err)
-	}
-	next := assertClaimPhase(t, backend, "research-run-2", v1alpha1.ClaimPhaseBound)
-	if next.Status.SandboxID == "" {
-		t.Fatal("replacement sandbox should bind to the next claim")
-	}
-	if next.Status.SandboxID == bound.Status.SandboxID {
-		t.Fatal("succeeded sandbox should not be reused for the next claim")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			requireFixture(t, f)
+			tc.fn(t, f)
+		})
 	}
 }
 
-func testFailedClaimAutoReplacesSandboxAndLeavesPoolClaimable(t *testing.T, backend runtime.RuntimeBackend) {
+func requireFixture(t *testing.T, f Fixture) {
 	t.Helper()
-
-	addPendingClaim(t, backend, "fail-once")
-
-	if err := backend.BindClaim("fail-once"); err != nil {
-		t.Fatalf("bind claim: %v", err)
+	if f.Backend == nil {
+		t.Fatal("fixture: Backend is required")
 	}
-	bound := assertClaimPhase(t, backend, "fail-once", v1alpha1.ClaimPhaseBound)
-	if err := backend.StartClaim("fail-once"); err != nil {
-		t.Fatalf("start claim: %v", err)
+	if f.TemplateRef == "" {
+		t.Fatal("fixture: TemplateRef is required")
 	}
-	if err := backend.FailClaim("fail-once", "agent exited 1"); err != nil {
-		t.Fatalf("fail claim: %v", err)
+	if f.HoldReadiness == nil || f.ReleaseReadiness == nil {
+		t.Fatal("fixture: HoldReadiness and ReleaseReadiness are required to prove not-ready behavior")
 	}
-
-	failed := assertClaimPhase(t, backend, "fail-once", v1alpha1.ClaimPhaseFailed)
-	if failed.Status.Error != "agent exited 1" {
-		t.Fatalf("expected failure summary, got %q", failed.Status.Error)
-	}
-	if !failed.Status.SandboxReplaced {
-		t.Fatal("failed claim should record the sandbox-replaced resource fact")
-	}
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{
-		IdleSandboxes:     1,
-		ReplacedSandboxes: 1,
-	})
-
-	addPendingClaim(t, backend, "after-failure")
-	if err := backend.BindClaim("after-failure"); err != nil {
-		t.Fatalf("pool should remain claimable after failed claim replacement: %v", err)
-	}
-	afterFailure := assertClaimPhase(t, backend, "after-failure", v1alpha1.ClaimPhaseBound)
-	if afterFailure.Status.SandboxID == "" {
-		t.Fatal("replacement sandbox should bind to the next claim")
-	}
-	if afterFailure.Status.SandboxID == bound.Status.SandboxID {
-		t.Fatal("failed sandbox should not be reused for the next claim")
+	if f.FailNextStart == nil || f.FailNextTerminate == nil || f.FailNextCleanup == nil {
+		t.Fatal("fixture: start, termination and cleanup failure hooks are required")
 	}
 }
 
-func testBoundClaimCanFailBeforeStartAndReplacesSandbox(t *testing.T, backend runtime.RuntimeBackend) {
-	t.Helper()
-
-	addPendingClaim(t, backend, "lost-before-start")
-
-	if err := backend.BindClaim("lost-before-start"); err != nil {
-		t.Fatalf("bind claim: %v", err)
+func testStartFailure(t *testing.T, f Fixture) {
+	id := allocate(t, f, "start-failure").Identity
+	before := observe(t, f, id)
+	cause := errors.New("injected worker-start failure")
+	f.FailNextStart(id, cause)
+	if err := f.Backend.Start(id); !errors.Is(err, cause) {
+		t.Fatalf("start error = %v, want injected cause", err)
 	}
-
-	if err := backend.FailClaim("lost-before-start", "sandbox lost before start"); err != nil {
-		t.Fatalf("fail bound claim: %v", err)
+	if after := observe(t, f, id); after != before {
+		t.Fatalf("failed start changed observation: before %+v after %+v", before, after)
 	}
-
-	failed := assertClaimPhase(t, backend, "lost-before-start", v1alpha1.ClaimPhaseFailed)
-	if failed.Status.Error != "sandbox lost before start" {
-		t.Fatalf("expected failure summary, got %q", failed.Status.Error)
+	if f.Started != nil && f.Started(id) {
+		t.Fatal("failed start was acknowledged")
 	}
-	if !failed.Status.SandboxReplaced {
-		t.Fatal("bound-failed claim should record the sandbox-replaced resource fact")
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatalf("retry start: %v", err)
 	}
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{
-		IdleSandboxes:     1,
-		ReplacedSandboxes: 1,
-	})
-}
-
-func testPendingClaimCanExpireWithoutBindingSandbox(t *testing.T, backend runtime.RuntimeBackend) {
-	t.Helper()
-
-	addPendingClaim(t, backend, "expire-once")
-
-	if err := backend.ExpireClaim("expire-once", "ttl elapsed"); err != nil {
-		t.Fatalf("expire claim: %v", err)
-	}
-
-	expired := assertClaimPhase(t, backend, "expire-once", v1alpha1.ClaimPhaseExpired)
-	if expired.Status.SandboxID != "" {
-		t.Fatalf("expired pending claim should not bind a sandbox, got %q", expired.Status.SandboxID)
-	}
-	if expired.Status.SandboxReplaced {
-		t.Fatal("expired pending claim never bound a sandbox, so none should be replaced")
-	}
-	assertPoolStatus(t, backend, v1alpha1.SandboxWarmPoolStatus{IdleSandboxes: 1})
-}
-
-func testDuplicateClaimIsRejected(t *testing.T, backend runtime.RuntimeBackend) {
-	t.Helper()
-
-	addPendingClaim(t, backend, "duplicate")
-
-	err := backend.AddClaim(runtime.BackendClaim{
-		Metadata: v1alpha1.ObjectMeta{Name: "duplicate"},
-		Spec: runtime.BackendClaimSpec{
-			PoolRef: "python-agent-pool",
-		},
-	})
-	if err == nil {
-		t.Fatal("expected duplicate claim to be rejected")
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrAlreadyStarted) {
+		t.Fatalf("duplicate start after retry: %v", err)
 	}
 }
 
-func testInvalidTransitionsRemainRejected(t *testing.T, backend runtime.RuntimeBackend) {
+func testTerminateFailure(t *testing.T, f Fixture) {
+	id := allocate(t, f, "terminate-failure").Identity
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("injected worker-termination failure")
+	f.FailNextTerminate(id, cause)
+	if err := f.Backend.Terminate(id); !errors.Is(err, cause) {
+		t.Fatalf("terminate error = %v, want injected cause", err)
+	}
+	if obs := observe(t, f, id); obs.Identity != id || obs.Released || obs.Replaced {
+		t.Fatalf("termination failure fabricated release: %+v", obs)
+	}
+	if err := f.Backend.Terminate(id); err != nil {
+		t.Fatalf("retry terminate: %v", err)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrTerminated) {
+		t.Fatalf("start after retried termination: %v", err)
+	}
+	if res, err := f.Backend.Cleanup(id); err != nil || !res.Released {
+		t.Fatalf("cleanup after termination retry: %+v %v", res, err)
+	}
+}
+
+func testCleanupFailure(t *testing.T, f Fixture) {
+	id := allocate(t, f, "cleanup-failure").Identity
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("injected resource-release failure")
+	f.FailNextCleanup(id, cause)
+	res, err := f.Backend.Cleanup(id)
+	if !errors.Is(err, cause) || res.Identity != id || res.Released || res.Replaced {
+		t.Fatalf("cleanup failure must retain identity without release evidence: %+v %v", res, err)
+	}
+	if obs := observe(t, f, id); obs.ClaimID != "cleanup-failure" || obs.Identity != id || obs.Released || obs.Replaced {
+		t.Fatalf("failed cleanup lost correlation or fabricated release: %+v", obs)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrTerminated) {
+		t.Fatalf("failed cleanup must not allow terminated work to restart: %v", err)
+	}
+	if err := f.Backend.Terminate(id); err != nil {
+		t.Fatalf("termination must remain idempotent after cleanup failure: %v", err)
+	}
+	res, err = f.Backend.Cleanup(id)
+	if err != nil || res.Identity != id || !res.Released {
+		t.Fatalf("cleanup retry: %+v %v", res, err)
+	}
+	if again, err := f.Backend.Cleanup(id); err != nil || again != res {
+		t.Fatalf("cleanup after successful retry: %+v %v", again, err)
+	}
+}
+
+func testCleanupTerminationFailure(t *testing.T, f Fixture) {
+	id := allocate(t, f, "cleanup-stop-failure").Identity
+	cause := errors.New("injected implicit-termination failure")
+	f.FailNextTerminate(id, cause)
+	res, err := f.Backend.Cleanup(id)
+	if !errors.Is(err, cause) || res.Identity != id || res.Released || res.Replaced {
+		t.Fatalf("implicit termination failure must not report cleanup: %+v %v", res, err)
+	}
+	if obs := observe(t, f, id); obs.Identity != id || obs.Released || obs.Replaced {
+		t.Fatalf("failed implicit termination fabricated cleanup: %+v", obs)
+	}
+	res, err = f.Backend.Cleanup(id)
+	if err != nil || res.Identity != id || !res.Released {
+		t.Fatalf("cleanup retry after failed termination: %+v %v", res, err)
+	}
+}
+
+func testAllocateReturnsResolvableIdentity(t *testing.T, f Fixture) {
 	t.Helper()
+	alloc := allocate(t, f, "research-run")
+	if alloc.ClaimID != "research-run" {
+		t.Fatalf("allocation claim id = %q, want research-run", alloc.ClaimID)
+	}
+	if alloc.Identity.Backend == "" || alloc.Identity.WorkerID == "" {
+		t.Fatalf("allocation identity incomplete: %+v", alloc.Identity)
+	}
+	obs := observe(t, f, alloc.Identity)
+	if obs.ClaimID != "research-run" {
+		t.Fatalf("observe claim id = %q, want research-run", obs.ClaimID)
+	}
+	if obs.Identity != alloc.Identity {
+		t.Fatalf("observe identity = %+v, want %+v", obs.Identity, alloc.Identity)
+	}
+	if obs.Released {
+		t.Fatal("fresh allocation must not report released")
+	}
+}
 
-	addPendingClaim(t, backend, "invalid")
+func testGoldenPath(t *testing.T, f Fixture) {
+	t.Helper()
+	alloc := allocate(t, f, "golden")
+	id := alloc.Identity
 
-	if err := backend.StartClaim("invalid"); err == nil {
-		t.Fatal("pending claim should not start before bind")
+	if obs := observe(t, f, id); !obs.Ready {
+		t.Fatalf("default fixture allocation should be ready, got %+v", obs)
 	}
-	if err := backend.SucceedClaim("invalid"); err == nil {
-		t.Fatal("pending claim should not succeed")
+	if f.Started != nil && f.Started(id) {
+		t.Fatal("readiness must not imply started")
 	}
-	if err := backend.FailClaim("invalid", "no sandbox yet"); err == nil {
-		t.Fatal("pending claim should not fail; it expires instead")
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatalf("start: %v", err)
 	}
-	if err := backend.BindClaim("invalid"); err != nil {
-		t.Fatalf("bind claim: %v", err)
+	if f.Started != nil && !f.Started(id) {
+		t.Fatal("start was acknowledged but probe reports not started")
 	}
-	if err := backend.SucceedClaim("invalid"); err == nil {
-		t.Fatal("bound claim should not succeed before running")
+	if err := f.Backend.Terminate(id); err != nil {
+		t.Fatalf("terminate: %v", err)
 	}
-	if err := backend.StartClaim("invalid"); err != nil {
-		t.Fatalf("start claim: %v", err)
+	res, err := f.Backend.Cleanup(id)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
 	}
-	if err := backend.ExpireClaim("invalid", "too late"); err == nil {
-		t.Fatal("running claim should not expire through pending transition")
+	if !res.Released {
+		t.Fatalf("cleanup should report released, got %+v", res)
 	}
-	if err := backend.SucceedClaim("invalid"); err != nil {
-		t.Fatalf("succeed claim: %v", err)
+	if res.Identity != id {
+		t.Fatalf("cleanup identity = %+v, want %+v", res.Identity, id)
 	}
-	if err := backend.SucceedClaim("invalid"); err == nil {
-		t.Fatal("terminal claim should not transition again")
+	obs := observe(t, f, id)
+	if !obs.Released {
+		t.Fatalf("identity must stay resolvable with Released=true after cleanup, got %+v", obs)
+	}
+	if obs.Ready {
+		t.Fatal("released allocation must not report ready")
+	}
+	if obs.ClaimID != "golden" {
+		t.Fatalf("claim correlation lost after cleanup: %+v", obs)
+	}
+}
+
+func testUnknownIdentityRejected(t *testing.T, f Fixture) {
+	t.Helper()
+	alloc := allocate(t, f, "known")
+	unknown := []struct {
+		name string
+		id   v1alpha1.SandboxClaimBackendIdentity
+	}{
+		{"unknown worker", v1alpha1.SandboxClaimBackendIdentity{Backend: alloc.Identity.Backend, WorkerID: "no-such-worker"}},
+		{"known worker under other backend", v1alpha1.SandboxClaimBackendIdentity{Backend: "other-backend", WorkerID: alloc.Identity.WorkerID}},
+		{"empty identity", v1alpha1.SandboxClaimBackendIdentity{}},
+	}
+	for _, u := range unknown {
+		if _, err := f.Backend.Observe(u.id); !errors.Is(err, runtime.ErrUnknownIdentity) {
+			t.Fatalf("%s: observe error = %v, want ErrUnknownIdentity", u.name, err)
+		}
+		if err := f.Backend.Start(u.id); !errors.Is(err, runtime.ErrUnknownIdentity) {
+			t.Fatalf("%s: start error = %v, want ErrUnknownIdentity", u.name, err)
+		}
+		if err := f.Backend.Terminate(u.id); !errors.Is(err, runtime.ErrUnknownIdentity) {
+			t.Fatalf("%s: terminate error = %v, want ErrUnknownIdentity", u.name, err)
+		}
+		if _, err := f.Backend.Cleanup(u.id); !errors.Is(err, runtime.ErrUnknownIdentity) {
+			t.Fatalf("%s: cleanup error = %v, want ErrUnknownIdentity", u.name, err)
+		}
+	}
+	// The known allocation is untouched by the rejected calls.
+	if obs := observe(t, f, alloc.Identity); obs.Released || !obs.Ready {
+		t.Fatalf("known allocation disturbed by unknown-identity calls: %+v", obs)
+	}
+}
+
+func testDuplicateClaimRejected(t *testing.T, f Fixture) {
+	t.Helper()
+	first := allocate(t, f, "dup")
+	before := observe(t, f, first.Identity)
+
+	if _, err := f.Backend.Allocate(runtime.AllocateRequest{ClaimID: "dup", TemplateRef: f.TemplateRef}); err == nil {
+		t.Fatal("duplicate claim id should be rejected")
+	}
+	after := observe(t, f, first.Identity)
+	if after != before {
+		t.Fatalf("first allocation changed by duplicate attempt: before %+v after %+v", before, after)
+	}
+}
+
+func testStartRejectedUntilReady(t *testing.T, f Fixture) {
+	t.Helper()
+	f.HoldReadiness("held")
+	alloc := allocate(t, f, "held")
+	id := alloc.Identity
+
+	if obs := observe(t, f, id); obs.Ready {
+		t.Fatalf("held allocation should not be ready, got %+v", obs)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrNotReady) {
+		t.Fatalf("start before ready error = %v, want ErrNotReady", err)
+	}
+	for i := 0; i < 3; i++ {
+		if obs := observe(t, f, id); obs.Ready {
+			t.Fatal("repeated observe must not flip readiness")
+		}
+	}
+	if f.Started != nil && f.Started(id) {
+		t.Fatal("rejected start must not mark the allocation started")
+	}
+	f.ReleaseReadiness(id)
+	if obs := observe(t, f, id); !obs.Ready {
+		t.Fatalf("released readiness should be observable, got %+v", obs)
+	}
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatalf("start after readiness released: %v", err)
+	}
+}
+
+func testStartIsExplicitOnce(t *testing.T, f Fixture) {
+	t.Helper()
+	alloc := allocate(t, f, "explicit")
+	id := alloc.Identity
+
+	for i := 0; i < 3; i++ {
+		if obs := observe(t, f, id); !obs.Ready {
+			t.Fatalf("allocation should stay ready, got %+v", obs)
+		}
+	}
+	if f.Started != nil && f.Started(id) {
+		t.Fatal("observe must not trigger start")
+	}
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrAlreadyStarted) {
+		t.Fatalf("second start error = %v, want ErrAlreadyStarted", err)
+	}
+	if f.Started != nil && !f.Started(id) {
+		t.Fatal("probe should report started after explicit start")
+	}
+}
+
+func testTerminateBeforeStart(t *testing.T, f Fixture) {
+	t.Helper()
+	alloc := allocate(t, f, "cancel")
+	id := alloc.Identity
+
+	if err := f.Backend.Terminate(id); err != nil {
+		t.Fatalf("terminate before start (cancel): %v", err)
+	}
+	if err := f.Backend.Terminate(id); err != nil {
+		t.Fatalf("second terminate should be idempotent: %v", err)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrTerminated) {
+		t.Fatalf("start after terminate error = %v, want ErrTerminated", err)
+	}
+	if f.Started != nil && f.Started(id) {
+		t.Fatal("cancelled allocation must never report started")
+	}
+	res, err := f.Backend.Cleanup(id)
+	if err != nil {
+		t.Fatalf("cleanup after cancel: %v", err)
+	}
+	if !res.Released {
+		t.Fatalf("cleanup after cancel should release, got %+v", res)
+	}
+}
+
+func testCleanupIdempotent(t *testing.T, f Fixture) {
+	t.Helper()
+	alloc := allocate(t, f, "release")
+	id := alloc.Identity
+
+	if err := f.Backend.Start(id); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	first, err := f.Backend.Cleanup(id)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if !first.Released {
+		t.Fatalf("cleanup should release, got %+v", first)
+	}
+	second, err := f.Backend.Cleanup(id)
+	if err != nil {
+		t.Fatalf("second cleanup should be idempotent: %v", err)
+	}
+	if second != first {
+		t.Fatalf("second cleanup result %+v, want %+v", second, first)
+	}
+	if err := f.Backend.Start(id); !errors.Is(err, runtime.ErrReleased) {
+		t.Fatalf("start after cleanup error = %v, want ErrReleased", err)
+	}
+	if err := f.Backend.Terminate(id); !errors.Is(err, runtime.ErrReleased) {
+		t.Fatalf("terminate after cleanup error = %v, want ErrReleased", err)
+	}
+	if obs := observe(t, f, id); !obs.Released || obs.Ready {
+		t.Fatalf("released allocation observation = %+v", obs)
 	}
 }
 
 // --- helpers ---
 
-func addPendingClaim(t *testing.T, backend runtime.RuntimeBackend, name string) {
+func allocate(t *testing.T, f Fixture, claimID string) runtime.Allocation {
 	t.Helper()
-
-	claim := runtime.BackendClaim{
-		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec: runtime.BackendClaimSpec{
-			PoolRef: "python-agent-pool",
-		},
+	alloc, err := f.Backend.Allocate(runtime.AllocateRequest{ClaimID: claimID, TemplateRef: f.TemplateRef})
+	if err != nil {
+		t.Fatalf("allocate %s: %v", claimID, err)
 	}
-	if err := backend.AddClaim(claim); err != nil {
-		t.Fatalf("add claim: %v", err)
-	}
+	return alloc
 }
 
-func assertClaimPhase(t *testing.T, backend runtime.RuntimeBackend, name string, phase v1alpha1.ClaimPhase) runtime.BackendClaim {
+func observe(t *testing.T, f Fixture, id v1alpha1.SandboxClaimBackendIdentity) runtime.Observation {
 	t.Helper()
-
-	claim, ok := backend.Claim(name)
-	if !ok {
-		t.Fatalf("claim not found: %s", name)
+	obs, err := f.Backend.Observe(id)
+	if err != nil {
+		t.Fatalf("observe %+v: %v", id, err)
 	}
-	if claim.Status.Phase != phase {
-		t.Fatalf("claim phase = %s, want %s", claim.Status.Phase, phase)
-	}
-	return claim
-}
-
-func assertPoolStatus(t *testing.T, backend runtime.RuntimeBackend, want v1alpha1.SandboxWarmPoolStatus) {
-	t.Helper()
-
-	got, ok := backend.PoolStatus("python-agent-pool")
-	if !ok {
-		t.Fatalf("pool not found: python-agent-pool")
-	}
-	if got != want {
-		t.Fatalf("pool status = %+v, want %+v", got, want)
-	}
+	return obs
 }

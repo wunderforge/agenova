@@ -15,5 +15,9 @@ package operator
 
 import "github.com/wunderforge/agenova/internal/runtime"
 
-// Compile-time assertion: Runtime must satisfy the RuntimeBackend contract.
-var _ runtime.RuntimeBackend = (*Runtime)(nil)
+// Compile-time assertions: Runtime must satisfy the reduced RuntimeBackend
+// contract and remain the compatibility ClaimReader for the gateways.
+var (
+	_ runtime.RuntimeBackend = (*Runtime)(nil)
+	_ runtime.ClaimReader    = (*Runtime)(nil)
+)

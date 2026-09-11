@@ -1,0 +1,14 @@
+Command: pwsh -NoProfile -File scripts/tests/check-context.ps1
+Exit: 0
+Isolation: actual copied wrapper, recording check doubles, no cluster access.
+
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=10
+[case] All/no-context: exit=0; calls=9
+[pass] integration entry points require explicit context before checks and preserve explicit arguments

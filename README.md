@@ -33,8 +33,7 @@ The repository contains a working Go reference implementation for:
 - an in-memory `RuntimeBackend` and reusable contract tests;
 - claim-scoped Tool and Model Gateway authorization;
 - append-only in-memory runtime, tool, and model facts;
-- parent/child claim governance;
-- a multi-agent reference scenario;
+- experimental parent/child claim governance and a multi-agent reference scenario retained outside the committed MVP;
 - a Kubernetes Agent Sandbox adapter spike with documented semantic gaps;
 - a backend-neutral `agenova` composition root (`--help`, `version`, invalid command/configuration).
 
@@ -77,7 +76,7 @@ Unknown commands and unknown `--backend` values exit non-zero. `agenova run -f` 
 - `internal/runtime/`: backend-neutral runtime contract and adapters.
 - `internal/operator/`: in-memory reference backend.
 - `internal/toolgateway/`, `internal/modelgateway/`: in-process governance reference paths.
-- `internal/facts/`, `internal/governance/`: fact storage and claim lineage.
+- `internal/facts/`, `internal/governance/`: fact storage and experimental claim-lineage behavior.
 - `harness/`: executable reference and integration scenarios.
 - `docs/`: product authorities, implementation evidence, backend notes, and delivery rules.
 - `work/`: Ticket-derived Agent task packets; GitHub remains the team tracker.

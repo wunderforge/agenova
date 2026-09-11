@@ -1,10 +1,14 @@
 # Executable Harness
 
-The harness contains behavior-level proof for the current Agenova contract.
+The harness contains behavior-level proof for current Agenova contracts and
+clearly labelled experimental regressions.
 
 ## Reference E2E
 
-Runs locally against the in-memory backend and proves claim lineage, governed calls, fact attribution, and authority ending with parent scope.
+Runs locally against the in-memory backend. The committed MVP evidence covers
+single-claim governed calls, fact attribution, and authority ending with the
+claim. The same test tree retains experimental parent/child lineage regressions;
+those cases are not committed MVP proof.
 
 ```powershell
 go test -v ./harness/e2e/

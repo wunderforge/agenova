@@ -206,7 +206,7 @@ flowchart TB
 | --- | --- | --- |
 | Requesting client | Template selection, task input, and requested access | Granting itself authority or controlling backend internals |
 | Agent code/framework | Reasoning loop, prompts, instruction and task interpretation, and tool choice | Runtime governance and isolation evidence |
-| Agenova | Request resolution, claim lifecycle, effective authority, gateways, facts, lineage, and backend-neutral contracts | How the agent reasons or plans |
+| Agenova | Request resolution, claim lifecycle, effective authority, gateways, facts, backend evidence, and optional future lineage | How the agent reasons or plans |
 | Runtime backend | Process execution, placement, sandbox lifecycle, and substrate isolation capabilities | Agenova's application-facing claim semantics |
 
 ## 7. Authority, Credentials, and Evidence
@@ -282,13 +282,13 @@ register one AgentTemplate
   -> repeat the supported runtime slice on one real backend
 ```
 
-The primary product surfaces are a usable CLI and a live read-only claim console. The console obtains the same backend-neutral evidence representation through a minimal API; it does not define a UI-specific claim or policy model and does not provide mutation controls. A later engineer/reviewer example may add a child claim with authority constrained by its parent; this demonstrates multi-agent accountability, not workflow DAG scheduling.
+The primary product surfaces are a usable CLI and a live read-only claim console. The console obtains the same backend-neutral evidence representation through a minimal API; it does not define a UI-specific claim or policy model and does not provide mutation controls. Parent/child claim governance is a future extension outside the committed MVP; if reprioritized later, it must demonstrate multi-agent accountability without becoming workflow DAG scheduling.
 
 ### What exists today
 
-The repository already proves reference claim lifecycle, an in-memory backend contract, in-process Tool and Model authorization, claim-scoped facts, and parent/child scope. It also contains a Kubernetes Agent Sandbox adapter spike.
+The repository already proves reference claim lifecycle, an in-memory backend contract, in-process Tool and Model authorization, claim-scoped facts, and experimental parent/child scope. The experimental lineage behavior is not part of the committed MVP. The repository also contains a Kubernetes Agent Sandbox adapter spike.
 
-The target `AgentTemplate`/`ClaimRequest` schemas, resolver, usable CLI, networked gateways, durable storage, Memory Interface, and UI are not implemented. The [implementation evidence snapshot](project-status.md) records the detailed current boundary.
+The `AgentTemplate`, `ClaimRequest`, static policy, assignment authorization, and effective-authority resolver contracts are implemented, together with a fixture-backed React storyboard. The request-to-claim run service, usable submission CLI, networked gateways, durable storage, Memory Interface, evidence API, and live console are not yet implemented. The [implementation evidence snapshot](project-status.md) records the detailed current boundary.
 
 ### Non-goals
 

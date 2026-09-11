@@ -25,7 +25,8 @@ Additional task-specific context:
 - [`docs/backends/agent-sandbox.md`](../../docs/backends/agent-sandbox.md) — the current (`v0.4.6`) verified-spike behaviour and Known Gaps that `#48` owns
 - [`harness/fixtures/contract/v0/manifest.json`](../../harness/fixtures/contract/v0/manifest.json) — the E1 fixtures that stay authoritative (`#22`, merged)
 - [E8-T3 substrate](https://github.com/wunderforge/agenova/pull/99) — `harness/spike/agent-sandbox-substrate/reproduce.sh` stands up the pinned `v0.4.6` cluster this spike runs against
-- [`#30` E3-T1](https://github.com/wunderforge/agenova/issues/30) and [`#48` E8-T1](https://github.com/wunderforge/agenova/issues/48) — the consumers; `#48` integrates this report after `#30` stabilises `RuntimeBackend v0`
+- [Filesystem handoff from #89](../0089-filesystem-boundary/handoff-0048-0051.md) — source-based layout checklist and evidence levels; #51 owns real worker isolation proof.
+- [`#30` E3-T1](https://github.com/wunderforge/agenova/issues/30) and [`#48` E8-T1](https://github.com/wunderforge/agenova/issues/48) — merged contract producer and downstream consumer; #48 reviews this report against the accepted RuntimeBackend v0
 
 ## Scope
 
@@ -35,7 +36,7 @@ In scope:
 - A **gap report** listing every `translated` / `adapter-held` / `unsupported` / `unknown` row as an explicit adapter gap or supported-gap candidate, with verified facts kept separate from open questions.
 - Experimental `extensions.agents.x-k8s.io/v1alpha1` manifests and the exact `kubectl` / `reproduce.sh` commands used, kept under `harness/spike/agent-sandbox-mapping/`.
 - At least one **demonstrated** unsupported or ambiguous case (e.g. no upstream `Succeeded`/`Failed`/`Expired` phase; claim-only deletion vs warm-pool recycle; per-pool status breakdown; original-spec retrieval; restart durability of terminal state), captured as reproducible evidence, not prose assertion.
-- A short note recording which classifications are sensitive to `#30`'s planned `RuntimeBackend` reduction, so `#48` re-checks them in the right order.
+- A reconciliation with merged #30's five-operation RuntimeBackend and #89's filesystem evidence boundary, so #48 consumes the current contract rather than legacy lifecycle helpers.
 - Evidence under `docs/evidence/E8-S1/agent-sandbox-mapping/` (`summary.md` + `output.txt` / captured `kubectl` output) and pinned-source references (upstream version tag, CRD schema, doc links).
 
 Out of scope:
@@ -53,7 +54,7 @@ Out of scope:
 - Every Agenova runtime semantic in the mission is classified as exactly one of `native` / `translated` / `adapter-held` / `unsupported` / `unknown`.
 - At least one unsupported or ambiguous case is demonstrated with reproducible commands + captured output, not assumed parity.
 - All provider-specific types, API group strings, and manifests introduced by this task stay under `harness/spike/agent-sandbox-mapping/` (or the existing `internal/runtime/agentsandbox/` package); `./scripts/check.ps1 -Docs` still reports the Agent Sandbox shape staying inside its adapter.
-- The output reads as a provisional mapping + gap report for `#48` to review after `#30`; it does not present itself as the final adapter contract, and no shared contract or API is changed.
+- The output reads as a provisional mapping + gap report for `#48` to review against merged `#30`; it does not present itself as the final adapter contract, and no shared contract or API is changed.
 - Open questions are recorded separately from verified facts.
 
 ## Negative Case
@@ -67,9 +68,9 @@ Out of scope:
 - [ ] Stand up the pinned `v0.4.6` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}` .
 - [x] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, and cite the source-inspection evidence; retain cluster-dependent rows as provisional until #99 merges.
 - [ ] Build and run experimental manifests that demonstrate at least one unsupported/ambiguous case; capture the output.
-- [ ] Write `docs/backends/agent-sandbox-v0.4.6-mapping.md` (mapping table + gap report + open questions + `#30` sensitivity note).
+- [x] Update the source-based `docs/backends/agent-sandbox-v0.4.6-mapping.md` (mapping table, gap report, open questions and merged #30/#89 reconciliation). This completes the report draft only; real-cluster acceptance remains pending.
 - [ ] Add `harness/spike/agent-sandbox-mapping/` (manifests + a short README with the exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
-- [ ] Run `./scripts/check.ps1 -Docs`; review the diff for scope, boundary, and source-of-truth updates.
+- [x] Run `./scripts/check.ps1 -Docs`; review the source-refresh diff for scope, boundary, and source-of-truth updates. The full baseline also passed on 2026-09-12; rerun after the later cluster-evidence changes.
 - [ ] Stop at the time box even if the result is an unsupported gap; record residual `unknown` rows.
 
 ## Quality Gates
@@ -80,7 +81,7 @@ Out of scope:
 
 ## Evidence Required
 
-- `docs/backends/agent-sandbox-v0.4.6-mapping.md`: the classified mapping table, per-row evidence citations, gap report, verified-facts-vs-open-questions split, and `#30` sensitivity note.
+- `docs/backends/agent-sandbox-v0.4.6-mapping.md`: the classified mapping table, per-row evidence citations, gap report, verified-facts-vs-open-questions split, and `#30`/`#89` reconciliation.
 - `docs/evidence/E8-S1/agent-sandbox-mapping/summary.md` + captured output: pinned version, exact commands/manifests, and the reproduced unsupported/ambiguous case.
 - Pinned-source references: upstream `v0.4.6` tag and the CRD schema / doc used per row.
 - Passing `./scripts/check.ps1 -Docs`. Prose-only confirmation is not evidence.
@@ -99,13 +100,22 @@ Out of scope:
 - Planning depth: Task only. A time-boxed research spike whose deliverable is a provisional report; it freezes no contract and needs no `spec.md`/`design.md`.
 - Owner authorization (2026-09-02): the project lead assigned `@yanyang15037755` as Owner, with `@Leo1piece` contributing commits and pairing as agreed between them. The final mapping report is the spike deliverable; independent review remains a PR gate.
 - Collaboration decision: this work branch starts from the latest `main` and preserves Leo's three task-packet commits by cherry-pick. The Owner integrates the report, evidence, and quality gates in one #66 delivery lane.
-- Decision: map against the current `internal/runtime/backend.go` `RuntimeBackend` interface as-is, and separately flag rows that `#30` (E3-T1, "Reduce RuntimeBackend to the MVP contract") is likely to change, so `#48` consumes this report in the right order.
+- Decision (updated 2026-09-12): map against the merged five-operation RuntimeBackend in `internal/runtime/backend.go`: Allocate, Observe, Start, Terminate, Cleanup. Include #89 filesystem evidence fields without adding an operation. Legacy phase helpers are compatibility context only.
 - Decision: the report lives in a new `docs/backends/agent-sandbox-v0.4.6-mapping.md`, not by editing the `#48`-owned `docs/backends/agent-sandbox.md`.
 - Decision: reuse the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`) to provision the pinned `v0.4.6` cluster rather than adding a second cluster bootstrapper.
 - Decision (2026-09-02): map against `v0.4.6` / `extensions.agents.x-k8s.io/v1alpha1` — the version the shipped `internal/runtime/agentsandbox` adapter, `docs/backends/agent-sandbox.md`, and the E8-T3 substrate are all on. An earlier draft of this packet targeted `v1.0.0` / `v1beta1`; that was dropped so the mapping baseline matches the code `#48` will freeze against. Looking ahead to a newer upstream release is a separate follow-up.
 - Decision (2026-09-02): source research and the provisional table may proceed immediately. Real-cluster environment design, manifests, reproduction, and captured validation wait for `#99` to merge into `main`; #66 does not stack implementation on the unmerged E8-T3 branch.
 - Blockers / sequencing:
   - GitHub `blocked-by`: `#22` (E1-T1) — **merged**, so this ticket is unblocked.
-  - Validation blocker: the substrate this spike runs on lands with `#50` (PR #99). As of 2026-09-02 it has changes requested; cluster manifests, commands, and captured evidence remain blocked until it is corrected and merged.
-  - `#48` only integrates this report after `#30` stabilises `RuntimeBackend v0`; that is a downstream sequencing note, not a blocker on producing the spike.
+  - Validation blocker: the substrate this spike runs on lands with `#50` (PR #99). As checked on 2026-09-12, #99 is open/unmerged: two real-run captures are submitted and TIAN-TOM approved on 2026-09-11; the older changes-requested review remains and GitHub reports merge state blocked. Independent re-review is no longer wholly outstanding. Cluster environment design, manifests, commands and captured evidence still wait for merge, as authorized on #66.
+  - `#30`, `#89` and #124 are merged. Their contract dependencies are resolved; #48 can consume the updated source-based report. Full #66 acceptance still needs its own reproduced negative case after #99 merges.
   - Environment: a running Docker daemon and network to `github.com` / `dl.k8s.io` / `registry.k8s.io`.
+
+## Source Refresh — 2026-09-12
+
+- Synced this branch with main at `0ee9042c2f6a11b722d0b5875e28f652dcfd2caf` by merge, preserving the original contributor commits.
+- Project lead authorization on #66 dated 2026-09-10 explicitly permits source-based mapping, unsupported/unknown classification and the pending-verification checklist now that #30/#89 are merged.
+- Reclassified allocation, identity and cleanup as translated; Start and Terminate as unsupported. Durability remains unsupported for reduced allocation/release correlation, separate from application outcome storage.
+- Kept general isolation unknown and the adapter's explicit filesystem evidence Unsupported. Reference Simulated and local Git/Go compatibility do not establish BackendVerified.
+- Real-cluster work remains deferred until #99 merges; this refresh does not complete #66 or resolve PR #105's reproduced-negative-case review finding.
+- Validation results are recorded in [source refresh evidence](../../docs/evidence/E8-S1/source-refresh/summary.md).

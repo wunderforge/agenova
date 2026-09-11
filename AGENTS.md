@@ -22,7 +22,7 @@ If the task packet does not exist, follow **Start a GitHub Ticket** in `docs/har
 - Claim-scoped governance is the product; Kubernetes is one runtime option.
 - Backend/provider shapes remain inside their adapters.
 - Long-lived external credentials remain behind governed interfaces.
-- Parent/child claims express governance scope, not workflow scheduling.
+- Parent/child claim governance is outside the committed MVP; any future lineage must express governance scope rather than workflow scheduling.
 
 The architecture contract is authoritative. Stop and request a maintainer decision if the Ticket conflicts with the PRD or architecture contract; do not broaden either to make implementation easier.
 

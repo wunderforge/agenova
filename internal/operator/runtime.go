@@ -16,13 +16,31 @@ type Runtime struct {
 	templates map[string]v1alpha1.AgentSandboxTemplate
 	pools     map[string]*sandbox.WarmPool
 	claims    map[string]runtime.BackendClaim
+
+	// Reduced-contract allocation bookkeeping (see allocation.go). It records
+	// backend resource state only; application phase stays in claims.
+	allocations   map[string]*allocation // ClaimID -> allocation
+	byWorker      map[string]string      // WorkerID -> ClaimID
+	readinessHold map[string]struct{}    // ClaimIDs whose next allocation stays not-ready
+
+	// filesystemOutsideSentinel is synthetic reference-model data used to
+	// prove rejected writes have no outside effect. It is never host data.
+	filesystemOutsideSentinel []byte
+	// filesystemRuntimeSentinel models one readable runtime-supplied file
+	// outside the task directory. Mutation probes must leave it unchanged.
+	filesystemRuntimeSentinel []byte
 }
 
 func NewRuntime() *Runtime {
 	return &Runtime{
-		templates: make(map[string]v1alpha1.AgentSandboxTemplate),
-		pools:     make(map[string]*sandbox.WarmPool),
-		claims:    make(map[string]runtime.BackendClaim),
+		templates:                 make(map[string]v1alpha1.AgentSandboxTemplate),
+		pools:                     make(map[string]*sandbox.WarmPool),
+		claims:                    make(map[string]runtime.BackendClaim),
+		allocations:               make(map[string]*allocation),
+		byWorker:                  make(map[string]string),
+		readinessHold:             make(map[string]struct{}),
+		filesystemOutsideSentinel: []byte("reference-outside-sentinel"),
+		filesystemRuntimeSentinel: []byte("reference-runtime-file"),
 	}
 }
 
@@ -58,6 +76,11 @@ func (r *Runtime) AddClaim(claim runtime.BackendClaim) error {
 	}
 	if _, exists := r.claims[claim.Metadata.Name]; exists {
 		return fmt.Errorf("claim already exists: %s", claim.Metadata.Name)
+	}
+	// The legacy phase path and the reduced Allocate path share the pools, so
+	// the same ClaimID must never hold two workers through different paths.
+	if _, exists := r.allocations[claim.Metadata.Name]; exists {
+		return fmt.Errorf("claim already allocated through the backend contract: %s", claim.Metadata.Name)
 	}
 	if claim.Status.Phase == "" {
 		claim.Status.Phase = v1alpha1.ClaimPhasePending

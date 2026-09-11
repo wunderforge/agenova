@@ -43,6 +43,28 @@ jobs:
           AGENOVA_PR_BODY: ${{ github.event.pull_request.body }}
         run: ./scripts/check-pr-body.ps1 -Body $env:AGENOVA_PR_BODY
 
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install frontend dependencies and test browser
+        run: |
+          npm --prefix ui ci
+          cd ui
+          npx playwright install --with-deps chromium
+
       - name: Run shared repository quality gate
         shell: pwsh
         run: ./scripts/check.ps1 -Profile $env:AGENOVA_CHECK_PROFILE
+
+      - name: Upload frontend rendered evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-smoke-evidence
+          path: .tmp/ui-smoke
+          include-hidden-files: true
+          if-no-files-found: ignore

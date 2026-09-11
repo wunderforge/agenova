@@ -17,7 +17,7 @@ var Version = "dev"
 // ExitUsage is returned for unknown commands, unknown flags, and invalid configuration.
 const ExitUsage = 2
 
-// RuntimeFactory constructs the hosted RuntimeBackend for a requested backend name.
+// RuntimeFactory constructs the hosted reduced-contract RuntimeBackend for a requested backend name.
 // An empty name must resolve to the in-memory reference backend. Tests inject doubles
 // by supplying a factory that returns a stand-in implementation.
 type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, resolvedName string, err error)

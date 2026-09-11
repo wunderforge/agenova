@@ -87,7 +87,7 @@ function Test-OpenSourceMetadata {
   }
 
   $goFiles = Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.go |
-    Where-Object { $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees)[\\/]" }
+    Where-Object { $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees|node_modules|dist)[\\/]" }
   $missingHeaders = @()
   $legacyImports = @()
   foreach ($file in $goFiles) {

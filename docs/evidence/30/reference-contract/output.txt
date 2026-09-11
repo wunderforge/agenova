@@ -1,0 +1,164 @@
+=== RUN   TestRuntimeBackendContract
+=== RUN   TestRuntimeBackendContract/allocate_returns_resolvable_identity
+=== RUN   TestRuntimeBackendContract/golden_path_allocate_observe_start_terminate_cleanup
+=== RUN   TestRuntimeBackendContract/unknown_identity_is_rejected_by_every_operation
+=== RUN   TestRuntimeBackendContract/duplicate_claim_id_is_rejected_without_disturbing_first_allocation
+=== RUN   TestRuntimeBackendContract/start_is_rejected_until_readiness_is_released
+=== RUN   TestRuntimeBackendContract/observe_never_implies_start_and_start_is_explicit_once
+=== RUN   TestRuntimeBackendContract/terminate_before_start_cancels_idempotently_and_blocks_start
+=== RUN   TestRuntimeBackendContract/cleanup_is_idempotent_and_blocks_start_and_terminate
+=== RUN   TestRuntimeBackendContract/failed_start_is_not_acknowledged_and_can_be_retried
+=== RUN   TestRuntimeBackendContract/failed_termination_remains_retryable
+=== RUN   TestRuntimeBackendContract/failed_cleanup_preserves_identity_and_retries_without_restarting
+=== RUN   TestRuntimeBackendContract/cleanup_stops_when_implicit_termination_fails
+--- PASS: TestRuntimeBackendContract (0.00s)
+    --- PASS: TestRuntimeBackendContract/allocate_returns_resolvable_identity (0.00s)
+    --- PASS: TestRuntimeBackendContract/golden_path_allocate_observe_start_terminate_cleanup (0.00s)
+    --- PASS: TestRuntimeBackendContract/unknown_identity_is_rejected_by_every_operation (0.00s)
+    --- PASS: TestRuntimeBackendContract/duplicate_claim_id_is_rejected_without_disturbing_first_allocation (0.00s)
+    --- PASS: TestRuntimeBackendContract/start_is_rejected_until_readiness_is_released (0.00s)
+    --- PASS: TestRuntimeBackendContract/observe_never_implies_start_and_start_is_explicit_once (0.00s)
+    --- PASS: TestRuntimeBackendContract/terminate_before_start_cancels_idempotently_and_blocks_start (0.00s)
+    --- PASS: TestRuntimeBackendContract/cleanup_is_idempotent_and_blocks_start_and_terminate (0.00s)
+    --- PASS: TestRuntimeBackendContract/failed_start_is_not_acknowledged_and_can_be_retried (0.00s)
+    --- PASS: TestRuntimeBackendContract/failed_termination_remains_retryable (0.00s)
+    --- PASS: TestRuntimeBackendContract/failed_cleanup_preserves_identity_and_retries_without_restarting (0.00s)
+    --- PASS: TestRuntimeBackendContract/cleanup_stops_when_implicit_termination_fails (0.00s)
+=== RUN   TestAllocate_rejectsUnknownTemplateAndAmbiguousPool
+--- PASS: TestAllocate_rejectsUnknownTemplateAndAmbiguousPool (0.00s)
+=== RUN   TestAllocate_failsExplicitlyWithoutCapacity
+--- PASS: TestAllocate_failsExplicitlyWithoutCapacity (0.00s)
+=== RUN   TestDuplicateClaimAcrossPaths_isRejectedBothWays
+=== RUN   TestDuplicateClaimAcrossPaths_isRejectedBothWays/allocate_then_legacy_AddClaim
+=== RUN   TestDuplicateClaimAcrossPaths_isRejectedBothWays/legacy_AddClaim_then_allocate
+--- PASS: TestDuplicateClaimAcrossPaths_isRejectedBothWays (0.00s)
+    --- PASS: TestDuplicateClaimAcrossPaths_isRejectedBothWays/allocate_then_legacy_AddClaim (0.00s)
+    --- PASS: TestDuplicateClaimAcrossPaths_isRejectedBothWays/legacy_AddClaim_then_allocate (0.00s)
+=== RUN   TestTerminate_neverChangesLegacyClaimPhase
+--- PASS: TestTerminate_neverChangesLegacyClaimPhase (0.00s)
+=== RUN   TestReferencePoolLifecycle_succeededClaimAutoReplacesSandbox
+--- PASS: TestReferencePoolLifecycle_succeededClaimAutoReplacesSandbox (0.00s)
+=== RUN   TestReferencePoolLifecycle_failedClaimAutoReplacesSandboxAndLeavesPoolClaimable
+--- PASS: TestReferencePoolLifecycle_failedClaimAutoReplacesSandboxAndLeavesPoolClaimable (0.00s)
+=== RUN   TestReferencePoolLifecycle_boundClaimCanFailBeforeStartAndReplacesSandbox
+--- PASS: TestReferencePoolLifecycle_boundClaimCanFailBeforeStartAndReplacesSandbox (0.00s)
+=== RUN   TestReferencePoolLifecycle_pendingClaimCanExpireWithoutBindingSandbox
+--- PASS: TestReferencePoolLifecycle_pendingClaimCanExpireWithoutBindingSandbox (0.00s)
+=== RUN   TestReferencePoolLifecycle_duplicateClaimIsRejected
+--- PASS: TestReferencePoolLifecycle_duplicateClaimIsRejected (0.00s)
+=== RUN   TestReferencePoolLifecycle_invalidTransitionsRemainRejected
+--- PASS: TestReferencePoolLifecycle_invalidTransitionsRemainRejected (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/operator	0.478s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+=== RUN   TestLegacyStartClaim_doesNotGrantRunningFromReadiness
+--- PASS: TestLegacyStartClaim_doesNotGrantRunningFromReadiness (0.00s)
+=== RUN   TestLegacyExpirePendingClaim_bookkeepingOnly
+--- PASS: TestLegacyExpirePendingClaim_bookkeepingOnly (0.00s)
+=== RUN   TestResourceName
+--- PASS: TestResourceName (0.00s)
+=== RUN   TestRequirePhase_notFound
+--- PASS: TestRequirePhase_notFound (0.00s)
+=== RUN   TestRequirePhase_wrongPhase
+--- PASS: TestRequirePhase_wrongPhase (0.00s)
+=== RUN   TestRequirePhase_match
+--- PASS: TestRequirePhase_match (0.00s)
+=== RUN   TestClaim_returnsLocalState
+--- PASS: TestClaim_returnsLocalState (0.00s)
+=== RUN   TestClaim_notFound
+--- PASS: TestClaim_notFound (0.00s)
+=== RUN   TestPoolStatus_notFound
+--- PASS: TestPoolStatus_notFound (0.00s)
+=== RUN   TestHasCondition
+--- PASS: TestHasCondition (0.00s)
+=== RUN   TestAddClaim_duplicateRejected
+--- PASS: TestAddClaim_duplicateRejected (0.00s)
+=== RUN   TestAllocate_bindsAndReturnsUpstreamIdentity
+--- PASS: TestAllocate_bindsAndReturnsUpstreamIdentity (0.00s)
+=== RUN   TestAllocate_rejectsClaimIDHeldByLegacyPathBothWays
+--- PASS: TestAllocate_rejectsClaimIDHeldByLegacyPathBothWays (0.00s)
+=== RUN   TestAllocate_applyErrorWithUnobservedWorkerRetainsRecovery
+--- PASS: TestAllocate_applyErrorWithUnobservedWorkerRetainsRecovery (0.00s)
+=== RUN   TestAllocate_lateBindingDuringRecoveryRetainsRecord
+--- PASS: TestAllocate_lateBindingDuringRecoveryRetainsRecord (0.00s)
+=== RUN   TestAllocate_applyErrorButServerCreatedAndBound_confirmsWorkerRemoval
+--- PASS: TestAllocate_applyErrorButServerCreatedAndBound_confirmsWorkerRemoval (0.00s)
+=== RUN   TestAllocate_bindReadFailure_leavesRecoveryPendingAndRetryResumesWithoutReapply
+--- PASS: TestAllocate_bindReadFailure_leavesRecoveryPendingAndRetryResumesWithoutReapply (0.00s)
+=== RUN   TestAllocate_claimGoneButWorkerRemains_staysUnconfirmed
+--- PASS: TestAllocate_claimGoneButWorkerRemains_staysUnconfirmed (0.02s)
+=== RUN   TestAllocate_bindTimeoutRetainsRecordUntilWorkerIsProvenAbsent
+--- PASS: TestAllocate_bindTimeoutRetainsRecordUntilWorkerIsProvenAbsent (0.02s)
+=== RUN   TestAllocate_identityConflictLeavesExistingWorkerIntact
+--- PASS: TestAllocate_identityConflictLeavesExistingWorkerIntact (0.00s)
+=== RUN   TestAllocate_concurrentRecoveryOfSameClaimIsSerialised
+--- PASS: TestAllocate_concurrentRecoveryOfSameClaimIsSerialised (0.00s)
+=== RUN   TestObserve_readinessIsBoundLevelEvidenceOnly
+--- PASS: TestObserve_readinessIsBoundLevelEvidenceOnly (0.00s)
+=== RUN   TestObserve_rejectsReadinessOfADifferentWorker
+--- PASS: TestObserve_rejectsReadinessOfADifferentWorker (0.00s)
+=== RUN   TestObserve_queryFailurePropagates
+--- PASS: TestObserve_queryFailurePropagates (0.00s)
+=== RUN   TestIdentity_unknownAndForeignBackendRejected
+--- PASS: TestIdentity_unknownAndForeignBackendRejected (0.00s)
+=== RUN   TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent
+--- PASS: TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent (0.00s)
+=== RUN   TestCleanup_sandboxStillPresentIsNotReleased
+--- PASS: TestCleanup_sandboxStillPresentIsNotReleased (0.02s)
+=== RUN   TestCleanup_queryFailureIsNotReleaseEvidence
+--- PASS: TestCleanup_queryFailureIsNotReleaseEvidence (0.00s)
+=== RUN   TestCleanup_deleteFailureReturnsIdentityAndNoRelease
+--- PASS: TestCleanup_deleteFailureReturnsIdentityAndNoRelease (0.00s)
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/different_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/read_failure
+--- PASS: TestCleanup_validatesCurrentBindingBeforeDelete (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/different_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/read_failure (0.00s)
+=== RUN   TestReducedContractSupportMatrix
+    allocation_test.go:681: support matrix: Allocate=supported Observe=supported(readiness only) Start=unsupported Terminate=unsupported Cleanup=supported(release; replacement not observable); real-cluster evidence=blocked (no verified kube context)
+--- PASS: TestReducedContractSupportMatrix (0.00s)
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/apply-response-error
+    allocation_test.go:714: path=apply-response-error result=allocation second failed: apply sandbox claim "agenova-claim-second": response lost after server accepted and bound second claim; recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/bind-status-error
+    allocation_test.go:714: path=bind-status-error result=allocation second failed: get claim status: temporary bind status query failure; recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/resumed-recovery
+    allocation_test.go:714: path=resumed-recovery result=allocation second retry: recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+--- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/apply-response-error (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/bind-status-error (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/resumed-recovery (0.00s)
+=== RUN   TestAllocate_recoveryReservationSurvivesDeleteFailure
+--- PASS: TestAllocate_recoveryReservationSurvivesDeleteFailure (0.00s)
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=other-worker
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=
+--- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete (0.00s)
+    --- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=other-worker (0.00s)
+    --- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding= (0.00s)
+=== RUN   TestAllocate_concurrentBindingCannotAcquireRecoveringWorker
+--- PASS: TestAllocate_concurrentBindingCannotAcquireRecoveringWorker (0.00s)
+=== RUN   TestExists_presentWhenNameReturned
+--- PASS: TestExists_presentWhenNameReturned (0.00s)
+=== RUN   TestExists_absentOnlyOnCleanExitWithEmptyOutput
+--- PASS: TestExists_absentOnlyOnCleanExitWithEmptyOutput (0.00s)
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/credential_plugin
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/not_found_in_diag
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/connection_refused
+--- PASS: TestExists_queryFailureIsAnErrorNotAbsence (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/credential_plugin (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/not_found_in_diag (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/connection_refused (0.00s)
+=== RUN   TestRunner_appliesCommandDeadline
+--- PASS: TestRunner_appliesCommandDeadline (0.20s)
+=== RUN   TestExecKubectl_killsHungSubprocess
+--- PASS: TestExecKubectl_killsHungSubprocess (0.15s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	1.693s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
