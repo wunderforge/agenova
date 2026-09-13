@@ -65,14 +65,16 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation lands on the PR.
-- [ ] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
-- [ ] Add request validation with the enumerated rejection categories ahead of any adapter path.
-- [ ] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
-- [ ] Correlate invocation facts with the gateway-assigned `invocationId` under the claim-resolution rule above.
-- [ ] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Confirm this packet with the Owner and Reviewer before implementation lands on the PR (planning approved by the Owner on 2026-08-31 at `b8f5649`; no separate Reviewer sign-off is recorded).
+- [x] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
+- [x] Add request validation with the enumerated rejection categories ahead of any adapter path.
+- [x] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
+- [x] Correlate invocation facts with the gateway-assigned `invocationId` under the claim-resolution rule above.
+- [x] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
+- [ ] Bind gateway eligibility to the authoritative run-service view once #31/#32 land, replacing the `runtime.ClaimReader` compatibility read.
+- [ ] Obtain Owner/Reviewer acceptance of the implementation on PR #94.
 
 ## Quality Gates
 
@@ -85,6 +87,24 @@ Out of scope:
 - Test output proving the adapter spy count is zero for `Deny` and `ApprovalRequired`, that pre-resolution rejections append no fact, and that each post-resolution decision persists exactly one correlated invocation fact.
 - Passing repository baseline output; exact commands recorded in the PR.
 - Evidence is recorded here only once the corresponding commits exist on this PR and are reviewable; locally prepared code is not repository evidence.
+
+### Recorded Evidence (2026-09-13, local; CI on the pushed commit is the reviewable record)
+
+Commands run on the merged implementation in the `tomtian/e4-t1-governed-invocation-contracts` worktree:
+
+- `go build ./...` — exit 0.
+- `go test -count=1 ./internal/gateway/... ./internal/toolgateway/... ./internal/modelgateway/... ./internal/facts/... ./harness/e2e/...` — all packages `ok`.
+- `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` — exit 0 (Go fmt/tidy/vet, `go test ./...`, Agent Sandbox integration compile, frontend contracts/types/build/browser smoke).
+- `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -Profile PR` — exit 0, adding `go test -race ./...`; this is the profile CI runs for a PR.
+
+Behavioral coverage backing the acceptance criteria and negative cases:
+
+- `internal/gateway`: `TestNormalizeParameterKey`, `TestReservedCredentialKey`, `TestFindReservedCredentialKey`, `TestAmbiguousResourceScope`, `TestSequenceIDSource`, `TestRandomIDSource`, `TestAllowedOutcome`, `TestOutcomeNormalizeFailsClosed`.
+- `internal/toolgateway` and `internal/modelgateway`: fixture-backed Allow (`...WithFixtureAuthority` / `...WithFixtureProfile`), `TestGateway_DoesNotAdoptCallerSuppliedIdentifier`, `TestGateway_RejectsInvalidRequestsBeforeAdapter`, `TestGateway_UnconfiguredAdapterFailsClosed`, `TestGateway_UntypedPolicyOutcomeIsDenied`, `TestGateway_NilOptionsKeepSafeDefaults`, `TestGateway_ApprovalRequiredDoesNotInvokeAdapterOrGrant`, `TestGateway_PolicyDenyDoesNotInvokeAdapter`, `TestGateway_DeniesInactiveClaims`, `TestGateway_DeniesChildWithTerminalParent`; the tool gateway additionally covers `TestGateway_AssignsFreshInvocationIDPerAttempt`, `TestGateway_UnresolvedClaimGetsIDWithoutFabricatedFact`, `TestGateway_DecisionIsTyped`, `TestGateway_ChildFactsNotAttributedToParent`.
+- Claim inputs come from the frozen `harness/fixtures/contract/v0` set through `internal/gateway/gatewaytest`; the shared fixture set is unchanged in this branch.
+- `harness/e2e/multi_agent_reference_test.go` runs the reference scenario on the typed `Invoke` contract with explicit adapters and asserts attempted-call counts against recorded facts.
+
+Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `node-version: '24'`). This machine has only Node 25.9.0, so `npm --prefix ui ci`, `npm --prefix ui run browsers:install`, and the frontend gate ran under Node 25 with npm `EBADENGINE` warnings. The frontend checks passed, but Node-24 frontend evidence comes from CI, not from this run.
 
 ## Constraints
 
@@ -110,3 +130,8 @@ Out of scope:
 - Decision: the caller-supplied identifier is modeled as untrusted `CallerReference` metadata — the request shape has no invocationId field to smuggle, and tests assert the issued ID never equals the caller value.
 - Decision: the implementation will migrate the e2e multi-agent reference test to the typed `Invoke` contract in the same change (Change-a-Core-Contract playbook: reference implementation and contract tests move together).
 - Blockers: #32 (E3-T3 Running-only binding) blocks implementation; #25 (E1-T4 SandboxClaim v0) was a blocker until it merged via PR #100 on 2026-09-02. Planning may be approved ahead of them, but product code must reuse the final E1-T4 decision/result types and the E3-T3 Running-only binding rather than provisional duplicates, so implementation commits wait for those Tickets to land.
+- Decision (2026-09-13, Tom): the implementation is brought forward onto the existing Draft PR #94 for review, ahead of #32 landing. This publishes code for inspection; it does not change the merge condition, does not supersede the 2026-08-31 planning approval recorded above, and is not an Owner decision to lift the #32 dependency.
+- Decision (2026-09-13): the gateways read claim state through `runtime.ClaimReader`, the narrow compatibility view main added when #30 reduced `RuntimeBackend` to five backend operations. `Claim()` is deliberately not added back to `RuntimeBackend`. This is a compatibility read of the in-memory reference runtime, not an integration with an authoritative run service and not a trusted worker-context binding.
+- Residual (#32 integration gap): claim eligibility here is still observed from the reference runtime's phase state. #31 owns the authoritative run-service view and #32 binds gateway eligibility to that lifecycle. The final adapter surface depends on the contract those Tickets settle, so the size of the follow-up change is not yet known and is not promised to be a single function.
+- Residual: `Lineage` parent/child scope and the child-out-of-parent-scope denial are carried through unchanged from the prototype as preserved regression behavior. They remain experimental semantics in the current code and are not an extension of the single-governed-claim MVP scope.
+- Not in this change: effective-authority enforcement (#34), model-profile grants (#35), credential brokerage (#36), attempt/outcome evidence expansion (#37), approval interruption/resume (#90), and network egress proxying (#117/#118).
