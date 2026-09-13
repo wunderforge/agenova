@@ -65,19 +65,19 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Stand up the pinned `v0.4.6` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}` .
-- [x] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, and cite the source-inspection evidence; retain cluster-dependent rows as provisional until #99 merges.
-- [ ] Build and run experimental manifests that demonstrate at least one unsupported/ambiguous case; capture the output.
-- [x] Update the source-based `docs/backends/agent-sandbox-v0.4.6-mapping.md` (mapping table, gap report, open questions and merged #30/#89 reconciliation). This completes the report draft only; real-cluster acceptance remains pending.
-- [ ] Add `harness/spike/agent-sandbox-mapping/` (manifests + a short README with the exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
-- [x] Run `./scripts/check.ps1 -Docs`; review the source-refresh diff for scope, boundary, and source-of-truth updates. The full baseline also passed on 2026-09-12; rerun after the later cluster-evidence changes.
-- [ ] Stop at the time box even if the result is an unsupported gap; record residual `unknown` rows.
+- [x] Stand up the pinned `v0.4.6` substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh up`) and capture the upstream CRD schemas for `sandbox{,claim,template,warmpool}`.
+- [x] For each Agenova semantic, locate the upstream `v1alpha1` field/condition/behaviour, classify it, cite the source evidence, and reconcile the cluster-dependent rows with the bounded real run.
+- [x] Run the adapter-created experimental resources against the real substrate and demonstrate the Ready-worker Start/Terminate unsupported case; capture the output.
+- [x] Update `docs/backends/agent-sandbox-v0.4.6-mapping.md` with the mapping table, gap report, remaining questions, merged #30/#89 reconciliation, and bounded real-cluster result.
+- [x] Add `harness/spike/agent-sandbox-mapping/` (adapter-backed reproduction + exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
+- [x] Run `./scripts/check.ps1 -Docs` and `./scripts/check.ps1 -All` on 2026-09-13; review the final diff for scope, boundary, evidence, and source-of-truth updates.
+- [x] Stop at the time box with Start/Terminate unsupported, durability unsupported, and general isolation unknown; leave full restart/isolation proof to #48/#51.
 
 ## Quality Gates
 
 - `./scripts/check.ps1 -Docs` — Markdown links, docs structure, and `Test-RuntimeBoundary` (provider shape stays inside the adapter)
 - `./harness/spike/agent-sandbox-substrate/reproduce.sh up` + the mapping spike's own `kubectl` commands — real `v0.4.6` cluster evidence for the demonstrated case
-- `./scripts/check.ps1 -All` — repository baseline (no Go code changes expected; confirms nothing regressed)
+- `./scripts/check.ps1 -All` — repository baseline; confirms the evidence-only test logging and documentation changes do not regress behavior
 
 ## Evidence Required
 
@@ -104,12 +104,12 @@ Out of scope:
 - Decision: the report lives in a new `docs/backends/agent-sandbox-v0.4.6-mapping.md`, not by editing the `#48`-owned `docs/backends/agent-sandbox.md`.
 - Decision: reuse the E8-T3 substrate (`harness/spike/agent-sandbox-substrate/reproduce.sh`) to provision the pinned `v0.4.6` cluster rather than adding a second cluster bootstrapper.
 - Decision (2026-09-02): map against `v0.4.6` / `extensions.agents.x-k8s.io/v1alpha1` — the version the shipped `internal/runtime/agentsandbox` adapter, `docs/backends/agent-sandbox.md`, and the E8-T3 substrate are all on. An earlier draft of this packet targeted `v1.0.0` / `v1beta1`; that was dropped so the mapping baseline matches the code `#48` will freeze against. Looking ahead to a newer upstream release is a separate follow-up.
-- Decision (2026-09-02): source research and the provisional table may proceed immediately. Real-cluster environment design, manifests, reproduction, and captured validation wait for `#99` to merge into `main`; #66 does not stack implementation on the unmerged E8-T3 branch.
+- Decision (completed 2026-09-13): real-cluster work began only after #99 merged into `main`; #66 reused that exact E8-T3 substrate and did not stack on its former branch.
 - Blockers / sequencing:
   - GitHub `blocked-by`: `#22` (E1-T1) — **merged**, so this ticket is unblocked.
-  - Validation blocker: the substrate this spike runs on lands with `#50` (PR #99). As checked on 2026-09-12, #99 is open/unmerged: two real-run captures are submitted and TIAN-TOM approved on 2026-09-11; the older changes-requested review remains and GitHub reports merge state blocked. Independent re-review is no longer wholly outstanding. Cluster environment design, manifests, commands and captured evidence still wait for merge, as authorized on #66.
-  - `#30`, `#89` and #124 are merged. Their contract dependencies are resolved; #48 can consume the updated source-based report. Full #66 acceptance still needs its own reproduced negative case after #99 merges.
-  - Environment: a running Docker daemon and network to `github.com` / `dl.k8s.io` / `registry.k8s.io`.
+  - Validation blocker resolved: PR #99 merged on 2026-09-13 as `6128855aa904f6d0a05aa4de1bccd83223cddd7e`; its owned substrate provisioned Agent Sandbox v0.4.6 for this experiment.
+  - `#30`, `#89`, #99 and #124 are merged. Their contract and substrate dependencies are resolved; #48 can consume the updated report and bounded real-cluster evidence.
+  - Environment resolved on 2026-09-13: Docker Engine 29.7.2, kind v0.33.0, kubectl v1.36.1 and Kubernetes v1.37.0 completed the experiment.
 
 ## Source Refresh — 2026-09-12
 
@@ -117,5 +117,14 @@ Out of scope:
 - Project lead authorization on #66 dated 2026-09-10 explicitly permits source-based mapping, unsupported/unknown classification and the pending-verification checklist now that #30/#89 are merged.
 - Reclassified allocation, identity and cleanup as translated; Start and Terminate as unsupported. Durability remains unsupported for reduced allocation/release correlation, separate from application outcome storage.
 - Kept general isolation unknown and the adapter's explicit filesystem evidence Unsupported. Reference Simulated and local Git/Go compatibility do not establish BackendVerified.
-- Real-cluster work remains deferred until #99 merges; this refresh does not complete #66 or resolve PR #105's reproduced-negative-case review finding.
+- The later 2026-09-13 experiment supersedes this former blocker and closes PR #105's reproduced-negative-case finding.
 - Validation results are recorded in [source refresh evidence](../../docs/evidence/E8-S1/source-refresh/summary.md).
+
+## Real-Cluster Experiment — 2026-09-13
+
+- Merged main through #99, then ran the final committed mapping script at `3ce542bf951a2cbab1533cda3befabbcf922415b` on the owned `kind-agenova-k8s-lab` context.
+- Captured all four installed v0.4.6 CRD schemas and a unique Allocate/Observe/Cleanup lifecycle.
+- Reproduced the bounded negative: after the assigned worker reported Ready, Start and Terminate each returned `runtime.ErrUnsupported` with their missing evidence channels stated explicitly.
+- Confirmed cleanup independently: the claim and assigned Sandbox were absent, `Released=true`, and `Replaced=false`.
+- Kept durability unsupported and general isolation unknown. The experiment observed filesystem evidence level `Unsupported` and makes no #51 isolation claim.
+- Evidence: [summary](../../docs/evidence/E8-S1/agent-sandbox-mapping/summary.md) and [raw output](../../docs/evidence/E8-S1/agent-sandbox-mapping/output.txt).
