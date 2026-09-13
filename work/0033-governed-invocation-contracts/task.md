@@ -113,11 +113,30 @@ Mutation checks (2026-09-13, review follow-up). Both ran with `go test -overlay=
 
 Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `node-version: '24'`). This machine has only Node 25.9.0, so `npm --prefix ui ci`, `npm --prefix ui run browsers:install`, and the frontend gate ran under Node 25 with npm `EBADENGINE` warnings. The frontend checks passed, but Node-24 frontend evidence comes from CI, not from this run.
 
+## Trust Boundary
+
+`Request.ClaimID` is caller-asserted, and `runtime.ClaimReader.Claim` only
+confirms that such a claim exists and what phase it is in. Neither proves the
+caller is that claim's worker, so this Ticket authenticates nobody.
+
+- Claim-eligibility denials are correlation and lifecycle gating, not
+  claim-bound enforcement; any caller reaching the gateway can name any
+  existing claim.
+- The default `Allowed` policy plus a configured adapter is an open gateway with
+  typed, recorded decisions. Do not describe it as claim-bound enforcement in
+  the packet, the PR, or the evidence.
+- Do not point a live provider adapter at this request shape until a trusted
+  claim-bound identity is verified at the gateway; a bare claim ID in an
+  environment variable or header is correlation, not authentication.
+- The authenticated worker binding is tracked separately in #121 and is outside
+  this Ticket.
+
 ## Constraints
 
 - Preserve `docs/product/architecture-contract.md`.
 - Do not broaden the Ticket or PRD without a recorded human decision.
 - Contracts stay backend-neutral and carry no provider credential material; provider shapes remain inside adapters.
+- Do not present claim eligibility, the default `Allowed` policy, or a configured adapter as proof that the caller is the claim's worker; see Trust Boundary.
 - Gateway tests consume the shared `harness/fixtures/contract/v0/` fixtures for claim inputs: valid cases must pass, invalid cases must fail, and failure categories must match the manifest's `expected.category`. Do not modify the frozen fixture set in this Ticket; new invocation-request fixtures live with the gateway tests, and any design change that invalidates a shared fixture requires updating it in a reviewed change.
 
 ## Approval Status
