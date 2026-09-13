@@ -1,0 +1,2494 @@
+Experiment: Ready worker still rejects Start and Terminate
+Repository commit: 3ce542bf951a2cbab1533cda3befabbcf922415b
+Repository dirty: false
+kubectl client: Client Version: v1.36.1
+Kubernetes context: kind-agenova-k8s-lab
+Client Version: v1.36.1
+Kustomize Version: v5.8.1
+Server Version: v1.37.0
+Installed v0.4.6 CRD schemas:
+GROUP:      agents.x-k8s.io
+KIND:       Sandbox
+VERSION:    v1alpha1
+
+DESCRIPTION:
+    <empty>
+FIELDS:
+  apiVersion	<string>
+  kind	<string>
+  metadata	<ObjectMeta>
+    annotations	<map[string]string>
+    creationTimestamp	<string>
+    deletionGracePeriodSeconds	<integer>
+    deletionTimestamp	<string>
+    finalizers	<[]string>
+    generateName	<string>
+    generation	<integer>
+    labels	<map[string]string>
+    managedFields	<[]ManagedFieldsEntry>
+      apiVersion	<string>
+      fieldsType	<string>
+      fieldsV1	<FieldsV1>
+      manager	<string>
+      operation	<string>
+      subresource	<string>
+      time	<string>
+    name	<string>
+    namespace	<string>
+    ownerReferences	<[]OwnerReference>
+      apiVersion	<string> -required-
+      blockOwnerDeletion	<boolean>
+      controller	<boolean>
+      kind	<string> -required-
+      name	<string> -required-
+      uid	<string> -required-
+    resourceVersion	<string>
+    selfLink	<string>
+    uid	<string>
+  spec	<Object> -required-
+    podTemplate	<Object> -required-
+      metadata	<Object>
+        annotations	<map[string]string>
+        labels	<map[string]string>
+      spec	<Object> -required-
+        activeDeadlineSeconds	<integer>
+        affinity	<Object>
+          nodeAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              preference	<Object> -required-
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchFields	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<Object>
+              nodeSelectorTerms	<[]Object> -required-
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchFields	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+          podAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              podAffinityTerm	<Object> -required-
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                matchLabelKeys	<[]string>
+                mismatchLabelKeys	<[]string>
+                namespaceSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                namespaces	<[]string>
+                topologyKey	<string> -required-
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              labelSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              matchLabelKeys	<[]string>
+              mismatchLabelKeys	<[]string>
+              namespaceSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              namespaces	<[]string>
+              topologyKey	<string> -required-
+          podAntiAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              podAffinityTerm	<Object> -required-
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                matchLabelKeys	<[]string>
+                mismatchLabelKeys	<[]string>
+                namespaceSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                namespaces	<[]string>
+                topologyKey	<string> -required-
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              labelSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              matchLabelKeys	<[]string>
+              mismatchLabelKeys	<[]string>
+              namespaceSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              namespaces	<[]string>
+              topologyKey	<string> -required-
+        automountServiceAccountToken	<boolean>
+        containers	<[]Object> -required-
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        dnsConfig	<Object>
+          nameservers	<[]string>
+          options	<[]Object>
+            name	<string>
+            value	<string>
+          searches	<[]string>
+        dnsPolicy	<string>
+        enableServiceLinks	<boolean>
+        ephemeralContainers	<[]Object>
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          targetContainerName	<string>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        hostAliases	<[]Object>
+          hostnames	<[]string>
+          ip	<string> -required-
+        hostIPC	<boolean>
+        hostNetwork	<boolean>
+        hostPID	<boolean>
+        hostUsers	<boolean>
+        hostname	<string>
+        hostnameOverride	<string>
+        imagePullSecrets	<[]Object>
+          name	<string>
+        initContainers	<[]Object>
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        nodeName	<string>
+        nodeSelector	<map[string]string>
+        os	<Object>
+          name	<string> -required-
+        overhead	<map[string]Object>
+        preemptionPolicy	<string>
+        priority	<integer>
+        priorityClassName	<string>
+        readinessGates	<[]Object>
+          conditionType	<string> -required-
+        resourceClaims	<[]Object>
+          name	<string> -required-
+          resourceClaimName	<string>
+          resourceClaimTemplateName	<string>
+        resources	<Object>
+          claims	<[]Object>
+            name	<string> -required-
+            request	<string>
+          limits	<map[string]Object>
+          requests	<map[string]Object>
+        restartPolicy	<string>
+        runtimeClassName	<string>
+        schedulerName	<string>
+        schedulingGates	<[]Object>
+          name	<string> -required-
+        securityContext	<Object>
+          appArmorProfile	<Object>
+            localhostProfile	<string>
+            type	<string> -required-
+          fsGroup	<integer>
+          fsGroupChangePolicy	<string>
+          runAsGroup	<integer>
+          runAsNonRoot	<boolean>
+          runAsUser	<integer>
+          seLinuxChangePolicy	<string>
+          seLinuxOptions	<Object>
+            level	<string>
+            role	<string>
+            type	<string>
+            user	<string>
+          seccompProfile	<Object>
+            localhostProfile	<string>
+            type	<string> -required-
+          supplementalGroups	<[]integer>
+          supplementalGroupsPolicy	<string>
+          sysctls	<[]Object>
+            name	<string> -required-
+            value	<string> -required-
+          windowsOptions	<Object>
+            gmsaCredentialSpec	<string>
+            gmsaCredentialSpecName	<string>
+            hostProcess	<boolean>
+            runAsUserName	<string>
+        serviceAccount	<string>
+        serviceAccountName	<string>
+        setHostnameAsFQDN	<boolean>
+        shareProcessNamespace	<boolean>
+        subdomain	<string>
+        terminationGracePeriodSeconds	<integer>
+        tolerations	<[]Object>
+          effect	<string>
+          key	<string>
+          operator	<string>
+          tolerationSeconds	<integer>
+          value	<string>
+        topologySpreadConstraints	<[]Object>
+          labelSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+          matchLabelKeys	<[]string>
+          maxSkew	<integer> -required-
+          minDomains	<integer>
+          nodeAffinityPolicy	<string>
+          nodeTaintsPolicy	<string>
+          topologyKey	<string> -required-
+          whenUnsatisfiable	<string> -required-
+        volumes	<[]Object>
+          awsElasticBlockStore	<Object>
+            fsType	<string>
+            partition	<integer>
+            readOnly	<boolean>
+            volumeID	<string> -required-
+          azureDisk	<Object>
+            cachingMode	<string>
+            diskName	<string> -required-
+            diskURI	<string> -required-
+            fsType	<string>
+            kind	<string>
+            readOnly	<boolean>
+          azureFile	<Object>
+            readOnly	<boolean>
+            secretName	<string> -required-
+            shareName	<string> -required-
+          cephfs	<Object>
+            monitors	<[]string> -required-
+            path	<string>
+            readOnly	<boolean>
+            secretFile	<string>
+            secretRef	<Object>
+              name	<string>
+            user	<string>
+          cinder	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            volumeID	<string> -required-
+          configMap	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              key	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+            name	<string>
+            optional	<boolean>
+          csi	<Object>
+            driver	<string> -required-
+            fsType	<string>
+            nodePublishSecretRef	<Object>
+              name	<string>
+            readOnly	<boolean>
+            volumeAttributes	<map[string]string>
+          downwardAPI	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+          emptyDir	<Object>
+            medium	<string>
+            sizeLimit	<Object>
+          ephemeral	<Object>
+            volumeClaimTemplate	<Object>
+              metadata	<Object>
+              spec	<Object> -required-
+                accessModes	<[]string>
+                dataSource	<Object>
+                  apiGroup	<string>
+                  kind	<string> -required-
+                  name	<string> -required-
+                dataSourceRef	<Object>
+                  apiGroup	<string>
+                  kind	<string> -required-
+                  name	<string> -required-
+                  namespace	<string>
+                resources	<Object>
+                  limits	<map[string]Object>
+                  requests	<map[string]Object>
+                selector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                storageClassName	<string>
+                volumeAttributesClassName	<string>
+                volumeMode	<string>
+                volumeName	<string>
+          fc	<Object>
+            fsType	<string>
+            lun	<integer>
+            readOnly	<boolean>
+            targetWWNs	<[]string>
+            wwids	<[]string>
+          flexVolume	<Object>
+            driver	<string> -required-
+            fsType	<string>
+            options	<map[string]string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+          flocker	<Object>
+            datasetName	<string>
+            datasetUUID	<string>
+          gcePersistentDisk	<Object>
+            fsType	<string>
+            partition	<integer>
+            pdName	<string> -required-
+            readOnly	<boolean>
+          gitRepo	<Object>
+            directory	<string>
+            repository	<string> -required-
+            revision	<string>
+          glusterfs	<Object>
+            endpoints	<string> -required-
+            path	<string> -required-
+            readOnly	<boolean>
+          hostPath	<Object>
+            path	<string> -required-
+            type	<string>
+          image	<Object>
+            pullPolicy	<string>
+            reference	<string>
+          iscsi	<Object>
+            chapAuthDiscovery	<boolean>
+            chapAuthSession	<boolean>
+            fsType	<string>
+            initiatorName	<string>
+            iqn	<string> -required-
+            iscsiInterface	<string>
+            lun	<integer> -required-
+            portals	<[]string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            targetPortal	<string> -required-
+          name	<string> -required-
+          nfs	<Object>
+            path	<string> -required-
+            readOnly	<boolean>
+            server	<string> -required-
+          persistentVolumeClaim	<Object>
+            claimName	<string> -required-
+            readOnly	<boolean>
+          photonPersistentDisk	<Object>
+            fsType	<string>
+            pdID	<string> -required-
+          portworxVolume	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            volumeID	<string> -required-
+          projected	<Object>
+            defaultMode	<integer>
+            sources	<[]Object>
+              clusterTrustBundle	<Object>
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                name	<string>
+                optional	<boolean>
+                path	<string> -required-
+                signerName	<string>
+              configMap	<Object>
+                items	<[]Object>
+                  key	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                name	<string>
+                optional	<boolean>
+              downwardAPI	<Object>
+                items	<[]Object>
+                  fieldRef	<Object>
+                    apiVersion	<string>
+                    fieldPath	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                  resourceFieldRef	<Object>
+                    containerName	<string>
+                    divisor	<Object>
+                    resource	<string> -required-
+              podCertificate	<Object>
+                certificateChainPath	<string>
+                credentialBundlePath	<string>
+                keyPath	<string>
+                keyType	<string> -required-
+                maxExpirationSeconds	<integer>
+                signerName	<string> -required-
+                userAnnotations	<map[string]string>
+              secret	<Object>
+                items	<[]Object>
+                  key	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                name	<string>
+                optional	<boolean>
+              serviceAccountToken	<Object>
+                audience	<string>
+                expirationSeconds	<integer>
+                path	<string> -required-
+          quobyte	<Object>
+            group	<string>
+            readOnly	<boolean>
+            registry	<string> -required-
+            tenant	<string>
+            user	<string>
+            volume	<string> -required-
+          rbd	<Object>
+            fsType	<string>
+            image	<string> -required-
+            keyring	<string>
+            monitors	<[]string> -required-
+            pool	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            user	<string>
+          scaleIO	<Object>
+            fsType	<string>
+            gateway	<string> -required-
+            protectionDomain	<string>
+            readOnly	<boolean>
+            secretRef	<Object> -required-
+              name	<string>
+            sslEnabled	<boolean>
+            storageMode	<string>
+            storagePool	<string>
+            system	<string> -required-
+            volumeName	<string>
+          secret	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              key	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+            optional	<boolean>
+            secretName	<string>
+          storageos	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            volumeName	<string>
+            volumeNamespace	<string>
+          vsphereVolume	<Object>
+            fsType	<string>
+            storagePolicyID	<string>
+            storagePolicyName	<string>
+            volumePath	<string> -required-
+        workloadRef	<Object>
+          name	<string> -required-
+          podGroup	<string> -required-
+          podGroupReplicaKey	<string>
+    replicas	<integer>
+    service	<boolean>
+    shutdownPolicy	<string>
+    enum: Delete, Retain
+    shutdownTime	<string>
+    volumeClaimTemplates	<[]Object>
+      metadata	<Object>
+        annotations	<map[string]string>
+        labels	<map[string]string>
+        name	<string>
+      spec	<Object> -required-
+        accessModes	<[]string>
+        dataSource	<Object>
+          apiGroup	<string>
+          kind	<string> -required-
+          name	<string> -required-
+        dataSourceRef	<Object>
+          apiGroup	<string>
+          kind	<string> -required-
+          name	<string> -required-
+          namespace	<string>
+        resources	<Object>
+          limits	<map[string]Object>
+          requests	<map[string]Object>
+        selector	<Object>
+          matchExpressions	<[]Object>
+            key	<string> -required-
+            operator	<string> -required-
+            values	<[]string>
+          matchLabels	<map[string]string>
+        storageClassName	<string>
+        volumeAttributesClassName	<string>
+        volumeMode	<string>
+        volumeName	<string>
+  status	<Object>
+    conditions	<[]Object>
+      lastTransitionTime	<string> -required-
+      message	<string> -required-
+      observedGeneration	<integer>
+      reason	<string> -required-
+      status	<string> -required-
+      enum: True, False, Unknown
+      type	<string> -required-
+    podIPs	<[]string>
+    replicas	<integer>
+    selector	<string>
+    service	<string>
+    serviceFQDN	<string>
+
+GROUP:      extensions.agents.x-k8s.io
+KIND:       SandboxTemplate
+VERSION:    v1alpha1
+
+DESCRIPTION:
+    <empty>
+FIELDS:
+  apiVersion	<string>
+  kind	<string>
+  metadata	<ObjectMeta>
+    annotations	<map[string]string>
+    creationTimestamp	<string>
+    deletionGracePeriodSeconds	<integer>
+    deletionTimestamp	<string>
+    finalizers	<[]string>
+    generateName	<string>
+    generation	<integer>
+    labels	<map[string]string>
+    managedFields	<[]ManagedFieldsEntry>
+      apiVersion	<string>
+      fieldsType	<string>
+      fieldsV1	<FieldsV1>
+      manager	<string>
+      operation	<string>
+      subresource	<string>
+      time	<string>
+    name	<string>
+    namespace	<string>
+    ownerReferences	<[]OwnerReference>
+      apiVersion	<string> -required-
+      blockOwnerDeletion	<boolean>
+      controller	<boolean>
+      kind	<string> -required-
+      name	<string> -required-
+      uid	<string> -required-
+    resourceVersion	<string>
+    selfLink	<string>
+    uid	<string>
+  spec	<Object> -required-
+    envVarsInjectionPolicy	<string>
+    enum: Allowed, Overrides, Disallowed
+    networkPolicy	<Object>
+      egress	<[]Object>
+        ports	<[]Object>
+          endPort	<integer>
+          port	<Object>
+          protocol	<string>
+        to	<[]Object>
+          ipBlock	<Object>
+            cidr	<string> -required-
+            except	<[]string>
+          namespaceSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+          podSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+      ingress	<[]Object>
+        from	<[]Object>
+          ipBlock	<Object>
+            cidr	<string> -required-
+            except	<[]string>
+          namespaceSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+          podSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+        ports	<[]Object>
+          endPort	<integer>
+          port	<Object>
+          protocol	<string>
+    networkPolicyManagement	<string>
+    enum: Managed, Unmanaged
+    podTemplate	<Object> -required-
+      metadata	<Object>
+        annotations	<map[string]string>
+        labels	<map[string]string>
+      spec	<Object> -required-
+        activeDeadlineSeconds	<integer>
+        affinity	<Object>
+          nodeAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              preference	<Object> -required-
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchFields	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<Object>
+              nodeSelectorTerms	<[]Object> -required-
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchFields	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+          podAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              podAffinityTerm	<Object> -required-
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                matchLabelKeys	<[]string>
+                mismatchLabelKeys	<[]string>
+                namespaceSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                namespaces	<[]string>
+                topologyKey	<string> -required-
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              labelSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              matchLabelKeys	<[]string>
+              mismatchLabelKeys	<[]string>
+              namespaceSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              namespaces	<[]string>
+              topologyKey	<string> -required-
+          podAntiAffinity	<Object>
+            preferredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              podAffinityTerm	<Object> -required-
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                matchLabelKeys	<[]string>
+                mismatchLabelKeys	<[]string>
+                namespaceSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                namespaces	<[]string>
+                topologyKey	<string> -required-
+              weight	<integer> -required-
+            requiredDuringSchedulingIgnoredDuringExecution	<[]Object>
+              labelSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              matchLabelKeys	<[]string>
+              mismatchLabelKeys	<[]string>
+              namespaceSelector	<Object>
+                matchExpressions	<[]Object>
+                  key	<string> -required-
+                  operator	<string> -required-
+                  values	<[]string>
+                matchLabels	<map[string]string>
+              namespaces	<[]string>
+              topologyKey	<string> -required-
+        automountServiceAccountToken	<boolean>
+        containers	<[]Object> -required-
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        dnsConfig	<Object>
+          nameservers	<[]string>
+          options	<[]Object>
+            name	<string>
+            value	<string>
+          searches	<[]string>
+        dnsPolicy	<string>
+        enableServiceLinks	<boolean>
+        ephemeralContainers	<[]Object>
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          targetContainerName	<string>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        hostAliases	<[]Object>
+          hostnames	<[]string>
+          ip	<string> -required-
+        hostIPC	<boolean>
+        hostNetwork	<boolean>
+        hostPID	<boolean>
+        hostUsers	<boolean>
+        hostname	<string>
+        hostnameOverride	<string>
+        imagePullSecrets	<[]Object>
+          name	<string>
+        initContainers	<[]Object>
+          args	<[]string>
+          command	<[]string>
+          env	<[]Object>
+            name	<string> -required-
+            value	<string>
+            valueFrom	<Object>
+              configMapKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              fileKeyRef	<Object>
+                key	<string> -required-
+                optional	<boolean>
+                path	<string> -required-
+                volumeName	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+              secretKeyRef	<Object>
+                key	<string> -required-
+                name	<string>
+                optional	<boolean>
+          envFrom	<[]Object>
+            configMapRef	<Object>
+              name	<string>
+              optional	<boolean>
+            prefix	<string>
+            secretRef	<Object>
+              name	<string>
+              optional	<boolean>
+          image	<string>
+          imagePullPolicy	<string>
+          lifecycle	<Object>
+            postStart	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            preStop	<Object>
+              exec	<Object>
+                command	<[]string>
+              httpGet	<Object>
+                host	<string>
+                httpHeaders	<[]Object>
+                  name	<string> -required-
+                  value	<string> -required-
+                path	<string>
+                port	<Object> -required-
+                scheme	<string>
+              sleep	<Object>
+                seconds	<integer> -required-
+              tcpSocket	<Object>
+                host	<string>
+                port	<Object> -required-
+            stopSignal	<string>
+          livenessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          name	<string> -required-
+          ports	<[]Object>
+            containerPort	<integer> -required-
+            hostIP	<string>
+            hostPort	<integer>
+            name	<string>
+            protocol	<string>
+          readinessProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          resizePolicy	<[]Object>
+            resourceName	<string> -required-
+            restartPolicy	<string> -required-
+          resources	<Object>
+            claims	<[]Object>
+              name	<string> -required-
+              request	<string>
+            limits	<map[string]Object>
+            requests	<map[string]Object>
+          restartPolicy	<string>
+          restartPolicyRules	<[]Object>
+            action	<string> -required-
+            exitCodes	<Object>
+              operator	<string> -required-
+              values	<[]integer>
+          securityContext	<Object>
+            allowPrivilegeEscalation	<boolean>
+            appArmorProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            capabilities	<Object>
+              add	<[]string>
+              drop	<[]string>
+            privileged	<boolean>
+            procMount	<string>
+            readOnlyRootFilesystem	<boolean>
+            runAsGroup	<integer>
+            runAsNonRoot	<boolean>
+            runAsUser	<integer>
+            seLinuxOptions	<Object>
+              level	<string>
+              role	<string>
+              type	<string>
+              user	<string>
+            seccompProfile	<Object>
+              localhostProfile	<string>
+              type	<string> -required-
+            windowsOptions	<Object>
+              gmsaCredentialSpec	<string>
+              gmsaCredentialSpecName	<string>
+              hostProcess	<boolean>
+              runAsUserName	<string>
+          startupProbe	<Object>
+            exec	<Object>
+              command	<[]string>
+            failureThreshold	<integer>
+            grpc	<Object>
+              port	<integer> -required-
+              service	<string>
+            httpGet	<Object>
+              host	<string>
+              httpHeaders	<[]Object>
+                name	<string> -required-
+                value	<string> -required-
+              path	<string>
+              port	<Object> -required-
+              scheme	<string>
+            initialDelaySeconds	<integer>
+            periodSeconds	<integer>
+            successThreshold	<integer>
+            tcpSocket	<Object>
+              host	<string>
+              port	<Object> -required-
+            terminationGracePeriodSeconds	<integer>
+            timeoutSeconds	<integer>
+          stdin	<boolean>
+          stdinOnce	<boolean>
+          terminationMessagePath	<string>
+          terminationMessagePolicy	<string>
+          tty	<boolean>
+          volumeDevices	<[]Object>
+            devicePath	<string> -required-
+            name	<string> -required-
+          volumeMounts	<[]Object>
+            mountPath	<string> -required-
+            mountPropagation	<string>
+            name	<string> -required-
+            readOnly	<boolean>
+            recursiveReadOnly	<string>
+            subPath	<string>
+            subPathExpr	<string>
+          workingDir	<string>
+        nodeName	<string>
+        nodeSelector	<map[string]string>
+        os	<Object>
+          name	<string> -required-
+        overhead	<map[string]Object>
+        preemptionPolicy	<string>
+        priority	<integer>
+        priorityClassName	<string>
+        readinessGates	<[]Object>
+          conditionType	<string> -required-
+        resourceClaims	<[]Object>
+          name	<string> -required-
+          resourceClaimName	<string>
+          resourceClaimTemplateName	<string>
+        resources	<Object>
+          claims	<[]Object>
+            name	<string> -required-
+            request	<string>
+          limits	<map[string]Object>
+          requests	<map[string]Object>
+        restartPolicy	<string>
+        runtimeClassName	<string>
+        schedulerName	<string>
+        schedulingGates	<[]Object>
+          name	<string> -required-
+        securityContext	<Object>
+          appArmorProfile	<Object>
+            localhostProfile	<string>
+            type	<string> -required-
+          fsGroup	<integer>
+          fsGroupChangePolicy	<string>
+          runAsGroup	<integer>
+          runAsNonRoot	<boolean>
+          runAsUser	<integer>
+          seLinuxChangePolicy	<string>
+          seLinuxOptions	<Object>
+            level	<string>
+            role	<string>
+            type	<string>
+            user	<string>
+          seccompProfile	<Object>
+            localhostProfile	<string>
+            type	<string> -required-
+          supplementalGroups	<[]integer>
+          supplementalGroupsPolicy	<string>
+          sysctls	<[]Object>
+            name	<string> -required-
+            value	<string> -required-
+          windowsOptions	<Object>
+            gmsaCredentialSpec	<string>
+            gmsaCredentialSpecName	<string>
+            hostProcess	<boolean>
+            runAsUserName	<string>
+        serviceAccount	<string>
+        serviceAccountName	<string>
+        setHostnameAsFQDN	<boolean>
+        shareProcessNamespace	<boolean>
+        subdomain	<string>
+        terminationGracePeriodSeconds	<integer>
+        tolerations	<[]Object>
+          effect	<string>
+          key	<string>
+          operator	<string>
+          tolerationSeconds	<integer>
+          value	<string>
+        topologySpreadConstraints	<[]Object>
+          labelSelector	<Object>
+            matchExpressions	<[]Object>
+              key	<string> -required-
+              operator	<string> -required-
+              values	<[]string>
+            matchLabels	<map[string]string>
+          matchLabelKeys	<[]string>
+          maxSkew	<integer> -required-
+          minDomains	<integer>
+          nodeAffinityPolicy	<string>
+          nodeTaintsPolicy	<string>
+          topologyKey	<string> -required-
+          whenUnsatisfiable	<string> -required-
+        volumes	<[]Object>
+          awsElasticBlockStore	<Object>
+            fsType	<string>
+            partition	<integer>
+            readOnly	<boolean>
+            volumeID	<string> -required-
+          azureDisk	<Object>
+            cachingMode	<string>
+            diskName	<string> -required-
+            diskURI	<string> -required-
+            fsType	<string>
+            kind	<string>
+            readOnly	<boolean>
+          azureFile	<Object>
+            readOnly	<boolean>
+            secretName	<string> -required-
+            shareName	<string> -required-
+          cephfs	<Object>
+            monitors	<[]string> -required-
+            path	<string>
+            readOnly	<boolean>
+            secretFile	<string>
+            secretRef	<Object>
+              name	<string>
+            user	<string>
+          cinder	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            volumeID	<string> -required-
+          configMap	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              key	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+            name	<string>
+            optional	<boolean>
+          csi	<Object>
+            driver	<string> -required-
+            fsType	<string>
+            nodePublishSecretRef	<Object>
+              name	<string>
+            readOnly	<boolean>
+            volumeAttributes	<map[string]string>
+          downwardAPI	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              fieldRef	<Object>
+                apiVersion	<string>
+                fieldPath	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+              resourceFieldRef	<Object>
+                containerName	<string>
+                divisor	<Object>
+                resource	<string> -required-
+          emptyDir	<Object>
+            medium	<string>
+            sizeLimit	<Object>
+          ephemeral	<Object>
+            volumeClaimTemplate	<Object>
+              metadata	<Object>
+              spec	<Object> -required-
+                accessModes	<[]string>
+                dataSource	<Object>
+                  apiGroup	<string>
+                  kind	<string> -required-
+                  name	<string> -required-
+                dataSourceRef	<Object>
+                  apiGroup	<string>
+                  kind	<string> -required-
+                  name	<string> -required-
+                  namespace	<string>
+                resources	<Object>
+                  limits	<map[string]Object>
+                  requests	<map[string]Object>
+                selector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                storageClassName	<string>
+                volumeAttributesClassName	<string>
+                volumeMode	<string>
+                volumeName	<string>
+          fc	<Object>
+            fsType	<string>
+            lun	<integer>
+            readOnly	<boolean>
+            targetWWNs	<[]string>
+            wwids	<[]string>
+          flexVolume	<Object>
+            driver	<string> -required-
+            fsType	<string>
+            options	<map[string]string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+          flocker	<Object>
+            datasetName	<string>
+            datasetUUID	<string>
+          gcePersistentDisk	<Object>
+            fsType	<string>
+            partition	<integer>
+            pdName	<string> -required-
+            readOnly	<boolean>
+          gitRepo	<Object>
+            directory	<string>
+            repository	<string> -required-
+            revision	<string>
+          glusterfs	<Object>
+            endpoints	<string> -required-
+            path	<string> -required-
+            readOnly	<boolean>
+          hostPath	<Object>
+            path	<string> -required-
+            type	<string>
+          image	<Object>
+            pullPolicy	<string>
+            reference	<string>
+          iscsi	<Object>
+            chapAuthDiscovery	<boolean>
+            chapAuthSession	<boolean>
+            fsType	<string>
+            initiatorName	<string>
+            iqn	<string> -required-
+            iscsiInterface	<string>
+            lun	<integer> -required-
+            portals	<[]string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            targetPortal	<string> -required-
+          name	<string> -required-
+          nfs	<Object>
+            path	<string> -required-
+            readOnly	<boolean>
+            server	<string> -required-
+          persistentVolumeClaim	<Object>
+            claimName	<string> -required-
+            readOnly	<boolean>
+          photonPersistentDisk	<Object>
+            fsType	<string>
+            pdID	<string> -required-
+          portworxVolume	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            volumeID	<string> -required-
+          projected	<Object>
+            defaultMode	<integer>
+            sources	<[]Object>
+              clusterTrustBundle	<Object>
+                labelSelector	<Object>
+                  matchExpressions	<[]Object>
+                    key	<string> -required-
+                    operator	<string> -required-
+                    values	<[]string>
+                  matchLabels	<map[string]string>
+                name	<string>
+                optional	<boolean>
+                path	<string> -required-
+                signerName	<string>
+              configMap	<Object>
+                items	<[]Object>
+                  key	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                name	<string>
+                optional	<boolean>
+              downwardAPI	<Object>
+                items	<[]Object>
+                  fieldRef	<Object>
+                    apiVersion	<string>
+                    fieldPath	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                  resourceFieldRef	<Object>
+                    containerName	<string>
+                    divisor	<Object>
+                    resource	<string> -required-
+              podCertificate	<Object>
+                certificateChainPath	<string>
+                credentialBundlePath	<string>
+                keyPath	<string>
+                keyType	<string> -required-
+                maxExpirationSeconds	<integer>
+                signerName	<string> -required-
+                userAnnotations	<map[string]string>
+              secret	<Object>
+                items	<[]Object>
+                  key	<string> -required-
+                  mode	<integer>
+                  path	<string> -required-
+                name	<string>
+                optional	<boolean>
+              serviceAccountToken	<Object>
+                audience	<string>
+                expirationSeconds	<integer>
+                path	<string> -required-
+          quobyte	<Object>
+            group	<string>
+            readOnly	<boolean>
+            registry	<string> -required-
+            tenant	<string>
+            user	<string>
+            volume	<string> -required-
+          rbd	<Object>
+            fsType	<string>
+            image	<string> -required-
+            keyring	<string>
+            monitors	<[]string> -required-
+            pool	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            user	<string>
+          scaleIO	<Object>
+            fsType	<string>
+            gateway	<string> -required-
+            protectionDomain	<string>
+            readOnly	<boolean>
+            secretRef	<Object> -required-
+              name	<string>
+            sslEnabled	<boolean>
+            storageMode	<string>
+            storagePool	<string>
+            system	<string> -required-
+            volumeName	<string>
+          secret	<Object>
+            defaultMode	<integer>
+            items	<[]Object>
+              key	<string> -required-
+              mode	<integer>
+              path	<string> -required-
+            optional	<boolean>
+            secretName	<string>
+          storageos	<Object>
+            fsType	<string>
+            readOnly	<boolean>
+            secretRef	<Object>
+              name	<string>
+            volumeName	<string>
+            volumeNamespace	<string>
+          vsphereVolume	<Object>
+            fsType	<string>
+            storagePolicyID	<string>
+            storagePolicyName	<string>
+            volumePath	<string> -required-
+        workloadRef	<Object>
+          name	<string> -required-
+          podGroup	<string> -required-
+          podGroupReplicaKey	<string>
+    service	<boolean>
+    volumeClaimTemplates	<[]Object>
+      metadata	<Object>
+        annotations	<map[string]string>
+        labels	<map[string]string>
+        name	<string>
+      spec	<Object> -required-
+        accessModes	<[]string>
+        dataSource	<Object>
+          apiGroup	<string>
+          kind	<string> -required-
+          name	<string> -required-
+        dataSourceRef	<Object>
+          apiGroup	<string>
+          kind	<string> -required-
+          name	<string> -required-
+          namespace	<string>
+        resources	<Object>
+          limits	<map[string]Object>
+          requests	<map[string]Object>
+        selector	<Object>
+          matchExpressions	<[]Object>
+            key	<string> -required-
+            operator	<string> -required-
+            values	<[]string>
+          matchLabels	<map[string]string>
+        storageClassName	<string>
+        volumeAttributesClassName	<string>
+        volumeMode	<string>
+        volumeName	<string>
+  status	<Object>
+
+GROUP:      extensions.agents.x-k8s.io
+KIND:       SandboxWarmPool
+VERSION:    v1alpha1
+
+DESCRIPTION:
+    <empty>
+FIELDS:
+  apiVersion	<string>
+  kind	<string>
+  metadata	<ObjectMeta>
+    annotations	<map[string]string>
+    creationTimestamp	<string>
+    deletionGracePeriodSeconds	<integer>
+    deletionTimestamp	<string>
+    finalizers	<[]string>
+    generateName	<string>
+    generation	<integer>
+    labels	<map[string]string>
+    managedFields	<[]ManagedFieldsEntry>
+      apiVersion	<string>
+      fieldsType	<string>
+      fieldsV1	<FieldsV1>
+      manager	<string>
+      operation	<string>
+      subresource	<string>
+      time	<string>
+    name	<string>
+    namespace	<string>
+    ownerReferences	<[]OwnerReference>
+      apiVersion	<string> -required-
+      blockOwnerDeletion	<boolean>
+      controller	<boolean>
+      kind	<string> -required-
+      name	<string> -required-
+      uid	<string> -required-
+    resourceVersion	<string>
+    selfLink	<string>
+    uid	<string>
+  spec	<Object> -required-
+    replicas	<integer> -required-
+    sandboxTemplateRef	<Object> -required-
+      name	<string> -required-
+    updateStrategy	<Object>
+      type	<string>
+      enum: Recreate, OnReplenish
+  status	<Object>
+    readyReplicas	<integer>
+    replicas	<integer>
+    selector	<string>
+
+GROUP:      extensions.agents.x-k8s.io
+KIND:       SandboxClaim
+VERSION:    v1alpha1
+
+DESCRIPTION:
+    <empty>
+FIELDS:
+  apiVersion	<string>
+  kind	<string>
+  metadata	<ObjectMeta>
+    annotations	<map[string]string>
+    creationTimestamp	<string>
+    deletionGracePeriodSeconds	<integer>
+    deletionTimestamp	<string>
+    finalizers	<[]string>
+    generateName	<string>
+    generation	<integer>
+    labels	<map[string]string>
+    managedFields	<[]ManagedFieldsEntry>
+      apiVersion	<string>
+      fieldsType	<string>
+      fieldsV1	<FieldsV1>
+      manager	<string>
+      operation	<string>
+      subresource	<string>
+      time	<string>
+    name	<string>
+    namespace	<string>
+    ownerReferences	<[]OwnerReference>
+      apiVersion	<string> -required-
+      blockOwnerDeletion	<boolean>
+      controller	<boolean>
+      kind	<string> -required-
+      name	<string> -required-
+      uid	<string> -required-
+    resourceVersion	<string>
+    selfLink	<string>
+    uid	<string>
+  spec	<Object> -required-
+    additionalPodMetadata	<Object>
+      annotations	<map[string]string>
+      labels	<map[string]string>
+    env	<[]Object>
+      containerName	<string>
+      name	<string> -required-
+      value	<string> -required-
+    lifecycle	<Object>
+      shutdownPolicy	<string>
+      enum: Delete, DeleteForeground, Retain
+      shutdownTime	<string>
+      ttlSecondsAfterFinished	<integer>
+    sandboxTemplateRef	<Object> -required-
+      name	<string> -required-
+    warmpool	<string>
+  status	<Object>
+    conditions	<[]Object>
+      lastTransitionTime	<string> -required-
+      message	<string> -required-
+      observedGeneration	<integer>
+      reason	<string> -required-
+      status	<string> -required-
+      enum: True, False, Unknown
+      type	<string> -required-
+    sandbox	<Object>
+      name	<string>
+      podIPs	<[]string>
+
+Command: go test -count=1 -v -tags integration -timeout 5m ./harness/integration/agentsandbox/ -run '^TestRuntimeBackend_AllocateObserveCleanup$' -args -kube-context 'kind-agenova-k8s-lab'
+=== RUN   TestRuntimeBackend_AllocateObserveCleanup
+    claim_lifecycle_test.go:38: allocated claim=e2e-18d4df6a48a9a798-claim backend=agent-sandbox worker=agenova-pool-e2e-18d4df6a48a9a798-pool-jhgjp
+    claim_lifecycle_test.go:50: readiness observed for the allocated worker: {ClaimID:e2e-18d4df6a48a9a798-claim Identity:{Backend:agent-sandbox WorkerID:agenova-pool-e2e-18d4df6a48a9a798-pool-jhgjp} Filesystem:{WorkingDirectory: OutsideBoundary: Ephemeral:false EvidenceLevel:Unsupported} Ready:true Released:false Replaced:false Detail:readiness is upstream Ready condition for the recorded worker; warm-pool replacement is not observable}
+    claim_lifecycle_test.go:62: Ready worker Start result: start e2e-18d4df6a48a9a798-claim: runtime: operation unsupported by backend: upstream readiness is not work start and no worker start channel exists
+    claim_lifecycle_test.go:67: Ready worker Terminate result: terminate e2e-18d4df6a48a9a798-claim: runtime: operation unsupported by backend: no worker-stop evidence channel distinct from resource deletion
+    claim_lifecycle_test.go:68: release confirmed; replacement remains unobserved: {Identity:{Backend:agent-sandbox WorkerID:agenova-pool-e2e-18d4df6a48a9a798-pool-jhgjp} Released:true Replaced:false}
+--- PASS: TestRuntimeBackend_AllocateObserveCleanup (1.85s)
+PASS
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	2.275s
