@@ -10,9 +10,9 @@ import (
 func TestStore_RecordAndQueryToolInvocations(t *testing.T) {
 	s := NewStore()
 
-	s.RecordToolInvocation("claim-a", "web-search")
-	s.RecordToolInvocation("claim-a", "code-exec")
-	s.RecordToolInvocation("claim-b", "web-search")
+	s.RecordToolInvocation("claim-a", "web-search", "inv-1", "Allow")
+	s.RecordToolInvocation("claim-a", "code-exec", "inv-2", "Allow")
+	s.RecordToolInvocation("claim-b", "web-search", "inv-3", "Allow")
 
 	got := s.ToolInvocations("claim-a")
 	if len(got) != 2 {
@@ -44,8 +44,8 @@ func TestStore_RecordAndQueryToolInvocations(t *testing.T) {
 func TestStore_RecordAndQueryModelInvocations(t *testing.T) {
 	s := NewStore()
 
-	s.RecordModelInvocation("claim-a", "claude-sonnet-4-6")
-	s.RecordModelInvocation("claim-b", "claude-haiku-4-5")
+	s.RecordModelInvocation("claim-a", "claude-sonnet-4-6", "inv-4", "Allow")
+	s.RecordModelInvocation("claim-b", "claude-haiku-4-5", "inv-5", "Allow")
 
 	got := s.ModelInvocations("claim-a")
 	if len(got) != 1 {
@@ -81,10 +81,10 @@ func TestStore_RecordAndQueryRuntimeEvents(t *testing.T) {
 func TestStore_IsolatesByClaimID(t *testing.T) {
 	s := NewStore()
 
-	s.RecordToolInvocation("parent", "p-tool")
-	s.RecordToolInvocation("child", "c-tool")
-	s.RecordModelInvocation("parent", "p-model")
-	s.RecordModelInvocation("child", "c-model")
+	s.RecordToolInvocation("parent", "p-tool", "inv-p1", "Allow")
+	s.RecordToolInvocation("child", "c-tool", "inv-c1", "Allow")
+	s.RecordModelInvocation("parent", "p-model", "inv-p2", "Allow")
+	s.RecordModelInvocation("child", "c-model", "inv-c2", "Allow")
 
 	if len(s.ToolInvocations("parent")) != 1 {
 		t.Error("parent should have exactly 1 tool invocation")
