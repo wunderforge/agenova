@@ -23,12 +23,12 @@ type Request struct {
 // A claim must be in the Running phase to invoke a tool. Child claims whose parent
 // is no longer Running are denied (child-out-of-scope).
 type Gateway struct {
-	backend runtime.RuntimeBackend
+	backend runtime.ClaimReader
 	lineage *governance.Lineage
 	store   *facts.Store
 }
 
-func NewGateway(backend runtime.RuntimeBackend, lineage *governance.Lineage, store *facts.Store) *Gateway {
+func NewGateway(backend runtime.ClaimReader, lineage *governance.Lineage, store *facts.Store) *Gateway {
 	return &Gateway{backend: backend, lineage: lineage, store: store}
 }
 

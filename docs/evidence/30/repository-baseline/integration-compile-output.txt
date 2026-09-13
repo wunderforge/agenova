@@ -1,0 +1,5 @@
+Excerpt from: pwsh -File scripts/check.ps1 -All (exit 0)
+No integration tests run.
+
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] Agent Sandbox integration package compiles

@@ -172,17 +172,14 @@ func runCLI(t *testing.T, args []string, factory RuntimeFactory) (string, string
 
 type stubBackend struct{}
 
-func (s *stubBackend) AddTemplate(v1alpha1.AgentSandboxTemplate) error { return nil }
-func (s *stubBackend) AddWarmPool(v1alpha1.SandboxWarmPool) error      { return nil }
-func (s *stubBackend) AddClaim(runtime.BackendClaim) error             { return nil }
-func (s *stubBackend) BindClaim(string) error                          { return nil }
-func (s *stubBackend) StartClaim(string) error                         { return nil }
-func (s *stubBackend) SucceedClaim(string) error                       { return nil }
-func (s *stubBackend) FailClaim(string, string) error                  { return nil }
-func (s *stubBackend) ExpireClaim(string, string) error                { return nil }
-func (s *stubBackend) Claim(string) (runtime.BackendClaim, bool) {
-	return runtime.BackendClaim{}, false
+func (s *stubBackend) Allocate(runtime.AllocateRequest) (runtime.Allocation, error) {
+	return runtime.Allocation{}, nil
 }
-func (s *stubBackend) PoolStatus(string) (v1alpha1.SandboxWarmPoolStatus, bool) {
-	return v1alpha1.SandboxWarmPoolStatus{}, false
+func (s *stubBackend) Observe(v1alpha1.SandboxClaimBackendIdentity) (runtime.Observation, error) {
+	return runtime.Observation{}, nil
+}
+func (s *stubBackend) Start(v1alpha1.SandboxClaimBackendIdentity) error     { return nil }
+func (s *stubBackend) Terminate(v1alpha1.SandboxClaimBackendIdentity) error { return nil }
+func (s *stubBackend) Cleanup(v1alpha1.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
+	return runtime.CleanupResult{}, nil
 }

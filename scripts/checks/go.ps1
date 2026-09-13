@@ -12,7 +12,7 @@ function Get-GoCheckFiles {
   if (-not $ChangedOnly) {
     return @(
       Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.go |
-        Where-Object { $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees)[\\/]" } |
+        Where-Object { $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees|node_modules|dist)[\\/]" } |
         ForEach-Object { $_.FullName }
     )
   }

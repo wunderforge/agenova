@@ -7,7 +7,7 @@ param(
   [switch]$Unit,
   [switch]$Integration,
   [switch]$Race,
-  [string]$KubeContext = "kind-agenova-k8s-lab",
+  [string]$KubeContext,
   [string]$Namespace = "default"
 )
 
@@ -23,6 +23,7 @@ foreach ($module in @(
   "architecture.ps1",
   "contracts.ps1",
   "go.ps1",
+  "frontend.ps1",
   "backend.ps1"
 )) {
   . (Join-Path $PSScriptRoot "checks/$module")
@@ -55,6 +56,10 @@ switch ($Profile) {
   }
 }
 
+if ($Integration -and [string]::IsNullOrWhiteSpace($KubeContext)) {
+  Fail "integration requires explicit -KubeContext"
+}
+
 if (-not ($Fast -or $All -or $Docs -or $Unit -or $Integration)) {
   $All = $true
 }
@@ -72,10 +77,15 @@ if ($All -or $Docs) {
   Test-RuntimeBoundary
   Test-CLICompositionBoundary
   Test-DeliveryContracts
+  & (Join-Path $PSScriptRoot "tests/check-context.ps1")
 }
 
 if ($All -or $Unit) {
   Test-Go -Race:$Race
+}
+
+if ($All) {
+  Test-Frontend
 }
 
 if ($Integration) {

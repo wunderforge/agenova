@@ -1,0 +1,3 @@
+Command: Python shutil.which("kubectl")
+Result: None
+No Kubernetes context was selected and no cluster command was executed.

@@ -14,9 +14,10 @@ import (
 // MemoryBackend is the only backend this composition root can construct.
 const MemoryBackend = "memory"
 
-// NewRuntime constructs a RuntimeBackend for the agenova executable.
-// An empty name selects the in-memory reference backend. Unknown names fail
-// without loading a provider adapter.
+// NewRuntime constructs the reduced-contract RuntimeBackend for the agenova
+// executable. An empty name selects the in-memory reference backend, which
+// also remains the claim state owner behind the gateways' ClaimReader.
+// Unknown names fail without loading a provider adapter.
 func NewRuntime(backendName string) (runtime.RuntimeBackend, string, error) {
 	name := strings.TrimSpace(backendName)
 	if name == "" {

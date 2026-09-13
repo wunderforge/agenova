@@ -1,0 +1,16 @@
+ok  	github.com/wunderforge/agenova/api/v1alpha1	1.564s
+ok  	github.com/wunderforge/agenova/cmd/agenova	8.124s
+ok  	github.com/wunderforge/agenova/harness/e2e	1.931s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	4.044s
+ok  	github.com/wunderforge/agenova/internal/app	3.421s
+ok  	github.com/wunderforge/agenova/internal/cli	3.070s
+ok  	github.com/wunderforge/agenova/internal/facts	2.702s
+ok  	github.com/wunderforge/agenova/internal/governance	4.040s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	4.396s
+ok  	github.com/wunderforge/agenova/internal/operator	4.749s
+ok  	github.com/wunderforge/agenova/internal/policy	6.145s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	6.751s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	5.931s

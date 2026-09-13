@@ -15,3 +15,12 @@ v0.4.6.
 Agenova does not redistribute the Agent Sandbox controller or SDK. The adapter
 interacts with an independently installed controller through Kubernetes
 resources and `kubectl`.
+
+## React fixture storyboard
+
+The `ui/` runtime uses React and React DOM (MIT). Its development tools include
+Vite and Vitest (MIT), TypeScript and Playwright (Apache-2.0), Testing Library
+(MIT), and jsdom (MIT). Exact versions and transitive dependency licenses are
+recorded in `ui/package-lock.json`; installed packages retain their upstream
+license notices. The application build is local and no browser binaries are
+committed or distributed by this repository.

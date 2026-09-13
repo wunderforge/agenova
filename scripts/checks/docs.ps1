@@ -119,7 +119,7 @@ function Test-ArchitectureText {
 function Test-MarkdownLinks {
   $files = Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.md |
     Where-Object {
-      $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees)[\\/]" -and
+      $_.FullName -notmatch "[\\/](\.git|\.claude|\.tmp|\.worktrees|node_modules|dist)[\\/]" -and
       $_.FullName -notmatch "[\\/]docs[\\/]evidence[\\/].*[\\/]summary\.md$"
     }
 

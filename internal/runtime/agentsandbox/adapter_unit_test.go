@@ -4,11 +4,56 @@
 package agentsandbox
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
+
+func TestLegacyStartClaim_doesNotGrantRunningFromReadiness(t *testing.T) {
+	k := newFakeKube()
+	k.bindOnApply = "legacy-worker"
+	k.readyOnApply = true
+	a := newTestAdapter(k)
+	if err := a.AddClaim(runtime.BackendClaim{Metadata: v1alpha1.ObjectMeta{Name: "legacy"}, Spec: runtime.BackendClaimSpec{PoolRef: "my-pool"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.StartClaim("legacy"); err == nil || errors.Is(err, runtime.ErrUnsupported) {
+		t.Fatalf("pending claim must fail its phase check before unsupported: %v", err)
+	}
+	if err := a.BindClaim("legacy"); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := a.Claim("legacy")
+	if err := a.StartClaim("legacy"); !errors.Is(err, runtime.ErrUnsupported) {
+		t.Fatalf("ready worker must not imply work start: %v", err)
+	}
+	after, _ := a.Claim("legacy")
+	if after.Status.Phase != v1alpha1.ClaimPhaseBound || after.Status != before.Status || k.delets != 0 {
+		t.Fatalf("unsupported start changed legacy claim or resources: %+v", after)
+	}
+	if err := a.SucceedClaim("legacy"); err == nil {
+		t.Fatal("readiness must not enable legacy success")
+	}
+}
+
+// Preserve the old expiry bookkeeping regression without presenting it as
+// worker-release or application-run evidence in the reduced integration gate.
+func TestLegacyExpirePendingClaim_bookkeepingOnly(t *testing.T) {
+	k := newFakeKube()
+	a := newTestAdapter(k)
+	if err := a.AddClaim(runtime.BackendClaim{Metadata: v1alpha1.ObjectMeta{Name: "expiry"}, Spec: runtime.BackendClaimSpec{PoolRef: "my-pool"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ExpireClaim("expiry", "ttl elapsed"); err != nil {
+		t.Fatal(err)
+	}
+	claim, ok := a.Claim("expiry")
+	if !ok || claim.Status.Phase != v1alpha1.ClaimPhaseExpired || claim.Status.SandboxID != "" || claim.Status.SandboxReplaced {
+		t.Fatalf("legacy expiry bookkeeping changed: %+v", claim)
+	}
+}
 
 // Unit tests cover adapter state machine logic without a running cluster.
 // Integration tests against a real kind cluster live in harness/integration/agentsandbox/.

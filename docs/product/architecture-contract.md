@@ -10,7 +10,7 @@ Agenova provides a **claim-scoped governance contract** for reusable agent work.
 - A `SandboxClaim` is one agent worker run / scoped assignment.
 - A claim is not one tool call.
 - Agent code and its framework own prompts, reasoning, plans, and task semantics.
-- Agenova owns claim lifecycle, scoped authority, gateway boundaries, facts, lineage, and backend evidence.
+- Agenova owns claim lifecycle, scoped authority, gateway boundaries, facts, and backend evidence. Parent/child lineage is a future governance extension.
 - Runtime backends own process execution and substrate capabilities.
 
 ## Submission and Resolution
@@ -61,17 +61,18 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 - A request may narrow authority but cannot create authority.
 - Requests contain scopes and references, never external secret values.
 - Authority is anchored to an active claim, not an idle sandbox or network location.
+- A governed invocation must carry system-established context bound to its worker claim; a caller-supplied claim ID alone is never proof of that binding. A target claim that differs from the bound claim is denied.
 - Warm workers must not hold standing external authority.
 - External system credentials remain behind Tool and Model Gateways or the future Memory Interface.
 - A sandbox may receive only scoped identity material required to authenticate to Agenova components.
 - Gateway policy and tests do not replace network controls, workload identity, or backend isolation evidence.
 
-## Facts and Lineage
+## Facts and Future Lineage
 
 - `ToolInvocation`, `ModelInvocation`, and `RuntimeEvent` are append-only facts below a claim.
 - Facts must be attributable to the correct claim and must not be cross-assigned between workers.
-- Parent/child claims express authority scope and accountability.
-- Claim lineage must not grow into workflow scheduling without a separately approved product scope.
+- Parent/child claims are outside the committed MVP. If introduced later, they must express authority scope and accountability.
+- Future claim lineage must not grow into workflow scheduling without a separately approved product scope.
 
 ## Evidence Surfaces
 

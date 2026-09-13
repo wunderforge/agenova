@@ -1,0 +1,10 @@
+Expected rejection before cluster access; this is not a real-backend test run.
+Command: ['go', 'test', '-count=1', '-tags', 'integration', '-run', '^TestRuntimeBackend_AllocateObserveCleanup$', './harness/integration/agentsandbox/']
+Expected exit: 1
+Actual exit: 1
+
+--- FAIL: TestRuntimeBackend_AllocateObserveCleanup (0.00s)
+    claim_lifecycle_test.go:32: an explicitly confirmed test -kube-context is required; no cluster was contacted
+FAIL
+FAIL	github.com/wunderforge/agenova/harness/integration/agentsandbox	0.213s
+FAIL

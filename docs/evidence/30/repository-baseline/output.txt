@@ -1,0 +1,46 @@
+Command: pwsh -File scripts/check.ps1 -All
+Exit: 0
+Candidate: e2e8af43fa624544ed3239e1b4994c160d2cead2 plus explicit-context wrapper fix.
+Go and wrapper source manifests are linked in summary.md.
+
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /Users/tomtianys/Workspace/Projects/P3-Agenova-e3/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, and stop for Owner/Reviewer approval before implementation.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=10
+[case] All/no-context: exit=0; calls=9
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.803s
+ok  	github.com/wunderforge/agenova/cmd/agenova	4.682s
+ok  	github.com/wunderforge/agenova/harness/e2e	1.470s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	1.893s
+ok  	github.com/wunderforge/agenova/internal/app	2.187s
+ok  	github.com/wunderforge/agenova/internal/cli	0.435s
+ok  	github.com/wunderforge/agenova/internal/facts	2.540s
+ok  	github.com/wunderforge/agenova/internal/governance	2.827s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	3.183s
+ok  	github.com/wunderforge/agenova/internal/operator	3.523s
+ok  	github.com/wunderforge/agenova/internal/policy	3.511s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	3.920s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	3.552s
+[pass] go test ./...
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] Agent Sandbox integration package compiles
