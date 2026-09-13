@@ -114,11 +114,12 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	if outcome, denied := g.claimBaseline(req.ClaimID); denied {
 		return g.record(req, id, outcome), nil
 	}
-	if outcome := g.policy(req).Normalize(); outcome.Result != gateway.ResultAllow {
+	outcome := g.policy(req).Normalize()
+	if outcome.Result != gateway.ResultAllow {
 		return g.record(req, id, outcome), nil
 	}
 
-	allowed := g.record(req, id, gateway.Allowed())
+	allowed := g.record(req, id, outcome)
 	if err := g.adapter.Invoke(id, req); err != nil {
 		return allowed, fmt.Errorf("tool adapter invocation %s: %w", id, err)
 	}

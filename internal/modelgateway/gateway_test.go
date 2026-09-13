@@ -5,6 +5,7 @@ package modelgateway
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -68,6 +69,40 @@ func TestGatewayAllowCorrelatesDecisionAttemptAndFact(t *testing.T) {
 	found := store.ModelInvocations(req.ClaimID)
 	if len(found) != 1 || found[0].ModelName != req.Profile || found[0].InvocationID != decision.InvocationID || found[0].Result != gateway.ResultAllow {
 		t.Fatalf("facts = %+v", found)
+	}
+}
+
+func TestGatewayIssuesInvocationIDBeforePolicyEvaluation(t *testing.T) {
+	var issued []string
+	var visibleAtPolicy []string
+	ids := func() string {
+		id := fmt.Sprintf("inv-order-%d", len(issued)+1)
+		issued = append(issued, id)
+		return id
+	}
+	policy := func(Request) gateway.Outcome {
+		visibleAtPolicy = append([]string(nil), issued...)
+		return gateway.Allowed()
+	}
+	gw, claims, _, _, _ := fixture(t, WithIDSource(ids), WithPolicy(policy))
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	decision := invoke(t, gw, req)
+	if len(visibleAtPolicy) != 1 || visibleAtPolicy[0] != decision.InvocationID || len(issued) != 1 {
+		t.Fatalf("ids at policy=%v issued=%v decision=%q", visibleAtPolicy, issued, decision.InvocationID)
+	}
+}
+
+func TestGatewayAllowCarriesPolicyReason(t *testing.T) {
+	const reason = "permitted by reference policy v1"
+	gw, claims, _, _, adapter := fixture(t, WithPolicy(func(Request) gateway.Outcome {
+		return gateway.Outcome{Result: gateway.ResultAllow, Reason: reason}
+	}))
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	decision := invoke(t, gw, req)
+	if decision.Result != gateway.ResultAllow || decision.Reason != reason || decision.Category != "" || len(adapter.calls) != 1 {
+		t.Fatalf("decision=%+v calls=%d", decision, len(adapter.calls))
 	}
 }
 
