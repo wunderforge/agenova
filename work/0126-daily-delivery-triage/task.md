@@ -47,7 +47,7 @@ Out of scope:
 - [x] Scout repository context, PR conventions, and existing automations.
 - [x] Confirm scope-interruption requirement with the Owner in this thread.
 - [x] Add a short project skill; do not duplicate mutable GitHub state.
-- [ ] Create and verify one nightly automation.
+- [x] Create and verify one nightly automation.
 - [x] Run the focused documentation gate.
 - [x] Run `./scripts/check.ps1 -All` and review the diff; Go checks passed, frontend gate is blocked by missing local npm/Chromium dependencies.
 
@@ -71,3 +71,4 @@ Out of scope:
 
 - Owner explicitly requested interruption-and-resume for product, requirement, scope, and direction decisions before this implementation.
 - `-Docs` passed. `-All` passed Go tests and Agent Sandbox integration compile after rerunning with Git access, then stopped because this worktree lacks installed frontend dependencies/Chromium. PR CI must run the full baseline.
+- The Owner approved a separate scheduled task so the existing Friday 17:00 weekly report remains unchanged. Automation `agenova-2` is ACTIVE, daily at 20:00 Australia/Sydney, targeting the saved local Agenova project. Until PR #127 lands, the scheduled prompt limits itself to read-only inspection.
