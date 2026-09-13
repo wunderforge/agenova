@@ -137,11 +137,14 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	if out, denied := g.claimBaseline(req.ClaimID); denied {
 		return g.record(req, id, out), nil
 	}
-	if out := g.policy(req).Normalize(); out.Result != gateway.ResultAllow {
+	// The normalized outcome is carried through on every branch, so an Allow
+	// keeps the policy's own Reason instead of being rebuilt as a bare verdict.
+	out := g.policy(req).Normalize()
+	if out.Result != gateway.ResultAllow {
 		return g.record(req, id, out), nil
 	}
 
-	allowed := g.record(req, id, gateway.Allowed())
+	allowed := g.record(req, id, out)
 	if err := g.adapter.Invoke(id, req); err != nil {
 		return allowed, fmt.Errorf("model adapter invocation %s: %w", id, err)
 	}

@@ -65,7 +65,7 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
-- [x] Confirm this packet with the Owner and Reviewer before implementation lands on the PR (planning approved by the Owner on 2026-08-31 at `b8f5649`; no separate Reviewer sign-off is recorded).
+- [x] Confirm this packet's plan with the Owner before implementation lands on the PR (approved 2026-08-31 at `b8f5649`; see Approval Status below for what that approval does and does not cover).
 - [x] Define the shared invocation request, decision, and `invocationId` contract types per the feature specification.
 - [x] Add request validation with the enumerated rejection categories ahead of any adapter path.
 - [x] Rework the tool and model gateway authorization onto the typed decision result with an adapter-spy seam.
@@ -74,7 +74,8 @@ Out of scope:
 - [x] Run the focused gate and `./scripts/check.ps1 -All`.
 - [x] Review the diff for scope, regressions, and source-of-truth updates.
 - [ ] Bind gateway eligibility to the authoritative run-service view once #31/#32 land, replacing the `runtime.ClaimReader` compatibility read.
-- [ ] Obtain Owner/Reviewer acceptance of the implementation on PR #94.
+- [ ] Obtain Reviewer acceptance of the implementation on PR #94 (no implementation review is recorded yet).
+- [ ] Clear the #32 integration condition before PR #94 can merge.
 
 ## Quality Gates
 
@@ -100,9 +101,15 @@ Commands run on the merged implementation in the `tomtian/e4-t1-governed-invocat
 Behavioral coverage backing the acceptance criteria and negative cases:
 
 - `internal/gateway`: `TestNormalizeParameterKey`, `TestReservedCredentialKey`, `TestFindReservedCredentialKey`, `TestAmbiguousResourceScope`, `TestSequenceIDSource`, `TestRandomIDSource`, `TestAllowedOutcome`, `TestOutcomeNormalizeFailsClosed`.
+- `internal/toolgateway` and `internal/modelgateway` (both packages): `TestGateway_IssuesInvocationIDBeforePolicyEvaluation` and `TestGateway_AllowCarriesPolicyReason`, added 2026-09-13 after review; see the mutation checks below.
 - `internal/toolgateway` and `internal/modelgateway`: fixture-backed Allow (`...WithFixtureAuthority` / `...WithFixtureProfile`), `TestGateway_DoesNotAdoptCallerSuppliedIdentifier`, `TestGateway_RejectsInvalidRequestsBeforeAdapter`, `TestGateway_UnconfiguredAdapterFailsClosed`, `TestGateway_UntypedPolicyOutcomeIsDenied`, `TestGateway_NilOptionsKeepSafeDefaults`, `TestGateway_ApprovalRequiredDoesNotInvokeAdapterOrGrant`, `TestGateway_PolicyDenyDoesNotInvokeAdapter`, `TestGateway_DeniesInactiveClaims`, `TestGateway_DeniesChildWithTerminalParent`; the tool gateway additionally covers `TestGateway_AssignsFreshInvocationIDPerAttempt`, `TestGateway_UnresolvedClaimGetsIDWithoutFabricatedFact`, `TestGateway_DecisionIsTyped`, `TestGateway_ChildFactsNotAttributedToParent`.
 - Claim inputs come from the frozen `harness/fixtures/contract/v0` set through `internal/gateway/gatewaytest`; the shared fixture set is unchanged in this branch.
 - `harness/e2e/multi_agent_reference_test.go` runs the reference scenario on the typed `Invoke` contract with explicit adapters and asserts attempted-call counts against recorded facts.
+
+Mutation checks (2026-09-13, review follow-up). Both ran with `go test -overlay=...` against scratch copies of the gateway sources; no repository file was modified.
+
+- Reverting the Allow branch to rebuild `gateway.Allowed()` instead of carrying the normalized outcome: `TestGateway_AllowCarriesPolicyReason` fails in both gateways with `Reason = ""`. This was a real defect in commit `87703ff`, found in review and fixed here.
+- Moving `invocationId` issuance to after policy evaluation while keeping one unique ID on every return path: every pre-existing focused test still passes, and only `TestGateway_IssuesInvocationIDBeforePolicyEvaluation` fails, in both gateways. The ordering requirement previously had no test that could detect this regression.
 
 Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `node-version: '24'`). This machine has only Node 25.9.0, so `npm --prefix ui ci`, `npm --prefix ui run browsers:install`, and the frontend gate ran under Node 25 with npm `EBADENGINE` warnings. The frontend checks passed, but Node-24 frontend evidence comes from CI, not from this run.
 
@@ -113,13 +120,28 @@ Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `no
 - Contracts stay backend-neutral and carry no provider credential material; provider shapes remain inside adapters.
 - Gateway tests consume the shared `harness/fixtures/contract/v0/` fixtures for claim inputs: valid cases must pass, invalid cases must fail, and failure categories must match the manifest's `expected.category`. Do not modify the frozen fixture set in this Ticket; new invocation-request fixtures live with the gateway tests, and any design change that invalidates a shared fixture requires updating it in a reviewed change.
 
+## Approval Status
+
+Four separate states. None implies another.
+
+| State | Status | Record |
+| --- | --- | --- |
+| Owner approval of the plan (Task + Spec, including the `internal/gateway` placement) | Granted | Owner comment on [#33](https://github.com/wunderforge/agenova/issues/33), 2026-08-31, at `b8f5649` |
+| Authorisation to publish the implementation to Draft PR #94 for review | Granted by Tom | Tom's direction on 2026-09-13, recorded in Decisions below; no corresponding public comment on #33 or PR #94 |
+| Reviewer acceptance of the implementation | Not granted | PR #94 `reviewDecision=REVIEW_REQUIRED`; no implementation review submitted |
+| #32 integration condition cleared | Not cleared | #32 (E3-T3 Running-only binding) is OPEN; gateways still read claim state through the `runtime.ClaimReader` compatibility view |
+
+The Owner's 2026-08-31 approval covered planning and stated implementation would wait for #32. Tom later directed that the implementation be published to the Draft so it can be reviewed while #32 is outstanding. That changes when the code becomes visible, not whether it may merge: PR #94 stays a Draft, #33 stays open, and both the Reviewer acceptance and the #32 condition are still outstanding.
+
+Read the third and fourth rows as "no record exists yet", not as a claim that either was refused.
+
 ## Decisions and Blockers
 
 - Planning depth: Task + Spec because the invocation contract is consumed by #34, #35, #36, and #90; no Design because the in-process contract has one bounded implementation approach.
 - Proposed placement: shared contract types in a new `internal/gateway` package consumed by `internal/toolgateway` and `internal/modelgateway`; packet approval covers this placement.
 - Decision (planning review, 2026-08-31): the gateway assigns `invocationId` at entry, before structural validation and policy evaluation, so every returned result is correlatable. A rejection raised before claim identity resolves returns that ID without fabricating a claim-attributed fact; once the claim resolves, each `Allow`, `Deny`, and `ApprovalRequired` decision appends exactly one claim-scoped invocation fact. This supersedes the earlier "fact on every decision path" wording.
 - Decision (planning review, 2026-08-31): secret rejection on `Parameters` is deterministic — an exact documented reserved-key set matched after one documented normalization rule (lowercase, then remove `-` and `_`). No substring or value heuristics, and the contract does not claim to detect arbitrary secret values; provider credentials still originate only behind adapters.
-- Owner/Reviewer approval: planning approved by the Owner on 2026-08-31 at `b8f5649` (#33 comment); implementation commits remain paused until #32 lands.
+- Approval status: see the **Approval Status** section below, which separates the Owner's planning approval, Tom's authorisation to publish the implementation to the Draft, the outstanding Reviewer acceptance, and the #32 merge condition.
 - Decision: gateway tests draw claim identity, tool capability, resource scope, and model profile from the frozen `issued-state.valid.team-a-engineer` fixture, and the secret-rejection case reuses the key from `claim-request.invalid.secret-value`, via a small `internal/gateway/gatewaytest` loader (contracttest precedent).
 - Decision (automated review, 2026-08-30): denied attempts must be inspectable from the fact store rather than only from the returned Decision. The E5 (#37) boundary is respected: no new fact kinds are introduced, the existing invocation fact gains correlation fields only. The exact persistence rule is the claim-resolution rule recorded above.
 - Codex automated review on the packet (2026-08-30, three findings): P1 evidence persistence adopted; P1 secret-reachability answered by specifying `Parameters` as the single extensible operation-data surface; P2 category enumeration added to the specification with exact-assertion requirement.
@@ -129,8 +151,8 @@ Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `no
 - Residual: invocation facts must reuse the E1-T4 `v1alpha1.DecisionResult` vocabulary (no gateway-local duplicate), but Go still admits any untyped string constant at the fact-store append boundary. The gateway must fail closed on an unsupported policy result before recording; enforcing the set on append belongs to the evidence contract in #37.
 - Decision: the caller-supplied identifier is modeled as untrusted `CallerReference` metadata — the request shape has no invocationId field to smuggle, and tests assert the issued ID never equals the caller value.
 - Decision: the implementation will migrate the e2e multi-agent reference test to the typed `Invoke` contract in the same change (Change-a-Core-Contract playbook: reference implementation and contract tests move together).
-- Blockers: #32 (E3-T3 Running-only binding) blocks implementation; #25 (E1-T4 SandboxClaim v0) was a blocker until it merged via PR #100 on 2026-09-02. Planning may be approved ahead of them, but product code must reuse the final E1-T4 decision/result types and the E3-T3 Running-only binding rather than provisional duplicates, so implementation commits wait for those Tickets to land.
-- Decision (2026-09-13, Tom): the implementation is brought forward onto the existing Draft PR #94 for review, ahead of #32 landing. This publishes code for inspection; it does not change the merge condition, does not supersede the 2026-08-31 planning approval recorded above, and is not an Owner decision to lift the #32 dependency.
+- Blockers: #32 (E3-T3 Running-only binding) is the outstanding dependency; #25 (E1-T4 SandboxClaim v0) was a blocker until it merged via PR #100 on 2026-09-02. The substantive requirement is that product code reuse the final E1-T4 decision/result types and the E3-T3 Running-only binding rather than provisional duplicates. E1-T4 reuse is satisfied (`DecisionResult = v1alpha1.DecisionResult`); the E3-T3 binding is not, so #32 remains the integration and merge condition. The original packet also read this as "implementation commits wait"; that sequencing was changed by Tom's 2026-09-13 authorisation below, which did not change the merge condition.
+- Decision (2026-09-13, Tom): publish the existing implementation to Draft PR #94 for review, ahead of #32 landing. This is Tom's authorisation to make the code reviewable; it is not an Owner decision to lift the #32 dependency, not a Reviewer acceptance, and not a change to the merge condition.
 - Decision (2026-09-13): the gateways read claim state through `runtime.ClaimReader`, the narrow compatibility view main added when #30 reduced `RuntimeBackend` to five backend operations. `Claim()` is deliberately not added back to `RuntimeBackend`. This is a compatibility read of the in-memory reference runtime, not an integration with an authoritative run service and not a trusted worker-context binding.
 - Residual (#32 integration gap): claim eligibility here is still observed from the reference runtime's phase state. #31 owns the authoritative run-service view and #32 binds gateway eligibility to that lifecycle. The final adapter surface depends on the contract those Tickets settle, so the size of the follow-up change is not yet known and is not promised to be a single function.
 - Residual: `Lineage` parent/child scope and the child-out-of-parent-scope denial are carried through unchanged from the prototype as preserved regression behavior. They remain experimental semantics in the current code and are not an extension of the single-governed-claim MVP scope.

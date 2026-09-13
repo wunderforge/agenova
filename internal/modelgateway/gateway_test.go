@@ -4,6 +4,7 @@
 package modelgateway
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -126,6 +127,77 @@ func TestGateway_AllowsRunningClaimWithFixtureProfile(t *testing.T) {
 	}
 	if invocations[0].ModelName != req.Profile {
 		t.Errorf("fact profile = %q, want %q", invocations[0].ModelName, req.Profile)
+	}
+}
+
+// TestGateway_IssuesInvocationIDBeforePolicyEvaluation proves the ordering the
+// contract depends on, not just that an ID exists once Invoke returns. The ID
+// source and the policy write into one shared log, so the policy can observe
+// exactly what had been issued at the moment it ran. Asserting only on the
+// returned decision cannot tell entry-time issuance apart from issuance after
+// policy evaluation.
+func TestGateway_IssuesInvocationIDBeforePolicyEvaluation(t *testing.T) {
+	var issued []string
+	var atPolicy []string
+	policyRuns := 0
+
+	ids := func() string {
+		id := fmt.Sprintf("inv-order-%d", len(issued)+1)
+		issued = append(issued, id)
+		return id
+	}
+	policy := func(Request) gateway.Outcome {
+		policyRuns++
+		atPolicy = append([]string(nil), issued...)
+		return gateway.Allowed()
+	}
+
+	gw, r, _, _, _ := newFixture(t, WithIDSource(ids), WithPolicy(policy))
+	req := teamARequest(t)
+	runClaim(t, r, req.ClaimID)
+
+	decision := mustInvoke(t, gw, req)
+
+	if policyRuns != 1 {
+		t.Fatalf("policy evaluations = %d, want 1", policyRuns)
+	}
+	if len(atPolicy) != 1 {
+		t.Fatalf("ids issued when policy ran = %d, want 1: the trusted id must be issued at gateway entry, before policy evaluation", len(atPolicy))
+	}
+	if atPolicy[0] != decision.InvocationID {
+		t.Errorf("id visible to policy = %q, decision id = %q; policy must see the same correlation identity the caller receives", atPolicy[0], decision.InvocationID)
+	}
+	if len(issued) != 1 {
+		t.Errorf("ids issued for one attempt = %d, want 1", len(issued))
+	}
+}
+
+// TestGateway_AllowCarriesPolicyReason keeps the Allow branch consistent with
+// Deny and ApprovalRequired: the normalized policy outcome is what reaches the
+// caller, so an authorization explanation is not dropped on the way out.
+func TestGateway_AllowCarriesPolicyReason(t *testing.T) {
+	const reason = "permitted by reference policy v1"
+	policy := func(Request) gateway.Outcome {
+		return gateway.Outcome{Result: gateway.ResultAllow, Reason: reason}
+	}
+
+	gw, r, _, _, spy := newFixture(t, WithPolicy(policy))
+	req := teamARequest(t)
+	runClaim(t, r, req.ClaimID)
+
+	decision := mustInvoke(t, gw, req)
+
+	if decision.Result != gateway.ResultAllow {
+		t.Fatalf("Result = %q, want Allow", decision.Result)
+	}
+	if decision.Reason != reason {
+		t.Errorf("Reason = %q, want %q; an Allow must carry the policy's own reason", decision.Reason, reason)
+	}
+	if decision.Category != "" {
+		t.Errorf("Category = %q, want empty for Allow", decision.Category)
+	}
+	if len(spy.calls) != 1 {
+		t.Errorf("adapter calls = %d, want 1", len(spy.calls))
 	}
 }
 
