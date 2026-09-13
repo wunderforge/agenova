@@ -3,7 +3,10 @@
 
 package gateway
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // reservedCredentialKeys is the documented, exact set of `Parameters` keys
 // reserved for credential material. Matching is deterministic: a key is
@@ -42,15 +45,23 @@ func ReservedCredentialKey(key string) bool {
 	return reserved
 }
 
-// FindReservedCredentialKey returns the first reserved credential key in
-// params, if any.
+// FindReservedCredentialKey returns the reserved credential key that a
+// rejection reports. Go map iteration is unordered, so a request carrying more
+// than one reserved key would otherwise name a different key — and produce a
+// different Reason — on identical input. The matching keys are sorted and the
+// first is returned, making the rejection deterministic.
 func FindReservedCredentialKey(params map[string]string) (string, bool) {
+	var matched []string
 	for key := range params {
 		if ReservedCredentialKey(key) {
-			return key, true
+			matched = append(matched, key)
 		}
 	}
-	return "", false
+	if len(matched) == 0 {
+		return "", false
+	}
+	sort.Strings(matched)
+	return matched[0], true
 }
 
 // AmbiguousResourceScope reports whether a resource scope fails to name one

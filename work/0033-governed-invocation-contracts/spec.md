@@ -33,6 +33,28 @@ Focused tests assert these identifiers exactly; downstream consumers must not in
 | `out-of-parent-scope` | child claim whose parent is no longer Running |
 | `invalid-policy-outcome` | policy returned a result outside the three contract values; the gateway fails closed rather than passing an untyped decision on |
 
+## Trust Boundary
+
+`Request.ClaimID` is a caller-asserted string. Resolving it through
+`runtime.ClaimReader.Claim` proves only that a claim by that name exists and
+what phase it is in. It does **not** prove that the caller is that claim's
+worker, so nothing in this Ticket authenticates the requester.
+
+What this means in practice:
+
+- Claim-eligibility checks (unknown claim, not Running, out of parent scope) are
+  correlation and lifecycle gating, not claim-bound enforcement. Any caller able
+  to reach the gateway can name any existing claim.
+- The default `Allowed` policy combined with a configured adapter must not be
+  presented as claim-bound enforcement. It is an open gateway whose decisions
+  happen to be typed and recorded.
+- A live provider adapter must not be used with this request shape until a
+  trusted claim-bound identity is verified at the gateway. The reference and
+  test adapters are the only ones in scope here.
+- An environment variable or header carrying the bare claim ID is correlation,
+  not authentication, and does not close this gap. The authenticated worker
+  binding is tracked separately in #121.
+
 ## Out of Scope
 
 - MCP protocol implementation or a provider SDK abstraction catalog.

@@ -55,6 +55,26 @@ func TestFindReservedCredentialKey(t *testing.T) {
 	}
 }
 
+// Map iteration is unordered, so a request carrying several reserved keys must
+// still name the same key — and therefore report the same Reason — every time.
+func TestFindReservedCredentialKeyIsDeterministic(t *testing.T) {
+	params := map[string]string{
+		"repository":  "acme/payments",
+		"githubToken": "x",
+		"apiKey":      "y",
+		"password":    "z",
+	}
+	for i := 0; i < 64; i++ {
+		key, found := FindReservedCredentialKey(params)
+		if !found {
+			t.Fatal("FindReservedCredentialKey missed a reserved key")
+		}
+		if key != "apiKey" {
+			t.Fatalf("iteration %d reported %q, want apiKey: the reported key must not vary between identical requests", i, key)
+		}
+	}
+}
+
 func TestAmbiguousResourceScope(t *testing.T) {
 	ambiguous := []string{"", "   ", "*", "repo:*", "repo:acme/*"}
 	for _, scope := range ambiguous {
