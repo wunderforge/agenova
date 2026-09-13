@@ -26,23 +26,27 @@ func NewStore() *Store {
 	return &Store{}
 }
 
-func (s *Store) RecordToolInvocation(claimID, toolName string) {
+func (s *Store) RecordToolInvocation(claimID, toolName, invocationID string, result v1alpha1.DecisionResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.toolInvocations = append(s.toolInvocations, v1alpha1.ToolInvocation{
-		ClaimID:   claimID,
-		ToolName:  toolName,
-		Timestamp: time.Now(),
+		ClaimID:      claimID,
+		ToolName:     toolName,
+		InvocationID: invocationID,
+		Result:       result,
+		Timestamp:    time.Now(),
 	})
 }
 
-func (s *Store) RecordModelInvocation(claimID, modelName string) {
+func (s *Store) RecordModelInvocation(claimID, modelName, invocationID string, result v1alpha1.DecisionResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.modelInvocations = append(s.modelInvocations, v1alpha1.ModelInvocation{
-		ClaimID:   claimID,
-		ModelName: modelName,
-		Timestamp: time.Now(),
+		ClaimID:      claimID,
+		ModelName:    modelName,
+		InvocationID: invocationID,
+		Result:       result,
+		Timestamp:    time.Now(),
 	})
 }
 

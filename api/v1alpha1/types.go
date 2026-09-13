@@ -53,17 +53,27 @@ const (
 )
 
 // ToolInvocation records one concrete tool call inside a claim.
+// InvocationID is the gateway-assigned correlation identity shared by the
+// policy decision, the attempted external call, and this fact. Result reuses
+// the issued-state DecisionResult vocabulary so a gateway decision and its
+// recorded fact cannot drift apart.
 type ToolInvocation struct {
-	ClaimID   string
-	ToolName  string
-	Timestamp time.Time
+	ClaimID      string
+	ToolName     string
+	InvocationID string
+	Result       DecisionResult
+	Timestamp    time.Time
 }
 
 // ModelInvocation records one concrete model call inside a claim.
+// InvocationID and Result carry the same correlation semantics as
+// ToolInvocation.
 type ModelInvocation struct {
-	ClaimID   string
-	ModelName string
-	Timestamp time.Time
+	ClaimID      string
+	ModelName    string
+	InvocationID string
+	Result       DecisionResult
+	Timestamp    time.Time
 }
 
 // RuntimeEvent records a lifecycle event for a claim.

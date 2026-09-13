@@ -4,160 +4,190 @@
 package modelgateway
 
 import (
+	"errors"
 	"testing"
 
-	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/gateway"
+	"github.com/wunderforge/agenova/internal/gateway/gatewaytest"
 	"github.com/wunderforge/agenova/internal/governance"
 )
 
-type claimReader struct {
-	claims map[string]v1alpha1.SandboxClaim
+type spyAdapter struct {
+	calls []spyCall
+	err   error
 }
 
-func (r *claimReader) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
-	claim, ok := r.claims[claimID]
-	return claim, ok
+type spyCall struct {
+	id  string
+	req Request
 }
 
-func newFixture() (*Gateway, *claimReader, *facts.Store, *governance.Lineage) {
-	claims := &claimReader{claims: make(map[string]v1alpha1.SandboxClaim)}
+func (s *spyAdapter) Invoke(id string, req Request) error {
+	s.calls = append(s.calls, spyCall{id: id, req: req})
+	return s.err
+}
+
+func fixture(t *testing.T, options ...Option) (*Gateway, *gatewaytest.Claims, *facts.Store, *governance.Lineage, *spyAdapter) {
+	t.Helper()
+	claims := gatewaytest.NewClaims()
 	store := facts.NewStore()
 	lineage := governance.NewLineage()
-	return NewGateway(claims, lineage, store), claims, store, lineage
+	adapter := &spyAdapter{}
+	base := []Option{WithAdapter(adapter), WithIDSource(gateway.SequenceIDSource("inv-test"))}
+	return NewGateway(claims, lineage, store, append(base, options...)...), claims, store, lineage, adapter
 }
 
-func TestGatewayAllowsOnlyAuthoritativeRunningClaim(t *testing.T) {
-	gw, claims, store, _ := newFixture()
-	claims.claims["run-1"] = claimSnapshot("run-1", v1alpha1.ClaimPhaseRunning)
-
-	if err := gw.Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err != nil {
-		t.Fatalf("running claim should be authorized: %v", err)
-	}
-	invocations := store.ModelInvocations("run-1")
-	if len(invocations) != 1 || invocations[0].ModelName != "coding-standard" {
-		t.Fatalf("model facts = %+v, want one coding-standard invocation", invocations)
-	}
+func teamARequest(t *testing.T) Request {
+	t.Helper()
+	authority := gatewaytest.LoadTeamAAuthority(t)
+	return Request{ClaimID: authority.ClaimID, Profile: authority.ModelProfile}
 }
 
-func TestGatewayDeniesEveryNonRunningAuthoritativePhase(t *testing.T) {
-	phases := []v1alpha1.ClaimPhase{
-		v1alpha1.ClaimPhasePending,
-		v1alpha1.ClaimPhaseBound,
-		v1alpha1.ClaimPhaseSucceeded,
-		v1alpha1.ClaimPhaseFailed,
-		v1alpha1.ClaimPhaseExpired,
+func invoke(t *testing.T, gw *Gateway, req Request) gateway.Decision {
+	t.Helper()
+	result, err := gw.Invoke(req)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
 	}
-	for _, phase := range phases {
-		t.Run(string(phase), func(t *testing.T) {
-			gw, claims, store, _ := newFixture()
-			claims.claims["claim-1"] = claimSnapshot("claim-1", phase)
-
-			if err := gw.Authorize(Request{ClaimID: "claim-1", ModelName: "coding-standard"}); err == nil {
-				t.Fatalf("%s claim should be denied", phase)
-			}
-			if got := store.ModelInvocations("claim-1"); len(got) != 0 {
-				t.Fatalf("denied %s claim recorded facts: %+v", phase, got)
-			}
-		})
-	}
+	return result
 }
 
-func TestGatewayDeniesTerminalClaimWhileWorkerIdentityStillExists(t *testing.T) {
-	gw, claims, store, _ := newFixture()
-	claims.claims["terminal"] = claimSnapshot("terminal", v1alpha1.ClaimPhaseFailed)
-
-	if err := gw.Authorize(Request{ClaimID: "terminal", ModelName: "coding-standard"}); err == nil {
-		t.Fatal("terminal claim with a worker identity should be denied")
+func TestGatewayAllowCorrelatesDecisionAttemptAndFact(t *testing.T) {
+	gw, claims, store, _, adapter := fixture(t)
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	decision := invoke(t, gw, req)
+	if decision.Result != gateway.ResultAllow || decision.InvocationID != "inv-test-1" {
+		t.Fatalf("decision = %+v", decision)
 	}
-	if got := store.ModelInvocations("terminal"); len(got) != 0 {
-		t.Fatalf("denied terminal claim recorded facts: %+v", got)
+	if len(adapter.calls) != 1 || adapter.calls[0].id != decision.InvocationID {
+		t.Fatalf("adapter calls = %+v", adapter.calls)
+	}
+	found := store.ModelInvocations(req.ClaimID)
+	if len(found) != 1 || found[0].ModelName != req.Profile || found[0].InvocationID != decision.InvocationID || found[0].Result != gateway.ResultAllow {
+		t.Fatalf("facts = %+v", found)
 	}
 }
 
-func TestGatewayFailsClosedForMissingAndMalformedSnapshots(t *testing.T) {
+func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing.T) {
+	base := teamARequest(t)
 	tests := []struct {
-		name  string
-		claim v1alpha1.SandboxClaim
-		add   bool
+		name     string
+		mutate   func(*Request)
+		category string
 	}{
-		{name: "missing"},
-		{name: "mismatched id", add: true, claim: claimSnapshot("other", v1alpha1.ClaimPhaseRunning)},
-		{name: "blank authority ref", add: true, claim: func() v1alpha1.SandboxClaim {
-			claim := claimSnapshot("claim-1", v1alpha1.ClaimPhaseRunning)
-			claim.AuthorityRef = ""
-			return claim
-		}()},
-		{name: "running with incomplete identity", add: true, claim: func() v1alpha1.SandboxClaim {
-			claim := claimSnapshot("claim-1", v1alpha1.ClaimPhaseRunning)
-			claim.BackendIdentity.WorkerID = ""
-			return claim
-		}()},
-		{name: "unknown phase", add: true, claim: claimSnapshot("claim-1", v1alpha1.ClaimPhase("Unknown"))},
+		{"missing claim", func(r *Request) { r.ClaimID = " " }, gateway.CategoryMissingClaimIdentity},
+		{"missing profile", func(r *Request) { r.Profile = "\t" }, gateway.CategoryIncompleteOperation},
+		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			gw, claims, store, _ := newFixture()
-			if test.add {
-				claims.claims["claim-1"] = test.claim
+			gw, claims, store, _, adapter := fixture(t)
+			claims.Put(base.ClaimID, v1alpha1.ClaimPhaseRunning)
+			req := base
+			test.mutate(&req)
+			decision := invoke(t, gw, req)
+			if decision.Result != gateway.ResultDeny || decision.Category != test.category || decision.InvocationID == "" {
+				t.Fatalf("decision = %+v", decision)
 			}
-			if err := gw.Authorize(Request{ClaimID: "claim-1", ModelName: "coding-standard"}); err == nil {
-				t.Fatal("missing or malformed snapshot should be denied")
-			}
-			if got := store.ModelInvocations("claim-1"); len(got) != 0 {
-				t.Fatalf("denied request recorded facts: %+v", got)
+			if len(adapter.calls) != 0 || len(store.ModelInvocations(req.ClaimID)) != 0 {
+				t.Fatal("pre-resolution rejection reached adapter or fabricated a fact")
 			}
 		})
 	}
 }
 
-func TestGatewayPreservesExperimentalParentRunningRule(t *testing.T) {
-	gw, claims, store, lineage := newFixture()
-	claims.claims["parent"] = claimSnapshot("parent", v1alpha1.ClaimPhaseRunning)
-	claims.claims["child"] = claimSnapshot("child", v1alpha1.ClaimPhaseRunning)
-	if err := lineage.RegisterChild("parent", "child"); err != nil {
-		t.Fatalf("RegisterChild: %v", err)
+func TestGatewayUnknownAndInactiveClaimsFailClosed(t *testing.T) {
+	req := teamARequest(t)
+	gw, claims, store, _, adapter := fixture(t)
+	unknown := invoke(t, gw, req)
+	if unknown.Result != gateway.ResultDeny || unknown.Category != gateway.CategoryUnknownClaim || len(store.ModelInvocations(req.ClaimID)) != 0 {
+		t.Fatalf("unknown decision=%+v facts=%+v", unknown, store.ModelInvocations(req.ClaimID))
 	}
-
-	if err := gw.Authorize(Request{ClaimID: "child", ModelName: "coding-standard"}); err != nil {
-		t.Fatalf("running child with running parent should be allowed: %v", err)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseSucceeded)
+	inactive := invoke(t, gw, req)
+	if inactive.Result != gateway.ResultDeny || inactive.Category != gateway.CategoryClaimNotActive || len(store.ModelInvocations(req.ClaimID)) != 1 || len(adapter.calls) != 0 {
+		t.Fatalf("inactive decision=%+v facts=%+v calls=%d", inactive, store.ModelInvocations(req.ClaimID), len(adapter.calls))
 	}
-	claims.claims["parent"] = claimSnapshot("parent", v1alpha1.ClaimPhaseExpired)
-	if err := gw.Authorize(Request{ClaimID: "child", ModelName: "coding-standard"}); err == nil {
-		t.Fatal("running child with terminal parent should be denied")
-	}
-	if got := store.ModelInvocations("child"); len(got) != 1 {
-		t.Fatalf("child facts = %d, want only the allowed invocation", len(got))
-	}
-}
-
-func TestGatewayValidatesRequestAndDependencies(t *testing.T) {
-	gw, claims, _, _ := newFixture()
-	claims.claims["run-1"] = claimSnapshot("run-1", v1alpha1.ClaimPhaseRunning)
-	if err := gw.Authorize(Request{ModelName: "coding-standard"}); err == nil {
-		t.Fatal("blank claim id should be rejected")
-	}
-	if err := gw.Authorize(Request{ClaimID: "run-1"}); err == nil {
-		t.Fatal("blank model name should be rejected")
-	}
-	if err := NewGateway(nil, nil, facts.NewStore()).Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err == nil {
-		t.Fatal("missing authoritative reader should deny")
-	}
-	if err := NewGateway(claims, nil, nil).Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err == nil {
-		t.Fatal("missing fact store should deny")
+	malformed := gatewaytest.ClaimSnapshot(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	malformed.BackendIdentity = nil
+	claims.Items[req.ClaimID] = malformed
+	if got := invoke(t, gw, req); got.Result != gateway.ResultDeny || got.Category != gateway.CategoryClaimNotActive {
+		t.Fatalf("malformed Running snapshot was not denied: %+v", got)
 	}
 }
 
-func claimSnapshot(id string, phase v1alpha1.ClaimPhase) v1alpha1.SandboxClaim {
-	return v1alpha1.SandboxClaim{
-		ID:           id,
-		RequestRef:   "request:" + id,
-		TemplateRef:  "engineer",
-		AuthorityRef: "authority:" + id,
-		Phase:        phase,
-		BackendIdentity: &v1alpha1.SandboxClaimBackendIdentity{
-			Backend:  "reference",
-			WorkerID: "worker:" + id,
-		},
+func TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter(t *testing.T) {
+	req := teamARequest(t)
+	tests := []struct {
+		name     string
+		outcome  gateway.Outcome
+		result   gateway.DecisionResult
+		category string
+	}{
+		{"deny", gateway.Outcome{Result: gateway.ResultDeny, Category: "policy-denied"}, gateway.ResultDeny, "policy-denied"},
+		{"approval", gateway.Outcome{Result: gateway.ResultApprovalRequired, Category: "approval"}, gateway.ResultApprovalRequired, "approval"},
+		{"invalid", gateway.Outcome{Result: gateway.DecisionResult("Maybe")}, gateway.ResultDeny, gateway.CategoryInvalidPolicyOutcome},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gw, claims, store, _, adapter := fixture(t, WithPolicy(func(Request) gateway.Outcome { return test.outcome }))
+			claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+			decision := invoke(t, gw, req)
+			found := store.ModelInvocations(req.ClaimID)
+			if decision.Result != test.result || decision.Category != test.category || len(adapter.calls) != 0 || len(found) != 1 || found[0].Result != test.result || found[0].InvocationID != decision.InvocationID {
+				t.Fatalf("decision=%+v facts=%+v calls=%d", decision, found, len(adapter.calls))
+			}
+		})
+	}
+}
+
+func TestGatewayDoesNotAdoptCallerIdentifier(t *testing.T) {
+	gw, claims, _, _, _ := fixture(t)
+	req := teamARequest(t)
+	req.CallerReference = "caller-chosen"
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	decision := invoke(t, gw, req)
+	if decision.InvocationID != "inv-test-1" || decision.InvocationID == req.CallerReference {
+		t.Fatalf("decision id=%q caller=%q", decision.InvocationID, req.CallerReference)
+	}
+}
+
+func TestGatewayAdapterFailureAndUnconfiguredAdapterRemainExecutionErrors(t *testing.T) {
+	req := teamARequest(t)
+	gw, claims, store, _, adapter := fixture(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	adapter.err = errors.New("provider unavailable")
+	decision, err := gw.Invoke(req)
+	if err == nil || decision.Result != gateway.ResultAllow || len(adapter.calls) != 1 || len(store.ModelInvocations(req.ClaimID)) != 1 {
+		t.Fatalf("decision=%+v err=%v", decision, err)
+	}
+
+	withoutAdapter := NewGateway(claims, nil, nil, WithAdapter(nil), WithIDSource(nil), WithPolicy(nil))
+	decision, err = withoutAdapter.Invoke(req)
+	if err == nil || decision.Result != gateway.ResultAllow || decision.InvocationID == "" {
+		t.Fatalf("unconfigured decision=%+v err=%v", decision, err)
+	}
+}
+
+func TestGatewayPreservesExperimentalParentScope(t *testing.T) {
+	gw, claims, store, lineage, adapter := fixture(t)
+	req := teamARequest(t)
+	claims.Put("parent", v1alpha1.ClaimPhaseRunning)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	if err := lineage.RegisterChild("parent", req.ClaimID); err != nil {
+		t.Fatal(err)
+	}
+	if got := invoke(t, gw, req); got.Result != gateway.ResultAllow {
+		t.Fatalf("running parent/child should allow: %+v", got)
+	}
+	claims.Put("parent", v1alpha1.ClaimPhaseFailed)
+	if got := invoke(t, gw, req); got.Result != gateway.ResultDeny || got.Category != gateway.CategoryOutOfParentScope {
+		t.Fatalf("terminal parent should deny: %+v", got)
+	}
+	if len(adapter.calls) != 1 || len(store.ModelInvocations(req.ClaimID)) != 2 {
+		t.Fatal("expected one attempted Allow and one recorded Deny")
 	}
 }
