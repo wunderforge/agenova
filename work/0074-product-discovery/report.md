@@ -4,6 +4,11 @@
 **Decision status:** evidence-backed recommendation, not a PRD change
 **Ticket:** [#74](https://github.com/wunderforge/agenova/issues/74)
 
+**Scope note (2026-09-13):** This report preserves the August research baseline. The
+later [single-claim MVP decision](https://github.com/wunderforge/agenova/issues/109)
+supersedes any suggestion below that parent/child or multi-agent behavior is a
+committed MVP deliverable. Current scope is governed by the PRD, not this report.
+
 ## Executive Answer
 
 The underlying problem is real: teams struggle to preserve who authorized an agent action, what authority was actually available, how that authority narrows across delegation, what happened at runtime, and how to reconstruct the result across tools and systems. Public evidence from the MCP Enterprise Interest Group, AutoGen, kagent, Kubernetes Agent Sandbox, Daytona, Claude Code, OpenTelemetry, NIST, IETF, and OpenID communities consistently exposes parts of this gap.
@@ -132,7 +137,8 @@ Therefore nested execution should be documented as a supported adapter topology,
 - Trusted upstream principal; requested access is never authority.
 - Deterministic resolution of effective authority before backend allocation.
 - Backend-neutral runtime interface and visible capability gaps.
-- Claim-level lifecycle, parent/child narrowing, append-only facts, and a shared evidence view.
+- Claim-level lifecycle, append-only facts, and a shared evidence view.
+- Keep parent/child narrowing as a future architecture option, outside the committed MVP.
 - A small executable reference implementation and real-backend proof.
 
 ### Clarify
