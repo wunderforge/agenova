@@ -22,6 +22,7 @@ func TestIssueCanonicalTeamAPendingClaim(t *testing.T) {
 	request, template, fixture, bundle := teamAFixtures(t)
 	admission, decision := admit(t, request, fixture.Principal, bundle)
 	resolved := resolve(t, request, template, admission)
+	grant := authorityFor(t, resolved, request)
 	state, err := Issue(request, fixture.Principal, decision, resolved, admission)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
@@ -45,12 +46,12 @@ func TestIssueCanonicalTeamAPendingClaim(t *testing.T) {
 		!reflect.DeepEqual(state.Evidence.DecisionIDs, []string{decision.ID}) {
 		t.Fatalf("issued identities do not correlate: %+v", state)
 	}
-	if state.EffectiveAuthority.Runtime != resolved.Runtime ||
-		!reflect.DeepEqual(state.EffectiveAuthority.Tools, resolved.Tools) ||
-		!reflect.DeepEqual(state.EffectiveAuthority.ResourceScopes, resolved.ResourceScopes) ||
-		!reflect.DeepEqual(state.EffectiveAuthority.MemoryScopes, resolved.MemoryScopes) ||
-		state.EffectiveAuthority.ModelProfile != resolved.ModelProfile || resolved.ID != "" {
-		t.Fatalf("resolved authority changed during issuance: got=%+v source=%+v", state.EffectiveAuthority, resolved)
+	if state.EffectiveAuthority.Runtime != grant.Runtime ||
+		!reflect.DeepEqual(state.EffectiveAuthority.Tools, grant.Tools) ||
+		!reflect.DeepEqual(state.EffectiveAuthority.ResourceScopes, grant.ResourceScopes) ||
+		!reflect.DeepEqual(state.EffectiveAuthority.MemoryScopes, grant.MemoryScopes) ||
+		state.EffectiveAuthority.ModelProfile != grant.ModelProfile || grant.ID != "" {
+		t.Fatalf("resolved authority changed during issuance: got=%+v source=%+v", state.EffectiveAuthority, grant)
 	}
 	if state.Evidence.RuntimeEvents == nil || state.Evidence.ToolInvocations == nil || state.Evidence.ModelInvocations == nil ||
 		len(state.Evidence.RuntimeEvents) != 0 || len(state.Evidence.ToolInvocations) != 0 || len(state.Evidence.ModelInvocations) != 0 {
@@ -146,51 +147,51 @@ func TestIssueIsDeterministicAndIncludesFullTask(t *testing.T) {
 	changedTask := cloneRequest(t, request)
 	changedTask.Spec.Task.Input["objective"] = "Fix a different timeout"
 	changed, err := Issue(changedTask, fixture.Principal, decision, resolved, admission)
+	assertRejected(t, changed, err, "resolution")
+	changedResolution := resolve(t, changedTask, template, admission)
+	changed, err = Issue(changedTask, fixture.Principal, decision, changedResolution, admission)
 	if err != nil || changed.Claim.ID == first.Claim.ID {
 		t.Fatalf("same-reference/different-task did not change identity: %+v/%v", changed, err)
 	}
 	changedTask.Spec.Task.Input["objective"] = request.Spec.Task.Input["objective"]
 	changedTask.Spec.Task.Input["baseBranch"] = "release"
 	changed, err = Issue(changedTask, fixture.Principal, decision, resolved, admission)
+	assertRejected(t, changed, err, "resolution")
+	changedResolution = resolve(t, changedTask, template, admission)
+	changed, err = Issue(changedTask, fixture.Principal, decision, changedResolution, admission)
 	if err != nil || changed.Claim.ID == first.Claim.ID {
 		t.Fatalf("same-reference/different-base-branch did not change identity: %+v/%v", changed, err)
 	}
-	otherAuthority := *resolved
-	otherAuthority.Tools = cloneStrings(resolved.Tools[1:])
-	changed, err = Issue(request, fixture.Principal, decision, &otherAuthority, admission)
+	changedAccess := cloneRequest(t, request)
+	changedAccess.Spec.RequestedAccess.Tools = changedAccess.Spec.RequestedAccess.Tools[1:]
+	changed, err = Issue(changedAccess, fixture.Principal, decision, resolved, admission)
+	assertRejected(t, changed, err, "resolution")
+	changedResolution = resolve(t, changedAccess, template, admission)
+	changed, err = Issue(changedAccess, fixture.Principal, decision, changedResolution, admission)
 	if err != nil || changed.Claim.ID == first.Claim.ID {
-		t.Fatalf("changed authority did not change identity: %+v/%v", changed, err)
+		t.Fatalf("changed requested access did not change identity: %+v/%v", changed, err)
 	}
 }
 
-func TestIssueRejectsInvalidAuthorityWithoutPartialState(t *testing.T) {
+func TestIssueRejectsMissingOrMismatchedResolutionWithoutPartialState(t *testing.T) {
 	request, template, fixture, bundle := teamAFixtures(t)
 	admission, decision := admit(t, request, fixture.Principal, bundle)
 	resolved := resolve(t, request, template, admission)
-	for name, test := range map[string]struct {
-		path   string
-		mutate func(*v1alpha1.EffectiveAuthority)
-	}{
-		"preissued ID":    {"effectiveAuthority.id", func(a *v1alpha1.EffectiveAuthority) { a.ID = "caller-id" }},
-		"runtime profile": {"effectiveAuthority.runtime.profileRef", func(a *v1alpha1.EffectiveAuthority) { a.Runtime.ProfileRef = "" }},
-		"runtime timeout": {"effectiveAuthority.runtime.timeout", func(a *v1alpha1.EffectiveAuthority) { a.Runtime.Timeout = 0 }},
-		"blank tool":      {"effectiveAuthority.tools[0]", func(a *v1alpha1.EffectiveAuthority) { a.Tools = []string{" "} }},
-	} {
-		t.Run(name, func(t *testing.T) {
-			changed := *resolved
-			test.mutate(&changed)
-			state, err := Issue(request, fixture.Principal, decision, &changed, admission)
-			assertRejected(t, state, err, test.path)
-		})
-	}
 	state, err := Issue(request, fixture.Principal, decision, nil, admission)
-	assertRejected(t, state, err, "effectiveAuthority")
+	assertRejected(t, state, err, "resolution")
+	state, err = Issue(request, fixture.Principal, decision, &authority.Resolution{}, admission)
+	assertRejected(t, state, err, "resolution")
+	changed := cloneRequest(t, request)
+	changed.Spec.Task.Input["objective"] = "other task"
+	state, err = Issue(changed, fixture.Principal, decision, resolved, admission)
+	assertRejected(t, state, err, "resolution")
 }
 
 func TestIssueSnapshotDoesNotAliasInputs(t *testing.T) {
 	request, template, fixture, bundle := teamAFixtures(t)
 	admission, decision := admit(t, request, fixture.Principal, bundle)
 	resolved := resolve(t, request, template, admission)
+	grant := authorityFor(t, resolved, request)
 	state, err := Issue(request, fixture.Principal, decision, resolved, admission)
 	if err != nil {
 		t.Fatal(err)
@@ -201,9 +202,9 @@ func TestIssueSnapshotDoesNotAliasInputs(t *testing.T) {
 	request.Spec.RequestedAccess.Tools[0] = "mutated-request-tool"
 	template.Spec.CapabilityCeiling.Tools[0] = "mutated-template-tool"
 	bundle.Rules[0].Team = "mutated-policy"
-	resolved.Tools[0] = "mutated-resolved-tool"
-	resolved.ResourceScopes[0] = "mutated-resolved-resource"
-	resolved.MemoryScopes[0] = "mutated-resolved-memory"
+	grant.Tools[0] = "mutated-resolved-tool"
+	grant.ResourceScopes[0] = "mutated-resolved-resource"
+	grant.MemoryScopes[0] = "mutated-resolved-memory"
 	if !bytes.Equal(before, encode(t, state)) {
 		t.Fatal("source mutation changed issued snapshot")
 	}
@@ -278,13 +279,22 @@ func admit(t *testing.T, request *v1alpha1.ClaimRequest, principal v1alpha1.Prin
 	return admission, decision
 }
 
-func resolve(t *testing.T, request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, admission authorization.Admission) *v1alpha1.EffectiveAuthority {
+func resolve(t *testing.T, request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, admission authorization.Admission) *authority.Resolution {
 	t.Helper()
-	resolved, err := authority.Resolve(request, template, admission)
+	resolved, err := authority.ResolveForIssuance(request, template, admission)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return resolved
+}
+
+func authorityFor(t *testing.T, resolved *authority.Resolution, request *v1alpha1.ClaimRequest) *v1alpha1.EffectiveAuthority {
+	t.Helper()
+	grant, ok := resolved.AuthorityFor(request)
+	if !ok {
+		t.Fatal("resolution did not match request")
+	}
+	return grant
 }
 
 func cloneRequest(t *testing.T, request *v1alpha1.ClaimRequest) *v1alpha1.ClaimRequest {
@@ -312,11 +322,13 @@ func assertRejected(t *testing.T, state *v1alpha1.IssuedState, err *v1alpha1.Val
 	}
 }
 
-func TestIssueRejectsNonPositiveTimeout(t *testing.T) {
+func TestResolveForIssuanceRejectsNonPositiveTimeout(t *testing.T) {
 	request, template, fixture, bundle := teamAFixtures(t)
-	admission, decision := admit(t, request, fixture.Principal, bundle)
-	resolved := resolve(t, request, template, admission)
-	resolved.Runtime.Timeout = v1alpha1.Duration(-time.Second)
-	state, err := Issue(request, fixture.Principal, decision, resolved, admission)
-	assertRejected(t, state, err, "effectiveAuthority.runtime.timeout")
+	admission, _ := admit(t, request, fixture.Principal, bundle)
+	negativeTimeout := v1alpha1.Duration(-time.Second)
+	request.Spec.Runtime.Timeout = &negativeTimeout
+	resolved, err := authority.ResolveForIssuance(request, template, admission)
+	if resolved != nil || err == nil || err.FieldPath != "spec.runtime.timeout" {
+		t.Fatalf("negative timeout resolution = %+v/%+v", resolved, err)
+	}
 }

@@ -2,7 +2,7 @@
 
 - Ticket: [#29](https://github.com/wunderforge/agenova/issues/29)
 - Mission: Turn one admitted request and its resolved EffectiveAuthority into exactly one system-issued `Pending` claim snapshot that a caller can neither supply nor later alter.
-- Target: a new `internal/issuance/` package, a narrow exact-context matcher on #27's `Admission`, the shared `SandboxClaim`/`IssuedState` types from #25, focused tests, and this task packet.
+- Target: a new `internal/issuance/` package, a narrow exact-context matcher on #27's `Admission`, a request-bound #28 resolution token, the shared `SandboxClaim`/`IssuedState` types from #25, focused tests, and this task packet.
 - User value: an authorized assignment becomes one inspectable, system-issued record of who was granted what, while a denied request leaves no claim behind.
 - PRD outcome: [Claim lifecycle](../../docs/product/prd.md#2-claim-lifecycle) and [Claim-scoped authority](../../docs/product/prd.md#4-claim-scoped-authority)
 
@@ -31,7 +31,7 @@ Additional task-specific context:
 
 In scope:
 
-- Add a pure issuance step that consumes the #27 Gate-issued admission, the validated full ClaimRequest, the trusted Principal, the emitted Decision, and the #28-resolved EffectiveAuthority. It checks the Principal and Decision against that admission's exact context; it never treats a separately supplied value as proof.
+- Add a pure issuance step that consumes the #27 Gate-issued admission, the validated full ClaimRequest, the trusted Principal, the emitted Decision, and an internal #28 resolution bound to that full request. It checks the Principal and Decision against the admission and refuses a mismatched resolution; a separately supplied public value is not proof.
 - Generate the system-managed claim identity and the system-managed authority identity that #28 deliberately left unset.
 - Emit one `Pending` claim with no `backendIdentity`, correlated `requestRef`, `templateRef`, and `authorityRef`.
 - Assemble the complete Allow-form `IssuedState` (principal, action, policy reference, authority, claim, decision, evidence) and validate it before returning.
@@ -58,7 +58,7 @@ Out of scope:
 - The issued authority equals the #28 resolution plus the assigned identity; issuance never recomputes, reorders, or enlarges any authority dimension.
 - Issuing twice from identical admitted inputs yields byte-identical snapshots. A changed validated ClaimRequest (including a changed task under the same request reference), Principal, Decision, or resolved authority yields a different claim identity or fails exact-context validation.
 - A `Deny` or `ApprovalRequired` decision, a missing authority, or a failed invariant produces an explicit error and no claim, no authority identity, and no partially populated issued state.
-- Mutating the source request, template, policy, or resolved authority after issuance cannot change the issued snapshot.
+- Mutating the source request, template, policy, or a copy of the resolved authority after issuance cannot change the issued snapshot.
 - The issuance step stays pure and backend-neutral: no backend vocabulary, no clock or random source in the identity path, and no I/O.
 
 ## Negative Case
@@ -108,10 +108,12 @@ Out of scope:
 - Owner decision: issue `Pending` without `backendIdentity`; all three invocation/runtime evidence lists start empty and non-nil. #30/#31 own later lifecycle events.
 - Review hardening required before implementation: add a read-only full-context matcher to #27's `Admission` and require exact equality of the separately supplied trusted Principal and Decision; do not reevaluate policy or #28 authority. Include the full validated ClaimRequest, including task content, in identity derivation.
 - Owner delivery decision: implement #29 in the same PR as this packet and require review of the complete code, tests, and evidence before merge. A separate planning-only merge is not needed.
+- Owner-approved review correction: the resolver now returns a private request-bound token for issuance, so a public or swapped EffectiveAuthority cannot be used. The Agent Sandbox adapter also maps Agenova claim IDs (including colons) to stable DNS-label resource names; this is an integration compatibility fix, not backend allocation in #29.
 - Resolved dependencies: #27 and #28 both merged to `main`; #28's Ticket is still open only because PR #97 merged through the stacked branch rather than directly.
 
 ## Implementation Evidence
 
-- `go test -count=1 -v ./internal/issuance/...` — pass, including canonical Team A issuance, Team B no-claim denial, exact-context negatives, determinism, same-reference/different-task identity, invalid authority, and source immutability.
+- `go test -count=1 -v ./internal/issuance/...` — pass, including canonical Team A issuance, Team B no-claim denial, exact-context and request-bound resolution negatives, determinism, and source immutability.
+- `go test ./internal/runtime/agentsandbox/...` — pass, including DNS-label mapping for issued claim IDs.
 - `go test ./...` with `GOFLAGS=-buildvcs=false` for this sandbox-owned worktree — pass.
 - `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` — Go and documentation gates pass locally; frontend gate requires UI dependencies/Chromium not installed in this worktree. CI will verify the complete Linux profile.

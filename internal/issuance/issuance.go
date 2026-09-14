@@ -13,18 +13,19 @@ import (
 	"time"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 	"github.com/wunderforge/agenova/internal/authorization"
 )
 
 // Issue produces a fresh issued snapshot. The caller must pass the trusted
-// principal and the authority previously resolved by #28; this pure step
+// principal and the request-bound resolution produced by #28; this pure step
 // neither authorizes the assignment nor recomputes its authority ceiling.
-// A public Decision alone cannot serve as an admission token.
+// Public Decision or EffectiveAuthority values cannot serve as proof.
 func Issue(
 	request *v1alpha1.ClaimRequest,
 	principal v1alpha1.Principal,
 	decision v1alpha1.Decision,
-	resolved *v1alpha1.EffectiveAuthority,
+	resolution *authority.Resolution,
 	admission authorization.Admission,
 ) (*v1alpha1.IssuedState, *v1alpha1.ValidationError) {
 	if err := v1alpha1.ValidateClaimRequest(request); err != nil {
@@ -43,8 +44,9 @@ func Issue(
 	if !admission.MatchesContext(context, decision) {
 		return nil, invalid("admission", "must be Gate-issued for this request, trusted principal, and decision")
 	}
-	if resolved == nil {
-		return nil, required("effectiveAuthority")
+	resolved, matched := resolution.AuthorityFor(request)
+	if !matched {
+		return nil, invalid("resolution", "must be produced by authority resolution for this full ClaimRequest")
 	}
 	if resolved.ID != "" {
 		return nil, invalid("effectiveAuthority.id", "identity must be assigned by issuance")

@@ -13,7 +13,7 @@ Issuance is the boundary where system-managed identity appears. Everything befor
 
 - The internal request-bound admission token issued by #27's exact-`Allow` Gate, with a narrow read-only exact-context matcher.
 - The validated full ClaimRequest, the trusted Principal supplied out-of-band, and the evidence-ready Decision, both checked against that admission.
-- The EffectiveAuthority resolved by #28, which deliberately carries no identity yet.
+- An internal #28 resolution bound to the complete ClaimRequest, carrying an EffectiveAuthority with no identity yet. The public EffectiveAuthority is data, not issuance proof.
 - System-managed `claim.id` and `effectiveAuthority.id` generation.
 - One immutable Allow-form `IssuedState` using the public shapes owned by #25.
 - Deterministic repeat behavior and explicit refusal behavior.
@@ -31,12 +31,12 @@ Issuance is the boundary where system-managed identity appears. Everything befor
         +
 validated ClaimRequest + matching Principal + matching Decision(Allow)
         +
-#28 EffectiveAuthority (no identity yet)
+#28 request-bound Resolution containing EffectiveAuthority (no identity yet)
         ↓
 IssuedState{ effectiveAuthority(+id), claim(Pending), evidence } or IssuanceFailure
 ```
 
-Issuance returns a new value and never mutates its inputs. Before constructing any issued state, it validates the ClaimRequest, reconstructs the authorization `Request` from its request/project/template references and the separately supplied trusted Principal, then requires exact equality with the Gate admission's bound authorization `Request` and Decision. A read-only `Admission.MatchesContext(Request, Decision)` (or equivalently narrow name) provides that check without exposing mutable admission state or reevaluating policy. `Deny` and `ApprovalRequired` leave the existing denial path unchanged and produce no claim.
+Issuance returns a new value and never mutates its inputs. Before constructing any issued state, it validates the ClaimRequest, reconstructs the authorization `Request` from its request/project/template references and the separately supplied trusted Principal, then requires exact equality with the Gate admission's bound authorization `Request` and Decision. A read-only `Admission.MatchesContext(Request, Decision)` provides that check without exposing mutable admission state or reevaluating policy. The internal resolution additionally checks the canonical full request, including task and requested access. `Deny` and `ApprovalRequired` leave the existing denial path unchanged and produce no claim.
 
 ## Field Rules
 
@@ -73,7 +73,7 @@ Consequences the consumers rely on:
 - Given a successful issuance, when `claim.id`, `claim.authorityRef`, and `evidence.claimId` are compared, then all three correlate and none originated from caller input.
 - Given the same admitted inputs twice, when issuance runs twice, then both snapshots are byte-identical.
 - Given two otherwise identical validated requests with the same reference but different task objectives or base branches, when each is admitted and issued, then their claim identities differ. Given an admitted context or resolved authority value that differs, identity changes or issuance rejects the mismatch.
-- Given a resolved authority that is missing, empty of required runtime profile, or carrying a non-positive timeout, when issuance runs, then it fails closed and produces no claim.
+- Given a missing, zero, or other-request resolution, issuance fails closed with no claim. Invalid authority inputs are rejected by #28 before a resolution token exists; issuance still validates the internal snapshot before issuing.
 - Given a successful result, when any source request, template, policy, or authority object is later mutated, then the issued snapshot remains unchanged.
 - Given an issued snapshot serialized and reparsed through `ParseSystemIssuedState`, when it is revalidated, then it round-trips unchanged; the same document rejected through `ParseCallerIssuedState` proves the fields stayed system-managed.
 
@@ -81,7 +81,7 @@ Consequences the consumers rely on:
 
 - Admission is absent, replayed from a public `Decision`, or bound to a different request, project, template, principal subject, team, authentication context, or decision ID/content.
 - Decision result is `Deny` or `ApprovalRequired`.
-- Resolved authority is absent or internally invalid.
+- Request-bound resolution is absent, zero, or belongs to a different full request.
 - A caller-shaped payload carries `claim.id`, `claim.phase`, `claim.backendIdentity`, or `effectiveAuthority`.
 - A required correlation between request, authority, claim, decision, and evidence cannot be satisfied.
 
@@ -93,7 +93,7 @@ Consequences the consumers rely on:
 - #34 and #35 bind governed Tool and Model calls to the issued claim identity and must not reinterpret the authority snapshot.
 - #41 and #60 display requested versus effective values and the claim identity through the shared evidence contract.
 - `ValidateIssuedState`, `ParseSystemIssuedState`, and `ParseCallerIssuedState` remain unchanged; this Ticket satisfies those invariants rather than relaxing them. #27's existing `Admission.Matches` remains available to #28; #29 only adds the narrow exact-context matcher.
-- RuntimeBackend and provider adapters remain unchanged.
+- The claim remains backend-neutral. The Agent Sandbox adapter maps its public claim ID to a separate DNS-label Kubernetes resource name, preserving the issued ID in Agenova facts.
 
 ## Decisions and Planning Gate
 
@@ -102,3 +102,4 @@ Consequences the consumers rely on:
 3. **Owner-approved direction — Return shape:** return the complete validated Allow-form `IssuedState`, not a bare claim.
 4. **Owner-approved direction — Determinism:** identical admitted inputs reproduce an identical snapshot without a store or counter; the full validated request participates in identity derivation.
 5. **Reviewer findings addressed:** require exact admission-context binding for separately supplied Principal and Decision, and distinguish same-reference/different-task requests. The Owner directed implementation and planning review together on the complete PR; merge still requires code and evidence review.
+6. **Owner-approved Codex review corrections:** require a private request-bound #28 resolution token, and map colon-bearing issued claim IDs to deterministic Kubernetes-safe resource names in the Agent Sandbox adapter.
