@@ -1,6 +1,6 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-09-10
+Updated: 2026-09-14
 
 This file is the evidence-backed snapshot of what the merged repository currently proves. Product vision is not implementation status, and this file does not track ticket owners, readiness, sequence, or work-in-progress; those remain in GitHub Issues and the Delivery Project.
 
@@ -11,7 +11,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 | Target path | Current state | Evidence / limitation |
 | --- | --- | --- |
 | Reusable agent role | Implemented in v0 contract | The backend-neutral `AgentTemplate` schema and validation are merged; runtime registration remains future work. |
-| Submit a declarative task request | Partial | The `ClaimRequest` YAML/API contract and validation are merged; CLI submission is not implemented. |
+| Submit a declarative task request | Partial | The `ClaimRequest` YAML/API contract is merged and `agenova run -f` admits one file through the trusted local principal and reference policy. Issuance and backend allocation remain open. |
 | Authorize the requesting principal | Implemented in reference contracts | Trusted-local `Principal`, versioned `PolicyBundle`, and deterministic action authorization are merged; external identity-provider integration is not implemented. |
 | Resolve requested access | Implemented in reference contracts | Template, request, and policy limits resolve to an effective-authority snapshot with deterministic tests; the request-to-claim run service and gateway wiring remain open. |
 | Create one claim per run | Implemented in v0 contract and reference | The system-managed `SandboxClaim`/issued-state contract, `internal/operator`, and lifecycle tests are merged; request-to-claim issuance remains open. |
@@ -36,7 +36,8 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - In-memory `RuntimeEvent`, `ToolInvocation`, and `ModelInvocation` storage and claim queries.
 - In-memory multi-agent reference scenario, retained as experimental behavior outside the committed MVP.
 - Static check preventing known Agent Sandbox types from leaking outside its adapter package.
-- Backend-neutral `agenova` composition root: `--help` and `version` work; invalid command/configuration (including a missing `--backend` value) exits non-zero; the process hosts the in-memory reference backend and accepts test doubles. Command behavior and shared contracts stay provider-neutral; the composition edge may import a concrete adapter constructor.
+- Backend-neutral `agenova` composition root: `--help`, `version`, and `run -f` work; invalid command/configuration (including a missing `--backend` value) exits non-zero; the process hosts the in-memory reference backend and accepts test doubles. Command behavior and shared contracts stay provider-neutral; the composition edge may import a concrete adapter constructor.
+- `agenova run -f` submits the canonical payment-timeout ClaimRequest through application resolution. Team A is Allowed and Team B is Denied; malformed YAML, secret values, and self-asserted principal fail before allocation. Authority flags are rejected. The command does not issue a SandboxClaim or call `RuntimeBackend.Allocate`.
 
 ## Backend Spike
 
@@ -46,8 +47,8 @@ It is not production-ready. Terminal outcomes are held in adapter memory, pool s
 
 ## Scaffolds or Missing Product Surfaces
 
-- No usable `agenova run` command. The composition root exists; it does not submit ClaimRequest YAML.
-- No request-to-claim run service; the `ClaimRequest` type and validation are merged but are not yet wired to issuance.
+- `agenova run -f` admits a ClaimRequest but does not issue a SandboxClaim or allocate a worker.
+- No request-to-claim run service; admission is merged but is not yet wired to issuance.
 - No external identity-provider adapter; the trusted-local principal source is reference-only.
 - No running operator or controller.
 - No HTTP/gRPC Tool or Model Gateway.
@@ -66,7 +67,7 @@ The next slice should make the reference governance path usable before adding mo
 
 1. Wire the merged principal, policy, action-authorization, `ClaimRequest`, and effective-authority contracts into one request-to-claim run service.
 2. Persist the authorization decision and resolved authority before creating a system-managed claim.
-3. Add `agenova run -f <claim-request.yaml>` as a client of that same schema for one example role.
+3. Keep `agenova run -f` as the client of that same schema once issuance exists, still without `--repo` / `--tools` / `--model`.
 4. Drive claim lifecycle, one allowed tool call, one allowed model call, and one denied request through the reference path.
 5. Return a single claim evidence view containing lifecycle, effective authority, invocations, outcome, and backend identity.
 6. Turn that path into a deterministic E2E test and quickstart.
@@ -78,7 +79,7 @@ The next slice should make the reference governance path usable before adding mo
 
 - Request-to-claim run service using the merged contracts and Team A allow / Team B deny fixtures.
 - Trusted invocation-context binding and gateway mismatch denial tests.
-- CLI `-f` golden path and smoke test.
+- CLI `-f` issuance once the run service exists.
 - Denial facts and evidence query shape.
 - Agent Sandbox restart/durability spike.
 - Example engineer Agent Artifact and bounded adversarial denial scenario.

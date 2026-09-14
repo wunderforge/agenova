@@ -22,6 +22,20 @@ const ExitUsage = 2
 // by supplying a factory that returns a stand-in implementation.
 type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, resolvedName string, err error)
 
+// RunHandler submits one ClaimRequest file through the application path.
+// Command behavior does not parse YAML or grant authority; the host does.
+// The hosted backend is supplied so run can fail closed on unknown backends
+// without allocating.
+type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, error)
+
+// RunReport is the backend-neutral submission result shown by `agenova run -f`.
+type RunReport struct {
+	RequestRef string
+	Decision   string
+	Principal  string
+	Allocated  bool
+}
+
 const helpText = `Agenova hosts claim-scoped application services for one agent worker run.
 
 Usage:
@@ -30,17 +44,27 @@ Usage:
 Commands:
   help       Show this help
   version    Print version and the hosted runtime backend
+  run        Submit one ClaimRequest file through application resolution
 
 Flags:
   --backend string   Runtime backend to host (default "memory")
   --help             Show this help
   --version          Print version and the hosted runtime backend
+  -f, --file string  ClaimRequest YAML for agenova run
 
 This composition root hosts the in-memory reference backend. Command behavior
 does not import Kubernetes or other provider types, and it does not accept
 authority flags such as --repo, --tools, or --model.
 
-agenova run -f is not part of this binary yet.
+agenova run -f <file> submits the canonical ClaimRequest schema. Identity
+comes from the local principal boundary, not from the file or CLI flags.
+`
+
+const runHelpText = `Usage:
+  agenova run -f <claim-request.yaml>
+
+Submit exactly one ClaimRequest YAML document. Requested access is intent.
+The CLI does not accept --repo, --tools, or --model authority shortcuts.
 `
 
 type parsedArgs struct {
@@ -49,10 +73,12 @@ type parsedArgs struct {
 	command    string
 	backend    string
 	backendSet bool
+	file       string
+	fileSet    bool
 }
 
 // Main is the CLI entrypoint. args[0] is the program name, matching os.Args.
-func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory) int {
+func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory, run RunHandler) int {
 	argv := []string{}
 	if len(args) > 0 {
 		argv = args[1:]
@@ -65,6 +91,10 @@ func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory) in
 		return ExitUsage
 	}
 
+	if parsed.help && parsed.command == "run" {
+		fmt.Fprint(stdout, runHelpText)
+		return 0
+	}
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
 		fmt.Fprint(stdout, helpText)
 		return 0
@@ -74,9 +104,57 @@ func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory) in
 		return printVersion(stdout, stderr, parsed.backend, newRuntime)
 	}
 
+	if parsed.command == "run" {
+		return printRun(stdout, stderr, parsed, newRuntime, run)
+	}
+
 	fmt.Fprintf(stderr, "unknown command %q\n", parsed.command)
 	fmt.Fprintln(stderr, "Run 'agenova --help' for usage.")
 	return ExitUsage
+}
+
+func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFactory, run RunHandler) int {
+	if !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
+		fmt.Fprintln(stderr, "run requires -f <claim-request.yaml>")
+		fmt.Fprintln(stderr, "Run 'agenova run --help' for usage.")
+		return ExitUsage
+	}
+	if newRuntime == nil {
+		fmt.Fprintln(stderr, "runtime factory is not configured")
+		return 1
+	}
+	backend, _, err := newRuntime(parsed.backend)
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		fmt.Fprintln(stderr, "Run 'agenova --help' for usage.")
+		return ExitUsage
+	}
+	if backend == nil {
+		fmt.Fprintln(stderr, "runtime factory returned no backend")
+		return 1
+	}
+	if run == nil {
+		fmt.Fprintln(stderr, "run handler is not configured")
+		return 1
+	}
+	report, err := run(parsed.file, backend)
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		fmt.Fprintln(stderr, "Run 'agenova run --help' for usage.")
+		return ExitUsage
+	}
+	fmt.Fprintf(stdout, "request: %s\n", report.RequestRef)
+	fmt.Fprintf(stdout, "decision: %s\n", report.Decision)
+	fmt.Fprintf(stdout, "principal: %s\n", report.Principal)
+	fmt.Fprintf(stdout, "allocated: %t\n", report.Allocated)
+	if report.Allocated {
+		fmt.Fprintln(stderr, "backend allocation is not part of agenova run -f; the run service is owned by a later ticket")
+		return 1
+	}
+	if strings.EqualFold(report.Decision, "Deny") {
+		return 1
+	}
+	return 0
 }
 
 func printVersion(stdout, stderr io.Writer, backendName string, newRuntime RuntimeFactory) int {
@@ -120,6 +198,18 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			if err := setBackend(&parsed, strings.TrimPrefix(arg, "--backend=")); err != nil {
 				return parsedArgs{}, err
 			}
+		case arg == "-f" || arg == "--file":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("flag -f requires a value")
+			}
+			i++
+			if err := setFile(&parsed, argv[i]); err != nil {
+				return parsedArgs{}, err
+			}
+		case strings.HasPrefix(arg, "--file="):
+			if err := setFile(&parsed, strings.TrimPrefix(arg, "--file=")); err != nil {
+				return parsedArgs{}, err
+			}
 		case arg == "--repo" || strings.HasPrefix(arg, "--repo=") ||
 			arg == "--tools" || strings.HasPrefix(arg, "--tools=") ||
 			arg == "--model" || strings.HasPrefix(arg, "--model="):
@@ -133,7 +223,19 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			parsed.command = arg
 		}
 	}
+	if parsed.fileSet && parsed.command != "run" && !parsed.help {
+		return parsedArgs{}, fmt.Errorf("-f is only valid with agenova run")
+	}
 	return parsed, nil
+}
+
+func setFile(parsed *parsedArgs, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("flag -f requires a value")
+	}
+	parsed.file = value
+	parsed.fileSet = true
+	return nil
 }
 
 func setBackend(parsed *parsedArgs, value string) error {
