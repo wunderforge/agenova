@@ -24,7 +24,7 @@
 - [x] Record this packet; owner explicitly allowed tonight's direct sprint execution without separate planning approval.
 - [x] Consume #66 mapping and reconcile with new kind evidence.
 - [x] Run focused tests and `.\scripts\check.ps1 -All`.
-- [ ] Review final diff and record evidence in #48.
+- [x] Review final diff and record evidence in #48 and PR #134.
 
 ## Quality Gates and Evidence
 

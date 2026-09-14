@@ -25,7 +25,7 @@
 - [x] Record Task/Spec/Design; owner waived separate approval for this sprint.
 - [x] Implement smallest worker-control and E2E slice without changing neutral interface.
 - [x] Run focused tests, kind E2E and `.\scripts\check.ps1 -All`.
-- [ ] Review evidence, commit bounded changes, advance PR and comment on #51.
+- [x] Review evidence, commit bounded changes, open PR #134 and comment on #51.
 
 ## Quality Gates and Evidence
 
