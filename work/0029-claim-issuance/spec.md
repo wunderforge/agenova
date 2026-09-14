@@ -93,7 +93,7 @@ Consequences the consumers rely on:
 - #34 and #35 bind governed Tool and Model calls to the issued claim identity and must not reinterpret the authority snapshot.
 - #41 and #60 display requested versus effective values and the claim identity through the shared evidence contract.
 - `ValidateIssuedState`, `ParseSystemIssuedState`, and `ParseCallerIssuedState` remain unchanged; this Ticket satisfies those invariants rather than relaxing them. #27's existing `Admission.Matches` remains available to #28; #29 only adds the narrow exact-context matcher.
-- The claim remains backend-neutral. The Agent Sandbox adapter maps its public claim ID to a separate DNS-label Kubernetes resource name, preserving the issued ID in Agenova facts.
+- The claim remains backend-neutral. The Agent Sandbox adapter preserves existing safe resource names and maps unsafe public claim IDs to separate DNS-label Kubernetes names, preserving the issued ID in Agenova facts.
 
 ## Decisions and Planning Gate
 

@@ -448,9 +448,14 @@ func hasCondition(conditions []upstreamCondition, condType, condStatus string) b
 }
 
 // resourceName maps an Agenova identity to a deterministic DNS-label name.
-// The digest keeps distinct identities distinct even when sanitizing or
-// truncating their readable portion (issued claim IDs contain colons).
+// Existing safe names are preserved for the kind harness and existing backend
+// resources. Other names receive a digest so sanitizing or truncating their
+// readable portion does not collapse distinct issued identities.
 func resourceName(kind, agenovaName string) string {
+	legacy := "agenova-" + kind + "-" + agenovaName
+	if len(legacy) <= 63 && isDNSLabel(legacy) {
+		return legacy
+	}
 	digest := sha256.Sum256([]byte(kind + "\x00" + agenovaName))
 	base := "agenova-" + dnsLabelPart(kind) + "-" + dnsLabelPart(agenovaName)
 	const suffixLength = 17 // hyphen and 16 hex digits
@@ -458,6 +463,22 @@ func resourceName(kind, agenovaName string) string {
 		base = strings.TrimRight(base[:63-suffixLength], "-")
 	}
 	return fmt.Sprintf("%s-%x", base, digest[:8])
+}
+
+func isDNSLabel(value string) bool {
+	if value == "" || !isDNSAlphanumeric(value[0]) || !isDNSAlphanumeric(value[len(value)-1]) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if !isDNSAlphanumeric(value[i]) && value[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func isDNSAlphanumeric(char byte) bool {
+	return (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')
 }
 
 func dnsLabelPart(value string) string {

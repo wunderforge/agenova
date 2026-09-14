@@ -62,6 +62,15 @@ func TestLegacyExpirePendingClaim_bookkeepingOnly(t *testing.T) {
 
 func TestResourceName(t *testing.T) {
 	valid := regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	if got, want := resourceName("claim", "research-run"), "agenova-claim-research-run"; got != want {
+		t.Fatalf("existing safe resource name changed: got %q, want %q", got, want)
+	}
+	if got, want := resourceName("tmpl", "engineer"), "agenova-tmpl-engineer"; got != want {
+		t.Fatalf("existing safe template name changed: got %q, want %q", got, want)
+	}
+	if got, want := resourceName("pool", "engineer-pool"), "agenova-pool-engineer-pool"; got != want {
+		t.Fatalf("existing safe pool name changed: got %q, want %q", got, want)
+	}
 	for _, original := range []string{
 		"research-run",
 		"claim:fix-payment-timeout:issuance:0123456789abcdef0123456789abcdef",
