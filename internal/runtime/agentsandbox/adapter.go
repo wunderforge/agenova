@@ -4,8 +4,10 @@
 package agentsandbox
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -445,9 +447,62 @@ func hasCondition(conditions []upstreamCondition, condType, condStatus string) b
 	return false
 }
 
-// resourceName generates a deterministic Kubernetes resource name from an
-// Agenova concept and name. Kubernetes names must be DNS labels; this
-// conversion is safe for the spike's test names.
+// resourceName maps an Agenova identity to a deterministic DNS-label name.
+// Existing safe names are preserved for the kind harness and existing backend
+// resources, except the reserved hash- namespace. Mapped names live there so
+// no preserved raw name can alias one; their digest also distinguishes names
+// whose readable portion is sanitized or truncated.
 func resourceName(kind, agenovaName string) string {
-	return fmt.Sprintf("agenova-%s-%s", kind, agenovaName)
+	const mappedPrefix = "hash-"
+	legacy := "agenova-" + kind + "-" + agenovaName
+	if len(legacy) <= 63 && isDNSLabel(legacy) && !strings.HasPrefix(agenovaName, mappedPrefix) {
+		return legacy
+	}
+	digest := sha256.Sum256([]byte(kind + "\x00" + agenovaName))
+	base := "agenova-" + dnsLabelPart(kind) + "-" + mappedPrefix + dnsLabelPart(agenovaName)
+	const suffixLength = 17 // hyphen and 16 hex digits
+	if len(base) > 63-suffixLength {
+		base = strings.TrimRight(base[:63-suffixLength], "-")
+	}
+	return fmt.Sprintf("%s-%x", base, digest[:8])
+}
+
+func isDNSLabel(value string) bool {
+	if value == "" || !isDNSAlphanumeric(value[0]) || !isDNSAlphanumeric(value[len(value)-1]) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if !isDNSAlphanumeric(value[i]) && value[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func isDNSAlphanumeric(char byte) bool {
+	return (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')
+}
+
+func dnsLabelPart(value string) string {
+	var part strings.Builder
+	separator := false
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if char >= 'A' && char <= 'Z' {
+			char += 'a' - 'A'
+		}
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
+			if separator && part.Len() > 0 {
+				part.WriteByte('-')
+			}
+			part.WriteByte(char)
+			separator = false
+		} else {
+			separator = true
+		}
+	}
+	if part.Len() == 0 {
+		return "x"
+	}
+	return part.String()
 }
