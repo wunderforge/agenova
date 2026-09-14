@@ -352,3 +352,23 @@ func TestResolutionRejectsInvalidUTF8RequestBeforeHashing(t *testing.T) {
 		}
 	}
 }
+
+func TestResolutionAcceptsDeepValidatedTaskInput(t *testing.T) {
+	request, template, fixture, bundle := teamAFixtures(t)
+	admission, decision := admit(t, request, fixture.Principal, bundle)
+	nested := map[string]any{"leaf": "value"}
+	for i := 0; i < 140; i++ {
+		nested = map[string]any{"next": nested}
+	}
+	request.Spec.Task.Input["nested"] = nested
+	if err := v1alpha1.ValidateClaimRequest(request); err != nil {
+		t.Fatalf("deep JSON-compatible request should validate: %v", err)
+	}
+	resolution, err := authority.ResolveForIssuance(request, template, admission)
+	if err != nil {
+		t.Fatalf("validated request should resolve: %v", err)
+	}
+	if state, issueErr := Issue(request, fixture.Principal, decision, resolution, admission); issueErr != nil || state == nil {
+		t.Fatalf("validated deep request should issue: %+v/%v", state, issueErr)
+	}
+}

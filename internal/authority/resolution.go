@@ -55,8 +55,8 @@ func (r *Resolution) AuthorityFor(request *v1alpha1.ClaimRequest) (*v1alpha1.Eff
 }
 
 func fullRequestDigest(request *v1alpha1.ClaimRequest) ([sha256.Size]byte, error) {
-	if !validUTF8Value(reflect.ValueOf(request), 0) {
-		return [sha256.Size]byte{}, errors.New("request contains invalid UTF-8 or excessive nesting")
+	if !validUTF8Value(reflect.ValueOf(request)) {
+		return [sha256.Size]byte{}, errors.New("request contains invalid UTF-8")
 	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
@@ -67,10 +67,9 @@ func fullRequestDigest(request *v1alpha1.ClaimRequest) ([sha256.Size]byte, error
 
 // encoding/json replaces invalid UTF-8 bytes with U+FFFD. Reject them before
 // hashing so different in-memory requests cannot share one authority proof.
-func validUTF8Value(value reflect.Value, depth int) bool {
-	if depth > 128 {
-		return false // also fails closed for cyclic dynamic task inputs
-	}
+// Both callers validate ClaimRequest first; its task-input validator rejects
+// cyclic containers. Do not add a second, lower nesting limit here.
+func validUTF8Value(value reflect.Value) bool {
 	if !value.IsValid() {
 		return true
 	}
@@ -79,24 +78,24 @@ func validUTF8Value(value reflect.Value, depth int) bool {
 		if value.IsNil() {
 			return true
 		}
-		return validUTF8Value(value.Elem(), depth+1)
+		return validUTF8Value(value.Elem())
 	case reflect.String:
 		return utf8.ValidString(value.String())
 	case reflect.Struct:
 		for i := 0; i < value.NumField(); i++ {
-			if !validUTF8Value(value.Field(i), depth+1) {
+			if !validUTF8Value(value.Field(i)) {
 				return false
 			}
 		}
 	case reflect.Map:
 		for iter := value.MapRange(); iter.Next(); {
-			if !validUTF8Value(iter.Key(), depth+1) || !validUTF8Value(iter.Value(), depth+1) {
+			if !validUTF8Value(iter.Key()) || !validUTF8Value(iter.Value()) {
 				return false
 			}
 		}
 	case reflect.Array, reflect.Slice:
 		for i := 0; i < value.Len(); i++ {
-			if !validUTF8Value(value.Index(i), depth+1) {
+			if !validUTF8Value(value.Index(i)) {
 				return false
 			}
 		}

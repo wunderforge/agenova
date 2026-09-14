@@ -110,6 +110,7 @@ Out of scope:
 - Owner delivery decision: implement #29 in the same PR as this packet and require review of the complete code, tests, and evidence before merge. A separate planning-only merge is not needed.
 - Owner-approved review correction: the resolver now returns a private request-bound token for issuance, so a public or swapped EffectiveAuthority cannot be used. The Agent Sandbox adapter also maps unsafe Agenova claim IDs (including colons) to stable DNS-label resource names while preserving existing safe names for the kind harness; this is an integration compatibility fix, not backend allocation in #29.
 - Codex follow-up hardening: mapped backend names use a reserved `hash-` namespace that raw safe names cannot enter, and request binding rejects invalid UTF-8 before JSON hashing so two distinct in-memory requests cannot normalize to one authority proof.
+- The UTF-8 check adds no nesting limit beyond `ValidateClaimRequest`; a focused deep-input test keeps every otherwise valid request issuable.
 - Resolved dependencies: #27 and #28 both merged to `main`; #28's Ticket is still open only because PR #97 merged through the stacked branch rather than directly.
 
 ## Implementation Evidence
