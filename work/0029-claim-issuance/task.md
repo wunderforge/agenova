@@ -68,11 +68,11 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the issued-state contract, admission token, resolver output, and canonical fixtures for the exact issuance boundary.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation.
-- [ ] Add the smallest pure `internal/issuance` step producing a validated Allow-form `IssuedState`.
-- [ ] Add fixture-driven issuance, rejection, determinism, same-reference/different-task, mismatched-principal/decision, and immutability tests.
-- [ ] Add or update focused behavioral evidence.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Owner directed implementation and planning review together on the complete PR instead of waiting at a separate planning gate.
+- [x] Add the smallest pure `internal/issuance` step producing a validated Allow-form `IssuedState`.
+- [x] Add fixture-driven issuance, rejection, determinism, same-reference/different-task, mismatched-principal/decision, and immutability tests.
+- [x] Add focused behavioral evidence through named tests.
+- [ ] Run the focused race gate and `./scripts/check.ps1 -All` in CI; local Go tests pass, but this Windows environment has no CGO compiler or frontend browser dependencies.
 - [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
@@ -107,5 +107,11 @@ Out of scope:
 - Proposed decision: new package `internal/issuance`, parallel to `internal/authorization` (#27) and `internal/authority` (#28).
 - Owner decision: issue `Pending` without `backendIdentity`; all three invocation/runtime evidence lists start empty and non-nil. #30/#31 own later lifecycle events.
 - Review hardening required before implementation: add a read-only full-context matcher to #27's `Admission` and require exact equality of the separately supplied trusted Principal and Decision; do not reevaluate policy or #28 authority. Include the full validated ClaimRequest, including task content, in identity derivation.
-- Planning gate remains open: request Owner and independent Reviewer approval of this revised Task + Spec before writing issuance code.
+- Owner delivery decision: implement #29 in the same PR as this packet and require review of the complete code, tests, and evidence before merge. A separate planning-only merge is not needed.
 - Resolved dependencies: #27 and #28 both merged to `main`; #28's Ticket is still open only because PR #97 merged through the stacked branch rather than directly.
+
+## Implementation Evidence
+
+- `go test -count=1 -v ./internal/issuance/...` — pass, including canonical Team A issuance, Team B no-claim denial, exact-context negatives, determinism, same-reference/different-task identity, invalid authority, and source immutability.
+- `go test ./...` with `GOFLAGS=-buildvcs=false` for this sandbox-owned worktree — pass.
+- `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` — Go and documentation gates pass locally; frontend gate requires UI dependencies/Chromium not installed in this worktree. CI will verify the complete Linux profile.

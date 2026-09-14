@@ -70,6 +70,15 @@ func (a Admission) Matches(requestRef, projectRef, templateRef string) bool {
 		a.evaluation.request.Action.TemplateRef == templateRef
 }
 
+// MatchesContext checks the complete trusted context and decision bound by
+// Gate. Issuance uses this instead of accepting a separately supplied public
+// Allow decision as proof of admission. It does not reevaluate policy.
+func (a Admission) MatchesContext(input Request, decision v1alpha1.Decision) bool {
+	return a.evaluation.decision.Result == v1alpha1.DecisionResultAllow &&
+		a.evaluation.request == input &&
+		a.evaluation.decision == decision
+}
+
 // Decision returns the evidence-ready decision that produced this admission.
 func (a Admission) Decision() v1alpha1.Decision {
 	return a.evaluation.Decision()

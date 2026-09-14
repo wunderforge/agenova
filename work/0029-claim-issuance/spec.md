@@ -101,4 +101,4 @@ Consequences the consumers rely on:
 2. **Owner-approved direction — Issuance evidence:** issue `Pending` with no `backendIdentity`; runtime, tool, and model lists are empty and non-nil. #30/#31 own later lifecycle events.
 3. **Owner-approved direction — Return shape:** return the complete validated Allow-form `IssuedState`, not a bare claim.
 4. **Owner-approved direction — Determinism:** identical admitted inputs reproduce an identical snapshot without a store or counter; the full validated request participates in identity derivation.
-5. **Reviewer findings addressed in this packet:** require exact admission-context binding for separately supplied Principal and Decision, and distinguish same-reference/different-task requests. The revised packet still requires Owner and independent Reviewer planning approval before implementation.
+5. **Reviewer findings addressed:** require exact admission-context binding for separately supplied Principal and Decision, and distinguish same-reference/different-task requests. The Owner directed implementation and planning review together on the complete PR; merge still requires code and evidence review.
