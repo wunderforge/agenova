@@ -114,6 +114,6 @@ Out of scope:
 ## Implementation Evidence
 
 - `go test -count=1 -v ./internal/issuance/...` — pass, including canonical Team A issuance, Team B no-claim denial, exact-context and request-bound resolution negatives, determinism, and source immutability.
-- `go test ./internal/runtime/agentsandbox/...` — pass, including DNS-label mapping for issued claim IDs.
+- `go test ./internal/runtime/agentsandbox/...` — pass, including an issuer-to-adapter allocation case using an actually generated claim ID; the kube seam is fake, not a kind-level run.
 - `go test ./...` with `GOFLAGS=-buildvcs=false` for this sandbox-owned worktree — pass.
 - `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` — Go and documentation gates pass locally; frontend gate requires UI dependencies/Chromium not installed in this worktree. CI will verify the complete Linux profile.
