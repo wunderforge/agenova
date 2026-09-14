@@ -19,7 +19,7 @@ export function ConsoleNavigation() {
     <a onClick={follow} href={consoleHref('requests', 'fix-payment-timeout')}>Allowed request</a>
     <a onClick={follow} href={consoleHref('requests', 'fix-payment-timeout', 'narrowed')}>Derived narrowed request</a>
     <a onClick={follow} href={consoleHref('requests', 'fix-payment-timeout-team-b')}>Denied request</a>
-    <a href="/">Contract storyboard</a>
+    <a href="/fixtures">Contract storyboard</a>
   </nav>;
 }
 

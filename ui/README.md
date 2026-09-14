@@ -1,6 +1,6 @@
-# Agenova fixture storyboard
+# Agenova React demo and contract views
 
-Minimal React/TypeScript evidence foundation for [#59](https://github.com/wunderforge/agenova/issues/59). It is a read-only executable storyboard, with no HTTP client or live service. The [task packet](../work/0059-react-contract-foundation/task.md) defines scope and evidence.
+The default route (`/`) is a navigable Work/Platform demo. Its work history, submission, policy, and gateway records are illustrative UI data, not observations from a live Agenova service. The user-facing flow and source boundaries are in the [portal harness](portal-harness.md). No HTTP client or live service is connected.
 
 From the repository root, with Go (see `go.mod`), Node.js 24 and npm:
 
@@ -10,11 +10,20 @@ npm --prefix ui run browsers:install
 npm --prefix ui run dev
 ```
 
-Open the local address printed by Vite. Choose any of the 12 canonical request/issued-state cases or the two explicitly labeled, in-memory display corruptions. Request intent does not grant authority; Team B denial has no fabricated claim. No absent invocation list is presented as observed zero invocations.
+Open the local address printed by Vite. The Work list leads to a single Work's progress, access comparison and activity records. Platform shows example service bindings and cross-work governance activity; it also lists the connection state of each React surface. New work only creates a local Pending example. Reloading clears that request. The original contract reader is at `/fixtures`; it still shows the 12 canonical request/issued-state cases and two labeled display-corruption cases.
+
+| Surface | Current source | What remains |
+| --- | --- | --- |
+| `/fixtures` | Canonical Go-parsed and shape-checked fixtures | No live API |
+| `/console/requests/...` | Validated, correlated fixture snapshots; a derived narrowed case is labeled | #38/#68 evidence/API, polling, terminal behavior, CLI equality |
+| `/#/work`, `/#/platform` | Separate typed illustrative stories in `portal-data.ts` | Replace demo stories with accepted evidence representation and live adapters; no mock record is authority |
+| New work | Browser-local Pending example only | Actual submission, authorization, claim issuance, backend allocation |
+
+The portal does not add a second governance contract or run a frontend policy evaluator. Work-specific activity and cross-work Platform activity remain separate. The 45-to-30-minute narrowing story is illustrative, not proof that an Agenova worker ran or that the current resolver emitted those exact records.
 
 ## Staged single-claim console (#60)
 
-Append one of these client routes to the printed local address (the original contract storyboard remains at `/`):
+Append one of these client routes to the printed local address (the original contract storyboard is now at `/fixtures`):
 
 ```text
 /console/requests/fix-payment-timeout

@@ -14,7 +14,7 @@ for (const [name, id, heading] of cases) {
   test(`${name}: ${id}`, async ({ page }, info) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto('/');
+    await page.goto('/fixtures');
     await page.getByLabel('Fixture or derived display case').selectOption(id);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     if (name === 'allow-running') {
@@ -36,7 +36,7 @@ for (const [name, id, heading] of cases) {
 }
 test('mobile selection stays usable without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/fixtures');
   await page.getByLabel('Fixture or derived display case').selectOption('issued-state.valid.team-a-engineer');
   await expect(page.getByRole('heading', { name: 'Decision: Allow' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
