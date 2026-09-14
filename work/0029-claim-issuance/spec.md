@@ -11,8 +11,8 @@ Issuance is the boundary where system-managed identity appears. Everything befor
 
 ## In Scope
 
-- The internal request-bound admission token issued by #27's exact-`Allow` Gate.
-- The validated ClaimRequest, the trusted Principal supplied out-of-band, and the evidence-ready Decision.
+- The internal request-bound admission token issued by #27's exact-`Allow` Gate, with a narrow read-only exact-context matcher.
+- The validated full ClaimRequest, the trusted Principal supplied out-of-band, and the evidence-ready Decision, both checked against that admission.
 - The EffectiveAuthority resolved by #28, which deliberately carries no identity yet.
 - System-managed `claim.id` and `effectiveAuthority.id` generation.
 - One immutable Allow-form `IssuedState` using the public shapes owned by #25.
@@ -27,16 +27,16 @@ Issuance is the boundary where system-managed identity appears. Everything befor
 ## Issuance Contract
 
 ```text
-#27 Gate-issued admission bound to this request
+#27 Gate-issued admission bound to the full trusted authorization context
         +
-ClaimRequest + Principal + Decision(Allow)
+validated ClaimRequest + matching Principal + matching Decision(Allow)
         +
 #28 EffectiveAuthority (no identity yet)
         ↓
 IssuedState{ effectiveAuthority(+id), claim(Pending), evidence } or IssuanceFailure
 ```
 
-Issuance returns a new value and never mutates its inputs. `Deny` and `ApprovalRequired` leave the existing denial path unchanged and produce no claim.
+Issuance returns a new value and never mutates its inputs. Before constructing any issued state, it validates the ClaimRequest, reconstructs the authorization `Request` from its request/project/template references and the separately supplied trusted Principal, then requires exact equality with the Gate admission's bound authorization `Request` and Decision. A read-only `Admission.MatchesContext(Request, Decision)` (or equivalently narrow name) provides that check without exposing mutable admission state or reevaluating policy. `Deny` and `ApprovalRequired` leave the existing denial path unchanged and produce no claim.
 
 ## Field Rules
 
@@ -56,30 +56,30 @@ Issuance returns a new value and never mutates its inputs. `Deny` and `ApprovalR
 
 ## Identity Derivation
 
-Repeated issuance is deterministic by derivation, not by storage. `claim.id` and `effectiveAuthority.id` are content-addressed over the admitted request reference, principal, action, policy reference, decision identity, and every resolved authority dimension, using the length-prefixed sha256 construction #27 already uses for `decision:<requestRef>:authorization:<hex>`.
+Repeated issuance is deterministic by derivation, not by storage. The identity input contains the canonical JSON encoding of the **entire validated ClaimRequest**, including `spec.task.type` and recursively structured `spec.task.input`, plus the exact admitted Principal, Action, full Decision (including policy reference), and every #28-resolved authority dimension before either issued ID is assigned. `encoding/json` on the validated Go request supplies deterministic struct order and sorted map keys. Each input component is length-prefixed before sha256, as in #27's decision identity construction. The resulting digest is formatted separately as `claim:<requestRef>:issuance:<hex>` and `authority:<requestRef>:issuance:<hex>`; the fixture's `:1` IDs are illustrative shape values, not literal outputs.
 
 Consequences the consumers rely on:
 
 - Identical admitted inputs always reproduce an identical snapshot, including identity, with no clock, counter, random source, or stored state involved.
-- Any change to the principal, action, policy, decision, or resolved authority produces a different claim identity, so two different grants can never collide on one identity.
+- A changed validated request, including a changed task with the same `metadata.name`, changes the derived identity. A changed admitted context, decision, or resolved authority also changes it; a separately supplied principal or decision that does not match the admission is rejected rather than issued.
 - Sequencing, renewal, and collision handling across separate runs belong to the later storage Ticket, not to v0.
 
 ## Requirements
 
-- Given no Gate-issued admission, or an admission bound to another request, project, or template, when issuance is attempted, then no claim and no authority identity are produced.
+- Given no Gate-issued admission, or an admission bound to another request, project, template, principal subject/team/authentication context, or decision, when issuance is attempted, then no claim and no authority identity are produced.
 - Given a `Deny` or `ApprovalRequired` decision, when issuance is attempted, then it fails explicitly and produces no claim, matching the architecture rule that a denied submission creates no claim.
 - Given the canonical Team A admitted request and its resolved authority, when issuance runs, then exactly one claim is produced with `Pending` phase, absent `backendIdentity`, and a validated Allow-form `IssuedState`.
 - Given a successful issuance, when the snapshot is inspected, then the principal, action, policy reference, and authority dimensions equal the admitted inputs and the decision that authorized them.
 - Given a successful issuance, when `claim.id`, `claim.authorityRef`, and `evidence.claimId` are compared, then all three correlate and none originated from caller input.
 - Given the same admitted inputs twice, when issuance runs twice, then both snapshots are byte-identical.
-- Given admitted inputs differing in any principal, action, policy, decision, or authority value, when issuance runs, then the claim identity differs.
+- Given two otherwise identical validated requests with the same reference but different task objectives or base branches, when each is admitted and issued, then their claim identities differ. Given an admitted context or resolved authority value that differs, identity changes or issuance rejects the mismatch.
 - Given a resolved authority that is missing, empty of required runtime profile, or carrying a non-positive timeout, when issuance runs, then it fails closed and produces no claim.
 - Given a successful result, when any source request, template, policy, or authority object is later mutated, then the issued snapshot remains unchanged.
 - Given an issued snapshot serialized and reparsed through `ParseSystemIssuedState`, when it is revalidated, then it round-trips unchanged; the same document rejected through `ParseCallerIssuedState` proves the fields stayed system-managed.
 
 ## Negative Cases
 
-- Admission is absent, replayed from a public `Decision`, or bound to a different request, project, or template.
+- Admission is absent, replayed from a public `Decision`, or bound to a different request, project, template, principal subject, team, authentication context, or decision ID/content.
 - Decision result is `Deny` or `ApprovalRequired`.
 - Resolved authority is absent or internally invalid.
 - A caller-shaped payload carries `claim.id`, `claim.phase`, `claim.backendIdentity`, or `effectiveAuthority`.
@@ -92,12 +92,13 @@ Consequences the consumers rely on:
 - #30 and #31 own backend allocation, `backendIdentity`, and every phase transition after `Pending`; they consume the issued claim rather than reissuing it.
 - #34 and #35 bind governed Tool and Model calls to the issued claim identity and must not reinterpret the authority snapshot.
 - #41 and #60 display requested versus effective values and the claim identity through the shared evidence contract.
-- `ValidateIssuedState`, `ParseSystemIssuedState`, and `ParseCallerIssuedState` remain unchanged; this Ticket satisfies those invariants rather than relaxing them.
+- `ValidateIssuedState`, `ParseSystemIssuedState`, and `ParseCallerIssuedState` remain unchanged; this Ticket satisfies those invariants rather than relaxing them. #27's existing `Admission.Matches` remains available to #28; #29 only adds the narrow exact-context matcher.
 - RuntimeBackend and provider adapters remain unchanged.
 
-## Open Decisions
+## Decisions and Planning Gate
 
-1. **Open — Fixture identity:** confirm that issuance uses the #27 content-addressed convention and that the fixture identity `claim:fix-payment-timeout:1` stays an illustrative shape oracle rather than a literal expected value.
-2. **Open — Issuance evidence:** confirm that `evidence.runtimeEvents` is empty at issuance because the fixture's `ClaimRunning` event belongs to the later transition owned by #30/#31.
-3. **Proposed — Return shape:** issuance returns the complete Allow-form `IssuedState` rather than a bare `SandboxClaim`, so the existing cross-object invariants validate the result in one place.
-4. **Proposed — Determinism model:** identical admitted inputs reproduce an identical snapshot; no idempotency record, sequence counter, or claim store is introduced in v0.
+1. **Owner-approved direction — Fixture identity:** use #27's content-addressed convention; fixture `:1` IDs are illustrative. Focused tests assert generated IDs and all references directly.
+2. **Owner-approved direction — Issuance evidence:** issue `Pending` with no `backendIdentity`; runtime, tool, and model lists are empty and non-nil. #30/#31 own later lifecycle events.
+3. **Owner-approved direction — Return shape:** return the complete validated Allow-form `IssuedState`, not a bare claim.
+4. **Owner-approved direction — Determinism:** identical admitted inputs reproduce an identical snapshot without a store or counter; the full validated request participates in identity derivation.
+5. **Reviewer findings addressed in this packet:** require exact admission-context binding for separately supplied Principal and Decision, and distinguish same-reference/different-task requests. The revised packet still requires Owner and independent Reviewer planning approval before implementation.
