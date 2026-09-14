@@ -58,13 +58,13 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Scout the existing `examples/` layout (if any), the E1-T1 fixture paths, and the `api/v1alpha1` types that the ClaimRequest parser may reference.
+- [x] Scout the existing `examples/` layout (if any), the E1-T1 fixture paths, and the `api/v1alpha1` types that the ClaimRequest parser may reference.
 - [x] Confirm this packet with the Owner and record independent review as a PR gate before implementation. (Approved in [#53 comments](https://github.com/wunderforge/agenova/issues/53); compliance recorded in [issue comment](https://github.com/wunderforge/agenova/issues/53#issuecomment-5660330963).)
-- [ ] Add `examples/engineer/toolclient/client.go` with the `ToolClient` interface and `examples/engineer/toolclient/mock.go` with the labeled mock.
-- [ ] Add `examples/engineer/main.go` with arg parsing, YAML/JSON ClaimRequest loading, mock tool invocation sequence, and invalid-input exit handling.
-- [ ] Add focused tests: two valid fixture-driven runs and one invalid-input exit check.
-- [ ] Run the focused gate and `.\scripts\check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, provider imports, and source-of-truth updates.
+- [x] Add `examples/engineer/toolclient/client.go` with the `ToolClient` interface and `examples/engineer/toolclient/mock.go` with the labeled mock.
+- [x] Add `examples/engineer/main.go` with arg parsing, YAML/JSON ClaimRequest loading, mock tool invocation sequence, and invalid-input exit handling.
+- [x] Add focused tests: two valid fixture-driven runs and one invalid-input exit check.
+- [x] Run the focused gate and the repository baseline. (Deviation: no PowerShell on the macOS dev host, so `check.ps1 -All` was reproduced via its Go-gate commands; docs/frontend check modules still need a standard-environment run — see `evidence.md`.)
+- [x] Review the diff for scope, regressions, provider imports, and source-of-truth updates. (`go list -deps` shows `gopkg.in/yaml.v3` as the only external dependency.)
 
 ## Quality Gates
 
