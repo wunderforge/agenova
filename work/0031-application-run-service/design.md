@@ -21,7 +21,7 @@ The service consumes #29's accepted issued state and a neutral launch plan, vali
 ```text
 validate issued state
   -> Allocate
-     -> on allocation failure, publish Failed directly from Pending (proposed contract addition)
+     -> on allocation failure, publish Failed directly from Pending (Owner-approved contract addition)
   -> attach correlated backend identity and publish Bound
   -> Observe until Ready or deadline
   -> Start
@@ -35,7 +35,7 @@ validate issued state
 
 All phase changes pass through one transition function. It checks the architecture transition table, terminal immutability, claim/identity correlation, and evidence ordering before replacing the stored defensive snapshot. The service publishes a terminal application outcome before calling Terminate or Cleanup. Teardown records success/failure separately and cannot call the phase-transition path.
 
-The allocation-failure edge is an explicit proposed lifecycle-contract change: permit `Pending -> Failed` only when Allocate fails before any backend identity exists. The alternatives are invalid: `Bound` would assert a resource binding that never happened, while remaining Pending would conceal a terminal application failure. Owner approval of this packet is required before adding that edge to the architecture contract and implementation.
+The allocation-failure edge is an Owner-approved lifecycle-contract change: permit `Pending -> Failed` only when Allocate fails before any backend identity exists. The alternatives are invalid: `Bound` would assert a resource binding that never happened, while remaining Pending would conceal a terminal application failure. The implementation slice updates the architecture contract and proves the edge plus its failure evidence.
 
 Use small injected collaborators rather than backend-specific branches:
 

@@ -54,6 +54,6 @@ Provide one application-owned execution contract that consumes an accepted, syst
 ## Open Decisions
 
 - Owner/Reviewer must approve the exact authoritative read shape for #32: preferred direction is a narrow application-owned reader returning a defensive public `v1alpha1.SandboxClaim` snapshot plus existence, without exposing backend store types.
-- Owner/Reviewer must approve the proposed `Pending -> Failed` transition for allocation failure. The current architecture contract does not permit it; `Bound` cannot be used because no backend identity exists. Approval authorizes the implementation slice to update the lifecycle table narrowly for this failure.
+- Owner approved the narrow `Pending -> Failed` transition for allocation failure in [PR #131](https://github.com/wunderforge/agenova/pull/131#issuecomment-5659891364). The implementation slice must update the architecture lifecycle table and test the transition plus failure evidence; `Bound` remains invalid because no backend identity exists.
 - #29 is merged and closed. The run service consumes `internal/issuance.Issue` and its accepted complete Allow-form snapshot rather than defining an interim duplicate.
 - Confirm whether the first slice records lifecycle evidence only in the returned run result or also appends it into `IssuedState.Evidence.RuntimeEvents`; the design prefers one updated IssuedState snapshot so later evidence consumers do not gain a second model.
