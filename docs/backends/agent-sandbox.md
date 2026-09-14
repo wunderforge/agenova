@@ -1,6 +1,6 @@
 # Kubernetes Agent Sandbox Adapter
 
-Status: verified spike, not a production backend.
+Status: version-pinned kind spike, not a production backend.
 
 Kubernetes Agent Sandbox is the first real substrate used to test the `RuntimeBackend` boundary. It is not the Agenova product API and is not required by application agents.
 
@@ -12,26 +12,39 @@ To reproduce the pinned upstream substrate itself (disposable `kind` cluster + o
 - A selected runtime template can have a `SandboxWarmPool`.
 - One Agenova claim maps to one upstream sandbox acquisition.
 - Upstream sandbox identity is returned as backend evidence.
-- Upstream readiness is `Bound`-level infrastructure evidence. Both `Start` and the legacy `StartClaim` report unsupported work-start semantics; neither promotes readiness to Running.
+- Upstream readiness is `Bound`-level infrastructure evidence. The ordinary `SpikeAdapter.Start` and legacy `StartClaim` remain unsupported; neither promotes readiness to Running. An opt-in test-worker protocol can separately acknowledge actual work start.
 - Claim deletion triggers sandbox cleanup and warm-pool replenishment.
 - Upstream API details remain confined to `internal/runtime/agentsandbox`.
 
-The earlier spike was exercised with Agent Sandbox v0.4.6 on a local kind cluster. That historical run does not verify the reduced contract or the changed legacy start behavior. The current integration gate must be re-run; see the [current environment blocker](../evidence/30/agent-sandbox/summary.md).
+The [#66 mapping experiment](agent-sandbox-v0.4.6-mapping.md) exercised the reduced adapter on v0.4.6 and proved that a Ready worker still returned `ErrUnsupported` for ordinary Start/Terminate. A separate #51 kind test uses a protocol-conforming disposable worker to prove an opt-in, adapter-held work-start/stop path; it does not change upstream semantics.
 
 ## Reduced RuntimeBackend Contract (Ticket #30)
 
-Support of the five reduced operations against the upstream controller, verified with a simulated controller at the `kubeClient` seam (`internal/runtime/agentsandbox/allocation_test.go`); real-cluster evidence for these operations is still a blocker (no verified test kube context in the current owner environment).
+The five reduced operations are tested at the `kubeClient` seam (`internal/runtime/agentsandbox/allocation_test.go`). #66 and #51 also provide bounded real-kind evidence. The support categories below are frozen for the v0.4.6 MVP slice; see the [pinned source and detailed gaps](agent-sandbox-v0.4.6-mapping.md).
 
 | Operation | Support | Notes |
 | --- | --- | --- |
 | Allocate | supported, with an unprovable recovery case | Creates the upstream claim and waits for sandbox assignment. Recovery checks and reserves the assigned worker before deleting the claim, and completes only after both resources are confirmed absent. Unknown identities stay recovery-pending; conflicting identities retain their upstream claim without deletion. |
 | Observe | supported (readiness only) | `Ready` mirrors the upstream `Ready=True` condition, and only when the claim still carries the recorded worker; a different or missing worker is reported as an identity mismatch. Replacement is not observable and stays `false`. Query failures are returned as errors. |
-| Start | unsupported | The controller starts the pod on its own; there is no channel to acknowledge actual work start. |
-| Terminate | unsupported | No worker-stop evidence exists apart from resource deletion. |
+| Start | `SpikeAdapter`: unsupported; `ControlledAdapter`: adapter-held, opt-in | The upstream controller has no task-start channel. Only an image implementing `/agenova-workerctl` can return a claim-bound child-process start/result acknowledgement. This is demonstrated by the disposable #51 test worker, not arbitrary agents. |
+| Terminate | `SpikeAdapter`: unsupported; `ControlledAdapter`: adapter-held, opt-in | Upstream deletion is not stop evidence. The test worker confirms the child process exited before Cleanup; ordinary images still have no supported stop channel. |
 | Cleanup | supported (release) | Rechecks the recorded worker binding before deletion; changed/missing bindings or query failures prevent deletion. `Released` is reported only after both the claim and the assigned sandbox are confirmed absent; failures are explicit and retryable after identity/release can be confirmed. |
 | Filesystem boundary | unsupported | Allocation and observation explicitly report `FilesystemEvidenceUnsupported`. Ticket #48 must map the worker-visible directory and mount/profile behavior; #51 must provide real isolation evidence before this can become `BackendVerified`. |
 
 `kubectl` invocations carry a per-command deadline and resource absence is classified by exit status and empty output, never by error text.
+
+### Frozen v0.4.6 mapping boundary (E8-T1 / #48)
+
+| Neutral semantic | Classification | Source of evidence | Residual gap |
+| --- | --- | --- | --- |
+| Allocate and worker identity | translated | Upstream `SandboxClaim.status.sandbox.name`, identity-matched local reservation and real kind observation | Adapter restart reconstruction and atomic identity preconditions |
+| Observe Ready | translated | Upstream `Ready=True` for the recorded worker | Ready proves Bound only |
+| Start / Terminate on ordinary images | unsupported | No upstream work-control API; #66 reproduced `ErrUnsupported` on Ready worker | Needs a compatible worker-control channel |
+| Start / Terminate on the #51 test image | adapter-held | Explicit `kubectl exec` to claim-bound `/agenova-workerctl`; child start/result and stop acknowledgements before deletion | Test protocol is not production identity/isolation, and arbitrary images are unsupported |
+| Cleanup | translated | Delete the bound claim, then confirm both claim and Sandbox absent; #51 also checks Pod absence | Warm-pool replacement and restart durability not established |
+| Filesystem boundary | unsupported | `FilesystemEvidenceUnsupported` in Allocation/Observation | No real inside/outside, cross-claim, HOME/cache or retention proof |
+
+No shared `RuntimeBackend` or application-facing type changes are needed. Application phases, outcome and durable audit facts remain run-service/control-plane concerns, not upstream condition translations.
 
 ### Recovery evidence limits
 
@@ -58,7 +71,7 @@ The binding check and deletion are separate kubectl requests, not an atomic upst
 | SucceedClaim / FailClaim / ExpireClaim | Retained for source compatibility. Their local phases and replacement flags are not verified work or cleanup evidence; new application code must use its own outcome state and the reduced resource operations. |
 | Claim / PoolStatus | Legacy local/approximate views, not the future authoritative run-service or backend evidence API. |
 
-The integration gate now checks Allocate, identity-matched Observe, explicit unsupported Start/Terminate, and independent absence of both claim and sandbox after Cleanup. It also checks cleanup without work start and idempotent release. The former expiry bookkeeping case is preserved as a unit regression. Historical assertions that Ready proves Running or deletion proves replacement are removed from the integration gate.
+The ordinary integration gate checks Allocate, identity-matched Observe, explicit unsupported Start/Terminate, and independent absence of claim and Sandbox after Cleanup. The opt-in #51 gate additionally builds/loads its disposable worker, observes a real claim-bound task result and stop acknowledgement, then checks claim, Sandbox and Pod absence. It does not prove the filesystem boundary or final demo-agent integration.
 
 ## Known Gaps
 
@@ -87,6 +100,16 @@ Run:
 ```powershell
 .\scripts\check.ps1 -Integration -KubeContext kind-agenova-k8s-lab
 ```
+
+For the opt-in #51 worker-control proof, build and load the disposable test image first, then run only the controlled test against an explicitly selected context and namespace:
+
+```powershell
+docker build -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
+kind load docker-image agenova-testworker:kind --name agenova-k8s-lab
+go test -count=1 -v -tags integration -timeout 5m ./harness/integration/agentsandbox/ -run '^TestControlledRuntimeBackend_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace default
+```
+
+The test uses unique names and cleans only its own resources. It never creates or deletes the cluster. Do not run the #50 cluster teardown from a checkout without that cluster's ownership receipt.
 
 ## Promotion Criteria
 

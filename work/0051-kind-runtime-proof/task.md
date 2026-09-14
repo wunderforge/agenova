@@ -23,8 +23,8 @@
 
 - [x] Scout adapter, contract, PRD and kind spike.
 - [x] Record Task/Spec/Design; owner waived separate approval for this sprint.
-- [ ] Implement smallest worker-control and E2E slice without changing neutral interface.
-- [ ] Run focused tests, kind E2E and `.\scripts\check.ps1 -All`.
+- [x] Implement smallest worker-control and E2E slice without changing neutral interface.
+- [x] Run focused tests, kind E2E and `.\scripts\check.ps1 -All`.
 - [ ] Review evidence, commit bounded changes, advance PR and comment on #51.
 
 ## Quality Gates and Evidence

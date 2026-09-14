@@ -22,9 +22,9 @@
 
 - [x] Scout contract, adapter, spike and PR #105.
 - [x] Record this packet; owner explicitly allowed tonight's direct sprint execution without separate planning approval.
-- [ ] Consume #66 mapping and reconcile with new kind evidence.
-- [ ] Run focused tests and `.\scripts\check.ps1 -All`.
-- [ ] Review diff and record evidence in #48.
+- [x] Consume #66 mapping and reconcile with new kind evidence.
+- [x] Run focused tests and `.\scripts\check.ps1 -All`.
+- [ ] Review final diff and record evidence in #48.
 
 ## Quality Gates and Evidence
 
