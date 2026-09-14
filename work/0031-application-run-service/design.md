@@ -5,7 +5,7 @@
 
 ## Current State and Constraints
 
-- #29 owns creation of a validated Allow-form `IssuedState` containing one system-managed Pending claim, immutable effective authority, and empty non-nil invocation/runtime-event lists. Its implementation is not yet accepted on `main`.
+- #29 is merged and owns creation through `internal/issuance.Issue` of a validated Allow-form `IssuedState` containing one system-managed Pending claim, immutable effective authority, and empty non-nil invocation/runtime-event lists.
 - #30 reduced `runtime.RuntimeBackend` to Allocate, Observe, Start, Terminate, and Cleanup. It deliberately owns no public claim phase or work outcome.
 - The reference `operator.Runtime` still contains a legacy phase state machine and implements `runtime.ClaimReader` for existing gateways. #30 explicitly forbids mirroring a reduced allocation through legacy `AddClaim`.
 - The reference runtime is not generally concurrency-safe and must be serialized by its application consumer.
@@ -21,6 +21,7 @@ The service consumes #29's accepted issued state and a neutral launch plan, vali
 ```text
 validate issued state
   -> Allocate
+     -> on allocation failure, publish Failed directly from Pending (proposed contract addition)
   -> attach correlated backend identity and publish Bound
   -> Observe until Ready or deadline
   -> Start
@@ -33,6 +34,8 @@ validate issued state
 ```
 
 All phase changes pass through one transition function. It checks the architecture transition table, terminal immutability, claim/identity correlation, and evidence ordering before replacing the stored defensive snapshot. The service publishes a terminal application outcome before calling Terminate or Cleanup. Teardown records success/failure separately and cannot call the phase-transition path.
+
+The allocation-failure edge is an explicit proposed lifecycle-contract change: permit `Pending -> Failed` only when Allocate fails before any backend identity exists. The alternatives are invalid: `Bound` would assert a resource binding that never happened, while remaining Pending would conceal a terminal application failure. Owner approval of this packet is required before adding that edge to the architecture contract and implementation.
 
 Use small injected collaborators rather than backend-specific branches:
 
@@ -79,7 +82,7 @@ Expose a narrow application reader backed by the same store. It returns defensiv
 
 ## Risks and Compatibility
 
-- #29 may change the exact issuer API or identity derivation before acceptance. Mitigation: keep issuance behind its accepted entry point and do not implement a temporary competing issuer.
+- The accepted #29 issuer API is pure and requires the exact admitted request, trusted principal/decision, and request-bound authority resolution. Mitigation: compose through `internal/issuance.Issue`; do not reconstruct or bypass its proof inputs.
 - `IssuedState` is described as an immutable snapshot. Updating lifecycle must be implemented as successive defensive snapshots, not caller mutation; Owner/Reviewer approval must confirm this interpretation.
 - Open-string `RuntimeEvent.Kind` currently lacks an accepted lifecycle vocabulary. Mitigation: approve exact event names in this packet or keep trace evidence internal until the owning evidence Ticket accepts them.
 - A synchronous backend call can overrun the deadline. The service applies Expired after return and rejects state advancement, but cannot honestly claim prompt cancellation.

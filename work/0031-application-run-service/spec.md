@@ -27,7 +27,7 @@ Provide one application-owned execution contract that consumes an accepted, syst
 - Given successful Start acknowledgment, when the application publishes Running, then the work callback may execute exactly once for that run.
 - Given successful work, when the application publishes Succeeded, then Terminate and Cleanup happen afterward and their evidence cannot change Succeeded.
 - Given work failure, when the application publishes Failed, then teardown happens afterward and its evidence cannot change Failed.
-- Given allocation failure, when the service terminates the claim, then it publishes Failed with no backend identity and makes no identity-dependent teardown call.
+- Given allocation failure, when the service applies the Owner-approved allocation-failure transition, then it publishes Failed directly from Pending with no backend identity and makes no identity-dependent teardown call.
 - Given start failure with a known identity, when the service terminates the claim, then it publishes Failed without ever publishing Running and attempts teardown.
 - Given the deadline is reached while Pending, Bound, or Running, when the service observes the deadline, then it publishes Expired before teardown and ignores later attempts to publish another outcome.
 - Given termination or cleanup failure, when the result is returned/read, then the original terminal phase and the failed resource operation are both observable.
@@ -54,5 +54,6 @@ Provide one application-owned execution contract that consumes an accepted, syst
 ## Open Decisions
 
 - Owner/Reviewer must approve the exact authoritative read shape for #32: preferred direction is a narrow application-owned reader returning a defensive public `v1alpha1.SandboxClaim` snapshot plus existence, without exposing backend store types.
-- #29 must settle and publish the accepted issuance entry point before integrated implementation; the run service will consume it rather than defining an interim duplicate.
+- Owner/Reviewer must approve the proposed `Pending -> Failed` transition for allocation failure. The current architecture contract does not permit it; `Bound` cannot be used because no backend identity exists. Approval authorizes the implementation slice to update the lifecycle table narrowly for this failure.
+- #29 is merged and closed. The run service consumes `internal/issuance.Issue` and its accepted complete Allow-form snapshot rather than defining an interim duplicate.
 - Confirm whether the first slice records lifecycle evidence only in the returned run result or also appends it into `IssuedState.Evidence.RuntimeEvents`; the design prefers one updated IssuedState snapshot so later evidence consumers do not gain a second model.

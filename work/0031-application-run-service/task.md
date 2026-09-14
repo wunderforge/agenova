@@ -24,7 +24,7 @@ Additional task-specific context:
 - [Reference runtime](../../internal/operator/runtime.go), allocation implementation, and focused tests in that package
 - [Application composition root](../../internal/app/runtime.go) and reference admission path
 - [Ticket #30 handoff](../0030-runtime-backend-mvp/handoff-0031.md)
-- [Ticket #29](https://github.com/wunderforge/agenova/issues/29) and its accepted issuance contract when available
+- [Ticket #29](https://github.com/wunderforge/agenova/issues/29), its accepted `internal/issuance.Issue` entry point, and merged task packet
 - [Ticket #32](https://github.com/wunderforge/agenova/issues/32), the consumer of the authoritative lifecycle view
 
 ## Scope
@@ -63,7 +63,7 @@ Out of scope:
 
 ## Execution Todo
 
-- [x] Scout the relevant implementation, tests, risks, and dependencies; read #30's handoff and confirm #29 remains open.
+- [x] Scout the relevant implementation, tests, risks, and dependencies; read #30's handoff and confirm #29 is merged and closed.
 - [ ] Confirm this Task + Spec + Design with the Owner and an independent Reviewer before implementation.
 - [ ] Slice 1: add the application-owned lifecycle store/state machine and focused valid/invalid transition tests, with no backend call composition yet.
 - [ ] Slice 2: compose issued Pending state with Allocate/Observe/Start and deterministic success, allocation-failure, and start-failure traces.
@@ -99,6 +99,7 @@ Out of scope:
 
 - Planning depth is Task + Spec + Design because the Ticket crosses application/runtime boundaries and must settle state ownership, timeout limits, teardown ordering, and compatibility before implementation.
 - The user authorized starting #31 and #32 on 2026-09-14. Work proceeds in dependency order; #32 remains paused until #31's authoritative lifecycle view is accepted.
-- #29 is open and its takeover Draft PR #129 is awaiting planning re-review. #31 may plan against its documented proposed output but cannot claim integrated issuance until #29's contract is accepted and available on the implementation base.
+- #29 is merged through PR #129 and closed. #31 will consume the accepted pure `internal/issuance.Issue` entry point and its validated Allow-form `IssuedState` without duplicating issuance.
+- Proposed lifecycle-contract decision requiring Owner approval: add `Pending -> Failed` for allocation failure only. Allocation failure has no backend identity, so publishing `Bound` would fabricate a binding; leaving the claim non-terminal would hide the application failure. The transition must carry allocation-failure evidence and must not call identity-dependent teardown. The architecture contract will be updated in the implementation slice only after this decision is approved.
 - `RuntimeBackend` calls have no context parameter. The MVP deadline can govern readiness polling and results observed between calls, but this Ticket must not claim preemption of a backend call already in progress.
 - Packet approval and an independent Reviewer are still required before implementation by the repository AIDLC.
