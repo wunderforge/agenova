@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type AgentSummary, type EventKind, type WorkEvent, type WorkItem, type WorkStatus } from './portal-data';
+import { ConnectedPortal } from './ConnectedPortal';
 import './portal.css';
 
 const workFilters = ['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending'] as const;
@@ -183,7 +184,8 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
       <aside className="portal-request-route"><h2>Services behind this request</h2><Fact label="Agent template" value={agent.name}/><Fact label="Tool Gateway" value={`${tools.length} tools requested`}/><Fact label="Model Gateway" value={agent.model}/><Fact label="Memory Interface · future" value={agent.memory}/><Fact label="RuntimeBackend" value={agent.runtime}/><Fact label="Policy check" value={`${demoPolicy.id} / v${demoPolicy.version}`}/><p>A request does not grant access; policy and template limits determine what is issued.</p><a href={href('platform')}>View platform setup</a></aside></form></>;
 }
 
-export function Portal() {
+export type PortalMode = 'demo' | 'connected';
+export function Portal({ mode }: { mode: PortalMode }) {
   const [location, setLocation] = useState(() => window.location.hash);
   const [works, setWorks] = useState<WorkItem[]>(() => exampleWorks.map(work => structuredClone(work)));
   useEffect(() => { const changed = () => setLocation(window.location.hash); window.addEventListener('hashchange', changed); return () => window.removeEventListener('hashchange', changed); }, []);
@@ -191,8 +193,16 @@ export function Portal() {
   const section = parts[0] || 'work';
   const work = works.find(item => item.id === parts[1]);
   const agent = agents.find(item => item.id === parts[1]);
+  const changeMode = (next: PortalMode) => {
+    const url = new URL(window.location.href);
+    if (next === 'connected') url.searchParams.set('mode', 'connected');
+    else url.searchParams.delete('mode');
+    window.history.pushState(null, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
   let content: ReactNode;
-  if (section === 'work' && parts[1] === 'new') content = <NewWork addWork={item => setWorks(current => [item, ...current])} selectedAgent={query.get('agent') || ''}/>;
+  if (mode === 'connected') content = <ConnectedPortal parts={parts} onDemo={() => changeMode('demo')}/>;
+  else if (section === 'work' && parts[1] === 'new') content = <NewWork addWork={item => setWorks(current => [item, ...current])} selectedAgent={query.get('agent') || ''}/>;
   else if (section === 'work' && !parts[1]) content = <WorkList works={works}/>;
   else if (section === 'work' && work && parts[2] === 'access') content = <WorkAccess work={work}/>;
   else if (section === 'work' && work && parts[2] === 'activity' && parts[3]) {
@@ -208,8 +218,9 @@ export function Portal() {
   else if (section === 'identity') content = <IdentityPage/>;
   else content = <><Head title="Work not found"/><a href={href('work')}>Back to Work</a></>;
   void location; // hashchange drives the render; route() reads the current URL.
-  return <div className="portal-shell"><a className="portal-skip" href="#portal-main">Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
+  return <div className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
     <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a></nav>
-    <div className="portal-sidebar-foot">Interactive demo<br/>Illustrative records</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : 'Demo identity'}</span><div><span className="portal-demo-indicator">Example data · no live connection</span><a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a></div></header>
-      <main id="portal-main" className="portal-page">{content}</main></div></div>;
+    <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>No live data yet</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'No live data yet'}</span>
+      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">Identity unavailable</a>}</div></header>
+      <main id="portal-main" tabIndex={-1} className="portal-page">{content}</main></div></div>;
 }

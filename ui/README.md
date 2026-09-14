@@ -12,11 +12,14 @@ npm --prefix ui run dev
 
 Open the local address printed by Vite. The Work list leads to a single Work's progress, access comparison and activity records. Platform shows example service bindings and cross-work governance activity; it also lists the connection state of each React surface. New work only creates a local Pending example. Reloading clears that request. The original contract reader is at `/fixtures`; it still shows the 12 canonical request/issued-state cases and two labeled display-corruption cases.
 
+The header switches the same portal between **Demo** (`/`) and **Connected** (`/?mode=connected`). The URL retains the current Work/Platform route and survives reload. Demo uses only illustrative records. Connected currently has no live portal source: Work, submission, agents, policy, identity, and activity show task-oriented `Not connected` states; Platform summarizes those gaps. No example data, example identity, or fixture claim is silently shown in Connected. Once a live source exists, distinguish `Not connected` (no source), `Unable to load` (a configured source failed), and `No work yet` (a successful empty response). Never turn a connection failure into an empty result or a demo fallback.
+
 | Surface | Current source | What remains |
 | --- | --- | --- |
 | `/fixtures` | Canonical Go-parsed and shape-checked fixtures | No live API |
 | `/console/requests/...` | Validated, correlated fixture snapshots; a derived narrowed case is labeled | #38/#68 evidence/API, polling, terminal behavior, CLI equality |
-| `/#/work`, `/#/platform` | Separate typed illustrative stories in `portal-data.ts` | Replace demo stories with accepted evidence representation and live adapters; no mock record is authority |
+| `/#/work`, `/#/platform` in Demo | Separate typed illustrative stories in `portal-data.ts` | Replace demo stories with accepted evidence representation and live adapters; no mock record is authority |
+| `/?mode=connected#/work`, `/?mode=connected#/platform` | Explicit unconnected states; no live read or automatic demo fallback | Add accepted live sources per view, with loading/error/empty handling |
 | New work | Browser-local Pending example only | Actual submission, authorization, claim issuance, backend allocation |
 
 The portal does not add a second governance contract or run a frontend policy evaluator. Work-specific activity and cross-work Platform activity remain separate. The 45-to-30-minute narrowing story is illustrative, not proof that an Agenova worker ran or that the current resolver emitted those exact records.

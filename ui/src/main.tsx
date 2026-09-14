@@ -25,10 +25,11 @@ function Root() {
     window.addEventListener('popstate', changed);
     return () => window.removeEventListener('popstate', changed);
   }, []);
-  const parsed = useMemo(() => { const url = new URL(location, window.location.origin); return parseConsoleRoute(url.pathname, url.search); }, [location]);
+  const url = useMemo(() => new URL(location, window.location.origin), [location]);
+  const parsed = useMemo(() => parseConsoleRoute(url.pathname, url.search), [url]);
   const consoleSource = useMemo(() => createConsoleFixtureSource(consoleRows, parsed.status === 'route' ? parsed.route.scenario : 'canonical'), [parsed]);
-  if (location === '/') return <Portal/>;
-  if (location === '/fixtures') return <App source={source} selections={selections}/>;
+  if (url.pathname === '/') return <Portal mode={url.searchParams.get('mode') === 'connected' ? 'connected' : 'demo'}/>;
+  if (url.pathname === '/fixtures') return <App source={source} selections={selections}/>;
   if (parsed.status === 'malformed-route') return <main className="console"><h1>Claim Console</h1><ConsoleNavigation/><section role="alert"><h2>Malformed console route</h2><p>Use a request-reference or claim-ID console route. No fixture was selected.</p></section></main>;
   return <ClaimConsole source={consoleSource} route={parsed.route} keys={fixtureConsoleKeys}/>;
 }

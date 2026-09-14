@@ -32,3 +32,13 @@ Known gotchas: #60 is not yet merged to main, so this branch is stacked on its r
 - Rendered Playwright captures: `.tmp/ui-smoke/portal-portal-journey-keep-5b3b8-nd-shows-narrowed-authority/portal-work-list.png`, `portal-resolution.png` in the same directory, `.tmp/ui-smoke/portal-platform-activity-a-87126--and-links-back-to-one-work/portal-platform.png`, and `.tmp/ui-smoke/portal-portal-remains-usable-at-mobile-width/portal-mobile-work.png`. Desktop Work, Platform, resolution record, and mobile Work captures were visually inspected.
 
 Residual boundary: The portal's example records are intentionally distinct from the canonical fixture console. Live evidence, persistence, submission, policy evaluation, and observed gateway traffic remain unconnected. No real-backend behavior is claimed by this slice.
+
+## Connected-view extension — 14 Sep 2026
+
+Mission: Let the team inspect the actual connection state from the same navigation without mistaking example content for live data.
+
+Acceptance: A persistent Demo/Connected switch preserves the current route; Connected never renders the `portal-data.ts` stories or demo identity; each page explains missing capability in user language; Platform summarizes readiness by user task; the mobile status summary requires no horizontal scrolling. An unconnected view is never labeled as an empty successful result or a transient connection failure.
+
+Boundary: No live portal endpoint is available in this branch. Connected therefore renders only `Not connected`; this task does not fake a successful request or add an HTTP contract. Future slices must attach accepted live sources and represent loading, successful empty, and failure states separately before claiming that a row is connected.
+
+Evidence: `npm --prefix ui run test:smoke -- portal.spec.ts` passed 8/8 after the responsive repair. `$env:GOFLAGS='-buildvcs=false'; ./scripts/check.ps1 -All` passed with all 31 browser tests. Screenshots include `.tmp/ui-smoke/portal-connected-pages-exp-b6768-ithout-leaking-demo-records/portal-connected-work.png`, `portal-connected-platform.png`, and `.tmp/ui-smoke/portal-connected-status-stays-readable-on-mobile/portal-connected-mobile.png`. The final mobile capture was visually inspected after converting the status table to vertically stacked items.

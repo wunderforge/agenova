@@ -7,7 +7,7 @@ test('portal journey keeps work evidence scoped and shows narrowed authority', a
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Work', exact: true })).toBeVisible();
-  await expect(page.getByText('Example data · no live connection')).toBeVisible();
+  await expect(page.getByText('Example data', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('portal-work-list.png'), fullPage: true });
   await page.getByRole('link', { name: 'Update invoice retry tests' }).click();
   await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
@@ -79,4 +79,56 @@ test('portal remains usable at mobile width', async ({ page }, info) => {
   await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('portal-mobile-work.png'), fullPage: true });
+});
+
+test('connected view keeps the route but never shows illustrative work or a false empty result', async ({ page }, info) => {
+  await page.goto('/#/work/invoice-retry-tests');
+  await expect(page.getByRole('heading', { name: 'Update invoice retry tests' })).toBeVisible();
+  await page.getByRole('button', { name: 'Connected' }).click();
+  await expect(page).toHaveURL(/\?mode=connected#\/work\/invoice-retry-tests$/);
+  await expect(page.getByRole('heading', { name: 'Work details', exact: true })).toBeVisible();
+  await expect(page.getByText('Work details are not connected yet')).toBeVisible();
+  await expect(page.getByText('Update invoice retry tests')).toHaveCount(0);
+  await expect(page.getByText('No work found')).toHaveCount(0);
+  await expect(page.getByText('Team A engineer')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText('Work details are not connected yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Demo', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Update invoice retry tests' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('portal-demo-restored.png'), fullPage: true });
+});
+
+test('connected pages explain unavailable capabilities without leaking demo records', async ({ page }, info) => {
+  await page.goto('/?mode=connected#/work');
+  await expect(page.getByRole('heading', { name: 'Work', exact: true })).toBeVisible();
+  await expect(page.getByText('Work history is not connected yet')).toBeVisible();
+  await expect(page.getByText('Fix the payment timeout bug')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Connected' })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: info.outputPath('portal-connected-work.png'), fullPage: true });
+  await page.getByRole('link', { name: 'Platform' }).click();
+  await expect(page.getByRole('heading', { name: 'Platform' })).toBeVisible();
+  await expect(page.getByText('No live views are connected yet')).toBeVisible();
+  await expect(page.getByRole('row', { name: /See work and progress/ })).toContainText('Not connected');
+  await expect(page.getByText('Tool Gateway')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('portal-connected-platform.png'), fullPage: true });
+  await page.getByRole('link', { name: 'Agents' }).click();
+  await expect(page.getByText('Agents are not connected yet')).toBeVisible();
+  await expect(page.getByText('Engineer', { exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Policy' }).click();
+  await expect(page.getByText('Access rules are not connected yet')).toBeVisible();
+  await page.goto('/?mode=connected#/platform/activity');
+  await expect(page.getByText('Activity is not connected yet')).toBeVisible();
+  await expect(page.getByText('Other repository blocked')).toHaveCount(0);
+  await page.goto('/?mode=connected#/work/new');
+  await expect(page.getByText('Starting work is not available yet')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create example request' })).toHaveCount(0);
+});
+
+test('connected status stays readable on mobile', async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?mode=connected#/platform');
+  await expect(page.getByText('No live views are connected yet')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.locator('.portal-connected-table').evaluate(table => table.scrollWidth <= table.clientWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('portal-connected-mobile.png'), fullPage: true });
 });
