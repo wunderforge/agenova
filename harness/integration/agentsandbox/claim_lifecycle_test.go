@@ -55,12 +55,16 @@ func TestRuntimeBackend_AllocateObserveCleanup(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	}
-	if err := adapter.Start(alloc.Identity); !errors.Is(err, runtime.ErrUnsupported) {
-		t.Fatalf("Start must expose the missing work-start channel: %v", err)
+	startErr := adapter.Start(alloc.Identity)
+	if !errors.Is(startErr, runtime.ErrUnsupported) {
+		t.Fatalf("Start must expose the missing work-start channel: %v", startErr)
 	}
-	if err := adapter.Terminate(alloc.Identity); !errors.Is(err, runtime.ErrUnsupported) {
-		t.Fatalf("Terminate must expose the missing worker-stop channel: %v", err)
+	t.Logf("Ready worker Start result: %v", startErr)
+	terminateErr := adapter.Terminate(alloc.Identity)
+	if !errors.Is(terminateErr, runtime.ErrUnsupported) {
+		t.Fatalf("Terminate must expose the missing worker-stop channel: %v", terminateErr)
 	}
+	t.Logf("Ready worker Terminate result: %v", terminateErr)
 	assertReleased(t, adapter, alloc)
 }
 

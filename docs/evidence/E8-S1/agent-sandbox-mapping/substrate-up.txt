@@ -1,0 +1,75 @@
+[info] capturing transient evidence in /Users/qiqi/Codex/Agenova/.tmp/agent-sandbox-evidence.1xKQk5
+[pass] docker daemon reachable
+[pass] kind: /Users/qiqi/.docker/bin/kind (existing)
+[pass] kubectl: /Users/qiqi/.docker/bin/kubectl (existing)
+No kind clusters found.
+[info] creating kind cluster 'agenova-k8s-lab'
+Creating cluster "agenova-k8s-lab" ...
+ • Ensuring node image (kindest/node:v1.37.0) 🖼️  ...
+ ✓ Ensuring node image (kindest/node:v1.37.0) 🖼️
+ • Preparing nodes 📦   ...
+ ✓ Preparing nodes 📦 
+ • Writing configuration 📜  ...
+ ✓ Writing configuration 📜
+ • Starting control-plane 🕹️  ...
+ ✓ Starting control-plane 🕹️
+ • Installing CNI 🔌  ...
+ ✓ Installing CNI 🔌
+ • Installing StorageClass 💾  ...
+ ✓ Installing StorageClass 💾
+ • Waiting ≤ 1m30s for control-plane = Ready ⏳  ...
+ ✓ Waiting ≤ 1m30s for control-plane = Ready ⏳
+ • Ready after 17s 💚
+Set kubectl context to "kind-agenova-k8s-lab"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-agenova-k8s-lab
+
+Have a nice day! 👋
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
+[info] downloading pinned Agent Sandbox v0.4.6 manifests
+[pass] downloaded pinned manifests to /Users/qiqi/Codex/Agenova/.tmp/agent-sandbox-v0.4.6
+[info] applying core manifest (namespace, RBAC, Sandbox CRD, controller)
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
+namespace/agent-sandbox-system created
+serviceaccount/agent-sandbox-controller created
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller created
+service/agent-sandbox-controller created
+deployment.apps/agent-sandbox-controller created
+customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io created
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller created
+Waiting for deployment "agent-sandbox-controller" rollout to finish: 0 of 1 updated replicas are available...
+deployment "agent-sandbox-controller" successfully rolled out
+[info] applying extensions manifest (Template/WarmPool/Claim CRDs)
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
+customresourcedefinition.apiextensions.k8s.io/sandboxclaims.extensions.agents.x-k8s.io created
+customresourcedefinition.apiextensions.k8s.io/sandboxtemplates.extensions.agents.x-k8s.io created
+customresourcedefinition.apiextensions.k8s.io/sandboxwarmpools.extensions.agents.x-k8s.io created
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller-extensions created
+deployment.apps/agent-sandbox-controller configured
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller-extensions created
+Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "agent-sandbox-controller" rollout to finish: 1 old replicas are pending termination...
+deployment "agent-sandbox-controller" successfully rolled out
+[pass] Agent Sandbox v0.4.6 installed and controller ready
+[info] kind binary: /Users/qiqi/.docker/bin/kind (existing)
+kind v0.33.0 go1.26.7 darwin/arm64
+[info] kubectl binary: /Users/qiqi/.docker/bin/kubectl (existing)
+Client Version: v1.36.1
+Kustomize Version: v5.8.1
+Server Version: v1.37.0
+[info] installed CRD sandboxes.agents.x-k8s.io: version served storage
+v1alpha1 served=true storage=true
+[info] installed CRD sandboxtemplates.extensions.agents.x-k8s.io: version served storage
+v1alpha1 served=true storage=true
+[info] installed CRD sandboxwarmpools.extensions.agents.x-k8s.io: version served storage
+v1alpha1 served=true storage=true
+[info] installed CRD sandboxclaims.extensions.agents.x-k8s.io: version served storage
+v1alpha1 served=true storage=true
+[info] controller deployment:
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS                 IMAGES                                                          SELECTOR
+agent-sandbox-controller   1/1     1            1           15s   agent-sandbox-controller   registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6   app=agent-sandbox-controller
+[info] controller image:
+registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6
+[info] pinned Agent Sandbox version: v0.4.6
