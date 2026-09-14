@@ -93,7 +93,7 @@ Consequences the consumers rely on:
 - #34 and #35 bind governed Tool and Model calls to the issued claim identity and must not reinterpret the authority snapshot.
 - #41 and #60 display requested versus effective values and the claim identity through the shared evidence contract.
 - `ValidateIssuedState`, `ParseSystemIssuedState`, and `ParseCallerIssuedState` remain unchanged; this Ticket satisfies those invariants rather than relaxing them. #27's existing `Admission.Matches` remains available to #28; #29 only adds the narrow exact-context matcher.
-- The claim remains backend-neutral. The Agent Sandbox adapter preserves existing safe resource names and maps unsafe public claim IDs to separate DNS-label Kubernetes names, preserving the issued ID in Agenova facts.
+- The claim remains backend-neutral. The Agent Sandbox adapter preserves existing safe resource names, reserves a `hash-` namespace for mapped names, and maps unsafe public claim IDs to DNS-label Kubernetes names without changing the issued ID in Agenova facts.
 
 ## Decisions and Planning Gate
 
@@ -103,3 +103,4 @@ Consequences the consumers rely on:
 4. **Owner-approved direction — Determinism:** identical admitted inputs reproduce an identical snapshot without a store or counter; the full validated request participates in identity derivation.
 5. **Reviewer findings addressed:** require exact admission-context binding for separately supplied Principal and Decision, and distinguish same-reference/different-task requests. The Owner directed implementation and planning review together on the complete PR; merge still requires code and evidence review.
 6. **Owner-approved Codex review corrections:** require a private request-bound #28 resolution token, and map colon-bearing issued claim IDs to deterministic Kubernetes-safe resource names in the Agent Sandbox adapter.
+7. **Follow-up hardening:** reserve mapped resource names so they cannot alias preserved safe names; reject invalid UTF-8 in the full request before computing the authority binding digest.

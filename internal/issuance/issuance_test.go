@@ -332,3 +332,23 @@ func TestResolveForIssuanceRejectsNonPositiveTimeout(t *testing.T) {
 		t.Fatalf("negative timeout resolution = %+v/%+v", resolved, err)
 	}
 }
+
+func TestResolutionRejectsInvalidUTF8RequestBeforeHashing(t *testing.T) {
+	request, template, fixture, bundle := teamAFixtures(t)
+	admission, _ := admit(t, request, fixture.Principal, bundle)
+	validResolution := resolve(t, request, template, admission)
+	for _, invalidByte := range []byte{0xff, 0xfe} {
+		changed := cloneRequest(t, request)
+		changed.Spec.Task.Input["objective"] = string([]byte{invalidByte})
+		if err := v1alpha1.ValidateClaimRequest(changed); err != nil {
+			t.Fatalf("test requires a schema-valid request: %v", err)
+		}
+		if grant, ok := validResolution.AuthorityFor(changed); ok || grant != nil {
+			t.Fatalf("invalid UTF-8 request reused another authority resolution: %+v", grant)
+		}
+		resolution, err := authority.ResolveForIssuance(changed, template, admission)
+		if resolution != nil || err == nil || err.FieldPath != "$" {
+			t.Fatalf("invalid UTF-8 request resolved: %+v/%+v", resolution, err)
+		}
+	}
+}

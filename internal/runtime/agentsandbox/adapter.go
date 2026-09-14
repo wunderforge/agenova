@@ -449,15 +449,17 @@ func hasCondition(conditions []upstreamCondition, condType, condStatus string) b
 
 // resourceName maps an Agenova identity to a deterministic DNS-label name.
 // Existing safe names are preserved for the kind harness and existing backend
-// resources. Other names receive a digest so sanitizing or truncating their
-// readable portion does not collapse distinct issued identities.
+// resources, except the reserved hash- namespace. Mapped names live there so
+// no preserved raw name can alias one; their digest also distinguishes names
+// whose readable portion is sanitized or truncated.
 func resourceName(kind, agenovaName string) string {
+	const mappedPrefix = "hash-"
 	legacy := "agenova-" + kind + "-" + agenovaName
-	if len(legacy) <= 63 && isDNSLabel(legacy) {
+	if len(legacy) <= 63 && isDNSLabel(legacy) && !strings.HasPrefix(agenovaName, mappedPrefix) {
 		return legacy
 	}
 	digest := sha256.Sum256([]byte(kind + "\x00" + agenovaName))
-	base := "agenova-" + dnsLabelPart(kind) + "-" + dnsLabelPart(agenovaName)
+	base := "agenova-" + dnsLabelPart(kind) + "-" + mappedPrefix + dnsLabelPart(agenovaName)
 	const suffixLength = 17 // hyphen and 16 hex digits
 	if len(base) > 63-suffixLength {
 		base = strings.TrimRight(base[:63-suffixLength], "-")

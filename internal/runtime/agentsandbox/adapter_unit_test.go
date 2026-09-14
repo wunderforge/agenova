@@ -85,6 +85,11 @@ func TestResourceName(t *testing.T) {
 	if first, second := resourceName("claim", "A:B"), resourceName("claim", "A-B"); first == second {
 		t.Fatalf("distinct identities collapsed to the same name: %q", first)
 	}
+	unsafeName := resourceName("claim", "A:B")
+	safeAlias := strings.TrimPrefix(unsafeName, "agenova-claim-")
+	if got := resourceName("claim", safeAlias); got == unsafeName {
+		t.Fatalf("reserved mapped name aliases safe identity %q", safeAlias)
+	}
 }
 
 func TestRequirePhase_notFound(t *testing.T) {
