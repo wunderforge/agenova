@@ -78,3 +78,31 @@ commit. From the repository root, verify with `shasum -a 256 -c docs/evidence/E8
 versions. [Substrate cleanup](substrate-down.txt) confirms the owned cluster was
 deleted. These phase captures accompany the adapter test; they are not an E8-T3
 full-lifecycle rerun or #51 isolation proof.
+
+## Final Repository Gates — 2026-09-14
+
+Both gates ran on the clean, retained delivery commit
+[d9d2f38](https://github.com/wunderforge/agenova/commit/d9d2f381a5f2cfd9e2ffc1ab9271b3d106bcf90b),
+tree `70fbe01400cd0173adf02051b57a2725dc6e81b6`. That commit includes
+the final reproduction script/test, updated mapping, and September 14 cluster
+evidence. The subsequent capture commit only appends these gate transcripts
+and documents their provenance; it does not change executable inputs.
+
+| Command | Exit | Raw output |
+| --- | --- | --- |
+| `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -Docs` | 0 | [docs-output.txt](docs-output.txt) |
+| `pwsh -NoLogo -NoProfile -File scripts/check.ps1 -All` | 0 | [baseline-output.txt](baseline-output.txt) |
+
+Each transcript begins with the tested commit, tree, and UTC start time and ends
+with its exit code. The full gate includes Go formatting, module tidiness, vet,
+unit tests, integration compilation, frontend contracts/types/components/build,
+and seven passing browser smoke cases. These are repository gates, separate
+from the real-backend evidence above.
+
+Local tools were on PATH from `.tmp/toolchain/go/bin`, `.tmp/toolchain/bin`,
+the bundled Node runtime, and `~/.docker/bin`; PowerShell was invoked from
+`.tmp/toolchain/pwsh/pwsh`. GOPATH, GOCACHE, DOTNET_CLI_HOME, and
+PLAYWRIGHT_BROWSERS_PATH were absolute paths to `.tmp/go-path`, `.tmp/go-cache`,
+`.tmp/dotnet-home`, and `.tmp/playwright` respectively. No credentials are
+required by these gate commands. Local untracked meeting scratch files and
+`.DS_Store` are excluded from the deliverable.

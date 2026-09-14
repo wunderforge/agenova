@@ -70,7 +70,7 @@ Out of scope:
 - [x] Run the adapter-created experimental resources against the real substrate and demonstrate the Ready-worker Start/Terminate unsupported case; capture the output.
 - [x] Update `docs/backends/agent-sandbox-v0.4.6-mapping.md` with the mapping table, gap report, remaining questions, merged #30/#89 reconciliation, and bounded real-cluster result.
 - [x] Add `harness/spike/agent-sandbox-mapping/` (adapter-backed reproduction + exact commands) and `docs/evidence/E8-S1/agent-sandbox-mapping/`.
-- [x] Run `./scripts/check.ps1 -Docs` and `./scripts/check.ps1 -All` on 2026-09-13; review the final diff for scope, boundary, evidence, and source-of-truth updates.
+- [x] Rerun `./scripts/check.ps1 -Docs` and `./scripts/check.ps1 -All` on 2026-09-14 at retained delivery commit `d9d2f381a5f2cfd9e2ffc1ab9271b3d106bcf90b`; both exited 0. Commit their complete output in the mapping evidence directory and review the final diff for scope and provenance.
 - [x] Stop at the time box with Start/Terminate unsupported, durability unsupported, and general isolation unknown; leave full restart/isolation proof to #48/#51.
 
 ## Quality Gates
