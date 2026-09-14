@@ -120,9 +120,9 @@ Out of scope:
 - The later 2026-09-13 experiment supersedes this former blocker and closes PR #105's reproduced-negative-case finding.
 - Validation results are recorded in [source refresh evidence](../../docs/evidence/E8-S1/source-refresh/summary.md).
 
-## Real-Cluster Experiment — 2026-09-13
+## Real-Cluster Experiment — 2026-09-14
 
-- Merged main through #99, then ran the final committed mapping script at `3ce542bf951a2cbab1533cda3befabbcf922415b` on the owned `kind-agenova-k8s-lab` context.
+- Merged main through #129, then ran the final committed mapping script at `6274b8167669c32bf9f3c1e7ac61da6375fd6286` on the owned `kind-agenova-k8s-lab` context.
 - Captured all four installed v0.4.6 CRD schemas and a unique Allocate/Observe/Cleanup lifecycle.
 - Reproduced the bounded negative: after the assigned worker reported Ready, Start and Terminate each returned `runtime.ErrUnsupported` with their missing evidence channels stated explicitly.
 - Confirmed cleanup independently: the claim and assigned Sandbox were absent, `Released=true`, and `Replaced=false`.

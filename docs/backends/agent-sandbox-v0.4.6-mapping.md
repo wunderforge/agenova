@@ -1,6 +1,6 @@
 # Provisional RuntimeBackend Mapping to Agent Sandbox v0.4.6
 
-Updated: 2026-09-13. Agenova experiment baseline: `3ce542bf951a2cbab1533cda3befabbcf922415b` (merged #30, #89, #99, and filesystem lifecycle follow-up #124).
+Updated: 2026-09-14. Agenova experiment baseline: `6274b8167669c32bf9f3c1e7ac61da6375fd6286` (merged #30, #89, #99, #124, and claim issuance #129).
 
 Status: provisional E8-S1 mapping ([#66](https://github.com/wunderforge/agenova/issues/66)) with one bounded real-cluster negative reproduced on the merged E8-T3 substrate ([#99](https://github.com/wunderforge/agenova/pull/99)).
 
