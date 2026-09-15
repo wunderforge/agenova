@@ -30,17 +30,24 @@ return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'n
 }
 test('connected motion follows provider and cleanup evidence without resetting DOM or scroll',async({page},info)=>{
  const current=work();
- current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,providerStatus:'Attempted'});
+ current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'call-1',providerStatus:'Attempted'});
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await expect(page.locator('.portal-flow-node.active')).toContainText('Model');
+ await expect(page.locator('.portal-flow-node.active')).toContainText('Worker');
+ await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
+ expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(1);
+ await page.screenshot({path:info.outputPath('connected-worker-waiting.png'),fullPage:true});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ expect(await page.locator('.portal-worker-lamp').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+ await page.emulateMedia({reducedMotion:'no-preference'});
  await page.evaluate(()=>{
    (window as unknown as {savedFlow:Element|null}).savedFlow=document.querySelector('.portal-flow');
    window.scrollTo({top:150,behavior:'instant'});
  });
  const position=await page.evaluate(()=>scrollY);
- current.facts.push({id:'provider-finish',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'ProviderOutcome',requestRef:current.requestRef,providerStatus:'Succeeded'});
- await expect(page.locator('.portal-flow-node').nth(3)).toHaveClass(/done/);
+ current.facts.push({id:'provider-finish',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'ProviderOutcome',requestRef:current.requestRef,invocationId:'call-1',providerStatus:'Succeeded'});
+ await expect(page.locator('.portal-worker-actions')).toContainText('Succeeded');
+ await expect(page.locator('.portal-worker')).not.toHaveClass(/has-active-call/);
  expect(await page.evaluate(()=>document.querySelector('.portal-flow')===(window as unknown as {savedFlow:Element|null}).savedFlow)).toBe(true);
  expect(await page.evaluate(()=>scrollY)).toBe(position);
  current.state!.claim!.phase='Succeeded';

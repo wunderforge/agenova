@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type AgentSummary, type EventKind, type WorkEvent, type WorkItem, type WorkStatus } from './portal-data';
 import { ConnectedPortal } from './ConnectedPortal';
 import { RunFlow } from './RunFlow';
+import { WorkerActivity, demoWorkerActions } from './WorkerActivity';
 import { usePortalMotion } from './portal-motion';
 import './portal.css';
 import './portal-motion.css';
@@ -66,12 +67,11 @@ function WorkDetail({ work }: { work: WorkItem }) {
       received: work.events.some(event => event.kind === 'Request'),
       authorized: work.decision === 'Allowed' && !!work.granted,
       started: work.events.some(event => event.kind === 'Runtime' && /worker started/i.test(event.title)),
-      modelRequested: work.events.some(event => event.kind === 'Model'),
-      modelFinished: false,
       result: work.status === 'Succeeded' && !!work.outcome,
       cleanup: work.events.some(event => /environment released|cleanup confirmed/i.test(event.title)),
       failureAt: work.status === 'Failed' ? 'Worker' : undefined,
     }}/>
+    <WorkerActivity actions={demoWorkerActions(work.events, href(`work/${work.id}/activity`))} status={work.status} activityHref={href(`work/${work.id}/activity`)}/>
     <div className="portal-detail-grid"><section><div className="portal-section-head"><h2>Progress</h2><small>{work.updated} last update</small></div>
       <div className={`portal-state ${work.status.toLowerCase()}`} role="status"><strong>{message[0]}</strong><p>{message[1]}</p></div>
       <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
