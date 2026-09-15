@@ -80,4 +80,5 @@ Out of scope:
 - #48 is complete and freezes the ordinary adapter mapping. This ticket owns only #134's controlled-worker slice and advances, but does not close, #51.
 - The Owner authorized completing #134 from Codex review on 2026-09-15. Five Codex findings define the corrective acceptance cases in this packet.
 - Focused tests, both integration compile variants, and `./scripts/check.ps1 -All` pass locally. A fresh real-kind transcript remains the publication gate.
+- The fresh real-kind run passed on commit `7526372`; `docs/evidence/51/kind-run.md` records the correlated worker, control token, child result, confirmed stop, and release.
 
