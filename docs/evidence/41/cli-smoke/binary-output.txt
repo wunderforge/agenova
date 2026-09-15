@@ -1,0 +1,27 @@
+== allow ==
+request: fix-payment-timeout
+decision: Allow
+principal: user:team-a-engineer
+allocated: true
+claim: claim:fix-payment-timeout:issuance:cb71a09da1c3a0f4ff16dd25bfb758fa
+phase: Succeeded
+exit:0
+== deny ==
+request: fix-payment-timeout
+decision: Deny
+principal: user:team-b-engineer
+allocated: false
+exit:1
+== secret ==
+secret-value: spec.secrets: reserved field is not allowed in caller-authored input
+Run 'agenova run --help' for usage.
+exit:2
+== missing -f ==
+run requires -f <claim-request.yaml>
+Run 'agenova run --help' for usage.
+exit:2
+== authority ==
+unknown flag "--repo"
+Agenova does not grant authority through CLI flags
+Run 'agenova --help' for usage.
+exit:2

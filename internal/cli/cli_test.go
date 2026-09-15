@@ -28,7 +28,7 @@ func TestHelpAndVersion(t *testing.T) {
 		if stderr != "" {
 			t.Fatalf("%v: unexpected stderr %q", args, stderr)
 		}
-		if !strings.Contains(stdout, "Usage:") || !strings.Contains(stdout, "version") {
+		if !strings.Contains(stdout, "Usage:") || !strings.Contains(stdout, "version") || !strings.Contains(stdout, "run") {
 			t.Fatalf("%v: help output missing usage: %q", args, stdout)
 		}
 		if strings.Contains(stdout, "\n  --repo") || strings.Contains(stdout, "\n  --tools") || strings.Contains(stdout, "\n  --model") {
@@ -166,7 +166,7 @@ func (e errorString) Error() string { return string(e) }
 func runCLI(t *testing.T, args []string, factory RuntimeFactory) (string, string, int) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := Main(args, &stdout, &stderr, factory)
+	code := Main(args, &stdout, &stderr, factory, nil)
 	return stdout.String(), stderr.String(), code
 }
 
