@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -11,6 +12,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/evidence"
 )
 
 func TestCLISmoke(t *testing.T) {
@@ -69,6 +73,50 @@ func TestRunSubmissionSmoke(t *testing.T) {
 	missing := runCLI(t, bin, 2, "run")
 	if !strings.Contains(missing, "run requires -f") {
 		t.Fatalf("missing file: %q", missing)
+	}
+}
+
+func TestRunSubmissionPrintsSharedEvidenceJSON(t *testing.T) {
+	bin := buildCLI(t)
+	fixture := claimRequestFixture(t, "valid-team-a-engineer.yaml")
+	for _, tc := range []struct {
+		preset string
+		exit   int
+		result v0.DecisionResult
+	}{
+		{"team-a", 0, v0.DecisionResultAllow}, {"team-b", 1, v0.DecisionResultDeny},
+	} {
+		out := runCLIEnv(t, bin, tc.exit, []string{"AGENOVA_LOCAL_PRINCIPAL=" + tc.preset}, "run", "-f", fixture, "--json")
+		var view evidence.View
+		if err := json.Unmarshal([]byte(out), &view); err != nil {
+			t.Fatal(err)
+		}
+		if view.Version != "agenova.evidence/v0" || view.Request == nil || view.State == nil || view.Outcome == nil || len(view.Facts) < 2 {
+			t.Fatalf("incomplete shared view: %s", out)
+		}
+		if err := v0.ValidateIssuedState(view.State); err != nil {
+			t.Fatal(err)
+		}
+		if view.State.Decision.Result != tc.result {
+			t.Fatal("wrong decision")
+		}
+		if tc.result == v0.DecisionResultDeny {
+			if view.State.Claim != nil || view.State.EffectiveAuthority != nil {
+				t.Fatal("denial fabricated authority")
+			}
+		} else {
+			if view.State.Claim.Phase != v0.ClaimPhaseSucceeded {
+				t.Fatal("missing terminal state")
+			}
+			cleanup, final := false, false
+			for _, fact := range view.Facts {
+				cleanup = cleanup || fact.Operation == "CleanupSucceeded"
+				final = final || fact.Kind == "RunOutcome"
+			}
+			if !cleanup || !final {
+				t.Fatal("CLI omitted lifecycle/outcome facts")
+			}
+		}
 	}
 }
 
