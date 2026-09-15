@@ -24,8 +24,7 @@ type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, re
 
 // RunHandler submits one ClaimRequest file through the application path.
 // Command behavior does not parse YAML or grant authority; the host does.
-// The hosted backend is supplied so run can fail closed on unknown backends
-// without allocating.
+// The hosted backend is supplied to the application composition boundary.
 type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, error)
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
@@ -34,6 +33,8 @@ type RunReport struct {
 	Decision   string
 	Principal  string
 	Allocated  bool
+	ClaimID    string
+	Phase      string
 }
 
 const helpText = `Agenova hosts claim-scoped application services for one agent worker run.
@@ -147,9 +148,11 @@ func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFac
 	fmt.Fprintf(stdout, "decision: %s\n", report.Decision)
 	fmt.Fprintf(stdout, "principal: %s\n", report.Principal)
 	fmt.Fprintf(stdout, "allocated: %t\n", report.Allocated)
-	if report.Allocated {
-		fmt.Fprintln(stderr, "backend allocation is not part of agenova run -f; the run service is owned by a later ticket")
-		return 1
+	if report.ClaimID != "" {
+		fmt.Fprintf(stdout, "claim: %s\n", report.ClaimID)
+	}
+	if report.Phase != "" {
+		fmt.Fprintf(stdout, "phase: %s\n", report.Phase)
 	}
 	if strings.EqualFold(report.Decision, "Deny") {
 		return 1

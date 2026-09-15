@@ -12,7 +12,7 @@ AgentTemplate + ClaimRequest -> effective authority -> governed claim -> facts -
 
 Kubernetes, Agent Sandbox, E2B, Daytona, Docker, or another runtime may execute the process. Agenova owns the stable contract around that execution: why the run exists, what it may access, what it actually did, and which backend carried it.
 
-The canonical application input is a declarative `ClaimRequest` in YAML or equivalent API JSON. A future CLI will submit that same schema with `agenova run -f <file>`; it will not define a separate flag-based authority model.
+The canonical application input is a declarative `ClaimRequest` in YAML or equivalent API JSON. The CLI submits that same schema with `agenova run -f <file>`; it does not define a separate flag-based authority model.
 
 ## Start Here
 
@@ -37,7 +37,7 @@ The repository contains a working Go reference implementation for:
 - a Kubernetes Agent Sandbox adapter spike with documented semantic gaps;
 - a backend-neutral `agenova` composition root (`--help`, `version`, `run -f`, invalid command/configuration).
 
-It does **not** yet contain request-to-claim issuance, backend allocation from the CLI, networked gateways, durable facts or claims, production controllers, Helm packaging, a Memory Interface, OpenTelemetry integration, or a live React console. See [Current status](docs/project-status.md) for the exact boundary.
+It does **not** yet contain networked gateways, durable facts or claims, production controllers, Helm packaging, a Memory Interface, OpenTelemetry integration, or a live React console. See [Current status](docs/project-status.md) for the exact boundary.
 
 ## Validate
 
@@ -66,14 +66,14 @@ go run ./cmd/agenova version
 go run ./cmd/agenova run -f harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.yaml
 ```
 
-Unknown commands, unknown `--backend` values, authority flags, and invalid ClaimRequest documents exit non-zero. `run -f` admits the request; it does not issue a claim or allocate a backend.
+Unknown commands, unknown `--backend` values, authority flags, and invalid ClaimRequest documents exit non-zero. On the reference memory backend, an allowed `run -f` request resolves authority, issues one claim, runs it to a terminal outcome, and reports its claim ID and phase.
 
 ## Repository Map
 
 - `api/v1alpha1/`: current product-type sketches.
 - `cmd/agenova/`: executable entrypoint that wires command behavior to the composition root.
 - `internal/cli/`: backend-neutral command behavior (`--help`, version, `run -f`, usage errors).
-- `internal/app/`: composition root that hosts the in-memory reference backend and ClaimRequest admission.
+- `internal/app/`: composition root for reference admission, authority resolution, claim issuance, and run lifecycle.
 - `internal/runtime/`: backend-neutral runtime contract and adapters.
 - `internal/operator/`: in-memory reference backend.
 - `internal/toolgateway/`, `internal/modelgateway/`: in-process governance reference paths.

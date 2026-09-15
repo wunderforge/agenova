@@ -2,22 +2,21 @@
 
 - Ticket: [#41](https://github.com/wunderforge/agenova/issues/41)
 - Gate: cli-smoke
-- Date: 2026-09-14
-- Branch: main
-- Commit: f56ad505def151c56721d9420c7151a37000e153
+- Date: 2026-09-15
+- Branch: `cursor/e6-t2-run-submission` (takeover update)
 - Command: `go test -count=1 -v ./internal/cli ./internal/app ./cmd/agenova`
 - Result: pass
 
-Raw output: `output.txt` (focused tests) and `binary-output.txt` (executable smoke).
+Executable output: `binary-output.txt`. Focused test output is reproduced by the command above and by PR CI.
 
 ## Observed behavior
 
-- Team A `run -f` on the payment-timeout YAML exits 0 with `decision: Allow` and `allocated: false`.
+- Team A `run -f` on the payment-timeout YAML exits 0, issues one claim, allocates once, and reports `phase: Succeeded`.
 - Team B (`AGENOVA_LOCAL_PRINCIPAL=team-b`) exits 1 with `decision: Deny` and `allocated: false`.
 - Secret-value, self-asserted principal, missing template, and malformed YAML fail before allocation (allocation spy stays at 0).
 - `agenova run` without `-f`, `run -f --help` as a missing value, unknown `--backend`, and `--repo` exit 2.
-- A handler that reports `allocated: true` is treated as a product error.
+- The CLI reports the system-issued claim ID and backend-neutral terminal phase.
 
 ## Limitations
 
-- Evidence was captured on Linux with Go 1.22.2. `run -f` admits the request; it does not issue a SandboxClaim or call `RuntimeBackend.Allocate` (#29 / #31 remain open).
+- This reference path uses the memory backend and a deterministic no-op work callback. The controlled Kubernetes composition is verified separately.

@@ -58,6 +58,8 @@ func TestRunSubmitsCanonicalRequestThroughCompositionRoot(t *testing.T) {
 			Decision:   string(result.Decision),
 			Principal:  result.Principal,
 			Allocated:  result.Allocated,
+			ClaimID:    result.ClaimID,
+			Phase:      string(result.Phase),
 		}, nil
 	}
 
@@ -68,7 +70,7 @@ func TestRunSubmitsCanonicalRequestThroughCompositionRoot(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", code, stderr.String())
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "request: fix-payment-timeout") || !strings.Contains(out, "decision: Allow") || !strings.Contains(out, "allocated: false") {
+	if !strings.Contains(out, "request: fix-payment-timeout") || !strings.Contains(out, "decision: Allow") || !strings.Contains(out, "allocated: true") || !strings.Contains(out, "phase: Succeeded") {
 		t.Fatalf("stdout %q", out)
 	}
 }

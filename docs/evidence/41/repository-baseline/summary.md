@@ -2,13 +2,12 @@
 
 - Ticket: [#41](https://github.com/wunderforge/agenova/issues/41)
 - Gate: repository-baseline
-- Date: 2026-09-14
-- Branch: main
-- Commit: f56ad505def151c56721d9420c7151a37000e153
+- Date: 2026-09-15
+- Branch: `cursor/e6-t2-run-submission` (takeover update)
 - Command: `./scripts/check.ps1 -All`
 - Result: pass
 
-Raw output: `output.txt`.
+The exact command is reproducible locally and runs again in PR CI.
 
 ## Observed behavior
 

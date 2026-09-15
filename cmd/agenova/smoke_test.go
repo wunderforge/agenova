@@ -47,7 +47,7 @@ func TestRunSubmissionSmoke(t *testing.T) {
 	fixture := claimRequestFixture(t, "valid-team-a-engineer.yaml")
 
 	allow := runCLI(t, bin, 0, "run", "-f", fixture)
-	if !strings.Contains(allow, "request: fix-payment-timeout") || !strings.Contains(allow, "decision: Allow") || !strings.Contains(allow, "allocated: false") {
+	if !strings.Contains(allow, "request: fix-payment-timeout") || !strings.Contains(allow, "decision: Allow") || !strings.Contains(allow, "allocated: true") || !strings.Contains(allow, "phase: Succeeded") {
 		t.Fatalf("allow output: %q", allow)
 	}
 

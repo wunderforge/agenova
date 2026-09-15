@@ -2,7 +2,9 @@
 request: fix-payment-timeout
 decision: Allow
 principal: user:team-a-engineer
-allocated: false
+allocated: true
+claim: claim:fix-payment-timeout:issuance:cb71a09da1c3a0f4ff16dd25bfb758fa
+phase: Succeeded
 exit:0
 == deny ==
 request: fix-payment-timeout

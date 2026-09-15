@@ -7,14 +7,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
-func TestSubmitPaymentTimeoutAllowsTeamAWithoutAllocation(t *testing.T) {
-	spy := &allocateSpy{}
+func TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim(t *testing.T) {
+	spy := &runtimeSpy{}
 	result, err := SubmitClaimRequestFile(canonicalRequestPath(t), spy, ReferencePrincipalTeamA)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
@@ -25,13 +26,16 @@ func TestSubmitPaymentTimeoutAllowsTeamAWithoutAllocation(t *testing.T) {
 	if result.Principal != "user:team-a-engineer" {
 		t.Fatalf("principal = %q", result.Principal)
 	}
-	if result.Allocated || spy.allocates != 0 {
-		t.Fatalf("allocated = %t, allocate calls = %d", result.Allocated, spy.allocates)
+	if !result.Allocated || spy.allocates != 1 || spy.starts != 1 || spy.terminates != 1 || spy.cleanups != 1 {
+		t.Fatalf("result = %+v, runtime calls = %+v", result, spy)
+	}
+	if result.ClaimID == "" || result.Phase != v1alpha1.ClaimPhaseSucceeded {
+		t.Fatalf("claim outcome = %+v", result)
 	}
 }
 
 func TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation(t *testing.T) {
-	spy := &allocateSpy{}
+	spy := &runtimeSpy{}
 	result, err := SubmitClaimRequestFile(canonicalRequestPath(t), spy, ReferencePrincipalTeamB)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
@@ -56,7 +60,7 @@ func TestSubmitRejectsInvalidFixturesBeforeAllocation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			spy := &allocateSpy{}
+			spy := &runtimeSpy{}
 			path := filepath.Join("..", "..", "harness", "fixtures", "contract", "v0", "inputs", "claim-request", tc.file)
 			_, err := SubmitClaimRequestFile(path, spy, ReferencePrincipalTeamA)
 			var validation *v1alpha1.ValidationError
@@ -88,7 +92,7 @@ func TestPrincipalPresetFromEnv(t *testing.T) {
 }
 
 func TestSubmitRejectsMalformedYAMLBeforeAllocation(t *testing.T) {
-	spy := &allocateSpy{}
+	spy := &runtimeSpy{}
 	path := filepath.Join(t.TempDir(), "broken.yaml")
 	if err := os.WriteFile(path, []byte("apiVersion: [unterminated\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
@@ -103,24 +107,62 @@ func TestSubmitRejectsMalformedYAMLBeforeAllocation(t *testing.T) {
 	}
 }
 
+func TestReferenceAgentTemplateMatchesCanonicalFixture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "harness", "fixtures", "contract", "v0", "inputs", "agent-template", "valid-engineer.yaml"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	want, validationErr := v1alpha1.ParseAgentTemplateYAML(data)
+	if validationErr != nil {
+		t.Fatalf("parse fixture: %v", validationErr)
+	}
+	got, err := referenceAgentTemplate("engineer")
+	if err != nil {
+		t.Fatalf("reference template: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("reference template drifted from canonical fixture\ngot:  %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestReferenceAgentTemplateRejectsUnknownTemplate(t *testing.T) {
+	if _, err := referenceAgentTemplate("researcher"); err == nil {
+		t.Fatal("unknown template accepted")
+	}
+}
+
 func canonicalRequestPath(t *testing.T) string {
 	t.Helper()
 	return filepath.Join("..", "..", "harness", "fixtures", "contract", "v0", "inputs", "claim-request", "valid-team-a-engineer.yaml")
 }
 
-type allocateSpy struct {
-	allocates int
+type runtimeSpy struct {
+	allocates  int
+	starts     int
+	terminates int
+	cleanups   int
+	claimID    string
+	identity   v1alpha1.SandboxClaimBackendIdentity
 }
 
-func (s *allocateSpy) Allocate(runtime.AllocateRequest) (runtime.Allocation, error) {
+func (s *runtimeSpy) Allocate(request runtime.AllocateRequest) (runtime.Allocation, error) {
 	s.allocates++
-	return runtime.Allocation{}, errors.New("allocate must not be called by run -f")
+	s.claimID = request.ClaimID
+	s.identity = v1alpha1.SandboxClaimBackendIdentity{Backend: "spy", WorkerID: "worker-1"}
+	return runtime.Allocation{ClaimID: request.ClaimID, Identity: s.identity}, nil
 }
-func (s *allocateSpy) Observe(v1alpha1.SandboxClaimBackendIdentity) (runtime.Observation, error) {
-	return runtime.Observation{}, nil
+func (s *runtimeSpy) Observe(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.Observation, error) {
+	return runtime.Observation{ClaimID: s.claimID, Identity: identity, Ready: true}, nil
 }
-func (s *allocateSpy) Start(v1alpha1.SandboxClaimBackendIdentity) error     { return nil }
-func (s *allocateSpy) Terminate(v1alpha1.SandboxClaimBackendIdentity) error { return nil }
-func (s *allocateSpy) Cleanup(v1alpha1.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
-	return runtime.CleanupResult{}, nil
+func (s *runtimeSpy) Start(v1alpha1.SandboxClaimBackendIdentity) error {
+	s.starts++
+	return nil
+}
+func (s *runtimeSpy) Terminate(v1alpha1.SandboxClaimBackendIdentity) error {
+	s.terminates++
+	return nil
+}
+func (s *runtimeSpy) Cleanup(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
+	s.cleanups++
+	return runtime.CleanupResult{Identity: identity, Released: true}, nil
 }

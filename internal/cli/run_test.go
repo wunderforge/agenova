@@ -48,7 +48,9 @@ func TestRunSubmitsCanonicalFile(t *testing.T) {
 			RequestRef: "fix-payment-timeout",
 			Decision:   "Allow",
 			Principal:  "user:team-a-engineer",
-			Allocated:  false,
+			Allocated:  true,
+			ClaimID:    "claim:fix-payment-timeout:test",
+			Phase:      "Succeeded",
 		}, nil
 	}
 	var stdout, stderr strings.Builder
@@ -60,7 +62,7 @@ func TestRunSubmitsCanonicalFile(t *testing.T) {
 		t.Fatalf("submitted %q", gotPath)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "request: fix-payment-timeout") || !strings.Contains(out, "decision: Allow") || !strings.Contains(out, "allocated: false") {
+	if !strings.Contains(out, "request: fix-payment-timeout") || !strings.Contains(out, "decision: Allow") || !strings.Contains(out, "allocated: true") || !strings.Contains(out, "phase: Succeeded") {
 		t.Fatalf("stdout %q", out)
 	}
 }
@@ -128,17 +130,17 @@ func TestRunDenyExitsOne(t *testing.T) {
 	}
 }
 
-func TestRunAllocationIsNotPartOfSubmission(t *testing.T) {
+func TestRunReportsApplicationAllocation(t *testing.T) {
 	t.Parallel()
 	handler := func(string, runtime.RuntimeBackend) (RunReport, error) {
-		return RunReport{RequestRef: "fix-payment-timeout", Decision: "Allow", Allocated: true}, nil
+		return RunReport{RequestRef: "fix-payment-timeout", Decision: "Allow", Allocated: true, ClaimID: "claim-1", Phase: "Succeeded"}, nil
 	}
 	var stdout, stderr strings.Builder
 	code := Main([]string{"agenova", "run", "-f", "request.yaml"}, &stdout, &stderr, memoryFactory, handler)
-	if code != 1 {
-		t.Fatalf("exit %d, want 1, stderr %q", code, stderr.String())
+	if code != 0 {
+		t.Fatalf("exit %d, want 0, stderr %q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "backend allocation is not part of agenova run -f") {
-		t.Fatalf("stderr %q", stderr.String())
+	if !strings.Contains(stdout.String(), "allocated: true") || !strings.Contains(stdout.String(), "phase: Succeeded") {
+		t.Fatalf("stdout %q", stdout.String())
 	}
 }

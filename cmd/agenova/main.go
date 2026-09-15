@@ -29,5 +29,7 @@ func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunRep
 		Decision:   string(result.Decision),
 		Principal:  result.Principal,
 		Allocated:  result.Allocated,
+		ClaimID:    result.ClaimID,
+		Phase:      string(result.Phase),
 	}, nil
 }

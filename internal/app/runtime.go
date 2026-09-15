@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/operator"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
@@ -25,7 +26,23 @@ func NewRuntime(backendName string) (runtime.RuntimeBackend, string, error) {
 	}
 	switch name {
 	case MemoryBackend:
-		return operator.NewRuntime(), MemoryBackend, nil
+		backend := operator.NewRuntime()
+		if err := backend.AddTemplate(v1alpha1.AgentSandboxTemplate{
+			Metadata: v1alpha1.ObjectMeta{Name: referenceRuntimeTemplateRef},
+			Spec:     v1alpha1.AgentSandboxTemplateSpec{Image: "example.local/agenova/reference-worker:dev"},
+		}); err != nil {
+			return nil, "", fmt.Errorf("configure reference runtime template: %w", err)
+		}
+		if err := backend.AddWarmPool(v1alpha1.SandboxWarmPool{
+			Metadata: v1alpha1.ObjectMeta{Name: "reference-engineer-pool"},
+			Spec: v1alpha1.SandboxWarmPoolSpec{
+				TemplateRef: referenceRuntimeTemplateRef,
+				Replicas:    1,
+			},
+		}); err != nil {
+			return nil, "", fmt.Errorf("configure reference runtime pool: %w", err)
+		}
+		return backend, MemoryBackend, nil
 	default:
 		return nil, "", fmt.Errorf("unknown runtime backend %q\nThis composition root supports %q (the in-memory reference backend).\nProvider backends are not selected from the CLI", name, MemoryBackend)
 	}
