@@ -32,6 +32,8 @@ Next action: record final release review, publish scoped PR and reconcile prereq
 
 Published PR #144; CI passed at a5a62d0 and final browser gate passed after f34b1b7 with merged security snapshots. #37/#38/#68/#143 are In Review, not Done.
 
-Release pause: new Codex finding on prerequisite #142 identifies native npm `_auth`/`_authToken` aliases. Isolated credential lane is fixing the exact vocabulary with regressions. Auto-review rejected admin merge; do not bypass. Reassess only after the new fix, review and CI are verified. All prior credential findings were fixed/resolved.
+Native npm `_auth`/`_authToken` aliases fixed at 504fd3e with shared boundary regressions; focused/full gates passed in the credential worktree and focused integrated tests passed. Exact reported review thread resolved.
+
+Release pause: [#145](https://github.com/wunderforge/agenova/issues/145) records registry-qualified compound credential keys outside the existing exact-name grammar. Owner approval requested before changing that contract; do not implement or merge #142/#144 before the decision. Auto-review rejected the earlier admin merge; do not bypass. Final full integrated gate passed after the alias fix (72 unit / 37 browser); independent alias re-review found no regression. All reported credential threads were fixed/resolved, but that does not conceal the newly identified grammar gap.
 
 Required user input: none for the local checkpoint. Existing local model only, synthetic/public tasks, no paid API calls or downloads. Tools/Memory, SSO and durable history remain outside this integration.
