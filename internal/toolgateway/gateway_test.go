@@ -235,6 +235,9 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
 		{"OAuth client secret", func(r *Request) { r.Parameters = map[string]string{"client_secret": "not-inspected"} }, gateway.CategorySecretValue},
 		{"Azure client secret", func(r *Request) { r.Parameters = map[string]string{"AZURE_CLIENT_SECRET": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub CLI token", func(r *Request) { r.Parameters = map[string]string{"GH_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub CLI enterprise token", func(r *Request) { r.Parameters = map[string]string{"GH_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub enterprise token", func(r *Request) { r.Parameters = map[string]string{"GITHUB_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -85,3 +85,4 @@ Out of scope:
 - Blockers: none; #34 and #35 are merged.
 - Review follow-up: added normalized OAuth `client_secret`/`clientSecret` rejection across task, launch, and gateway inputs, and direct JSON nested-field coverage. The focused gate and full baseline pass again.
 - Review follow-up: reserve `AZURE_CLIENT_SECRET` across the same boundaries; reject custom JSON encoders and named byte slices in direct-Go task input so serialized shapes cannot bypass structural validation. The focused gate and `.\scripts\check.ps1 -All` pass again, including all seven browser smoke cases.
+- Review follow-up: reserve all three conventional GitHub CLI/enterprise token names; explicitly serialize `automountServiceAccountToken: false` and assert field presence. Focused/full gates are rerun on the final regression additions before public push.
