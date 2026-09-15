@@ -3,7 +3,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type AgentSummary, type EventKind, type WorkEvent, type WorkItem, type WorkStatus } from './portal-data';
 import { ConnectedPortal } from './ConnectedPortal';
+import { RunFlow } from './RunFlow';
+import { usePortalMotion } from './portal-motion';
 import './portal.css';
+import './portal-motion.css';
 
 const workFilters = ['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending'] as const;
 const workActivityKinds = ['All', 'Request', 'Decision', 'Claim', 'Runtime', 'Tool', 'Model'] as const;
@@ -58,6 +61,17 @@ function WorkDetail({ work }: { work: WorkItem }) {
   return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: work.title }]}/>
     <Head title={work.title} subtitle={`Submitted ${work.submitted} · ${work.requestRef}`} action={<Badge value={work.status}/>}/>
     <div className="portal-top-facts">{work.context && <Fact label={work.context.label} value={work.context.value}/>}<Fact label={work.branch ? 'Base branch' : 'Team'} value={work.branch || work.team}/><Fact label="Agent" value={work.agent}/><Fact label="Requested by" value={work.principal}/></div>
+    <RunFlow activityHref={href(`work/${work.id}/activity`)} evidence={{
+      status: work.status,
+      received: work.events.some(event => event.kind === 'Request'),
+      authorized: work.decision === 'Allowed' && !!work.granted,
+      started: work.events.some(event => event.kind === 'Runtime' && /worker started/i.test(event.title)),
+      modelRequested: work.events.some(event => event.kind === 'Model'),
+      modelFinished: false,
+      result: work.status === 'Succeeded' && !!work.outcome,
+      cleanup: work.events.some(event => /environment released|cleanup confirmed/i.test(event.title)),
+      failureAt: work.status === 'Failed' ? 'Worker' : undefined,
+    }}/>
     <div className="portal-detail-grid"><section><div className="portal-section-head"><h2>Progress</h2><small>{work.updated} last update</small></div>
       <div className={`portal-state ${work.status.toLowerCase()}`} role="status"><strong>{message[0]}</strong><p>{message[1]}</p></div>
       <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
@@ -187,6 +201,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
 export type PortalMode = 'demo' | 'connected';
 export function Portal({ mode }: { mode: PortalMode }) {
   const [location, setLocation] = useState(() => window.location.hash);
+  const motionRoot = usePortalMotion(`${mode}:${location}`);
   const [works, setWorks] = useState<WorkItem[]>(() => exampleWorks.map(work => structuredClone(work)));
   useEffect(() => { const changed = () => setLocation(window.location.hash); window.addEventListener('hashchange', changed); return () => window.removeEventListener('hashchange', changed); }, []);
   const { parts, query } = route();
@@ -218,9 +233,9 @@ export function Portal({ mode }: { mode: PortalMode }) {
   else if (section === 'identity') content = <IdentityPage/>;
   else content = <><Head title="Work not found"/><a href={href('work')}>Back to Work</a></>;
   void location; // hashchange drives the render; route() reads the current URL.
-  return <div className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
+  return <div ref={motionRoot} className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
     <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a></nav>
     <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Current server session</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
-      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div></header>
+      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div><div className="portal-scroll-progress" aria-hidden="true"/></header>
       <main id="portal-main" tabIndex={-1} className="portal-page">{content}</main></div></div>;
 }

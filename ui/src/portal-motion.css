@@ -1,0 +1,94 @@
+/* Copyright 2026 Agenova contributors.
+ * SPDX-License-Identifier: Apache-2.0 */
+/* Scoped to the product portal: canonical fixture consoles retain their own theme. */
+.portal-shell{color-scheme:dark;--portal-ink:#eaf5f8;--portal-muted:#a3bbc7;--portal-line:#365361;--portal-teal:#70e7d0;--portal-deep:#173842;--portal-paper:#091b26;font-family:'Segoe UI Variable','Segoe UI',sans-serif;background:radial-gradient(ellipse at 85% 15%,#16374755,transparent 55%),#091b26}
+body:has(.portal-shell){background:#091b26}
+.portal-page h1,.portal-page h2,.portal-brand{font-family:Bahnschrift,'Segoe UI',sans-serif}
+.portal-page h1{font-weight:650}.portal-shell a{color:var(--portal-teal)}
+.portal-shell :focus-visible{outline:2px solid #92b7ff;outline-offset:4px}
+.portal-sidebar{background:linear-gradient(165deg,#193d43,#0d2530);border-right:1px solid #385966;position:sticky;top:0;height:100vh}
+.portal-brand span{box-shadow:0 0 22px #70e7d012}
+.portal-sidebar nav a{position:relative;overflow:hidden;transition:background .35s,color .35s,box-shadow .35s}
+.portal-sidebar nav a.active{background:linear-gradient(90deg,#295758,#254453);border:1px solid #48727d;box-shadow:inset 3px 0 #70e7d0}
+.portal-sidebar nav a:hover{background:#28505b;box-shadow:inset 2px 0 #70e7d0}
+.portal-topbar{position:sticky;top:0;z-index:20;height:69px;background:#0b202be8;backdrop-filter:blur(14px);transition:box-shadow .5s,background .5s;color:var(--portal-muted)}
+.portal-topbar.is-scrolled{background:#0b202bf5;box-shadow:0 8px 32px #0005}
+.portal-scroll-progress{position:absolute;bottom:0;left:0;width:100%;height:2px;transform:scaleX(var(--scroll-progress,0));transform-origin:left;background:linear-gradient(90deg,#70e7d0,#92b7ff);pointer-events:none}
+.portal-page{padding-top:40px}.portal-crumbs{color:var(--portal-muted)}
+.portal-mode-switch{background:#142f3b;border-color:var(--portal-line)}
+.portal-mode-switch button{color:var(--portal-muted);transition:background .3s,color .3s}
+.portal-mode-switch button[aria-pressed=true]{background:#285355;color:#c7fff0}
+.portal-source-state.demo{color:#ffd28e;background:#3b3427;border-color:#8d6b35}
+.portal-source-state.connected{color:#b8d7e7;background:#173443;border-color:#3d6477}
+.portal-identity{padding:8px 10px;border:1px solid var(--portal-line);border-radius:8px;background:#173340;transition:background .3s}
+.portal-identity span{color:var(--portal-ink)}.portal-identity:hover{background:#234553}
+.portal-button{background:#173642;border-color:#557b8a;color:var(--portal-ink)!important;transition:background .3s,border-color .3s}
+.portal-button.primary{background:linear-gradient(125deg,#29675e,#234c58);border-color:#578e86;box-shadow:0 3px 16px #02141a55;color:#f0fffa!important}
+.portal-button:hover{background:#28505b;border-color:#76a8b9}.portal-button:disabled{opacity:.65;cursor:wait}
+.portal-filters button{color:var(--portal-muted);transition:color .3s,background .3s}
+.portal-filters button:hover{background:#24455188;color:var(--portal-ink)}
+.portal-filters button.selected{background:#284d56;color:#c7fff0}
+.portal-toolbar input,.portal-form input:not([type=checkbox]),.portal-form textarea,.portal-form select{background:#112b37;color:var(--portal-ink);border-color:#52727f;transition:border-color .3s,box-shadow .3s}
+.portal-shell input::placeholder,.portal-shell textarea::placeholder{color:#a3bbc7}
+.portal-shell input:focus,.portal-shell textarea:focus,.portal-shell select:focus{border-color:#92b7ff;box-shadow:0 0 18px #92b7ff12}
+.portal-table-wrap,.portal-record-list,.portal-platform-records,.portal-agent-list{background:#112b37;border-color:var(--portal-line);box-shadow:0 10px 36px #03141c30,inset 0 1px #bad9f710}
+.portal-table th{background:#142f3b;color:var(--portal-muted)}
+.portal-table td{color:var(--portal-ink)}.portal-table tbody tr{transition:background .28s}
+.portal-table tbody tr:hover{background:#21455388}
+.portal-work-title{color:var(--portal-ink)!important}.portal-work-title:hover{text-shadow:0 0 15px #92b7ff25}
+.portal-badge{color:#8bf4de;background:#2149468c;border:1px solid #70e7d02a}
+.portal-badge.denied,.portal-badge.failed,.portal-badge.cancelled,.portal-badge.expired{color:#ffb3bd;background:#432c38;border-color:#ff9da92d}
+.portal-badge.pending,.portal-badge.starting,.portal-badge.finishing,.portal-badge.example,.portal-badge.fixture,.portal-badge.approval-required{color:#ffdca2;background:#3b3427;border-color:#ffd28e2d}
+.portal-badge.recorded,.portal-badge.mock,.portal-badge.todo,.portal-badge.planned,.portal-badge.not-connected,.portal-badge.unavailable{color:#c0d1dc;background:#273e4b;border-color:#92b7ff24}
+.portal-badge:before{box-shadow:0 0 9px currentColor}
+.portal-badge.running:before{animation:portal-running-beacon 2.8s ease-in-out infinite;will-change:opacity}
+.portal-badge.succeeded:before,.portal-badge.done:before{animation:portal-completed-beacon 5.8s ease-in-out infinite}
+.portal-badge.denied:before,.portal-badge.failed:before,.portal-badge.cancelled:before,.portal-badge.expired:before{animation:portal-warning-beacon 4.8s ease-in-out infinite}
+.portal-state{background:#20454080;border-radius:0 8px 8px 0;border-color:var(--portal-teal)}
+.portal-state p{color:var(--portal-muted)}.portal-state.denied,.portal-state.failed,.portal-state.expired,.portal-state.cancelled{background:#432c3899;border-color:#ff9da9;animation:portal-stop-highlight 1.2s ease-out both}
+.portal-state.pending,.portal-state.starting,.portal-state.finishing{background:#3b342780;border-color:#ffd28e}
+.portal-timeline{border-color:#416c6b}.portal-timeline li:before{background:#17333e;box-shadow:0 0 8px #70e7d018}
+.portal-access-card,.portal-panel,.portal-connected-empty,.portal-request-route{background:#112b37!important;border-color:var(--portal-line)!important;box-shadow:0 8px 35px #03141c30,inset 0 1px #bad9f710}
+.portal-access-card,.portal-request-route{border-top-width:2px;border-top-color:#70e7d0!important}
+.portal-chips code{background:#0b2530;border-color:#3f5a67;color:#d4e9ef}
+.portal-details summary{color:var(--portal-teal);transition:text-shadow .3s}.portal-details summary:hover{text-shadow:0 0 15px #70e7d060}
+.portal-page pre,.portal-result pre{background:#071d28;color:#c8e9e7;border:1px solid var(--portal-line);border-radius:8px}
+.portal-resolution{background:#20454080}.portal-form-error{color:#ffb3bd}
+.portal-implementation-grid>div,.portal-connected-summary{background:#112b37;border-color:var(--portal-line)}
+.portal-record-row,.portal-platform-row{transition:background .3s;position:relative;animation:portal-record-arrival .7s ease-out both}
+.portal-record-row:hover,.portal-platform-row:hover{background:#28506855;box-shadow:inset 2px 0 #92b7ff55}
+.portal-skip{background:#173642;color:var(--portal-ink)}
+/* Flow rail is the single distinctive animated region. */
+.portal-page .portal-flow{margin:0 0 28px;padding:20px;border:1px solid #3d6576;border-radius:12px;background:linear-gradient(110deg,#153744b8,#132c3fcc);box-shadow:0 8px 38px #03141c44,inset 0 1px #bad9f716}
+.portal-flow-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}
+.portal-flow-head h2{font-size:14px}.portal-flow-head>span{font-size:11px;color:var(--portal-muted)}
+.portal-flow-track{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));list-style:none;padding:0;margin:0}
+.portal-flow-node{position:relative;display:flex;flex-direction:column;align-items:center;min-width:0;text-align:center;color:var(--portal-muted);transition:color .65s}
+.portal-flow-orb{position:relative;z-index:2;width:30px;height:30px;display:grid;place-items:center;background:#183442;border:1px solid #65808d;border-radius:50%;font-size:12px;color:#a3bbc7;transition:background .65s,border-color .65s,box-shadow .65s}
+.portal-flow-node a{font-size:12px;font-weight:650;text-decoration:none;color:inherit;margin-top:10px}.portal-flow-node small{font-size:10px;margin-top:4px;color:var(--portal-muted)}
+.portal-flow-node:not(:last-child):after{content:'';position:absolute;left:calc(50% + 19px);right:calc(-50% + 19px);top:14px;height:2px;background:#3b5969}
+.portal-flow-node.done{color:#c7f2e9}.portal-flow-node.done .portal-flow-orb{border-color:#80ded5;background:#255351;color:#bef8e9;box-shadow:0 0 12px #70e7d022}
+.portal-flow-node.done:after{background:linear-gradient(90deg,#588a7f,#587185)}
+.portal-flow-track.in-flight .portal-flow-node.done:after{background:linear-gradient(90deg,#70e7d0,#83aaff)}
+.portal-flow-track.in-flight .portal-flow-node.done:not(:last-child):before{content:'';position:absolute;left:calc(50% + 19px);top:12px;width:6px;height:6px;border-radius:50%;background:#b6fbff;box-shadow:0 0 12px #87c5ff;z-index:1;animation:portal-packet 2.8s linear infinite;animation-delay:calc(var(--stage-index)*-.45s)}
+.portal-flow-node.active{color:#e0fff6}.portal-flow-node.active .portal-flow-orb{border-color:#bbffed;background:radial-gradient(circle at 30% 25%,#7ac5bb,#427777 65%);color:#effffb;box-shadow:0 0 0 5px #70e7d018,0 0 25px #70e7d068,0 0 55px #92b7ff30}
+.portal-flow-track.in-flight .portal-flow-node.active .portal-flow-orb:after{content:'';position:absolute;inset:-7px;border:1px solid #70e7d090;border-radius:50%;animation:portal-orb-pulse 2.8s ease-out infinite}
+.portal-flow-node.blocked{color:#ff9da9}.portal-flow-node.blocked .portal-flow-orb{border-color:#ff9da9;background:#432c38;color:#ff9da9}
+.portal-flow-node.blocked .portal-flow-orb:after{content:'';position:absolute;inset:-6px;border:1px solid #ff9da980;border-radius:50%;animation:portal-stop-ring 1.2s ease-out both}
+.portal-flow-node.blocked:after{background:repeating-linear-gradient(90deg,#a05c6b 0 4px,transparent 4px 9px)}
+/* Pointer light uses one composited overlay, never layout or a custom cursor. */
+:is(.portal-flow,.portal-panel,.portal-table-wrap,.portal-access-card,.portal-record-list,.portal-result){position:relative;isolation:isolate}
+:is(.portal-flow,.portal-panel,.portal-table-wrap,.portal-access-card,.portal-record-list,.portal-result):before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;z-index:0;background:radial-gradient(360px circle at var(--pointer-x,50%) var(--pointer-y,0%),#92b7ff16,transparent 65%);opacity:0;transition:opacity .45s}
+:is(.portal-flow,.portal-panel,.portal-table-wrap,.portal-access-card,.portal-record-list,.portal-result).pointer-lit:before{opacity:1}
+:is(.portal-flow,.portal-panel,.portal-table-wrap,.portal-access-card,.portal-record-list,.portal-result)>*{position:relative;z-index:1}
+@keyframes portal-running-beacon{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes portal-completed-beacon{0%,100%{opacity:1}50%{opacity:.65}}
+@keyframes portal-warning-beacon{0%,100%{opacity:1}50%{opacity:.7}}
+@keyframes portal-record-arrival{from{opacity:.65}to{opacity:1}}
+@keyframes portal-orb-pulse{from{transform:scale(.82);opacity:.85}to{transform:scale(1.36);opacity:0}}
+@keyframes portal-stop-ring{from{transform:scale(.8);opacity:.8}to{transform:scale(1.65);opacity:0}}
+@keyframes portal-stop-highlight{from{box-shadow:0 0 0 0 #ff9da940}to{box-shadow:0 0 0 10px #ff9da900}}
+@keyframes portal-packet{0%{transform:translateX(0);opacity:0}12%,80%{opacity:1}100%{transform:translateX(var(--packet-distance,90px));opacity:0}}
+@media(max-width:900px){.portal-sidebar{height:100vh}.portal-flow-node a{font-size:11px}}
+@media(max-width:650px){.portal-sidebar{position:static;height:auto;min-height:0}.portal-topbar{height:auto;min-height:52px}.portal-page .portal-flow{padding:16px 12px}.portal-flow-track{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:20px}.portal-flow-node:nth-child(3):after,.portal-flow-node:nth-child(3):before{display:none!important}.portal-page h1{font-size:27px}}
+@media(prefers-reduced-motion:reduce){.portal-shell *,.portal-shell *:before,.portal-shell *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.portal-flow-track.in-flight .portal-flow-node:before{display:none!important}}

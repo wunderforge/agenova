@@ -28,6 +28,31 @@ const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
+test('connected motion follows provider and cleanup evidence without resetting DOM or scroll',async({page},info)=>{
+ const current=work();
+ current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,providerStatus:'Attempted'});
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-flow-node.active')).toContainText('Model');
+ await page.evaluate(()=>{
+   (window as unknown as {savedFlow:Element|null}).savedFlow=document.querySelector('.portal-flow');
+   window.scrollTo({top:150,behavior:'instant'});
+ });
+ const position=await page.evaluate(()=>scrollY);
+ current.facts.push({id:'provider-finish',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'ProviderOutcome',requestRef:current.requestRef,providerStatus:'Succeeded'});
+ await expect(page.locator('.portal-flow-node').nth(3)).toHaveClass(/done/);
+ expect(await page.evaluate(()=>document.querySelector('.portal-flow')===(window as unknown as {savedFlow:Element|null}).savedFlow)).toBe(true);
+ expect(await page.evaluate(()=>scrollY)).toBe(position);
+ current.state!.claim!.phase='Succeeded';
+ await expect(page.locator('.portal-flow-node.active')).toContainText('Cleanup');
+ current.outcome={status:'Succeeded',text:'A real response belongs here only after the provider returns.'};
+ await expect(page.locator('.portal-result')).toContainText('A real response belongs here only after the provider returns.');
+ await expect(page.locator('.portal-flow-node').last()).toContainText('No record');
+ await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
+ await page.waitForTimeout(400);
+ await page.screenshot({path:info.outputPath('connected-motion-result.png'),fullPage:true});
+});
+
 test('malformed connected percent escapes show an error instead of a blank page',async({page})=>{
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));

@@ -45,6 +45,7 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-approved UI follow-up (15 Sep): port the accepted dark HTML motion study to React; prove evidence-driven stages, terminal/denial effects, reduced motion, stable polling DOM, and unchanged Demo/Connected boundaries. See [motion plan](ui-motion.md). No new backend behavior or automatic submission.
 - [x] Scout merged baseline, dirty worktrees, accepted kind seam and existing UI branch.
 - [x] Record independent planning review; owner approved checkpoint and internal submission on 15 Sep 2026; independent blind review approved corrected spec/design.
 - [x] Freeze fact/evidence and submission boundaries; finish prerequisite #36, including immutable input snapshots and exact credential aliases.

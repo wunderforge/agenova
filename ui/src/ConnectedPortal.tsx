@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
 import { connectedSource, isTerminal, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { RunFlow } from './RunFlow';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -179,6 +180,9 @@ function WorkDetail({ work }: { work: View }) {
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
   const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
+  const latestFacts = [...work.facts].reverse();
+  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind));
+  const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
     !['ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
   const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
@@ -194,6 +198,21 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
+    <RunFlow activityHref={link(`${workLink(work)}/activity`)} evidence={{
+      status,
+      received: work.facts.some(fact => fact.kind === 'RequestReceived'),
+      authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
+      started: work.facts.some(fact => fact.operation === 'Running'),
+      modelRequested: work.facts.some(fact => fact.kind === 'ProviderAttempt'),
+      modelActive: lastModel?.kind === 'ProviderAttempt',
+      modelFinished: lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Succeeded',
+      result: work.outcome?.status === 'Succeeded',
+      cleanup: lastCleanup?.operation === 'CleanupSucceeded',
+      failureAt: lastCleanup?.operation === 'CleanupFailed' ? 'Cleanup'
+        : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
+        : ['Failed', 'Expired', 'Cancelled'].includes(status)
+          ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
+    }}/>
     <div className="portal-detail-grid">
       <section>
         <div className="portal-section-head"><h2>Progress</h2>
