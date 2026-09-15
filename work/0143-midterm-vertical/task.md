@@ -46,13 +46,13 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 ## Execution Todo
 
 - [x] Scout merged baseline, dirty worktrees, accepted kind seam and existing UI branch.
-- [ ] Record independent planning review; owner approved checkpoint and internal submission on 15 Sep 2026.
-- [ ] Freeze fact/evidence and submission boundaries; finish prerequisite #36.
-- [ ] Implement facts/evidence and local API with deterministic failure tests.
-- [ ] Implement bounded real-model worker transport and provider response/result handling.
-- [ ] Integrate React demo/connected flow and UI submission.
-- [ ] Add executable integration and browser acceptance gates before claiming live completion.
-- [ ] Run focused gates, repository baseline, controlled-kind gate and separately authorized live inference gate.
+- [x] Record independent planning review; owner approved checkpoint and internal submission on 15 Sep 2026; independent blind review approved corrected spec/design.
+- [x] Freeze fact/evidence and submission boundaries; finish prerequisite #36, including immutable input snapshots and exact credential aliases.
+- [x] Implement facts/evidence and local API with deterministic failure tests.
+- [x] Implement bounded real-model worker transport and provider response/result handling.
+- [x] Integrate React demo/connected flow and UI submission.
+- [x] Add executable integration and browser acceptance gates before claiming live completion.
+- [x] Run focused gates, repository baseline, controlled-kind gate and separately authorized live inference gate.
 - [ ] Independently review, commit, publish evidence and reconcile linked tickets/PRs.
 
 ## Quality Gates
@@ -60,6 +60,8 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 - `.\scripts\check.ps1 -All`
 - Existing kind baseline: `go test -count=1 -v -tags 'integration controlled' -timeout 5m ./harness/integration/agentsandbox -run '^TestGovernedApplicationRun_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace <new-owned-namespace>`
 - New facts/API/provider and browser acceptance commands must be recorded when introduced; no prose-only replacement for executable gates.
+- Real HTTP/kind/model gate: `go test -count=1 -v -tags 'integration controlled live' -timeout 5m ./harness/integration/agentsandbox -run '^TestUIModelCheckpoint_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace <new-owned-namespace> -live-model`
+- Real browser gate: `node harness/e2e/ui-kind-checkpoint.mjs --live-model --base-url http://127.0.0.1:5175`
 
 ## Evidence Required
 
@@ -79,8 +81,20 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 - Owner approved a bigger checkpoint, internal UI submission and real LLM execution. Tools may remain explicit mocks.
 - Public API selection may be made behind the adapter, but organizational compliance is not established by endpoint choice; use public/synthetic inputs for live evidence.
-- Provider access and budget are not yet configured. Implementation and zero-cost gates may proceed; live gate is paused until safe access is provided.
-- Cross-family read-only review permission is requested; do not invoke Claude before approval.
+- Provider access is the owner's running local Ollama; existing model only, no download or paid API call. Public-provider compliance/access remain separate configuration.
 - Independent blind planning review requested two fixes: freeze transport/Running sequencing and remove any browser identity switch. Both are recorded in spec/design; operator-only identity and pinned exec/stdio are the construction boundary.
 - Owner allowed blind Codex review to preserve scarce Claude capacity; use independent Codex and app PR review, without spending Claude quota by default.
+- Owner opened local Ollama; the loopback API is available with existing `llama3.1:latest` and `deepseek-r1:7b`. Use existing local llama inference for the real-model gate, without new downloads or API charges. Generic adapter tests remain separate from real-model evidence.
 - A recovery heartbeat could not be created because this thread already has an active automation. Preserve the original automation; local recovery state is [sprint.md](sprint.md).
+
+## Verified checkpoint (15 Sep 2026)
+
+- Live HTTP/kind gate passed in 29.92 seconds: Team B denial allocated no claim/worker and made no provider call; Team A obtained an actual llama3.1 answer through the Model Gateway and cleaned up its worker.
+- Browser gate passed: request `work-59ff763d-38e9-4b49-aa64-354468e59042`, worker `agenova-pool-reference-engineer-pool-7njm5`, invocation `inv-de4174f7bfd2e37fc521133a8b48b6d7`, 23 input / 24 output tokens, 14 correlated facts and confirmed cleanup.
+- Result, authority comparison and Platform screenshots are generated under `.tmp/ui-kind-checkpoint/`; these are local test artifacts, not maintained fixtures.
+- Independent core review found lifecycle sink, cleanup-result and shutdown issues; all were fixed with deterministic regressions and re-reviewed. Final integrated release review and repository baseline remain release gates.
+- This proves a task-dependent minimal agent answer, not repository editing or a fully integrated vendor coding agent. Tools and Memory remain explicitly unconnected.
+- Integrated `scripts/check.ps1 -All` passed, including Go/vet, canonical bindings, 72 frontend unit tests and 37 browser tests. Initial sandbox-only VCS failure was resolved by rerunning with Git access, not by changing the gate.
+- Final review found a queued-cancellation display issue; f34b1b7 fixes it and proves terminal polling stops. [Walkthrough and startup](demo.md).
+- Independent reviewer confirmed that cancellation finding closed with no remaining findings from its bounded release review.
+- Final binary/browser gate also passed after security and UI fixes: request `work-79f19720-75c9-4afe-81b7-47579e2484cc`, worker `agenova-pool-reference-engineer-pool-8mh65`, invocation `inv-1ff2f531369d22dc6e24df065b90a14d`, 23 input / 26 output tokens, 14 facts and cleanup. The local server currently retains this real result.
