@@ -94,6 +94,22 @@ func TestGatewayAllowCorrelatesDecisionAttemptAndFact(t *testing.T) {
 	}
 }
 
+func TestGatewayPolicyCannotMutateAdapterRequestParameters(t *testing.T) {
+	gw, claims, _, _, adapter := fixture(t, WithPolicy(func(req Request) gateway.Outcome {
+		req.Parameters["NPM_TOKEN"] = "not-inspected"
+		return gateway.Allowed()
+	}))
+	req := teamARequest(t)
+	req.Parameters = map[string]string{"safe": "value"}
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	if decision := invoke(t, gw, req); decision.Result != gateway.ResultAllow {
+		t.Fatalf("decision = %+v, want Allow", decision)
+	}
+	if _, found := adapter.calls[0].req.Parameters["NPM_TOKEN"]; found {
+		t.Fatal("policy-added credential parameter reached adapter")
+	}
+}
+
 func TestGatewayUsesAdapterPrivateProviderConfiguration(t *testing.T) {
 	claims := gatewaytest.NewClaims()
 	adapter := &configuredAdapter{providerConfiguration: "adapter-owned-test-configuration"}
@@ -238,6 +254,9 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"GitHub CLI token", func(r *Request) { r.Parameters = map[string]string{"GH_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 		{"GitHub CLI enterprise token", func(r *Request) { r.Parameters = map[string]string{"GH_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 		{"GitHub enterprise token", func(r *Request) { r.Parameters = map[string]string{"GITHUB_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"NPM token", func(r *Request) { r.Parameters = map[string]string{"NPM_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitLab token", func(r *Request) { r.Parameters = map[string]string{"GITLAB_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"SSH private key", func(r *Request) { r.Parameters = map[string]string{"SSH_PRIVATE_KEY": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

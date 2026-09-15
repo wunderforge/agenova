@@ -239,7 +239,7 @@ func TestRunServiceRejectsLaunchForDifferentRuntimeProfile(t *testing.T) {
 }
 
 func TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation(t *testing.T) {
-	for _, key := range []string{"GITHUB_TOKEN", "GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "client_secret", "AZURE_CLIENT_SECRET"} {
+	for _, key := range []string{"GITHUB_TOKEN", "GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "NPM_TOKEN", "GITLAB_TOKEN", "SSH_PRIVATE_KEY", "client_secret", "AZURE_CLIENT_SECRET"} {
 		t.Run(key, func(t *testing.T) {
 			backend := newRecordingBackend()
 			service := newTestRunService(t, backend, RunServiceOptions{})

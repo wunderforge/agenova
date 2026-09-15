@@ -238,6 +238,9 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 	if work == nil {
 		return nil, fmt.Errorf("%w: work callback is required", ErrInvalidRun)
 	}
+	// Snapshot caller-owned launch input before validation and before waiting
+	// behind runMu. The same immutable map is then forwarded to allocation.
+	launch.Input = cloneStringMap(launch.Input)
 	initial, err := validateInitialRun(issued, launch)
 	if err != nil {
 		return nil, err

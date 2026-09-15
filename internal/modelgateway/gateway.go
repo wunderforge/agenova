@@ -107,6 +107,9 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 		return gateway.Decision{}, errors.New("model gateway is unavailable")
 	}
 	id := g.ids()
+	// Detach caller-owned parameters before validation; later caller mutation
+	// cannot add a credential key after the boundary check.
+	req.Parameters = cloneStringMap(req.Parameters)
 
 	if outcome, rejected := validate(req); rejected {
 		return decision(id, outcome), nil
@@ -121,7 +124,11 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	if outcome, denied := enforceAuthority(req, snapshot); denied {
 		return g.record(req, id, outcome)
 	}
-	outcome = g.policy(req).Normalize()
+	// Policy receives its own defensive copy so policy mutation cannot alter
+	// the request passed to the provider adapter after validation.
+	policyReq := req
+	policyReq.Parameters = cloneStringMap(req.Parameters)
+	outcome = g.policy(policyReq).Normalize()
 	if outcome.Result != gateway.ResultAllow {
 		return g.record(req, id, outcome)
 	}
@@ -134,6 +141,17 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 		return allowed, fmt.Errorf("model adapter invocation %s: %w", id, err)
 	}
 	return allowed, nil
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	copy := make(map[string]string, len(source))
+	for key, value := range source {
+		copy[key] = value
+	}
+	return copy
 }
 
 func decision(id string, outcome gateway.Outcome) gateway.Decision {
