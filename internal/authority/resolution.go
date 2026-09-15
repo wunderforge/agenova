@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"time"
 	"unicode/utf8"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -20,6 +21,16 @@ import (
 type Resolution struct {
 	requestDigest [sha256.Size]byte
 	authority     *v1alpha1.EffectiveAuthority
+	changes       []Change
+}
+
+// Change is producer-recorded resolution provenance, not another permission
+// engine. The current resolver narrows against the admitted template ceiling.
+type Change struct {
+	Field      string `json:"field"`
+	Requested  string `json:"requested"`
+	Effective  string `json:"effective"`
+	ReasonCode string `json:"reasonCode"`
 }
 
 // ResolveForIssuance performs the usual authority intersection and binds its
@@ -33,7 +44,32 @@ func ResolveForIssuance(request *v1alpha1.ClaimRequest, template *v1alpha1.Agent
 	if digestErr != nil {
 		return nil, invalid("$", "request could not be losslessly encoded for authority binding")
 	}
-	return &Resolution{requestDigest: digest, authority: resolved}, nil
+	changes := []Change{}
+	for _, dimension := range []struct {
+		field                string
+		requested, effective []string
+	}{
+		{"tools", request.Spec.RequestedAccess.Tools, resolved.Tools},
+		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, resolved.ResourceScopes},
+		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, resolved.MemoryScopes},
+	} {
+		for _, value := range dimension.requested {
+			if !contains(dimension.effective, value) {
+				changes = append(changes, Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+			}
+		}
+	}
+	if *request.Spec.Runtime.Timeout != resolved.Runtime.Timeout {
+		changes = append(changes, Change{Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(), Effective: time.Duration(resolved.Runtime.Timeout).String(), ReasonCode: "template-timeout-cap"})
+	}
+	return &Resolution{requestDigest: digest, authority: resolved, changes: changes}, nil
+}
+
+func (r *Resolution) ChangesFor(request *v1alpha1.ClaimRequest) ([]Change, bool) {
+	if _, ok := r.AuthorityFor(request); !ok {
+		return nil, false
+	}
+	return append([]Change{}, r.changes...), true
 }
 
 // AuthorityFor returns an independent authority snapshot only when the

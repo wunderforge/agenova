@@ -158,6 +158,18 @@ func TestVerticalServiceSameClaimResultNarrowingAndFacts(t *testing.T) {
 			t.Fatalf("%s facts=%d", kind, found[kind])
 		}
 	}
+	var changes int
+	for _, f := range v.Facts {
+		if f.Kind == "AuthorityResolved" {
+			changes = len(f.AuthorityChanges)
+			if !strings.Contains(f.Reason, "shell.exec") || !strings.Contains(f.Reason, "30m") {
+				t.Fatal("resolution provenance missing")
+			}
+		}
+	}
+	if changes != 2 {
+		t.Fatalf("resolution changes=%d", changes)
+	}
 	if _, err = s.QueryClaim(claimID); err != nil {
 		t.Fatal(err)
 	}

@@ -19,6 +19,7 @@ type PreparedAssignment struct {
 	Request   *v0.ClaimRequest
 	Admission ReferenceAdmissionResult
 	Issued    *v0.IssuedState
+	Changes   []authority.Change
 }
 
 func PrepareReferenceAssignment(data []byte, preset ReferencePrincipalPreset) (PreparedAssignment, error) {
@@ -49,6 +50,7 @@ func PrepareReferenceAssignment(data []byte, preset ReferencePrincipalPreset) (P
 			return validationErr
 		}
 		prepared.Issued = issued
+		prepared.Changes, _ = resolution.ChangesFor(request)
 		return nil
 	})
 	if err != nil {

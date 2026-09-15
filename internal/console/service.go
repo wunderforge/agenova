@@ -131,7 +131,15 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
 		return evidence.View{}, err
 	}
-	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, PolicyRef: &d.PolicyRef, ReasonCode: "template-policy-intersection"}); err != nil {
+	details := []string{}
+	for _, change := range prepared.Changes {
+		if change.Effective == "" {
+			details = append(details, change.Requested+" excluded by the template ceiling.")
+		} else {
+			details = append(details, change.Field+" capped from "+change.Requested+" to "+change.Effective+".")
+		}
+	}
+	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling", Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))

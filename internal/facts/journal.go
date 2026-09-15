@@ -10,28 +10,30 @@ import (
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 )
 
 // Fact is an immutable observation, not a source of permission. Sequence owns
 // ordering; timestamps alone do not order concurrent or same-time events.
 type Fact struct {
-	ID              string                          `json:"id"`
-	Sequence        uint64                          `json:"sequence"`
-	Timestamp       time.Time                       `json:"timestamp"`
-	Kind            string                          `json:"kind"`
-	RequestRef      string                          `json:"requestRef"`
-	ClaimID         string                          `json:"claimId,omitempty"`
-	InvocationID    string                          `json:"invocationId,omitempty"`
-	Decision        *v0.Decision                    `json:"decision,omitempty"`
-	Result          v0.DecisionResult               `json:"result,omitempty"`
-	ReasonCode      string                          `json:"reasonCode,omitempty"`
-	Reason          string                          `json:"reason,omitempty"`
-	PolicyRef       *v0.PolicyReference             `json:"policyRef,omitempty"`
-	Authority       *v0.EffectiveAuthority          `json:"effectiveAuthority,omitempty"`
-	BackendIdentity *v0.SandboxClaimBackendIdentity `json:"backendIdentity,omitempty"`
-	Operation       string                          `json:"operation,omitempty"`
-	Target          string                          `json:"target,omitempty"`
-	ProviderStatus  string                          `json:"providerStatus,omitempty"`
+	ID               string                          `json:"id"`
+	Sequence         uint64                          `json:"sequence"`
+	Timestamp        time.Time                       `json:"timestamp"`
+	Kind             string                          `json:"kind"`
+	RequestRef       string                          `json:"requestRef"`
+	ClaimID          string                          `json:"claimId,omitempty"`
+	InvocationID     string                          `json:"invocationId,omitempty"`
+	Decision         *v0.Decision                    `json:"decision,omitempty"`
+	Result           v0.DecisionResult               `json:"result,omitempty"`
+	ReasonCode       string                          `json:"reasonCode,omitempty"`
+	Reason           string                          `json:"reason,omitempty"`
+	PolicyRef        *v0.PolicyReference             `json:"policyRef,omitempty"`
+	Authority        *v0.EffectiveAuthority          `json:"effectiveAuthority,omitempty"`
+	AuthorityChanges []authority.Change              `json:"authorityChanges,omitempty"`
+	BackendIdentity  *v0.SandboxClaimBackendIdentity `json:"backendIdentity,omitempty"`
+	Operation        string                          `json:"operation,omitempty"`
+	Target           string                          `json:"target,omitempty"`
+	ProviderStatus   string                          `json:"providerStatus,omitempty"`
 }
 
 // Journal supplies the strict correlation spine for the application path.
