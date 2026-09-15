@@ -5,6 +5,12 @@ import type { Fact } from './contracts.generated';
 import { workerActions, demoWorkerActions } from './WorkerActivity';
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
+  it('shows actual loop turns and mock tool completion without treating it as model inference',()=>{
+    const facts:Fact[]=[{...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'}, {...fact('d',2,'ToolDecision','tool-1'),result:'Allow'}, {...fact('a',3,'ProviderAttempt','tool-1'),operation:'tool.invoke'}, {...fact('o',4,'ProviderOutcome','tool-1','Succeeded'),operation:'tool.invoke'}];
+    const actions=workerActions(facts,'Running','#/activity');
+    expect(actions[0]).toMatchObject({label:'Agent turn',target:'Turn 2',state:'Started'});
+    expect(actions[2]).toMatchObject({label:'Tool call (mock)',active:false,state:'Succeeded'});
+  });
   it('only an unresolved correlated attempt is active',()=>{
     const actions=workerActions([fact('a',1,'ProviderAttempt','call-1','Attempted')],'Running','#/work/1/activity');
     expect(actions[0]).toMatchObject({active:true,state:'Waiting for response',label:'Model request'});

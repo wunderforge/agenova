@@ -39,7 +39,11 @@ npm --prefix ui ci
 npm --prefix ui run dev -- --port 5175 --strictPort
 ```
 
-在 New work 输入一个公开/合成问题，例如 “Explain in one sentence why retries need a time limit.”。当前极小 agent 会通过 Model Gateway 请求回答；它还不是修改 Git 仓库的 coding agent。
+在 New work 输入：“Investigate why synthetic payment retries exceed the deadline. Read the available artifacts and recommend a specific fix.”
+
+当前 demo agent 是单 worker 的 ReAct loop：模型选下一步 → Tool Gateway 检查权限 → 读取合成文件 → 观察结果进入下一轮 → 模型决定继续调查或结束。读取哪个文件、读几次由模型根据任务和结果决定；最多 6 轮。不是定时播放动画，也不是修改真实 Git 仓库的 coding agent。
+
+Work 的 **Worker activity** 显示当前轮次、模型等待、工具调用和观察返回；View records 可查看完整历史。Run flow 只概括生命周期。工具数据明确标记为 mock，模型是真实的本机 Ollama。结果下的模型用量是最后一次调用，不是所有轮次的总和。
 
 服务仅监听本机，使用 operator 固定的可信身份。不是上线后的登录或多用户部署方案。要演示拒绝场景，可以在独立端口/namespace 启动 `-principal team-b`；浏览器不能通过提交字段更改身份。
 
@@ -71,7 +75,7 @@ node harness/e2e/ui-kind-checkpoint.mjs --live-model --base-url http://127.0.0.1
 
 ## 还没接上的部分
 
-- Tool 和 Memory 接口尚未连接；不能把界面的 granted 权限当成已经调用过这些服务。
+- Tool Gateway 已连接显式 mock 的 git.read（README、超时日志、重试示例），没有读取真实仓库、执行命令或提交 PR；Memory 尚未连接。
 - 当前记录只保存在服务进程内，不是持久历史。
 - 还没有真实 vendor coding agent、代码修改/PR、SSO 或生产环境防绕过保证。
 - 当前模型走本机 Ollama，无 API 费用；模型 endpoint/provider 细节留在 adapter，公共接口保持通用。

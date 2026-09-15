@@ -21,6 +21,7 @@ import (
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
@@ -201,12 +202,59 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			_, err := s.journal.Append(facts.Fact{Kind: "ModelDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "model.invoke", Target: req.Profile})
 			return err
 		}))
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
+		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(mock), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+			code, reason := string(d.Category), d.Reason
+			if code == "" && d.Result == v0.DecisionResultAllow {
+				code = "within-effective-authority"
+				reason = "Allowed mock tool within active claim authority."
+			}
+			_, err := s.journal.Append(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
+			return err
+		}))
+		scope := ""
+		for _, tool := range snapshot.EffectiveAuthority.Tools {
+			if tool == "git.read" && len(snapshot.EffectiveAuthority.ResourceScopes) > 0 {
+				scope = snapshot.EffectiveAuthority.ResourceScopes[0]
+			}
+		}
+		turn := 0
+		step := func(operation string) error {
+			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
+			return err
+		}
+		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
+			if err := app.RequireRunningClaim(s.runner, claimID); err != nil {
+				return workerprotocol.Reply{}, err
+			}
+			if op.Kind == "tool" {
+				if op.Tool != "git.read" {
+					return workerprotocol.Reply{}, errors.New("unsupported demo tool")
+				}
+				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: "git", Action: "read", ResourceScope: op.ResourceScope, Parameters: map[string]string{"file": op.Input}})
+				if err != nil {
+					return workerprotocol.Reply{}, errors.New("tool execution failed; inspect evidence")
+				}
+				if d.Result != v0.DecisionResultAllow {
+					return workerprotocol.Reply{Allowed: false, Error: "tool access denied"}, nil
+				}
+				if err := step("ObservationReceived"); err != nil {
+					return workerprotocol.Reply{}, err
+				}
+				return mock.results[d.InvocationID], nil
+			}
 			if op.Kind != "model" {
-				return workerprotocol.Reply{}, errors.New("this demo worker supports model operations only")
+				return workerprotocol.Reply{}, errors.New("unsupported operation")
+			}
+			turn++
+			if turn > workerprotocol.MaxTurns {
+				return workerprotocol.Reply{}, errors.New("agent turn cap exceeded")
+			}
+			if err := step("TurnStarted"); err != nil {
+				return workerprotocol.Reply{}, err
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})
 			if err != nil {
@@ -220,6 +268,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 				return workerprotocol.Reply{}, errors.New("model response is unavailable")
 			}
 			observed = &evidence.ModelResult{InvocationID: d.InvocationID, Model: result.Model, ResponseID: result.ResponseID, InputTokens: result.InputTokens, OutputTokens: result.OutputTokens}
+			if err := step("ActionReceived"); err != nil {
+				return workerprotocol.Reply{}, err
+			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
 		})
 		if err != nil {
@@ -229,6 +280,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			return errors.New("no active task-dependent model result")
 		}
 		modelText = text
+		if err := step("FinalAnswer"); err != nil {
+			return err
+		}
 		return nil
 	})
 	status := "Failed"

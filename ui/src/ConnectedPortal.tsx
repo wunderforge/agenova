@@ -15,6 +15,7 @@ const categories: Record<string, string> = {
   AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway',
   ProviderAttempt: 'Model Gateway', ProviderOutcome: 'Model Gateway',
   ToolDecision: 'Tool Gateway', RunOutcome: 'Outcome',
+  WorkerActivity: 'Worker',
 };
 const operationLabels: Record<string, string> = {
   Pending: 'Request received', Bound: 'Worker assigned',
@@ -23,8 +24,11 @@ const operationLabels: Record<string, string> = {
   TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
   TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
 };
-const category = (fact: Observation) => categories[fact.kind] || fact.kind;
+const category = (fact: Observation) => fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
 function recordTitle(fact: Observation): string {
+  if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
+  if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Mock tool call started' : 'Model request started';
+  if (fact.kind === 'ProviderOutcome') return fact.operation === 'tool.invoke' ? 'Mock tool call finished' : 'Model request finished';
   if (fact.operation) return operationLabels[fact.operation] || fact.operation;
   if (fact.kind === 'RequestReceived') return 'Request received';
   if (fact.kind === 'AuthorityResolved') return 'Access resolved';
@@ -182,10 +186,10 @@ function WorkDetail({ work }: { work: View }) {
   const status = workStatus(work);
   const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
   const latestFacts = [...work.facts].reverse();
-  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind));
+  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
-    !['ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
+    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
   const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || state?.decision.reason || 'Request received; waiting for authorization.';
@@ -246,7 +250,7 @@ function WorkDetail({ work }: { work: View }) {
     {work.outcome?.text && <section className="portal-lower portal-result">
       <h2>Result</h2><pre>{work.outcome.text}</pre>
       {work.outcome.model && <p className="portal-source-note">
-        {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
+        Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens
       </p>}
     </section>}
@@ -356,8 +360,8 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
       )}{!records.length && <p className="portal-empty">No governance activity recorded yet.</p>}</div>
     </>;
   }
-  const observed = (kinds: string[]) => works.flatMap(work => work.facts)
-    .some(fact => kinds.includes(fact.kind));
+  const observed = (kinds: string[], key: string) => works.flatMap(work => work.facts)
+    .some(fact => kinds.includes(fact.kind) && (key !== 'model' || category(fact) === 'Model Gateway'));
   const capabilities: [string, string, string[]][] = [
     ['Task submission', 'taskSubmission', ['RequestReceived']],
     ['Runtime', 'runtime', ['Runtime']],
@@ -373,7 +377,7 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
         <td>{name}</td>
         <td><Badge value={setup.capabilities[key] === 'notConnected'
           ? 'Not connected' : setup.capabilities[key] || 'Not connected'}/></td>
-        <td>{observed(kinds) ? 'Activity recorded' : 'No activity recorded'}</td>
+        <td>{observed(kinds, key) ? 'Activity recorded' : 'No activity recorded'}</td>
         <td><a href={link('platform/activity')}>View activity</a></td>
       </tr>)}</tbody>
     </table></div>

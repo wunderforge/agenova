@@ -74,6 +74,37 @@ test('malformed connected percent escapes show an error instead of a blank page'
  expect(errors).toEqual([]);
  expect(calls).toBe(0);
 });
+
+test('worker follows recorded ReAct turns, tool observation and final model response',async({page},info)=>{
+ const current=work();
+ const add=(kind:string,extra:Partial<Fact>={})=>current.facts.push({id:`loop-${current.facts.length}`,sequence:current.facts.length+1,timestamp:'2026-09-15T02:00:03Z',kind,requestRef:current.requestRef,...extra});
+ add('WorkerActivity',{operation:'TurnStarted',target:'Turn 1'});
+ add('ProviderAttempt',{invocationId:'m1',operation:'model.invoke'});
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-worker-current')).toContainText('Turn 1 · Waiting for a model response');
+ add('ProviderOutcome',{invocationId:'m1',operation:'model.invoke',providerStatus:'Succeeded'});
+ add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
+ add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',target:'Mock git.read · logs/timeout.log'});
+ await expect(page.locator('.portal-worker-current')).toContainText('Waiting for tool observation');
+ await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call (mock)');
+ add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',providerStatus:'Succeeded'});
+ add('WorkerActivity',{operation:'ObservationReceived',target:'Turn 1'});
+ add('WorkerActivity',{operation:'TurnStarted',target:'Turn 2'});
+ add('ProviderAttempt',{invocationId:'m2',operation:'model.invoke'});
+ await expect(page.locator('.portal-worker-current')).toContainText('Turn 2 · Waiting for a model response');
+ await page.screenshot({path:info.outputPath('react-loop-turn-2.png'),fullPage:true});
+ add('ProviderOutcome',{invocationId:'m2',operation:'model.invoke',providerStatus:'Succeeded'});
+ add('WorkerActivity',{operation:'FinalAnswer',target:'Turn 2'});
+ current.state!.claim!.phase='Succeeded';current.outcome={status:'Succeeded',text:'Use one shared deadline across all retry attempts.'};
+ await expect(page.locator('.portal-worker-current')).toContainText('Turn 2 · No active calls');
+ await expect(page.locator('.portal-worker')).not.toHaveClass(/has-active-call/);
+ await expect(page.locator('.portal-result')).toContainText('Use one shared deadline');
+ await page.getByRole('link',{name:'View records',exact:true}).click();
+ await page.getByRole('button',{name:'Tool Gateway',exact:true}).click();
+ await expect(page.getByRole('link',{name:'Mock tool call finished',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Model request finished',exact:true})).toHaveCount(0);
+});
 test('live source submits canonical intent then polls actual result and narrowed authority',async({page},info)=>{
  let observed:ClaimRequest|undefined;
 let done=false;

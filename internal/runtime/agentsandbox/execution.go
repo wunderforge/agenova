@@ -19,7 +19,7 @@ import (
 )
 
 const executionLineLimit = 128 * 1024
-const executionOperationLimit = 8
+const executionOperationLimit = workerprotocol.MaxOperations
 
 type workerSession interface {
 	executeSession(context.Context, string, func(io.Reader, io.Writer) (string, error)) (string, error)
@@ -165,6 +165,10 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 	scanner.Buffer(make([]byte, 4096), executionLineLimit)
 	var result, modelText string
 	operations := 0
+	modelTurns, observations := 0, 0
+	if task.Mode != "" && task.Mode != workerprotocol.ReAct {
+		return "", errors.New("unsupported worker mode")
+	}
 	for scanner.Scan() {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -180,7 +184,15 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			return "", errors.New("worker record requires exactly one operation or result")
 		}
 		if message.Operation == nil {
-			if modelText == "" || message.Result != modelText {
+			expected := modelText
+			if task.Mode == workerprotocol.ReAct {
+				a, err := workerprotocol.ParseAction(modelText)
+				if err != nil || a.Action != "finish" || modelTurns < 2 || (task.ResourceScope != "" && observations == 0) {
+					return "", errors.New("worker lacks completed ReAct evidence")
+				}
+				expected = a.Answer
+			}
+			if modelText == "" || message.Result != expected {
 				return "", errors.New("worker result lacks matching governed model response")
 			}
 			result = message.Result
@@ -191,8 +203,24 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		if operations > executionOperationLimit || op.ClaimID != task.ClaimID {
 			return "", errors.New("worker operation limit or claim binding rejected")
 		}
-		if (op.Kind != "model" && op.Kind != "tool") || (op.Kind == "model" && (op.Profile != task.ModelProfile || op.Prompt != task.Objective)) {
+		promptOK := op.Prompt == task.Objective
+		if task.Mode == workerprotocol.ReAct {
+			promptOK = strings.HasPrefix(op.Prompt, workerprotocol.PromptPrefix(task)) && len(op.Prompt) <= 60<<10
+		}
+		if (op.Kind != "model" && op.Kind != "tool") || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) {
 			return "", errors.New("worker operation shape rejected")
+		}
+		if task.Mode == workerprotocol.ReAct && op.Kind == "model" && modelTurns >= workerprotocol.MaxTurns {
+			return "", errors.New("model turn cap exceeded before invocation")
+		}
+		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
+			a, err := workerprotocol.ParseAction(modelText)
+			if err != nil || a.Action != "tool" || a.Tool != op.Tool || a.Input != op.Input {
+				return "", errors.New("tool lacks matching model-selected action")
+			}
+		}
+		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" && (task.ResourceScope == "" || op.Tool != "git.read" || op.ResourceScope != task.ResourceScope || len(op.Input) > 128 || op.Input == "" || op.Profile != "" || op.Prompt != "") {
+			return "", errors.New("worker tool shape rejected")
 		}
 		reply, err := handle(ctx, op)
 		if err != nil {
@@ -202,10 +230,20 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			return "", err
 		}
 		if op.Kind == "model" {
+			modelTurns++
+			if task.Mode == workerprotocol.ReAct && modelTurns > workerprotocol.MaxTurns {
+				return "", errors.New("model turn cap exceeded")
+			}
 			if !reply.Allowed || strings.TrimSpace(reply.Text) == "" || reply.Error != "" {
 				return "", errors.New("worker model operation did not produce an allowed response")
 			}
 			modelText = reply.Text
+		}
+		if op.Kind == "tool" && reply.Allowed && reply.Error == "" && reply.Text != "" {
+			observations++
+		}
+		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
+			modelText = ""
 		}
 		if err := writeExecutionLine(writer, reply); err != nil {
 			return "", err

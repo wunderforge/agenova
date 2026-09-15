@@ -14,6 +14,8 @@ This is a visual follow-up to #143 under the internal demo coordination #107.
 - Measure the same pointer and scroll workloads before/after; protect input/polling UX.
 - ToolDecision proves permission only, not actual execution duration. No loop/iteration
   traces currently exist: do not invent them or add backend instrumentation in this UI fix.
+  This original UI-only constraint is superseded for the separately approved
+  [ReAct follow-up](react-loop.md), which records host-observed turns and mock executions.
 - Ocean canvas #091b26, glass #112b37, ink #eaf5f8, muted #a3bbc7,
   mint #70e7d0 and transport blue #92b7ff. Rose means denial/failure.
 - Bahnschrift headings, Segoe UI Variable body; retain current left-aligned navigation,

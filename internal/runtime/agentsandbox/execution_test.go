@@ -164,6 +164,42 @@ func TestExecutionPinsKubernetesArguments(t *testing.T) {
 	}
 }
 
+func TestReActTransportKeepsFinalAndActionEvidence(t *testing.T) {
+	task := executionTask()
+	task.Mode = workerprotocol.ReAct
+	task.ResourceScope = "repo:acme/payments"
+	model := modelMessage(task)
+	model.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
+	tool := workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: task.ResourceScope, Input: "README.md"}}
+	for _, final := range []string{"Verified deadline fix.", "forged"} {
+		calls := 0
+		result, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(model, tool, model, workerprotocol.Message{Result: final})), io.Discard, task, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+			calls++
+			if calls == 1 {
+				return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","input":"README.md"}`}, nil
+			}
+			if op.Kind == "tool" {
+				return workerprotocol.Reply{Allowed: true, Text: "mock deadline log"}, nil
+			}
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Verified deadline fix."}`}, nil
+		})
+		if final == "forged" {
+			if err == nil {
+				t.Fatal("forged result accepted")
+			}
+		} else if err != nil || result != final || calls != 3 {
+			t.Fatalf("result=%q err=%v calls=%d", result, err, calls)
+		}
+	}
+	calls := 0
+	if _, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(tool)), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+		calls++
+		return workerprotocol.Reply{}, nil
+	}); err == nil || calls != 0 {
+		t.Fatal("tool not selected by model reached callback")
+	}
+}
+
 type executionFakeControl struct {
 	*fakeWorkerControl
 	input string

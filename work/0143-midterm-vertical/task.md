@@ -45,6 +45,8 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-approved multi-step demo agent: replace one-shot execution with a bounded,
+  model-directed ReAct loop and real turn/tool/model evidence. See [loop acceptance](react-loop.md).
 - [x] Owner correction: remove expensive broad motion and move execution feedback to recorded Worker activity, with invocation correlation, no invented loop/tool execution, and before/after profiling. See [motion plan](ui-motion.md).
 - [x] Owner-approved UI follow-up (15 Sep): port the accepted dark HTML motion study to React; prove evidence-driven stages, terminal/denial effects, reduced motion, stable polling DOM, and unchanged Demo/Connected boundaries. See [motion plan](ui-motion.md). No new backend behavior or automatic submission.
 - [x] Scout merged baseline, dirty worktrees, accepted kind seam and existing UI branch.

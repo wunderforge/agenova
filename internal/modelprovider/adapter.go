@@ -48,21 +48,24 @@ type Client interface {
 // default to 256 tokens and 60 seconds; the hard caps are 2048 tokens and 2 minutes.
 // HTTPClient is copied and redirects are always disabled, including same-host ones.
 type Config struct {
-	Endpoint   string
-	Models     map[string]string
-	APIKey     string
-	MaxTokens  int
-	Timeout    time.Duration
-	HTTPClient *http.Client
+	Endpoint  string
+	Models    map[string]string
+	APIKey    string
+	MaxTokens int
+	// OutputSchema is trusted, private provider configuration, never worker authority.
+	OutputSchema json.RawMessage
+	Timeout      time.Duration
+	HTTPClient   *http.Client
 }
 
 type Adapter struct {
-	endpoint  string
-	models    map[string]string
-	apiKey    string
-	maxTokens int
-	timeout   time.Duration
-	client    *http.Client
+	endpoint     string
+	models       map[string]string
+	apiKey       string
+	maxTokens    int
+	outputSchema json.RawMessage
+	timeout      time.Duration
+	client       *http.Client
 }
 
 var _ Client = (*Adapter)(nil)
@@ -108,7 +111,10 @@ func New(cfg Config) (*Adapter, error) {
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	u.Path = strings.TrimRight(u.Path, "/") + "/chat/completions"
 	u.RawPath = ""
-	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, maxTokens: cfg.MaxTokens, timeout: cfg.Timeout, client: client}, nil
+	if len(cfg.OutputSchema) > 8192 || (len(cfg.OutputSchema) > 0 && !json.Valid(cfg.OutputSchema)) {
+		return nil, errors.New("model output schema is invalid or oversized")
+	}
+	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, maxTokens: cfg.MaxTokens, outputSchema: append(json.RawMessage(nil), cfg.OutputSchema...), timeout: cfg.Timeout, client: client}, nil
 }
 
 func loopback(host string) bool {
@@ -135,11 +141,15 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 		return Result{}, errors.New("model provider prompt is empty or oversized")
 	}
 	payload := struct {
-		Model     string    `json:"model"`
-		Messages  []message `json:"messages"`
-		MaxTokens int       `json:"max_tokens"`
-		Stream    bool      `json:"stream"`
-	}{model, []message{{Role: "user", Content: req.Prompt}}, a.maxTokens, false}
+		Model          string         `json:"model"`
+		Messages       []message      `json:"messages"`
+		MaxTokens      int            `json:"max_tokens"`
+		Stream         bool           `json:"stream"`
+		ResponseFormat map[string]any `json:"response_format,omitempty"`
+	}{Model: model, Messages: []message{{Role: "user", Content: req.Prompt}}, MaxTokens: a.maxTokens, Stream: false}
+	if len(a.outputSchema) > 0 {
+		payload.ResponseFormat = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "agent_action", "strict": true, "schema": a.outputSchema}}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil || len(body) > maxRequestBytes {
 		return Result{}, errors.New("model provider request is oversized or invalid")

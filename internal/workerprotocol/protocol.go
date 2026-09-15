@@ -8,9 +8,11 @@ package workerprotocol
 import "context"
 
 type Task struct {
-	ClaimID      string `json:"claimId"`
-	Objective    string `json:"objective"`
-	ModelProfile string `json:"modelProfile"`
+	ClaimID       string `json:"claimId"`
+	Objective     string `json:"objective"`
+	ModelProfile  string `json:"modelProfile"`
+	Mode          string `json:"mode,omitempty"`
+	ResourceScope string `json:"resourceScope,omitempty"`
 }
 
 type Operation struct {
@@ -20,6 +22,7 @@ type Operation struct {
 	Tool          string `json:"tool,omitempty"`
 	ResourceScope string `json:"resourceScope,omitempty"`
 	Prompt        string `json:"prompt,omitempty"`
+	Input         string `json:"input,omitempty"`
 }
 
 type Reply struct {
