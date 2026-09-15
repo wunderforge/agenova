@@ -57,7 +57,8 @@ type AllocateRequest struct {
 	// TemplateRef names the runtime template to launch. Required.
 	TemplateRef string
 	// Input is the neutral launch input, using the same vocabulary as
-	// BackendClaimSpec.Input.
+	// BackendClaimSpec.Input. RunService rejects reserved provider-credential
+	// fields before this request reaches a backend.
 	Input map[string]string
 }
 

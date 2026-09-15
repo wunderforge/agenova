@@ -109,7 +109,9 @@ func RequireRunningClaimSnapshot(claim v1alpha1.SandboxClaim, claimID string) er
 type ResolvedLaunch struct {
 	ProfileRef  string
 	TemplateRef string
-	Input       map[string]string
+	// Input is task data resolved by the trusted composition layer. Reserved
+	// provider-credential fields are rejected before backend allocation.
+	Input map[string]string
 }
 
 // RunServiceOptions contains the two seams needed for deterministic deadline
@@ -402,6 +404,9 @@ func validateInitialRun(issued *v1alpha1.IssuedState, launch ResolvedLaunch) (*v
 	}
 	if launch.TemplateRef == "" {
 		return nil, fmt.Errorf("%w: resolved runtime template is required", ErrInvalidRun)
+	}
+	if key, found := v1alpha1.FindReservedCredentialFieldName(launch.Input); found {
+		return nil, fmt.Errorf("%w: launch input %q is credential-bearing; provider credentials stay behind gateway adapters", ErrInvalidRun, key)
 	}
 	return cloneIssuedState(issued), nil
 }

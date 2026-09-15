@@ -25,6 +25,21 @@ type spyCall struct {
 	req Request
 }
 
+type configuredAdapter struct {
+	providerConfiguration string
+	calls                 int
+	received              Request
+}
+
+func (a *configuredAdapter) Invoke(_ string, req Request) error {
+	if a.providerConfiguration == "" {
+		return errors.New("adapter provider configuration is missing")
+	}
+	a.calls++
+	a.received = req
+	return nil
+}
+
 func (s *spyAdapter) Invoke(id string, req Request) error {
 	s.calls = append(s.calls, spyCall{id: id, req: req})
 	return s.err
@@ -69,6 +84,22 @@ func TestGatewayAllowCorrelatesDecisionAttemptAndFact(t *testing.T) {
 	found := store.ModelInvocations(req.ClaimID)
 	if len(found) != 1 || found[0].ModelName != req.Profile || found[0].InvocationID != decision.InvocationID || found[0].Result != gateway.ResultAllow {
 		t.Fatalf("facts = %+v", found)
+	}
+}
+
+func TestGatewayUsesAdapterPrivateProviderConfiguration(t *testing.T) {
+	claims := gatewaytest.NewClaims()
+	adapter := &configuredAdapter{providerConfiguration: "adapter-owned-test-configuration"}
+	gw := NewGateway(claims, nil, nil, WithAdapter(adapter), WithIDSource(gateway.SequenceIDSource("inv-private")))
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+
+	decision := invoke(t, gw, req)
+	if decision.Result != gateway.ResultAllow || adapter.calls != 1 {
+		t.Fatalf("decision=%+v adapter calls=%d", decision, adapter.calls)
+	}
+	if key, found := gateway.FindReservedCredentialKey(adapter.received.Parameters); found {
+		t.Fatalf("worker request carried adapter configuration through %q", key)
 	}
 }
 
@@ -175,6 +206,11 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"missing claim", func(r *Request) { r.ClaimID = " " }, gateway.CategoryMissingClaimIdentity},
 		{"missing profile", func(r *Request) { r.Profile = "\t" }, gateway.CategoryIncompleteOperation},
 		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
+		{"OAuth client secret", func(r *Request) { r.Parameters = map[string]string{"client_secret": "not-inspected"} }, gateway.CategorySecretValue},
+		{"Azure client secret", func(r *Request) { r.Parameters = map[string]string{"AZURE_CLIENT_SECRET": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub CLI token", func(r *Request) { r.Parameters = map[string]string{"GH_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub CLI enterprise token", func(r *Request) { r.Parameters = map[string]string{"GH_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
+		{"GitHub enterprise token", func(r *Request) { r.Parameters = map[string]string{"GITHUB_ENTERPRISE_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
