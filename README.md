@@ -31,7 +31,7 @@ The repository contains a working Go reference implementation for:
 
 - `SandboxClaim` lifecycle semantics;
 - an in-memory `RuntimeBackend` and reusable contract tests;
-- claim-scoped Tool and Model Gateway authorization;
+- claim-scoped Tool and Model Gateway authorization against exact system-issued effective authority;
 - append-only in-memory runtime, tool, and model facts;
 - experimental parent/child claim governance and a multi-agent reference scenario retained outside the committed MVP;
 - a Kubernetes Agent Sandbox adapter spike with documented semantic gaps;

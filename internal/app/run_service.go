@@ -51,6 +51,23 @@ type ClaimReader interface {
 	Claim(claimID string) (v1alpha1.SandboxClaim, bool)
 }
 
+// ClaimAuthoritySnapshot is the minimum system-owned state a governed
+// interface needs at invocation time. Claim and EffectiveAuthority come from
+// one immutable issued-state snapshot; request intent and backend state are
+// not authority sources.
+type ClaimAuthoritySnapshot struct {
+	Claim              v1alpha1.SandboxClaim
+	EffectiveAuthority v1alpha1.EffectiveAuthority
+}
+
+// ClaimAuthorityReader extends the lifecycle view with the immutable
+// effective authority issued for the same claim. Implementations must return
+// defensive copies so gateway callers cannot mutate authoritative state.
+type ClaimAuthorityReader interface {
+	ClaimReader
+	ClaimAuthority(claimID string) (ClaimAuthoritySnapshot, bool)
+}
+
 // RequireRunningClaim applies the shared lifecycle eligibility rule used by
 // governed interfaces. It fails closed for unavailable, missing, mismatched,
 // incomplete, unknown-phase, and non-Running snapshots.
@@ -62,6 +79,12 @@ func RequireRunningClaim(reader ClaimReader, claimID string) error {
 	if !ok {
 		return fmt.Errorf("unknown claim: %s", claimID)
 	}
+	return RequireRunningClaimSnapshot(claim, claimID)
+}
+
+// RequireRunningClaimSnapshot applies the lifecycle eligibility rule to a
+// claim already read as part of a larger atomic application snapshot.
+func RequireRunningClaimSnapshot(claim v1alpha1.SandboxClaim, claimID string) error {
 	if claim.ID == "" || claim.ID != claimID || claim.RequestRef == "" || claim.TemplateRef == "" || claim.AuthorityRef == "" {
 		return fmt.Errorf("claim %q has an invalid authoritative snapshot", claimID)
 	}
@@ -114,6 +137,7 @@ type RunService struct {
 }
 
 var _ ClaimReader = (*RunService)(nil)
+var _ ClaimAuthorityReader = (*RunService)(nil)
 
 // NewRunService constructs an application lifecycle owner over one backend.
 func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*RunService, error) {
@@ -161,6 +185,29 @@ func (s *RunService) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
 		return v1alpha1.SandboxClaim{}, false
 	}
 	return cloneClaim(*state.Claim), true
+}
+
+// ClaimAuthority returns one defensive claim-plus-authority snapshot from
+// the application state owner. A stored but malformed snapshot remains
+// observable to gateway validation instead of being disguised as unknown.
+func (s *RunService) ClaimAuthority(claimID string) (ClaimAuthoritySnapshot, bool) {
+	if s == nil {
+		return ClaimAuthoritySnapshot{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.state[claimID]
+	if !ok {
+		return ClaimAuthoritySnapshot{}, false
+	}
+	var snapshot ClaimAuthoritySnapshot
+	if state.Claim != nil {
+		snapshot.Claim = cloneClaim(*state.Claim)
+	}
+	if state.EffectiveAuthority != nil {
+		snapshot.EffectiveAuthority = cloneEffectiveAuthority(*state.EffectiveAuthority)
+	}
+	return snapshot, true
 }
 
 // Run consumes one accepted Allow/Pending issued snapshot and drives the
@@ -474,10 +521,7 @@ func cloneIssuedState(source *v1alpha1.IssuedState) *v1alpha1.IssuedState {
 	}
 	copy := *source
 	if source.EffectiveAuthority != nil {
-		authority := *source.EffectiveAuthority
-		authority.Tools = append([]string(nil), source.EffectiveAuthority.Tools...)
-		authority.ResourceScopes = append([]string(nil), source.EffectiveAuthority.ResourceScopes...)
-		authority.MemoryScopes = append([]string(nil), source.EffectiveAuthority.MemoryScopes...)
+		authority := cloneEffectiveAuthority(*source.EffectiveAuthority)
 		copy.EffectiveAuthority = &authority
 	}
 	if source.Claim != nil {
@@ -489,6 +533,14 @@ func cloneIssuedState(source *v1alpha1.IssuedState) *v1alpha1.IssuedState {
 	copy.Evidence.ToolInvocations = append([]v1alpha1.EvidenceToolInvocation{}, source.Evidence.ToolInvocations...)
 	copy.Evidence.ModelInvocations = append([]v1alpha1.EvidenceModelInvocation{}, source.Evidence.ModelInvocations...)
 	return &copy
+}
+
+func cloneEffectiveAuthority(source v1alpha1.EffectiveAuthority) v1alpha1.EffectiveAuthority {
+	copy := source
+	copy.Tools = append([]string(nil), source.Tools...)
+	copy.ResourceScopes = append([]string(nil), source.ResourceScopes...)
+	copy.MemoryScopes = append([]string(nil), source.MemoryScopes...)
+	return copy
 }
 
 func cloneClaim(source v1alpha1.SandboxClaim) v1alpha1.SandboxClaim {
