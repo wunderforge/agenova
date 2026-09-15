@@ -40,12 +40,16 @@ The allocation-failure edge is an Owner-approved lifecycle-contract change: perm
 Use small injected collaborators rather than backend-specific branches:
 
 - the accepted #29 issuer/admission composition produces the initial `IssuedState`;
-- a launch resolver derives the neutral `runtime.AllocateRequest` from accepted template/runtime configuration without treating task input as authority;
+- a launch resolver produces an `app.ResolvedLaunch` bound to the granted runtime profile; its runtime-template reference may differ from the Agent Template reference, and RunService supplies the issued ClaimID when constructing `runtime.AllocateRequest`;
 - `runtime.RuntimeBackend` performs the five resource operations;
 - a work function represents the reference application work result;
 - an injected clock/deadline signal makes readiness and work-boundary timeout tests deterministic.
 
 The first implementation will not start backend calls in detached goroutines. Deadline checks occur before each operation, during readiness polling, and immediately after synchronous results return. If a backend call itself blocks past the deadline, the service cannot publish until the call returns; after it returns, the deadline wins and the result cannot advance the claim. This is an explicit contract limitation, not silent cancellation support.
+
+Application work is different from a backend operation: it runs behind a buffered completion channel so the service can select deadline expiry, publish Expired, tear down, and release the serialized run path even if the callback is still executing. The callback is not forcibly cancelled; any late result is ignored and cannot rewrite the terminal claim.
+
+The application store also retains backend-identity-to-claim ownership. An identity already seen under another claim is rejected before Bound and is not torn down by the second claim.
 
 Expose a narrow application reader backed by the same store. It returns defensive public claim snapshots and never exposes `runtime.BackendClaim` or backend/provider status. Ticket #32 will adapt gateway eligibility to this reader and add trusted invocation-context matching.
 
@@ -86,5 +90,6 @@ Expose a narrow application reader backed by the same store. It returns defensiv
 - `IssuedState` is described as an immutable snapshot. Updating lifecycle must be implemented as successive defensive snapshots, not caller mutation; Owner/Reviewer approval must confirm this interpretation.
 - Open-string `RuntimeEvent.Kind` currently lacks an accepted lifecycle vocabulary. Mitigation: approve exact event names in this packet or keep trace evidence internal until the owning evidence Ticket accepts them.
 - A synchronous backend call can overrun the deadline. The service applies Expired after return and rejects state advancement, but cannot honestly claim prompt cancellation.
+- A work callback may continue after Expired because its signature has no cancellation contract. Its authority is revoked by the terminal claim, its late result is ignored, and a separate change would be required to promise cooperative cancellation.
 - Existing gateways read legacy backend claims. #31 leaves them untouched; #32 owns migration and must not accept caller-supplied claim IDs as trusted worker binding.
 - Agent Sandbox cannot currently acknowledge work start. The reference service must return an explicit unsupported/start failure and cannot demonstrate its happy path on that backend.

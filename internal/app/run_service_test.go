@@ -173,6 +173,37 @@ func TestRunServiceDrivesReferenceBackend(t *testing.T) {
 	}
 }
 
+func TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate(t *testing.T) {
+	backend := newRecordingBackend()
+	service := newTestRunService(t, backend, RunServiceOptions{})
+	issued := pendingIssuedState(time.Minute)
+	launch := testLaunch(issued)
+	launch.TemplateRef = "runtime-engineer-v2"
+
+	result, err := service.Run(issued, launch, func() error { return nil })
+	if err != nil {
+		t.Fatalf("Run with separately resolved runtime template: %v", err)
+	}
+	assertPhase(t, result, v1alpha1.ClaimPhaseSucceeded)
+	if backend.lastAllocate.TemplateRef != "runtime-engineer-v2" {
+		t.Fatalf("backend template = %q, want runtime-engineer-v2", backend.lastAllocate.TemplateRef)
+	}
+}
+
+func TestRunServiceRejectsLaunchForDifferentRuntimeProfile(t *testing.T) {
+	backend := newRecordingBackend()
+	service := newTestRunService(t, backend, RunServiceOptions{})
+	issued := pendingIssuedState(time.Minute)
+	launch := testLaunch(issued)
+	launch.ProfileRef = "ungranted-profile"
+
+	result, err := service.Run(issued, launch, func() error { return nil })
+	if !errors.Is(err, ErrInvalidRun) || result != nil {
+		t.Fatalf("Run = (%+v, %v), want pre-allocation ErrInvalidRun", result, err)
+	}
+	assertTrace(t, backend)
+}
+
 func TestRunServiceWorkFailurePublishesFailedBeforeTeardown(t *testing.T) {
 	backend := newRecordingBackend()
 	service := newTestRunService(t, backend, RunServiceOptions{})
@@ -235,10 +266,28 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		assertTrace(t, backend, "allocate", "terminate", "cleanup")
 	})
 
+	t.Run("Pending after late allocation failure", func(t *testing.T) {
+		backend := newRecordingBackend()
+		clock := &manualClock{now: base}
+		backend.allocateHook = func() { clock.Advance(2 * time.Minute) }
+		backend.allocateErr = errors.New("late allocation failure")
+		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
+		issued := pendingIssuedState(time.Minute)
+
+		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		if !errors.Is(err, ErrRunDeadline) || strings.Contains(err.Error(), "late allocation failure") {
+			t.Fatalf("Run error = %v, want deadline to win over late backend failure", err)
+		}
+		assertPhase(t, result, v1alpha1.ClaimPhaseExpired)
+		assertEvents(t, result, EventExpired)
+		assertTrace(t, backend, "allocate")
+	})
+
 	t.Run("Bound after observation", func(t *testing.T) {
 		backend := newRecordingBackend()
 		clock := &manualClock{now: base}
 		backend.observeHook = func() { clock.Advance(2 * time.Minute) }
+		backend.observeErr = errors.New("late observation failure")
 		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
 		issued := pendingIssuedState(time.Minute)
 
@@ -272,6 +321,87 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		}
 		assertTrace(t, backend, "allocate", "observe", "start", "terminate", "cleanup")
 	})
+}
+
+func TestRunServiceExpiresWhileWorkCallbackIsStillExecuting(t *testing.T) {
+	backend := newRecordingBackend()
+	deadline := make(chan time.Time, 1)
+	service := newTestRunService(t, backend, RunServiceOptions{
+		After: func(time.Duration) <-chan time.Time { return deadline },
+	})
+	issued := pendingIssuedState(time.Minute)
+	workStarted := make(chan struct{})
+	releaseWork := make(chan struct{})
+	workFinished := make(chan struct{})
+	resultDone := make(chan struct {
+		state *v1alpha1.IssuedState
+		err   error
+	}, 1)
+
+	go func() {
+		state, err := service.Run(issued, testLaunch(issued), func() error {
+			close(workStarted)
+			<-releaseWork
+			close(workFinished)
+			return nil
+		})
+		resultDone <- struct {
+			state *v1alpha1.IssuedState
+			err   error
+		}{state: state, err: err}
+	}()
+	<-workStarted
+	deadline <- time.Unix(1_700_000_060, 0)
+	result := <-resultDone
+	if !errors.Is(result.err, ErrRunDeadline) {
+		t.Fatalf("Run error = %v, want ErrRunDeadline", result.err)
+	}
+	assertPhase(t, result.state, v1alpha1.ClaimPhaseExpired)
+	assertTrace(t, backend, "allocate", "observe", "start", "terminate", "cleanup")
+
+	// The callback is still blocked, but expiry has released the serialized
+	// run path so another independent claim can proceed.
+	second := pendingIssuedStateNamed("after-expiry", time.Minute)
+	secondIdentity := v1alpha1.SandboxClaimBackendIdentity{Backend: "test", WorkerID: "worker-2"}
+	backend.allocation = runtime.Allocation{ClaimID: second.Claim.ID, Identity: secondIdentity}
+	backend.observation = runtime.Observation{ClaimID: second.Claim.ID, Identity: secondIdentity, Ready: true}
+	backend.cleanup = runtime.CleanupResult{Identity: secondIdentity, Released: true}
+	secondResult, err := service.Run(second, testLaunch(second), func() error { return nil })
+	if err != nil {
+		t.Fatalf("second Run while first callback remains blocked: %v", err)
+	}
+	assertPhase(t, secondResult, v1alpha1.ClaimPhaseSucceeded)
+
+	// Expiry does not claim callback cancellation. Its eventual result is
+	// ignored and cannot rewrite the already terminal claim.
+	close(releaseWork)
+	<-workFinished
+	claim, ok := service.Claim(issued.Claim.ID)
+	if !ok || claim.Phase != v1alpha1.ClaimPhaseExpired {
+		t.Fatalf("claim after late work result = %+v, %v; want Expired", claim, ok)
+	}
+}
+
+func TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim(t *testing.T) {
+	backend := newRecordingBackend()
+	service := newTestRunService(t, backend, RunServiceOptions{})
+	first := pendingIssuedState(time.Minute)
+	if _, err := service.Run(first, testLaunch(first), func() error { return nil }); err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+
+	second := pendingIssuedStateNamed("second", time.Minute)
+	backend.allocation.ClaimID = second.Claim.ID
+	backend.observation.ClaimID = second.Claim.ID
+	result, err := service.Run(second, testLaunch(second), func() error { return nil })
+	if !errors.Is(err, ErrInvalidRun) {
+		t.Fatalf("second Run error = %v, want ErrInvalidRun", err)
+	}
+	assertPhase(t, result, v1alpha1.ClaimPhaseFailed)
+	if result.Claim.BackendIdentity != nil {
+		t.Fatal("identity already owned by first claim was attached to second")
+	}
+	assertTrace(t, backend, "allocate", "observe", "start", "terminate", "cleanup", "allocate")
 }
 
 func TestRunServiceTeardownFailuresNeverRewriteOutcome(t *testing.T) {
@@ -412,10 +542,11 @@ func TestRunServiceReaderIsSafeDuringRunningWork(t *testing.T) {
 type recordingBackend struct {
 	mu sync.Mutex
 
-	trace       []string
-	allocation  runtime.Allocation
-	observation runtime.Observation
-	cleanup     runtime.CleanupResult
+	trace        []string
+	lastAllocate runtime.AllocateRequest
+	allocation   runtime.Allocation
+	observation  runtime.Observation
+	cleanup      runtime.CleanupResult
 
 	allocateErr  error
 	observeErr   error
@@ -443,6 +574,7 @@ func newRecordingBackend() *recordingBackend {
 
 func (b *recordingBackend) Allocate(req runtime.AllocateRequest) (runtime.Allocation, error) {
 	b.record("allocate")
+	b.lastAllocate = req
 	if b.allocateHook != nil {
 		b.allocateHook()
 	}
@@ -567,9 +699,24 @@ func pendingIssuedState(timeout time.Duration) *v1alpha1.IssuedState {
 	}
 }
 
-func testLaunch(issued *v1alpha1.IssuedState) runtime.AllocateRequest {
-	return runtime.AllocateRequest{
-		ClaimID:     issued.Claim.ID,
+func pendingIssuedStateNamed(name string, timeout time.Duration) *v1alpha1.IssuedState {
+	state := pendingIssuedState(timeout)
+	state.RequestRef = name
+	state.Action.Project = name
+	state.EffectiveAuthority.ID = "authority:" + name
+	state.Claim.ID = "claim:" + name
+	state.Claim.RequestRef = name
+	state.Claim.AuthorityRef = state.EffectiveAuthority.ID
+	state.Decision.ID = "decision:" + name
+	state.Evidence.RequestRef = name
+	state.Evidence.ClaimID = state.Claim.ID
+	state.Evidence.DecisionIDs = []string{state.Decision.ID}
+	return state
+}
+
+func testLaunch(issued *v1alpha1.IssuedState) ResolvedLaunch {
+	return ResolvedLaunch{
+		ProfileRef:  issued.EffectiveAuthority.Runtime.ProfileRef,
 		TemplateRef: issued.Claim.TemplateRef,
 		Input:       map[string]string{"objective": "run the test"},
 	}

@@ -9,7 +9,7 @@ Provide one application-owned execution contract that consumes an accepted, syst
 
 ## In Scope
 
-- One synchronous reference run operation over an issued Pending claim, a resolved neutral launch input, a `RuntimeBackend`, an application work callback, and an application deadline.
+- One reference run operation over an issued Pending claim, a trusted resolved neutral launch plan, a `RuntimeBackend`, an application work callback, and an application deadline.
 - Application-owned phase transitions and backend identity publication.
 - Deterministic ordered lifecycle/resource evidence and a defensive current-claim read view.
 - Reference-path failure handling for allocation, start, application work, timeout, termination, and cleanup.
@@ -33,6 +33,8 @@ Provide one application-owned execution contract that consumes an accepted, syst
 - Given termination or cleanup failure, when the result is returned/read, then the original terminal phase and the failed resource operation are both observable.
 - Given a caller reads current state, when it mutates the returned value, then authoritative stored state remains unchanged.
 - Given an invalid transition or identity mismatch, when it is proposed, then the service rejects it without changing phase, identity, or evidence attribution.
+- Given a backend reuses an identity already correlated to another claim, when allocation returns it, then the service fails closed before Bound and never tears down the other claim's worker.
+- Given the deadline wins while work is still executing, when the callback eventually returns, then Expired remains authoritative; callback cancellation is not claimed.
 
 ## Negative Cases
 
@@ -49,6 +51,7 @@ Provide one application-owned execution contract that consumes an accepted, syst
 - Keep `v1alpha1.SandboxClaim`, `IssuedState`, effective authority, and decision shapes unchanged; #31 updates trusted application-owned state rather than accepting caller-managed lifecycle fields.
 - Existing legacy `operator.Runtime` phase helpers and `runtime.ClaimReader` remain compatibility-only until consumers migrate; new application code must not mirror a reduced allocation into the legacy AddClaim path.
 - Existing gateway behavior remains unchanged in #31. Ticket #32 adapts gateways to the new authoritative read boundary.
+- A resolved runtime template may differ from the Agent Template reference. The trusted launch plan is bound to the granted runtime profile; RunService supplies the issued ClaimID to the backend request.
 - Agent Sandbox `Start` and `Terminate` may remain unsupported; the service must surface that honestly instead of treating readiness as work start.
 
 ## Open Decisions
