@@ -28,17 +28,19 @@ Focused tests assert these identifiers exactly; downstream consumers must not in
 | `incomplete-operation` | tool request lacks tool or action; model request lacks the approved profile |
 | `ambiguous-resource-scope` | resource scope is empty or contains a wildcard |
 | `secret-value` | a `Parameters` key matches the documented reserved credential-key set after normalization (same category as the frozen fixture set) |
-| `unknown-claim` | claim is not known to the runtime backend |
+| `unknown-claim` | claim is not known to the authoritative application lifecycle view |
 | `claim-not-active` | claim exists but is not in the Running phase |
 | `out-of-parent-scope` | child claim whose parent is no longer Running |
 | `invalid-policy-outcome` | policy returned a result outside the three contract values; the gateway fails closed rather than passing an untyped decision on |
+| `gateway-unavailable` | the authoritative claim lifecycle view is unavailable |
 
 ## Trust Boundary
 
-`Request.ClaimID` is a caller-asserted string. Resolving it through
-`runtime.ClaimReader.Claim` proves only that a claim by that name exists and
-what phase it is in. It does **not** prove that the caller is that claim's
-worker, so nothing in this Ticket authenticates the requester.
+`Request.ClaimID` is a caller-asserted string. Resolving it through the
+application-owned `app.ClaimReader` proves only that a claim by that name
+exists and that its authoritative lifecycle snapshot is Running. It does
+**not** prove that the caller is that claim's worker, so nothing in this Ticket
+authenticates the requester.
 
 What this means in practice:
 
@@ -88,7 +90,7 @@ What this means in practice:
 ## Compatibility
 
 - `api/v1alpha1` claim types (`SandboxClaim`, `ClaimPhase`) remain unchanged.
-- The prototype gateways' Running-only and child-out-of-parent-scope denial semantics are preserved through the typed decision path; their authoritative binding is owned by #32.
+- The gateways reuse #32's application-owned `ClaimReader` and shared `RequireRunningClaim` validation. The experimental child-out-of-parent-scope regression remains optional lineage behavior, not an MVP multi-agent expansion.
 - `internal/facts` invocation records remain attributable to the correct claim and gain `invocationId` correlation without dropping existing fields.
 - The typed decision aligns with the E1-T1 fixture convention of typed authorization results rather than boolean flags; gateway tests consume the shared v0 fixtures for claim inputs and keep failure categories consistent with the fixture manifest.
 

@@ -73,9 +73,8 @@ Out of scope:
 - [x] Add or update focused behavioral evidence for all three decision paths and the named negative cases.
 - [x] Run the focused gate and `./scripts/check.ps1 -All`.
 - [x] Review the diff for scope, regressions, and source-of-truth updates.
-- [ ] Bind gateway eligibility to the authoritative run-service view once #31/#32 land, replacing the `runtime.ClaimReader` compatibility read.
+- [x] Bind gateway eligibility to #32's authoritative application `ClaimReader` and shared Running-only validator; leave the runtime reader only for legacy compatibility.
 - [ ] Obtain Reviewer acceptance of the implementation on PR #94 (no implementation review is recorded yet).
-- [ ] Clear the #32 integration condition before PR #94 can merge.
 
 ## Quality Gates
 
@@ -115,9 +114,10 @@ Environment note: the repository pins Node 24 (`ui/package.json` engines, CI `no
 
 ## Trust Boundary
 
-`Request.ClaimID` is caller-asserted, and `runtime.ClaimReader.Claim` only
-confirms that such a claim exists and what phase it is in. Neither proves the
-caller is that claim's worker, so this Ticket authenticates nobody.
+`Request.ClaimID` is caller-asserted. The application-owned `ClaimReader`
+confirms only that such a claim exists and that its authoritative lifecycle
+snapshot is Running. It does not prove the caller is that claim's worker, so
+this Ticket authenticates nobody.
 
 - Claim-eligibility denials are correlation and lifecycle gating, not
   claim-bound enforcement; any caller reaching the gateway can name any
@@ -148,9 +148,9 @@ Four separate states. None implies another.
 | Owner approval of the plan (Task + Spec, including the `internal/gateway` placement) | Granted | Owner comment on [#33](https://github.com/wunderforge/agenova/issues/33), 2026-08-31, at `b8f5649` |
 | Authorisation to publish the implementation to Draft PR #94 for review | Granted by Tom | Tom's direction on 2026-09-13, recorded in Decisions below; no corresponding public comment on #33 or PR #94 |
 | Reviewer acceptance of the implementation | Not granted | PR #94 `reviewDecision=REVIEW_REQUIRED`; no implementation review submitted |
-| #32 integration condition cleared | Not cleared | #32 (E3-T3 Running-only binding) is OPEN; gateways still read claim state through the `runtime.ClaimReader` compatibility view |
+| #32 integration condition cleared | Cleared | Gateways use `app.ClaimReader` and `app.RequireRunningClaim`; `runtime.ClaimReader` remains legacy-only and is not a production gateway dependency |
 
-The Owner's 2026-08-31 approval covered planning and stated implementation would wait for #32. Tom later directed that the implementation be published to the Draft so it can be reviewed while #32 is outstanding. That changes when the code becomes visible, not whether it may merge: PR #94 stays a Draft, #33 stays open, and both the Reviewer acceptance and the #32 condition are still outstanding.
+The Owner's 2026-08-31 approval covered planning and stated implementation would wait for #32. Tom later published the implementation for review; #32 has now landed and this branch consumes its final application lifecycle boundary. Reviewer acceptance remains outstanding.
 
 Read the third and fourth rows as "no record exists yet", not as a claim that either was refused.
 
@@ -164,15 +164,14 @@ Read the third and fourth rows as "no record exists yet", not as a claim that ei
 - Decision: gateway tests draw claim identity, tool capability, resource scope, and model profile from the frozen `issued-state.valid.team-a-engineer` fixture, and the secret-rejection case reuses the key from `claim-request.invalid.secret-value`, via a small `internal/gateway/gatewaytest` loader (contracttest precedent).
 - Decision (automated review, 2026-08-30): denied attempts must be inspectable from the fact store rather than only from the returned Decision. The E5 (#37) boundary is respected: no new fact kinds are introduced, the existing invocation fact gains correlation fields only. The exact persistence rule is the claim-resolution rule recorded above.
 - Codex automated review on the packet (2026-08-30, three findings): P1 evidence persistence adopted; P1 secret-reachability answered by specifying `Parameters` as the single extensible operation-data surface; P2 category enumeration added to the specification with exact-assertion requirement.
-- Decision: `Deny`/`ApprovalRequired` reach callers as typed decisions, never Go errors; the `Invoke` error channel reports adapter failures only.
+- Decision: `Deny`/`ApprovalRequired` reach callers as typed decisions, never Go errors; the `Invoke` error channel reports operational gateway or adapter failures only.
 - Decision: a gateway with no provider adapter configured fails closed. An allowed invocation reports a configuration failure rather than succeeding silently, so recorded evidence never describes a call that was never attempted; the reference scenario wires an explicit adapter for the same reason.
 - Decision: an unrecognised policy result is denied with `invalid-policy-outcome` rather than passed through, so the three-value contract cannot be bypassed by a policy that leaves the result unset.
 - Residual: invocation facts must reuse the E1-T4 `v1alpha1.DecisionResult` vocabulary (no gateway-local duplicate), but Go still admits any untyped string constant at the fact-store append boundary. The gateway must fail closed on an unsupported policy result before recording; enforcing the set on append belongs to the evidence contract in #37.
 - Decision: the caller-supplied identifier is modeled as untrusted `CallerReference` metadata — the request shape has no invocationId field to smuggle, and tests assert the issued ID never equals the caller value.
 - Decision: the implementation will migrate the e2e multi-agent reference test to the typed `Invoke` contract in the same change (Change-a-Core-Contract playbook: reference implementation and contract tests move together).
-- Blockers: #32 (E3-T3 Running-only binding) is the outstanding dependency; #25 (E1-T4 SandboxClaim v0) was a blocker until it merged via PR #100 on 2026-09-02. The substantive requirement is that product code reuse the final E1-T4 decision/result types and the E3-T3 Running-only binding rather than provisional duplicates. E1-T4 reuse is satisfied (`DecisionResult = v1alpha1.DecisionResult`); the E3-T3 binding is not, so #32 remains the integration and merge condition. The original packet also read this as "implementation commits wait"; that sequencing was changed by Tom's 2026-09-13 authorisation below, which did not change the merge condition.
+- Dependencies cleared: #25 supplies the final SandboxClaim and `DecisionResult` types; #32 supplies the authoritative application lifecycle view and Running-only validator. This PR reuses both without provisional duplicates.
 - Decision (2026-09-13, Tom): publish the existing implementation to Draft PR #94 for review, ahead of #32 landing. This is Tom's authorisation to make the code reviewable; it is not an Owner decision to lift the #32 dependency, not a Reviewer acceptance, and not a change to the merge condition.
-- Decision (2026-09-13): the gateways read claim state through `runtime.ClaimReader`, the narrow compatibility view main added when #30 reduced `RuntimeBackend` to five backend operations. `Claim()` is deliberately not added back to `RuntimeBackend`. This is a compatibility read of the in-memory reference runtime, not an integration with an authoritative run service and not a trusted worker-context binding.
-- Residual (#32 integration gap): claim eligibility here is still observed from the reference runtime's phase state. #31 owns the authoritative run-service view and #32 binds gateway eligibility to that lifecycle. The final adapter surface depends on the contract those Tickets settle, so the size of the follow-up change is not yet known and is not promised to be a single function.
+- Decision (2026-09-15 takeover): production gateways accept `app.ClaimReader` and delegate lifecycle validation to `app.RequireRunningClaim`; `Claim()` is not part of `RuntimeBackend`. A test-only adapter keeps the explicitly experimental multi-agent regression runnable without creating a second production lifecycle source; the runtime reader remains legacy compatibility only.
 - Residual: `Lineage` parent/child scope and the child-out-of-parent-scope denial are carried through unchanged from the prototype as preserved regression behavior. They remain experimental semantics in the current code and are not an extension of the single-governed-claim MVP scope.
 - Not in this change: effective-authority enforcement (#34), model-profile grants (#35), credential brokerage (#36), attempt/outcome evidence expansion (#37), approval interruption/resume (#90), and network egress proxying (#117/#118).

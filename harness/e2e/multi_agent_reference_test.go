@@ -274,8 +274,8 @@ func TestMultiAgentReference_WorkerWithoutParentIsIndependent(t *testing.T) {
 }
 
 // legacyClaimReader keeps the explicitly experimental multi-agent regression
-// runnable while production gateways migrate off runtime.ClaimReader. It is a
-// test-only compatibility adapter, not a second application lifecycle owner.
+// runnable against the application ClaimReader contract. It adapts the old
+// reference runtime only inside this test and is not a second lifecycle owner.
 type legacyClaimReader struct {
 	runtime *operator.Runtime
 }
