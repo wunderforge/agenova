@@ -1,0 +1,9 @@
+[info] capturing transient evidence in /Users/qiqi/Codex/Agenova/.tmp/agent-sandbox-evidence.IgNRRC
+[pass] kind: /Users/qiqi/.docker/bin/kind (existing)
+[pass] kubectl: /Users/qiqi/.docker/bin/kubectl (existing)
+[pass] resolved context matches expected 'kind-agenova-k8s-lab'
+[info] deleting kind cluster 'agenova-k8s-lab' (only this cluster)
+Deleting cluster "agenova-k8s-lab" ...
+Deleted nodes: ["agenova-k8s-lab-control-plane"]
+No kind clusters found.
+[pass] owned kind cluster 'agenova-k8s-lab' deleted

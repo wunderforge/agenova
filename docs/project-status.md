@@ -1,6 +1,6 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-09-14
+Updated: 2026-09-15
 
 This file is the evidence-backed snapshot of what the merged repository currently proves. Product vision is not implementation status, and this file does not track ticket owners, readiness, sequence, or work-in-progress; those remain in GitHub Issues and the Delivery Project.
 
@@ -15,7 +15,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 | Authorize the requesting principal | Implemented in reference contracts | Trusted-local `Principal`, versioned `PolicyBundle`, and deterministic action authorization are merged; external identity-provider integration is not implemented. |
 | Resolve requested access | Implemented in reference contracts | Template, request, and policy limits resolve to an effective-authority snapshot with deterministic tests; the request-to-claim run service and gateway wiring remain open. |
 | Create one claim per run | Implemented in v0 contract and reference | The system-managed `SandboxClaim`/issued-state contract, `internal/operator`, and lifecycle tests are merged; request-to-claim issuance remains open. |
-| Bind a runtime backend | Implemented in reference; partial on Kubernetes | The reduced five-operation reference backend and reusable contract suite are merged. Agent Sandbox still reports unsupported operations and an unverified filesystem boundary explicitly. |
+| Bind a runtime backend | Implemented in reference; partial on Kubernetes | The reduced five-operation reference backend and reusable contract suite are merged. Agent Sandbox v0.4.6 translates Allocate, readiness Observe, identity, and confirmed Cleanup; ordinary Start/Terminate and filesystem evidence remain unsupported. See the bounded [#66 kind evidence](evidence/E8-S1/agent-sandbox-mapping/summary.md). |
 | Enforce effective authority | Partial reference | Tool and Model Gateways require a `Running` claim and retain experimental parent-scope checks, but do not yet enforce resolved tool, model, or resource authority. |
 | Execute through gateways | Partial | Authorization methods exist; there is no network gateway or real upstream proxy path. |
 | Record claim-scoped facts | Reference only | In-memory Tool, Model, and Runtime fact store; no durable storage or denial facts. |
@@ -41,9 +41,9 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 
 ## Backend Spike
 
-The Kubernetes Agent Sandbox adapter can create upstream templates, warm pools, and claims; observe allocation/readiness; and trigger cleanup. It was exercised against Agent Sandbox v0.4.6 on a local kind cluster.
+The Kubernetes Agent Sandbox adapter can create upstream templates, warm pools, and claims; translate allocation/identity/readiness; and confirm cleanup. A bounded Agent Sandbox v0.4.6 kind run verified that path and demonstrated that a Ready worker still returns `ErrUnsupported` for ordinary Start and Terminate. Readiness remains Bound-level evidence, not worker start.
 
-It is not production-ready. Terminal outcomes are held in adapter memory, pool status is approximated, only a single-pool path was validated, and the returned claim loses its original spec. See [Agent Sandbox adapter](backends/agent-sandbox.md).
+It is not production-ready. Allocation/release correlation is process-local, pool status is approximated, only a single-pool path was validated, and the legacy claim view loses its original spec. The adapter returns `FilesystemEvidenceUnsupported`; worker-visible directories, mount/credential exposure, outside-boundary enforcement, and general isolation are not verified. See the [frozen adapter mapping](backends/agent-sandbox.md) and [#89 filesystem handoff](../work/0089-filesystem-boundary/handoff-0048-0051.md). The opt-in controlled-worker experiment and full filesystem proof remain separate #51 work.
 
 ## Scaffolds or Missing Product Surfaces
 

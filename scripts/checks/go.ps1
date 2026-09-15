@@ -115,6 +115,10 @@ function Test-Go {
     go test -run '^$' -tags integration ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "Agent Sandbox integration package does not compile" }
     Pass "Agent Sandbox integration package compiles"
+
+    go test -run '^$' -tags 'integration controlled' ./harness/integration/agentsandbox/
+    if ($LASTEXITCODE -ne 0) { Fail "opt-in controlled Agent Sandbox integration package does not compile" }
+    Pass "opt-in controlled Agent Sandbox integration package compiles"
   }
   finally {
     Pop-Location

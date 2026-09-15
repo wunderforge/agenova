@@ -46,12 +46,16 @@ Shared phases are:
 Pending -> Bound -> Running -> Succeeded
 Pending -> Bound -> Running -> Failed
 Pending -> Bound -> Failed
+Pending -> Failed when allocation fails before any backend identity exists
 Pending / Bound / Running -> Expired when the relevant timeout applies
 ```
 
 - Backend readiness is infrastructure evidence, not agent-work success.
 - `Running` starts when the Agenova runner starts claim work, not merely when a Pod or process exists.
 - `Succeeded`, `Failed`, and `Expired` are terminal claim outcomes.
+- The narrow `Pending -> Failed` edge records allocation failure without
+  fabricating a backend identity or `Bound` phase; identity-dependent teardown
+  does not run on that edge.
 - Cleanup, deletion, replenishment, or sandbox replacement is resource evidence, not a claim phase.
 
 ## Authority and Credentials

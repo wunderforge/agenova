@@ -117,6 +117,26 @@ func (r *kubectlRunner) exists(resource, name string) (bool, error) {
 	return len(strings.TrimSpace(string(raw))) > 0, nil
 }
 
+// execWorker invokes the explicit, image-provided Agenova control protocol
+// inside the bound Pod. kubectl execution is not an upstream SandboxClaim
+// operation; a different worker image must opt in to this protocol.
+func (r *kubectlRunner) execWorker(workerID string, args ...string) (string, error) {
+	if workerID == "" || strings.ContainsAny(workerID, "/ \t\r\n") {
+		return "", fmt.Errorf("invalid worker id %q", workerID)
+	}
+	for _, arg := range args {
+		if arg == "" || strings.ContainsAny(arg, "\r\n") {
+			return "", fmt.Errorf("invalid worker control argument %q", arg)
+		}
+	}
+	argv := append([]string{"exec", "pod/" + workerID, "-c", "agent", "--", "/agenova-workerctl"}, args...)
+	out, err := r.run(argv[0], argv[1:]...)
+	if err != nil {
+		return "", fmt.Errorf("worker control: %w", err)
+	}
+	return string(out), nil
+}
+
 func (r *kubectlRunner) run(verb string, extraArgs ...string) ([]byte, error) {
 	out, err := r.runWithStdin(nil, append([]string{verb}, extraArgs...)...)
 	if err != nil {

@@ -6,160 +6,158 @@ package modelgateway
 import (
 	"testing"
 
-	"github.com/wunderforge/agenova/api/v1alpha1"
+	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/governance"
-	"github.com/wunderforge/agenova/internal/operator"
-	"github.com/wunderforge/agenova/internal/runtime"
 )
 
-func newFixture(t *testing.T) (*Gateway, *operator.Runtime, *facts.Store, *governance.Lineage) {
-	t.Helper()
+type claimReader struct {
+	claims map[string]v1alpha1.SandboxClaim
+}
 
-	r := operator.NewRuntime()
-	if err := r.AddTemplate(v1alpha1.AgentSandboxTemplate{
-		Metadata: v1alpha1.ObjectMeta{Name: "agent-v1"},
-		Spec:     v1alpha1.AgentSandboxTemplateSpec{Image: "example.local/agent:dev", Command: []string{"agent"}},
-	}); err != nil {
-		t.Fatalf("add template: %v", err)
-	}
-	if err := r.AddWarmPool(v1alpha1.SandboxWarmPool{
-		Metadata: v1alpha1.ObjectMeta{Name: "agent-pool"},
-		Spec:     v1alpha1.SandboxWarmPoolSpec{TemplateRef: "agent-v1", Replicas: 3},
-	}); err != nil {
-		t.Fatalf("add warm pool: %v", err)
-	}
+func (r *claimReader) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
+	claim, ok := r.claims[claimID]
+	return claim, ok
+}
 
+func newFixture() (*Gateway, *claimReader, *facts.Store, *governance.Lineage) {
+	claims := &claimReader{claims: make(map[string]v1alpha1.SandboxClaim)}
 	store := facts.NewStore()
 	lineage := governance.NewLineage()
-	gw := NewGateway(r, lineage, store)
-	return gw, r, store, lineage
+	return NewGateway(claims, lineage, store), claims, store, lineage
 }
 
-func runClaim(t *testing.T, r *operator.Runtime, name string) {
-	t.Helper()
+func TestGatewayAllowsOnlyAuthoritativeRunningClaim(t *testing.T) {
+	gw, claims, store, _ := newFixture()
+	claims.claims["run-1"] = claimSnapshot("run-1", v1alpha1.ClaimPhaseRunning)
 
-	if err := r.AddClaim(runtime.BackendClaim{
-		Metadata: v1alpha1.ObjectMeta{Name: name},
-		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
-	}); err != nil {
-		t.Fatalf("add claim %q: %v", name, err)
-	}
-	if err := r.BindClaim(name); err != nil {
-		t.Fatalf("bind claim %q: %v", name, err)
-	}
-	if err := r.StartClaim(name); err != nil {
-		t.Fatalf("start claim %q: %v", name, err)
-	}
-}
-
-func TestGateway_AllowsRunningClaim(t *testing.T) {
-	gw, r, store, _ := newFixture(t)
-	runClaim(t, r, "run-1")
-
-	if err := gw.Authorize(Request{ClaimID: "run-1", ModelName: "claude-sonnet-4-6"}); err != nil {
+	if err := gw.Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err != nil {
 		t.Fatalf("running claim should be authorized: %v", err)
 	}
-
 	invocations := store.ModelInvocations("run-1")
-	if len(invocations) != 1 {
-		t.Fatalf("expected 1 recorded fact, got %d", len(invocations))
-	}
-	if invocations[0].ModelName != "claude-sonnet-4-6" {
-		t.Errorf("ModelName = %q, want claude-sonnet-4-6", invocations[0].ModelName)
+	if len(invocations) != 1 || invocations[0].ModelName != "coding-standard" {
+		t.Fatalf("model facts = %+v, want one coding-standard invocation", invocations)
 	}
 }
 
-// --- negative authorization tests ---
-
-func TestGateway_DeniesUnknownClaim(t *testing.T) {
-	gw, _, store, _ := newFixture(t)
-
-	if err := gw.Authorize(Request{ClaimID: "nonexistent", ModelName: "claude-sonnet-4-6"}); err == nil {
-		t.Fatal("unknown claim should be denied")
+func TestGatewayDeniesEveryNonRunningAuthoritativePhase(t *testing.T) {
+	phases := []v1alpha1.ClaimPhase{
+		v1alpha1.ClaimPhasePending,
+		v1alpha1.ClaimPhaseBound,
+		v1alpha1.ClaimPhaseSucceeded,
+		v1alpha1.ClaimPhaseFailed,
+		v1alpha1.ClaimPhaseExpired,
 	}
-	if len(store.ModelInvocations("nonexistent")) != 0 {
-		t.Error("denied request should not record a fact")
-	}
-}
+	for _, phase := range phases {
+		t.Run(string(phase), func(t *testing.T) {
+			gw, claims, store, _ := newFixture()
+			claims.claims["claim-1"] = claimSnapshot("claim-1", phase)
 
-func TestGateway_DeniesPendingClaim(t *testing.T) {
-	gw, r, store, _ := newFixture(t)
-
-	if err := r.AddClaim(runtime.BackendClaim{
-		Metadata: v1alpha1.ObjectMeta{Name: "pending-claim"},
-		Spec:     runtime.BackendClaimSpec{PoolRef: "agent-pool"},
-	}); err != nil {
-		t.Fatalf("add claim: %v", err)
-	}
-
-	if err := gw.Authorize(Request{ClaimID: "pending-claim", ModelName: "claude-sonnet-4-6"}); err == nil {
-		t.Fatal("pending (unbound) claim should be denied")
-	}
-	if len(store.ModelInvocations("pending-claim")) != 0 {
-		t.Error("denied request should not record a fact")
+			if err := gw.Authorize(Request{ClaimID: "claim-1", ModelName: "coding-standard"}); err == nil {
+				t.Fatalf("%s claim should be denied", phase)
+			}
+			if got := store.ModelInvocations("claim-1"); len(got) != 0 {
+				t.Fatalf("denied %s claim recorded facts: %+v", phase, got)
+			}
+		})
 	}
 }
 
-func TestGateway_DeniesTerminalClaim(t *testing.T) {
-	gw, r, store, _ := newFixture(t)
-	runClaim(t, r, "term-claim")
+func TestGatewayDeniesTerminalClaimWhileWorkerIdentityStillExists(t *testing.T) {
+	gw, claims, store, _ := newFixture()
+	claims.claims["terminal"] = claimSnapshot("terminal", v1alpha1.ClaimPhaseFailed)
 
-	if err := r.SucceedClaim("term-claim"); err != nil {
-		t.Fatalf("succeed claim: %v", err)
+	if err := gw.Authorize(Request{ClaimID: "terminal", ModelName: "coding-standard"}); err == nil {
+		t.Fatal("terminal claim with a worker identity should be denied")
 	}
-
-	if err := gw.Authorize(Request{ClaimID: "term-claim", ModelName: "claude-sonnet-4-6"}); err == nil {
-		t.Fatal("succeeded (terminal) claim should be denied")
-	}
-	if len(store.ModelInvocations("term-claim")) != 0 {
-		t.Error("denied request should not record a fact")
+	if got := store.ModelInvocations("terminal"); len(got) != 0 {
+		t.Fatalf("denied terminal claim recorded facts: %+v", got)
 	}
 }
 
-func TestGateway_DeniesChildWithTerminalParent(t *testing.T) {
-	gw, r, store, lineage := newFixture(t)
-	runClaim(t, r, "parent-claim")
-	runClaim(t, r, "child-claim")
-
-	if err := lineage.RegisterChild("parent-claim", "child-claim"); err != nil {
-		t.Fatalf("register child: %v", err)
+func TestGatewayFailsClosedForMissingAndMalformedSnapshots(t *testing.T) {
+	tests := []struct {
+		name  string
+		claim v1alpha1.SandboxClaim
+		add   bool
+	}{
+		{name: "missing"},
+		{name: "mismatched id", add: true, claim: claimSnapshot("other", v1alpha1.ClaimPhaseRunning)},
+		{name: "blank authority ref", add: true, claim: func() v1alpha1.SandboxClaim {
+			claim := claimSnapshot("claim-1", v1alpha1.ClaimPhaseRunning)
+			claim.AuthorityRef = ""
+			return claim
+		}()},
+		{name: "running with incomplete identity", add: true, claim: func() v1alpha1.SandboxClaim {
+			claim := claimSnapshot("claim-1", v1alpha1.ClaimPhaseRunning)
+			claim.BackendIdentity.WorkerID = ""
+			return claim
+		}()},
+		{name: "unknown phase", add: true, claim: claimSnapshot("claim-1", v1alpha1.ClaimPhase("Unknown"))},
 	}
-
-	// Allowed while parent is Running.
-	if err := gw.Authorize(Request{ClaimID: "child-claim", ModelName: "claude-haiku-4-5"}); err != nil {
-		t.Fatalf("child with running parent should be authorized: %v", err)
-	}
-
-	// Terminate the parent.
-	if err := r.SucceedClaim("parent-claim"); err != nil {
-		t.Fatalf("succeed parent: %v", err)
-	}
-
-	// Child is still Running but parent is terminal -> denied (out-of-scope).
-	if err := gw.Authorize(Request{ClaimID: "child-claim", ModelName: "claude-haiku-4-5"}); err == nil {
-		t.Fatal("child claim with terminal parent should be denied")
-	}
-
-	// Only the first call should be recorded.
-	if len(store.ModelInvocations("child-claim")) != 1 {
-		t.Errorf("expected 1 recorded fact, got %d", len(store.ModelInvocations("child-claim")))
-	}
-}
-
-func TestGateway_RejectsEmptyClaimID(t *testing.T) {
-	gw, _, _, _ := newFixture(t)
-
-	if err := gw.Authorize(Request{ClaimID: "", ModelName: "claude-sonnet-4-6"}); err == nil {
-		t.Fatal("empty claim id should be rejected")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gw, claims, store, _ := newFixture()
+			if test.add {
+				claims.claims["claim-1"] = test.claim
+			}
+			if err := gw.Authorize(Request{ClaimID: "claim-1", ModelName: "coding-standard"}); err == nil {
+				t.Fatal("missing or malformed snapshot should be denied")
+			}
+			if got := store.ModelInvocations("claim-1"); len(got) != 0 {
+				t.Fatalf("denied request recorded facts: %+v", got)
+			}
+		})
 	}
 }
 
-func TestGateway_RejectsEmptyModelName(t *testing.T) {
-	gw, r, _, _ := newFixture(t)
-	runClaim(t, r, "run-1")
+func TestGatewayPreservesExperimentalParentRunningRule(t *testing.T) {
+	gw, claims, store, lineage := newFixture()
+	claims.claims["parent"] = claimSnapshot("parent", v1alpha1.ClaimPhaseRunning)
+	claims.claims["child"] = claimSnapshot("child", v1alpha1.ClaimPhaseRunning)
+	if err := lineage.RegisterChild("parent", "child"); err != nil {
+		t.Fatalf("RegisterChild: %v", err)
+	}
 
-	if err := gw.Authorize(Request{ClaimID: "run-1", ModelName: ""}); err == nil {
-		t.Fatal("empty model name should be rejected")
+	if err := gw.Authorize(Request{ClaimID: "child", ModelName: "coding-standard"}); err != nil {
+		t.Fatalf("running child with running parent should be allowed: %v", err)
+	}
+	claims.claims["parent"] = claimSnapshot("parent", v1alpha1.ClaimPhaseExpired)
+	if err := gw.Authorize(Request{ClaimID: "child", ModelName: "coding-standard"}); err == nil {
+		t.Fatal("running child with terminal parent should be denied")
+	}
+	if got := store.ModelInvocations("child"); len(got) != 1 {
+		t.Fatalf("child facts = %d, want only the allowed invocation", len(got))
+	}
+}
+
+func TestGatewayValidatesRequestAndDependencies(t *testing.T) {
+	gw, claims, _, _ := newFixture()
+	claims.claims["run-1"] = claimSnapshot("run-1", v1alpha1.ClaimPhaseRunning)
+	if err := gw.Authorize(Request{ModelName: "coding-standard"}); err == nil {
+		t.Fatal("blank claim id should be rejected")
+	}
+	if err := gw.Authorize(Request{ClaimID: "run-1"}); err == nil {
+		t.Fatal("blank model name should be rejected")
+	}
+	if err := NewGateway(nil, nil, facts.NewStore()).Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err == nil {
+		t.Fatal("missing authoritative reader should deny")
+	}
+	if err := NewGateway(claims, nil, nil).Authorize(Request{ClaimID: "run-1", ModelName: "coding-standard"}); err == nil {
+		t.Fatal("missing fact store should deny")
+	}
+}
+
+func claimSnapshot(id string, phase v1alpha1.ClaimPhase) v1alpha1.SandboxClaim {
+	return v1alpha1.SandboxClaim{
+		ID:           id,
+		RequestRef:   "request:" + id,
+		TemplateRef:  "engineer",
+		AuthorityRef: "authority:" + id,
+		Phase:        phase,
+		BackendIdentity: &v1alpha1.SandboxClaimBackendIdentity{
+			Backend:  "reference",
+			WorkerID: "worker:" + id,
+		},
 	}
 }
