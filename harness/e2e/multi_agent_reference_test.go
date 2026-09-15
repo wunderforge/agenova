@@ -65,8 +65,9 @@ func TestMultiAgentReference(t *testing.T) {
 	r := newSharedRuntime(t)
 	store := facts.NewStore()
 	lineage := governance.NewLineage()
-	toolGW := toolgateway.NewGateway(r, lineage, store)
-	modelGW := modelgateway.NewGateway(r, lineage, store)
+	claims := legacyClaimReader{runtime: r}
+	toolGW := toolgateway.NewGateway(claims, lineage, store)
+	modelGW := modelgateway.NewGateway(claims, lineage, store)
 
 	// --- Step 1: start all three claims ---
 	addRunningClaim(t, r, "orchestrator")
@@ -187,7 +188,7 @@ func TestMultiAgentReference_WorkerWithoutParentIsIndependent(t *testing.T) {
 	r := newSharedRuntime(t)
 	store := facts.NewStore()
 	lineage := governance.NewLineage()
-	toolGW := toolgateway.NewGateway(r, lineage, store)
+	toolGW := toolgateway.NewGateway(legacyClaimReader{runtime: r}, lineage, store)
 
 	addRunningClaim(t, r, "standalone")
 
@@ -204,4 +205,32 @@ func TestMultiAgentReference_WorkerWithoutParentIsIndependent(t *testing.T) {
 	if err := toolGW.Authorize(toolgateway.Request{ClaimID: "standalone", ToolName: "file-read"}); err == nil {
 		t.Fatal("terminal standalone claim should be denied")
 	}
+}
+
+// legacyClaimReader keeps the explicitly experimental multi-agent regression
+// runnable while production gateways migrate off runtime.ClaimReader. It is a
+// test-only compatibility adapter, not a second application lifecycle owner.
+type legacyClaimReader struct {
+	runtime *operator.Runtime
+}
+
+func (r legacyClaimReader) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
+	claim, ok := r.runtime.Claim(claimID)
+	if !ok {
+		return v1alpha1.SandboxClaim{}, false
+	}
+	result := v1alpha1.SandboxClaim{
+		ID:           claim.Metadata.Name,
+		RequestRef:   "experimental:" + claim.Metadata.Name,
+		TemplateRef:  "agent-v1",
+		AuthorityRef: "experimental-authority:" + claim.Metadata.Name,
+		Phase:        claim.Status.Phase,
+	}
+	if claim.Status.SandboxID != "" {
+		result.BackendIdentity = &v1alpha1.SandboxClaimBackendIdentity{
+			Backend:  operator.BackendName,
+			WorkerID: claim.Status.SandboxID,
+		}
+	}
+	return result, true
 }

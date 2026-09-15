@@ -44,6 +44,40 @@ var (
 // acknowledged Start and the authoritative claim has become Running.
 type WorkFunc func() error
 
+// ClaimReader is the application-owned lifecycle view used by governed
+// interfaces. Implementations return defensive public claim snapshots; they
+// never derive authority from backend readiness or resource existence.
+type ClaimReader interface {
+	Claim(claimID string) (v1alpha1.SandboxClaim, bool)
+}
+
+// RequireRunningClaim applies the shared lifecycle eligibility rule used by
+// governed interfaces. It fails closed for unavailable, missing, mismatched,
+// incomplete, unknown-phase, and non-Running snapshots.
+func RequireRunningClaim(reader ClaimReader, claimID string) error {
+	if reader == nil {
+		return fmt.Errorf("authoritative claim reader is unavailable")
+	}
+	claim, ok := reader.Claim(claimID)
+	if !ok {
+		return fmt.Errorf("unknown claim: %s", claimID)
+	}
+	if claim.ID == "" || claim.ID != claimID || claim.RequestRef == "" || claim.TemplateRef == "" || claim.AuthorityRef == "" {
+		return fmt.Errorf("claim %q has an invalid authoritative snapshot", claimID)
+	}
+	switch claim.Phase {
+	case v1alpha1.ClaimPhasePending, v1alpha1.ClaimPhaseBound, v1alpha1.ClaimPhaseSucceeded, v1alpha1.ClaimPhaseFailed, v1alpha1.ClaimPhaseExpired:
+		return fmt.Errorf("claim %q is not running (phase: %s)", claimID, claim.Phase)
+	case v1alpha1.ClaimPhaseRunning:
+		if claim.BackendIdentity == nil || claim.BackendIdentity.Backend == "" || claim.BackendIdentity.WorkerID == "" {
+			return fmt.Errorf("claim %q has an invalid authoritative snapshot", claimID)
+		}
+		return nil
+	default:
+		return fmt.Errorf("claim %q has an invalid authoritative phase %q", claimID, claim.Phase)
+	}
+}
+
 // RunServiceOptions contains the two seams needed for deterministic deadline
 // and readiness tests. Zero values select wall-clock behavior.
 type RunServiceOptions struct {
@@ -65,6 +99,8 @@ type RunService struct {
 	mu    sync.RWMutex
 	state map[string]*v1alpha1.IssuedState
 }
+
+var _ ClaimReader = (*RunService)(nil)
 
 // NewRunService constructs an application lifecycle owner over one backend.
 func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*RunService, error) {

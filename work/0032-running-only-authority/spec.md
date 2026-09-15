@@ -23,7 +23,7 @@ Bind Tool and Model gateway lifecycle eligibility to the authoritative applicati
 - Given an authoritative Running claim, when a Tool or Model request reaches lifecycle eligibility, then the gateway may continue to its existing capability checks.
 - Given Pending or Bound, when either gateway checks eligibility, then it denies before work authority can be exercised.
 - Given Succeeded, Failed, or Expired, when either gateway checks eligibility, then it denies regardless of backend worker existence or readiness.
-- Given a missing claim, reader error, or unusable snapshot, when eligibility is checked, then it fails closed.
+- Given an unavailable reader, missing claim, or unusable snapshot, when eligibility is checked, then it fails closed. The accepted reader exposes snapshot plus existence and no separate error channel.
 - Given a child claim, when either the child or its recorded parent is not authoritatively Running, then the gateway denies it.
 
 ## Negative Cases
@@ -40,5 +40,5 @@ Bind Tool and Model gateway lifecycle eligibility to the authoritative applicati
 
 ## Open Decisions
 
-- Confirm the exact #31 reader package/type and error shape after its planning approval. Both gateways must depend on that one boundary rather than adapters.
-- Confirm whether malformed snapshots are represented as not-found or an explicit error; either representation must deny and be covered by evidence.
+- Resolved by #31: both gateways consume `internal/app.ClaimReader`, whose `Claim` method returns a defensive public `SandboxClaim` plus existence.
+- Resolved for the reference path: not-found returns `false`; malformed snapshots return `true` with unusable content. `app.RequireRunningClaim` denies both forms before fact recording.

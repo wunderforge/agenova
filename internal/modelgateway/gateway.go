@@ -7,10 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/governance"
-	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // Request is a model invocation request from an agent claim.
@@ -23,13 +22,13 @@ type Request struct {
 // A claim must be in the Running phase to invoke a model. Child claims whose parent
 // is no longer Running are denied (child-out-of-scope).
 type Gateway struct {
-	backend runtime.ClaimReader
+	claims  app.ClaimReader
 	lineage *governance.Lineage
 	store   *facts.Store
 }
 
-func NewGateway(backend runtime.ClaimReader, lineage *governance.Lineage, store *facts.Store) *Gateway {
-	return &Gateway{backend: backend, lineage: lineage, store: store}
+func NewGateway(claims app.ClaimReader, lineage *governance.Lineage, store *facts.Store) *Gateway {
+	return &Gateway{claims: claims, lineage: lineage, store: store}
 }
 
 // Authorize checks whether the requesting claim may invoke a model.
@@ -46,22 +45,23 @@ func (g *Gateway) Authorize(req Request) error {
 		return err
 	}
 	// If this is a child claim, its parent must also be Running.
-	if parentID, ok := g.lineage.Parent(req.ClaimID); ok {
-		if err := g.requireRunning(parentID); err != nil {
-			return fmt.Errorf("child claim %q out of parent scope: %w", req.ClaimID, err)
+	if g.lineage != nil {
+		if parentID, ok := g.lineage.Parent(req.ClaimID); ok {
+			if err := g.requireRunning(parentID); err != nil {
+				return fmt.Errorf("child claim %q out of parent scope: %w", req.ClaimID, err)
+			}
 		}
+	}
+	if g.store == nil {
+		return errors.New("model fact store is unavailable")
 	}
 	g.store.RecordModelInvocation(req.ClaimID, req.ModelName)
 	return nil
 }
 
 func (g *Gateway) requireRunning(claimID string) error {
-	claim, ok := g.backend.Claim(claimID)
-	if !ok {
-		return fmt.Errorf("unknown claim: %s", claimID)
+	if g == nil {
+		return errors.New("authoritative claim reader is unavailable")
 	}
-	if claim.Status.Phase != v1alpha1.ClaimPhaseRunning {
-		return fmt.Errorf("claim %q is not running (phase: %s)", claimID, claim.Status.Phase)
-	}
-	return nil
+	return app.RequireRunningClaim(g.claims, claimID)
 }

@@ -42,7 +42,7 @@ Out of scope:
 - Tool and Model gateways allow lifecycle eligibility only when the authoritative application claim snapshot is Running.
 - Pending and Bound claims are denied before any capability-specific checks can grant access.
 - Succeeded, Failed, and Expired claims remain denied even when backend resource evidence says a worker still exists.
-- Missing claims, blank claim IDs, malformed reader results, and reader errors fail closed.
+- Missing claims, blank claim IDs, and malformed reader results fail closed. The accepted #31 reader returns snapshot plus existence and has no separate error channel.
 - Child claims remain eligible only while both child and parent authoritative snapshots are Running.
 
 ## Negative Case
@@ -52,11 +52,11 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout both gateways, the compatibility reader, #31 dependency, and existing lifecycle tests.
-- [ ] Confirm this Task + Spec with the Owner and an independent Reviewer before implementation.
-- [ ] Rebind both gateways to the accepted #31 authoritative reader without introducing another state model.
-- [ ] Add table-driven G2 evidence for every lifecycle phase, missing/error cases, and terminal-with-worker-exists cases.
-- [ ] Run the focused gates and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for fail-closed behavior, lineage regressions, and #31 boundary compliance.
+- [x] Confirm this Task + Spec with the Owner and an independent Reviewer before implementation.
+- [x] Rebind both gateways to the accepted #31 authoritative reader without introducing another state model.
+- [x] Add table-driven G2 evidence for every lifecycle phase, missing/malformed cases, and terminal-with-worker-exists cases.
+- [x] Run the focused gates and `./scripts/check.ps1 -All`.
+- [x] Review the diff for fail-closed behavior, lineage regressions, and #31 boundary compliance.
 
 ## Quality Gates
 
@@ -81,4 +81,10 @@ Out of scope:
 
 - Planning depth is Task + Spec because this is a small consumer migration once #31's reader is accepted.
 - Delivery uses a stacked PR based on `sonia/0031-application-run-service` so #31 and #32 remain separately reviewable while work proceeds in dependency order.
-- Implementation is blocked until #31's authoritative reader shape and this packet receive the repository-required Owner and independent Reviewer approval.
+- The Owner accepted the #31/#32 packets and authorized takeover implementation on 2026-09-15. #31 now exposes `app.ClaimReader` through `RunService.Claim`; #32 consumes that one boundary.
+- `app.RequireRunningClaim` centralizes snapshot validation and Running-only eligibility so Tool and Model gateways cannot drift.
+- The accepted reader has no error return. Unavailable reader, not found, mismatched ID, incomplete required references, incomplete Running identity, unknown phase, and every non-Running phase all fail closed.
+- Existing parent/child checks remain only as an experimental compatibility regression. A test-only adapter keeps the old multi-agent harness compiling without making `runtime.ClaimReader` a production gateway dependency or restoring multi-agent work to MVP scope.
+- Focused evidence passed: `go test -count=1 -v ./internal/app/... ./internal/toolgateway/... ./internal/modelgateway/... ./harness/e2e/...`. Both gateways have named cases for all six phases, missing and malformed snapshots, terminal-with-worker-exists, dependencies, and the retained experimental parent rule.
+- Repository evidence passed: `./scripts/check.ps1 -All` with Go, contracts, frontend types/tests/build, and seven Playwright smoke cases. Process-local Git `safe.directory` entries were required by the Codex sandbox.
+- The local race profile remains environment-blocked by `CGO_ENABLED=0`; PR CI is the authoritative race result. No local race pass is claimed.
