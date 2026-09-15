@@ -1,7 +1,7 @@
 // Copyright 2026 Dapeng Zhang and Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-//go:build integration
+//go:build integration && controlled
 
 package agentsandbox
 
@@ -103,13 +103,14 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 		t.Fatalf("Start has no real task acknowledgement: %v", err)
 	}
 	started = true
-	status, err := kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimID)
+	claimToken := workerControlClaimToken(claimID)
+	status, err := kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimToken)
 	if err != nil {
 		t.Fatalf("read task result: %v %s", err, status)
 	}
-	sum := sha256.Sum256([]byte("agenova-test-worker:" + claimID))
+	sum := sha256.Sum256([]byte("agenova-test-worker:" + claimToken))
 	result := "probe-" + hex.EncodeToString(sum[:8])
-	wantRunning := "state=running claim=" + claimID + " result=" + result
+	wantRunning := "state=running claim=" + claimToken + " result=" + result
 	if strings.TrimSpace(string(status)) != wantRunning {
 		t.Fatalf("wrong worker result: got %q, want %q", status, wantRunning)
 	}
@@ -118,8 +119,8 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 		t.Fatalf("Terminate has no independent stop acknowledgement: %v", err)
 	}
 	started = false
-	status, err = kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimID)
-	wantStopped := "state=stopped claim=" + claimID + " result=" + result
+	status, err = kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimToken)
+	wantStopped := "state=stopped claim=" + claimToken + " result=" + result
 	if err != nil || strings.TrimSpace(string(status)) != wantStopped {
 		t.Fatalf("worker stop unconfirmed: status=%q err=%v", status, err)
 	}
@@ -154,4 +155,9 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 		t.Fatalf("released observation: %+v %v", obs, err)
 	}
 	t.Logf("confirmed cleanup: claim=%s worker=%s released=%t", claimID, alloc.Identity.WorkerID, cleanup.Released)
+}
+
+func workerControlClaimToken(claimID string) string {
+	sum := sha256.Sum256([]byte("agenova-worker-control:" + claimID))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }

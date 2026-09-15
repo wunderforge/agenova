@@ -15,11 +15,16 @@ Use `agenova-testworker:kind` as the Agent Sandbox template image and
 without starting a task. From the allocated Pod's `agent` container, invoke:
 
 ```sh
-kubectl exec pod/WORKER -c agent -- /agenova-workerctl start CLAIM
-kubectl exec pod/WORKER -c agent -- /agenova-workerctl status CLAIM
-kubectl exec pod/WORKER -c agent -- /agenova-workerctl stop CLAIM
-kubectl exec pod/WORKER -c agent -- /agenova-workerctl status CLAIM
+kubectl exec pod/WORKER -c agent -- /agenova-workerctl start CLAIM_TOKEN
+kubectl exec pod/WORKER -c agent -- /agenova-workerctl status CLAIM_TOKEN
+kubectl exec pod/WORKER -c agent -- /agenova-workerctl stop CLAIM_TOKEN
+kubectl exec pod/WORKER -c agent -- /agenova-workerctl status CLAIM_TOKEN
 ```
+
+`ControlledAdapter` derives `CLAIM_TOKEN` as
+`sha256:<hex(sha256("agenova-worker-control:" + system-issued-claim-id))>`.
+The fixed token accepts every claim ID allowed by the shared contract without
+placing arbitrary text in the worker protocol or line acknowledgements.
 
 `start` waits for a real child process to calculate and report a deterministic
 claim-bound probe result. The child stays alive so `stop` can kill it and wait

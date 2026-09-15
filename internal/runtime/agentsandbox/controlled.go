@@ -4,6 +4,8 @@
 package agentsandbox
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,8 +17,10 @@ import (
 
 // workerControl is an adapter-owned, opt-in worker protocol. Upstream Agent
 // Sandbox v0.4.6 has no native task start/stop operation. A compatible image
-// must implement /agenova-workerctl start|stop|status <claim-id> and return
-// exact claim-bound acknowledgements. This is a local E2E protocol, not an
+// must implement /agenova-workerctl start|stop|status <claim-token> and return
+// exact claim-bound acknowledgements. The adapter derives a fixed SHA-256
+// token from the system-issued claim ID so it adds no claim-ID restrictions.
+// This is a local E2E protocol, not an
 // assertion that arbitrary sandbox images or hostile workers are governed.
 type workerControl interface {
 	execWorker(workerID string, args ...string) (string, error)
@@ -43,6 +47,7 @@ type ControlledAdapter struct {
 	*SpikeAdapter
 	control workerControl
 	mu      sync.Mutex
+	changed *sync.Cond
 	phases  map[string]controlPhase // keyed by the observed worker identity
 }
 
@@ -56,11 +61,22 @@ func NewControlled(kubeContext, namespace string) *ControlledAdapter {
 }
 
 func newControlledAdapter(base *SpikeAdapter, control workerControl) *ControlledAdapter {
-	return &ControlledAdapter{
+	adapter := &ControlledAdapter{
 		SpikeAdapter: base,
 		control:      control,
 		phases:       make(map[string]controlPhase),
 	}
+	adapter.changed = sync.NewCond(&adapter.mu)
+	return adapter
+}
+
+// controlClaimToken maps every shared-contract claim ID, including Unicode,
+// whitespace, separators and long names, to one fixed, argv-safe protocol
+// value. The worker acknowledges this token; the adapter remains responsible
+// for its binding to the original system-issued claim.
+func controlClaimToken(claimID string) string {
+	digest := sha256.Sum256([]byte("agenova-worker-control:" + claimID))
+	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 // Start requires a Ready observation of the same bound worker, then an exact
@@ -69,6 +85,9 @@ func newControlledAdapter(base *SpikeAdapter, control workerControl) *Controlled
 func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error {
 	entry, err := a.entryFor(id)
 	if err != nil {
+		return err
+	}
+	if err := a.checkStartPhase(id.WorkerID, entry.claimID); err != nil {
 		return err
 	}
 	obs, err := a.Observe(id)
@@ -82,27 +101,21 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		return fmt.Errorf("start %s: %w", entry.claimID, runtime.ErrNotReady)
 	}
 	a.mu.Lock()
-	switch a.phases[id.WorkerID] {
-	case controlStarting, controlRunning, controlUnknown, controlStopping:
+	if err := startPhaseError(a.phases[id.WorkerID], entry.claimID); err != nil {
 		a.mu.Unlock()
-		return fmt.Errorf("start %s: %w", entry.claimID, runtime.ErrAlreadyStarted)
-	case controlTerminated:
-		a.mu.Unlock()
-		return fmt.Errorf("start %s: %w", entry.claimID, runtime.ErrTerminated)
-	case controlCleaning, controlCleanupUnknown, controlReleased:
-		a.mu.Unlock()
-		return fmt.Errorf("start %s: %w: cleanup in progress or complete", entry.claimID, runtime.ErrReleased)
+		return err
 	}
 	a.phases[id.WorkerID] = controlStarting
 	a.mu.Unlock()
 
-	out, err := a.control.execWorker(id.WorkerID, "start", entry.claimID)
-	if err == nil && !workerAck(out, "started", entry.claimID) {
+	claimToken := controlClaimToken(entry.claimID)
+	out, err := a.control.execWorker(id.WorkerID, "start", claimToken)
+	if err == nil && !workerAck(out, "started", claimToken) {
 		err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
 	}
 	if err == nil {
-		out, err = a.control.execWorker(id.WorkerID, "status", entry.claimID)
-		if err == nil && !workerAck(out, "running", entry.claimID) {
+		out, err = a.control.execWorker(id.WorkerID, "status", claimToken)
+		if err == nil && !workerAck(out, "running", claimToken) {
 			err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
 		}
 	}
@@ -112,11 +125,33 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 	} else {
 		a.phases[id.WorkerID] = controlUnknown
 	}
+	a.changed.Broadcast()
 	a.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("start %s: acknowledgement unconfirmed: %w", entry.claimID, err)
 	}
 	return nil
+}
+
+func (a *ControlledAdapter) checkStartPhase(workerID, claimID string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return startPhaseError(a.phases[workerID], claimID)
+}
+
+func startPhaseError(phase controlPhase, claimID string) error {
+	switch phase {
+	case controlPending:
+		return nil
+	case controlStarting, controlRunning, controlUnknown, controlStopping:
+		return fmt.Errorf("start %s: %w", claimID, runtime.ErrAlreadyStarted)
+	case controlTerminated:
+		return fmt.Errorf("start %s: %w", claimID, runtime.ErrTerminated)
+	case controlCleaning, controlCleanupUnknown, controlReleased:
+		return fmt.Errorf("start %s: %w: cleanup in progress or complete", claimID, runtime.ErrReleased)
+	default:
+		return fmt.Errorf("start %s: unknown control phase", claimID)
+	}
 }
 
 // Terminate confirms a started worker's task has stopped through the worker
@@ -127,46 +162,59 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 	if err != nil {
 		return err
 	}
-	obs, err := a.Observe(id)
-	if err != nil {
-		return fmt.Errorf("terminate %s: verify binding: %w", entry.claimID, err)
-	}
-	if obs.Released {
-		return fmt.Errorf("terminate %s: %w", entry.claimID, runtime.ErrReleased)
-	}
-	a.mu.Lock()
-	phase := a.phases[id.WorkerID]
-	if phase == controlTerminated {
+	for {
+		a.mu.Lock()
+		phase := a.phases[id.WorkerID]
+		switch phase {
+		case controlTerminated:
+			a.mu.Unlock()
+			return nil
+		case controlPending:
+			a.phases[id.WorkerID] = controlTerminated
+			a.changed.Broadcast()
+			a.mu.Unlock()
+			return nil
+		case controlStarting, controlStopping:
+			// A concurrent Start/Terminate owns the in-flight protocol call.
+			// Wait for its bounded acknowledgement before deciding whether a
+			// stop is still required; never return while work may start later.
+			a.changed.Wait()
+			a.mu.Unlock()
+			continue
+		case controlCleaning, controlCleanupUnknown, controlReleased:
+			a.mu.Unlock()
+			return fmt.Errorf("terminate %s: %w: cleanup in progress or complete", entry.claimID, runtime.ErrReleased)
+		}
 		a.mu.Unlock()
-		return nil
-	}
-	if phase == controlPending {
-		a.phases[id.WorkerID] = controlTerminated
-		a.mu.Unlock()
-		return nil
-	}
-	if phase == controlStarting {
-		a.mu.Unlock()
-		return fmt.Errorf("terminate %s: %w: start still in flight", entry.claimID, runtime.ErrUnsupported)
-	}
-	if phase == controlStopping {
-		a.mu.Unlock()
-		return fmt.Errorf("terminate %s: %w: stop already in progress", entry.claimID, runtime.ErrUnsupported)
-	}
-	if phase == controlCleaning || phase == controlCleanupUnknown || phase == controlReleased {
-		a.mu.Unlock()
-		return fmt.Errorf("terminate %s: %w: cleanup in progress or complete", entry.claimID, runtime.ErrReleased)
-	}
-	a.phases[id.WorkerID] = controlStopping
-	a.mu.Unlock()
 
-	out, err := a.control.execWorker(id.WorkerID, "stop", entry.claimID)
-	if err == nil && !workerAck(out, "stopped", entry.claimID) {
+		obs, observeErr := a.Observe(id)
+		if observeErr != nil {
+			return fmt.Errorf("terminate %s: verify binding: %w", entry.claimID, observeErr)
+		}
+		if obs.Released {
+			return fmt.Errorf("terminate %s: %w", entry.claimID, runtime.ErrReleased)
+		}
+
+		a.mu.Lock()
+		phase = a.phases[id.WorkerID]
+		if phase == controlRunning || phase == controlUnknown {
+			a.phases[id.WorkerID] = controlStopping
+			a.mu.Unlock()
+			break
+		}
+		a.mu.Unlock()
+		// State changed while the binding was checked; re-evaluate it before
+		// issuing any worker command.
+	}
+
+	claimToken := controlClaimToken(entry.claimID)
+	out, err := a.control.execWorker(id.WorkerID, "stop", claimToken)
+	if err == nil && !workerAck(out, "stopped", claimToken) {
 		err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
 	}
 	if err == nil {
-		out, err = a.control.execWorker(id.WorkerID, "status", entry.claimID)
-		if err == nil && !workerAck(out, "stopped", entry.claimID) {
+		out, err = a.control.execWorker(id.WorkerID, "status", claimToken)
+		if err == nil && !workerAck(out, "stopped", claimToken) {
 			err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
 		}
 	}
@@ -175,6 +223,7 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		if a.phases[id.WorkerID] == controlStopping {
 			a.phases[id.WorkerID] = controlUnknown
 		}
+		a.changed.Broadcast()
 		a.mu.Unlock()
 		return fmt.Errorf("terminate %s: stop unconfirmed: %w", entry.claimID, err)
 	}
@@ -182,6 +231,7 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 	if a.phases[id.WorkerID] == controlStopping {
 		a.phases[id.WorkerID] = controlTerminated
 	}
+	a.changed.Broadcast()
 	a.mu.Unlock()
 	return nil
 }
@@ -221,17 +271,20 @@ func (a *ControlledAdapter) Cleanup(id v1alpha1.SandboxClaimBackendIdentity) (ru
 	if err != nil {
 		a.mu.Lock()
 		a.phases[id.WorkerID] = controlCleanupUnknown
+		a.changed.Broadcast()
 		a.mu.Unlock()
 		return result, err
 	}
 	if !result.Released {
 		a.mu.Lock()
 		a.phases[id.WorkerID] = controlCleanupUnknown
+		a.changed.Broadcast()
 		a.mu.Unlock()
 		return result, errors.New("cleanup returned no release evidence")
 	}
 	a.mu.Lock()
 	a.phases[id.WorkerID] = controlReleased
+	a.changed.Broadcast()
 	a.mu.Unlock()
 	return result, nil
 }

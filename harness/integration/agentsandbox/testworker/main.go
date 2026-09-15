@@ -58,7 +58,7 @@ func main() {
 			fail(err.Error())
 		}
 	case "_task":
-		if len(os.Args) != 3 || !validClaim(os.Args[2]) {
+		if len(os.Args) != 3 || !validControlClaim(os.Args[2]) {
 			fail("invalid test task claim")
 		}
 		// A deterministic unit of real child-process work, then remain alive so
@@ -68,8 +68,8 @@ func main() {
 			time.Sleep(time.Hour)
 		}
 	case "start", "stop", "status":
-		if len(os.Args) != 3 || !validClaim(os.Args[2]) {
-			fail("one valid claim ID is required")
+		if len(os.Args) != 3 || !validControlClaim(os.Args[2]) {
+			fail("one valid claim token is required")
 		}
 		if err := client(socketPath, request{Action: os.Args[1], Claim: os.Args[2]}); err != nil {
 			fail(err.Error())
@@ -79,16 +79,13 @@ func main() {
 	}
 }
 
-func validClaim(claim string) bool {
-	if claim == "" || len(claim) > 128 {
+func validControlClaim(claim string) bool {
+	const prefix = "sha256:"
+	if !strings.HasPrefix(claim, prefix) {
 		return false
 	}
-	for _, c := range claim {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == ':') {
-			return false
-		}
-	}
-	return true
+	digest, err := hex.DecodeString(strings.TrimPrefix(claim, prefix))
+	return err == nil && len(digest) == sha256.Size
 }
 
 func probeResult(claim string) string {
@@ -152,8 +149,8 @@ func serve(path string) error {
 func (w *worker) handle(req request) response {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if !validClaim(req.Claim) {
-		return response{Error: "invalid claim ID"}
+	if !validControlClaim(req.Claim) {
+		return response{Error: "invalid claim token"}
 	}
 	w.refresh()
 	if w.claim != "" && w.claim != req.Claim {

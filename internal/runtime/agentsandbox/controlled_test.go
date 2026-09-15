@@ -26,7 +26,8 @@ type fakeWorkerControl struct {
 }
 
 func (f *fakeWorkerControl) execWorker(workerID string, args ...string) (string, error) {
-	if workerID != f.worker || len(args) != 2 || args[1] != f.claim {
+	claimToken := controlClaimToken(f.claim)
+	if workerID != f.worker || len(args) != 2 || args[1] != claimToken {
 		return "", fmt.Errorf("wrong worker or claim: %s %v", workerID, args)
 	}
 	switch args[0] {
@@ -36,16 +37,16 @@ func (f *fakeWorkerControl) execWorker(workerID string, args ...string) (string,
 			return "", errors.New("start acknowledgement lost")
 		}
 		f.state = "running"
-		return "state=started claim=" + f.claim + " result=probe-ok\n", nil
+		return "state=started claim=" + claimToken + " result=probe-ok\n", nil
 	case "stop":
 		f.stops++
 		if f.failStop {
 			return "", errors.New("stop acknowledgement lost")
 		}
 		f.state = "stopped"
-		return "state=stopped claim=" + f.claim + " result=probe-ok\n", nil
+		return "state=stopped claim=" + claimToken + " result=probe-ok\n", nil
 	case "status":
-		return "state=" + f.state + " claim=" + f.claim + " result=probe-ok\n", nil
+		return "state=" + f.state + " claim=" + claimToken + " result=probe-ok\n", nil
 	}
 	return "", fmt.Errorf("unexpected command %s", args[0])
 }
@@ -172,6 +173,71 @@ func TestControlledAdapter_prestartTerminationCancelsStart(t *testing.T) {
 	if f.starts != 0 || f.stops != 0 {
 		t.Fatal("prestart cancel should not signal worker task")
 	}
+	delete(k.claims, resourceName("claim", f.claim))
+	if err := a.Start(alloc.Identity); !errors.Is(err, runtime.ErrTerminated) {
+		t.Fatalf("Start after cancellation depended on mutable backend readiness: %v", err)
+	}
+}
+
+func TestControlledAdapter_encodesEverySystemIssuedClaimForWorkerProtocol(t *testing.T) {
+	claimID := "claim:支付 timeout / " + strings.Repeat("long name ", 24)
+	k := newFakeKube()
+	k.bindOnApply = "sbx-1"
+	f := &fakeWorkerControl{claim: claimID, worker: "sbx-1", state: "idle"}
+	a := newControlledAdapter(newTestAdapter(k), f)
+	alloc := allocateOK(t, a.SpikeAdapter, claimID)
+	k.claims[resourceName("claim", claimID)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatalf("Start rejected a shared-contract claim ID: %v", err)
+	}
+	if err := a.Terminate(alloc.Identity); err != nil {
+		t.Fatalf("Terminate rejected a shared-contract claim ID: %v", err)
+	}
+}
+
+type blockedWorkerStart struct {
+	*fakeWorkerControl
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (c *blockedWorkerStart) execWorker(workerID string, args ...string) (string, error) {
+	if len(args) > 0 && args[0] == "start" {
+		close(c.entered)
+		<-c.release
+	}
+	return c.fakeWorkerControl.execWorker(workerID, args...)
+}
+
+func TestControlledAdapter_terminateWaitsForInFlightStartThenStops(t *testing.T) {
+	a, k, f, alloc := controlledFixture(t)
+	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	block := &blockedWorkerStart{fakeWorkerControl: f, entered: make(chan struct{}), release: make(chan struct{})}
+	a.control = block
+	started := make(chan error, 1)
+	go func() { started <- a.Start(alloc.Identity) }()
+	select {
+	case <-block.entered:
+	case <-time.After(time.Second):
+		t.Fatal("Start did not enter worker protocol")
+	}
+	terminated := make(chan error, 1)
+	go func() { terminated <- a.Terminate(alloc.Identity) }()
+	select {
+	case err := <-terminated:
+		t.Fatalf("Terminate returned while Start could still begin work: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(block.release)
+	if err := <-started; err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := <-terminated; err != nil {
+		t.Fatalf("Terminate: %v", err)
+	}
+	if f.state != "stopped" || f.starts != 1 || f.stops != 1 {
+		t.Fatalf("in-flight Start was not stopped exactly once: %+v", f)
+	}
 }
 
 func TestKubectlWorkerControl_usesExactContextNamespaceAndPod(t *testing.T) {
@@ -282,8 +348,12 @@ func TestControlledAdapter_concurrentTerminateCannotClobberStop(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Terminate did not enter worker stop")
 	}
-	if err := a.Terminate(alloc.Identity); !errors.Is(err, runtime.ErrUnsupported) {
-		t.Fatalf("concurrent stop was allowed: %v", err)
+	second := make(chan error, 1)
+	go func() { second <- a.Terminate(alloc.Identity) }()
+	select {
+	case err := <-second:
+		t.Fatalf("concurrent Terminate returned before stop was confirmed: %v", err)
+	case <-time.After(50 * time.Millisecond):
 	}
 	if _, err := a.Cleanup(alloc.Identity); !errors.Is(err, runtime.ErrUnsupported) {
 		t.Fatalf("cleanup while stop in flight = %v", err)
@@ -291,6 +361,9 @@ func TestControlledAdapter_concurrentTerminateCannotClobberStop(t *testing.T) {
 	close(block.release)
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("idempotent concurrent Terminate: %v", err)
 	}
 	if f.stops != 1 {
 		t.Fatalf("stop invoked %d times", f.stops)

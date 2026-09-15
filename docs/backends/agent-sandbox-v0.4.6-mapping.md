@@ -1,10 +1,10 @@
-# Provisional RuntimeBackend Mapping to Agent Sandbox v0.4.6
+# RuntimeBackend Mapping to Agent Sandbox v0.4.6
 
 Updated: 2026-09-14. Agenova experiment baseline: `6274b8167669c32bf9f3c1e7ac61da6375fd6286` (merged #30, #89, #99, #124, and claim issuance #129).
 
-Status: provisional E8-S1 mapping ([#66](https://github.com/wunderforge/agenova/issues/66)) with one bounded real-cluster negative reproduced on the merged E8-T3 substrate ([#99](https://github.com/wunderforge/agenova/pull/99)).
+Status: accepted source/evidence basis for the frozen ordinary-adapter mapping in [#48](https://github.com/wunderforge/agenova/issues/48), with one bounded real-cluster negative from [#66](https://github.com/wunderforge/agenova/issues/66). The opt-in controlled-worker extension is recorded separately below as partial #51 evidence.
 
-This report maps the current Agenova `RuntimeBackend` semantics to the pinned Kubernetes SIGs Agent Sandbox `v0.4.6` API. It is advisory input to E8-T1 ([#48](https://github.com/wunderforge/agenova/issues/48)), not a final adapter contract or a claim of production support.
+This report maps the current Agenova `RuntimeBackend` semantics to the pinned Kubernetes SIGs Agent Sandbox `v0.4.6` API. The primary table describes the ordinary `SpikeAdapter`; it is not a claim of production support or arbitrary-image Start/Terminate capability.
 
 ## Pinned Baseline
 
@@ -44,9 +44,15 @@ The classifications below use:
 | Termination | `unsupported` | Upstream `Finished` reasons and expiry/deletion describe substrate conditions; see the [Sandbox API](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/api/v1alpha1/sandbox_types.go) and [claim controller](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/controllers/sandboxclaim_controller.go). | `Terminate` returns `ErrUnsupported` for a valid unreleased identity: no worker-stop evidence channel exists independently of deletion. Succeeded/Failed/Expired belong to the application lifecycle owner, outside this operation. | [Real-cluster negative reproduced](../evidence/E8-S1/agent-sandbox-mapping/summary.md); deletion still does not prove stopped work or descendants. |
 | Cleanup | `translated` | Claim shutdown policies and controller deletion provide a resource-release mechanism; warm-pool reconciliation is separate. See the [claim API](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/api/v1alpha1/sandboxclaim_types.go) and [warm-pool controller](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/controllers/sandboxwarmpool_controller.go). | `Cleanup` checks binding before deleting, then confirms both upstream claim and recorded sandbox absent. Only then is Released true; Replaced stays false. Query failure, mismatch, timeout or remaining sandbox cannot fabricate release. Repeated successful cleanup preserves identity and result. | One real-cluster run confirmed claim/Sandbox absence, `Released=true`, and `Replaced=false`; atomic identity protection remains open. It does not establish full termination/filesystem parity. |
 | Durability | `unsupported` | Kubernetes stores retained upstream resources; it does not store the adapter's allocation/recovery maps. See the [claim API](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/api/v1alpha1/sandboxclaim_types.go). | The reduced path keeps allocation, worker reservation and release correlation in process memory. `entryFor` depends on those maps, with no reconstruction path. Application outcomes and durable claims/facts are separate control-plane responsibilities; legacy phase helpers do not fulfill them. | Source-verified absence of recovery persistence; adapter restart demonstration pending. An upstream controller restart is a different experiment. |
-| Isolation | `unknown` | A template embeds PodSpec configuration; configuration capability alone cannot prove filesystem, process or network enforcement. See the [template API](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/api/v1alpha1/sandboxtemplate_types.go). | Allocation and observation explicitly report Filesystem EvidenceLevel `Unsupported`; no directory, outside rule or ephemeral guarantee is asserted. General runtime/network isolation remains unknown. | #89 proves reference-model semantics only. Real worker layout and enforcement remain for #48/#51; no promotion to BackendVerified. |
+| Isolation | `unknown` | A template embeds PodSpec configuration; configuration capability alone cannot prove filesystem, process or network enforcement. See the [template API](https://github.com/kubernetes-sigs/agent-sandbox/blob/v0.4.6/extensions/api/v1alpha1/sandboxtemplate_types.go). | Allocation and observation explicitly report Filesystem EvidenceLevel `Unsupported`; no directory, outside rule or ephemeral guarantee is asserted. General runtime/network isolation remains unknown. | #89 proves reference-model semantics only. Real worker layout and enforcement remain for #51; no promotion to BackendVerified. |
 
 All current adapter interpretations above are traceable to [allocation.go](../../internal/runtime/agentsandbox/allocation.go), [its simulated-controller tests](../../internal/runtime/agentsandbox/allocation_test.go), and the [shared contract](../../internal/runtime/backend.go). The classification applies to the full named Agenova semantic, not merely the presence of an upstream field. Thus allocation, identity and cleanup are translated even where the underlying resource mechanism is native. `adapter-held` remains available as a category, but an incomplete or non-durable local surrogate is not support for Start, Terminate or durability.
+
+## Opt-in controlled-worker extension (#51)
+
+`ControlledAdapter` does not change any ordinary-adapter row above. For an image that explicitly implements `/agenova-workerctl`, it adds adapter-held Start and Terminate acknowledgements: the adapter derives a fixed SHA-256 control token from any system-issued claim ID, waits for a matching child-process start/result acknowledgement, and confirms child-process stop before cleanup. The controlled kind test is gated separately with build tags `integration && controlled`; the normal Agent Sandbox integration gate neither requires nor provisions the disposable worker image.
+
+This is partial #51 evidence only. It is not upstream-native behavior, production workload identity, arbitrary-agent compatibility, restart durability, filesystem enforcement, or general isolation. The ordinary `SpikeAdapter` continues to return `ErrUnsupported` for Start and Terminate.
 
 ## Verified Facts
 
@@ -65,13 +71,13 @@ These findings come from the pinned upstream source and the merged Agenova code.
 
 | Gap | Consequence | Follow-up boundary |
 | --- | --- | --- |
-| No explicit work-start channel | Ready cannot establish Running; Start is unsupported. | #48 records the supported subset; later runner/adapter work supplies real acknowledgement. |
-| No distinct worker-stop evidence | Terminate is unsupported; resource deletion cannot establish application outcome or descendant termination. | #48 records the gap; #51 must verify any future supported termination path. |
+| No explicit work-start channel | Ready cannot establish Running; ordinary Start is unsupported. | #48 records the supported subset; #51 separately proves an opt-in test-worker acknowledgement. |
+| No distinct worker-stop evidence | Ordinary Terminate is unsupported; resource deletion cannot establish application outcome or descendant termination. | #48 records the gap; #51 separately proves stop for its controlled child process only. |
 | Unknown/conflicting allocation and non-atomic binding checks | Recovery can remain pending or require intervention; no blind delete or ClaimID reuse is justified. | #66 records uncertainty; #48/later adapter work needs ownership and immutable-identity evidence. |
 | Release has no replacement or restart guarantee | Replaced stays false; local release resolution is lost after adapter restart. | #66 records the reproduced release result and residual restart gap; #48 consumes it. |
 | Application outcome persistence is outside RuntimeBackend | Legacy in-memory phases cannot serve as durable claims or facts. | Run-service/control-plane follow-up; no shared-contract change in #66. |
 | Pool counters are legacy approximations | They cannot substitute for per-identity resource release evidence. | Adapter setup/future pool work, outside the five-operation mapping. |
-| Filesystem evidence is Unsupported; other isolation is unknown | No real containment, retention or credential-isolation claim is justified. | #48 maps layout/profile; #51 proves real worker behavior. |
+| Filesystem evidence is Unsupported; other isolation is unknown | No real containment, retention or credential-isolation claim is justified. | #48 freezes the unsupported/unknown result; #51 owns real worker proof. |
 
 ## Filesystem Boundary After #89
 
@@ -88,7 +94,7 @@ The [filesystem handoff](../../work/0089-filesystem-boundary/handoff-0048-0051.m
 
 The trusted local Git/Go fixture proves tool and artifact-collector compatibility only. Explicit collector closure is not worker termination. The new #124 lifecycle evidence does not change that distinction.
 
-The source-based handoff checklist for #48/#51 remains open: worker directory; writable/read-only mounts; HOME, temp and cache placement; host-path/credential exposure; pre-Start denial; direct outside/traversal/alias denial; fresh-claim isolation; pre-termination artifact export and post-termination denial; descendant stop and cleanup refusal on incomplete termination. #66 records these gaps rather than implementing a filesystem API or expanding its bounded experiment into the full #51 isolation suite.
+The source-based handoff checklist now belongs to #51: worker directory; writable/read-only mounts; HOME, temp and cache placement; host-path/credential exposure; pre-Start denial; direct outside/traversal/alias denial; fresh-claim isolation; pre-termination artifact export and post-termination denial; descendant stop and cleanup refusal on incomplete termination. #66 records these gaps rather than implementing a filesystem API or expanding its bounded experiment into the full #51 isolation suite.
 
 ## Remaining Open Questions
 
@@ -97,19 +103,19 @@ The bounded E8-S1 run answered the Ready-worker Start/Terminate question and obs
 1. Allocation/readiness/identity: what ordering and stable resource identifiers accompany claim creation, sandbox assignment and Ready? Can a mismatched binding be distinguished without attributing another worker's readiness?
 2. Cleanup failure: what happens on incomplete deletion or an unresolvable worker? Keep upstream pool replenishment separate.
 3. Adapter restart: which allocation/worker/release correlations become unresolvable when in-memory maps disappear, despite retained upstream resources? Do not confuse this with controller restart or claim-outcome persistence.
-4. Filesystem/runtime/network: which layout and enforcement properties are actually observed? Keep general isolation unknown and the adapter filesystem level Unsupported until the #48/#51 evidence requirements are met.
+4. Filesystem/runtime/network: which layout and enforcement properties are actually observed? Keep general isolation unknown and the adapter filesystem level Unsupported until #51 evidence is accepted.
 
 ## Reconciliation with Merged #30 and #89
 
 #30 is merged; its reduction is the current baseline, not a future dependency. #89 and #124 are merged too. The former draft's AddClaim/BindClaim/StartClaim and SucceedClaim/FailClaim/ExpireClaim descriptions are superseded for the shared backend mapping:
 
 - Allocate owns acquisition and neutral identity; Observe owns identity-matched readiness/resource evidence.
-- Start requires actual work-start acknowledgement; Terminate requires worker-stop evidence. Both are currently unsupported in this adapter.
+- Start requires actual work-start acknowledgement; Terminate requires worker-stop evidence. Both remain unsupported in the ordinary adapter. `ControlledAdapter` supplies an opt-in, adapter-held test protocol only for compatible images.
 - Cleanup reports confirmed release independently of work outcome. It does not infer replacement, termination, or a filesystem guarantee.
 - Durability analysis targets allocation/recovery/release correlation separately from application claim and fact storage.
 - FilesystemBoundary is an evidence value returned by Allocate/Observe, not a sixth operation.
 
-#48 can consume this source and bounded real-cluster report while deciding the final supported mapping. The committed MVP is a single governed claim; parent/child governance and a production adapter are outside this ticket.
+#48 consumed this source and bounded real-cluster report to freeze the ordinary adapter mapping. #51 may add evidence for its explicitly controlled test-worker slice without changing those ordinary classifications. The committed MVP is a single governed claim; parent/child governance and a production adapter remain outside this work.
 
 ## Bounded Reproduction
 

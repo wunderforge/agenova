@@ -16,11 +16,11 @@ From the repository root with Docker Desktop running and an explicit pre-verifie
 ```powershell
 docker build -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
 kind load docker-image agenova-testworker:kind --name agenova-k8s-lab
-go test -count=1 -v -tags integration -timeout 5m ./harness/integration/agentsandbox/ -run '^TestControlledRuntimeBackend_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace default
+go test -count=1 -v -tags 'integration controlled' -timeout 5m ./harness/integration/agentsandbox/ -run '^TestControlledRuntimeBackend_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace default
 .\scripts\check.ps1 -All
 ```
 
-The test creates unique SandboxTemplate, warm pool and claim through the adapter. It uses the upstream-assigned worker name for every subsequent operation. Cleanup checks claim, Sandbox and Pod absence with independent kubectl queries and removes only its own pool/template; it does not invoke cluster teardown. The full repository gate passed, including frontend browser smoke (7/7).
+The test uses a separate `controlled` build tag so the ordinary `check.ps1 -Integration` gate does not require its disposable image. It creates unique SandboxTemplate, warm pool and claim through the adapter. It uses the upstream-assigned worker name for every subsequent operation. Cleanup checks claim, Sandbox and Pod absence with independent kubectl queries and removes only its own pool/template; it does not invoke cluster teardown. The full repository gate passed, including frontend browser smoke (7/7).
 
 ## Observed flow
 
