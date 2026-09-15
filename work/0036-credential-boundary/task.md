@@ -57,8 +57,8 @@ Out of scope:
 - [x] Centralize the exact credential-key rule without adding heuristic value scanning.
 - [x] Apply it to public structured input, runtime launch, and existing gateway validation.
 - [x] Add the worker-template and adapter-private configuration assertions.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth accuracy.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth accuracy.
 
 ## Quality Gates
 
@@ -81,5 +81,5 @@ Out of scope:
 
 - Decision: keep credential-key vocabulary in the API contract package so every input boundary uses one rule; gateway compatibility helpers delegate to it.
 - Decision: structural exclusion plus mechanical fixture/config assertions are the v0 guarantee. Arbitrary prose and repository content are not a secret-detection surface.
-- Evidence: the focused package suite passes, including nested public-input rejection, zero-allocation launch rejection, adapter-private configuration, and credential-free worker-template cases.
+- Evidence: `go test -count=1 ./api/v1alpha1 ./internal/app ./internal/gateway ./internal/toolgateway ./internal/modelgateway ./internal/runtime/agentsandbox` and `.\scripts\check.ps1 -All` pass, including nested public-input rejection, zero-allocation launch rejection, adapter-private configuration, and credential-free worker-template cases.
 - Blockers: none; #34 and #35 are merged.

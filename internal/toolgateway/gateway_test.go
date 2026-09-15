@@ -27,6 +27,21 @@ type spyCall struct {
 	req Request
 }
 
+type configuredAdapter struct {
+	providerConfiguration string
+	calls                 int
+	received              Request
+}
+
+func (a *configuredAdapter) Invoke(_ string, req Request) error {
+	if a.providerConfiguration == "" {
+		return errors.New("adapter provider configuration is missing")
+	}
+	a.calls++
+	a.received = req
+	return nil
+}
+
 func (s *spyAdapter) Invoke(id string, req Request) error {
 	s.calls = append(s.calls, spyCall{id: id, req: req})
 	return s.err
@@ -76,6 +91,22 @@ func TestGatewayAllowCorrelatesDecisionAttemptAndFact(t *testing.T) {
 	found := store.ToolInvocations(req.ClaimID)
 	if len(found) != 1 || found[0].InvocationID != decision.InvocationID || found[0].Result != gateway.ResultAllow || found[0].ToolName != req.Tool+"."+req.Action {
 		t.Fatalf("facts = %+v, want one correlated Allow", found)
+	}
+}
+
+func TestGatewayUsesAdapterPrivateProviderConfiguration(t *testing.T) {
+	claims := gatewaytest.NewClaims()
+	adapter := &configuredAdapter{providerConfiguration: "adapter-owned-test-configuration"}
+	gw := NewGateway(claims, nil, nil, WithAdapter(adapter), WithIDSource(gateway.SequenceIDSource("inv-private")))
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+
+	decision := invoke(t, gw, req)
+	if decision.Result != gateway.ResultAllow || adapter.calls != 1 {
+		t.Fatalf("decision=%+v adapter calls=%d", decision, adapter.calls)
+	}
+	if key, found := gateway.FindReservedCredentialKey(adapter.received.Parameters); found {
+		t.Fatalf("worker request carried adapter configuration through %q", key)
 	}
 }
 

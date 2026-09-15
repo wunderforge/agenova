@@ -32,6 +32,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - Trusted-local principal boundary, reference policy bundle, action authorization, and effective-authority resolution.
 - Claim-scoped filesystem semantics in the reference backend, with simulated boundary cases and a separate local Git/Go compatibility fixture.
 - Tool and Model Gateway allow/deny behavior based on active claim state and exact system-issued tool, resource, and logical model authority.
+- Credential-bearing fields are structurally excluded from ClaimRequest task input, resolved runtime launch input, and gateway parameters by one exact-name rule. The reference Agent Sandbox template renders no environment or Secret injection surface; provider configuration remains adapter-private. This does not inspect arbitrary task prose or source files and is not a network anti-bypass guarantee.
 - Experimental parent/child lineage and child-out-of-scope denial, retained outside the committed MVP.
 - In-memory `RuntimeEvent`, `ToolInvocation`, and `ModelInvocation` storage and claim queries.
 - In-memory multi-agent reference scenario, retained as experimental behavior outside the committed MVP.

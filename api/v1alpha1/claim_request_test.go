@@ -562,6 +562,37 @@ func TestValidateClaimRequestAcceptsTypedTaskInputContainers(t *testing.T) {
 	}
 }
 
+func TestClaimRequestRejectsCredentialBearingTaskInputFields(t *testing.T) {
+	t.Run("YAML nested input", func(t *testing.T) {
+		input := `apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: credential-boundary
+spec:
+  templateRef: engineer
+  task:
+    type: repository-change
+    input:
+      objective: Fix the payment timeout bug
+      provider:
+        GITHUB_TOKEN: not-inspected
+  runtime:
+    profileRef: standard-isolated
+    timeout: 20m
+`
+		_, err := ParseClaimRequestYAML([]byte(input))
+		assertClaimRequestValidationError(t, err, ValidationCategorySecretValue, "spec.task.input.provider.GITHUB_TOKEN")
+	})
+
+	t.Run("direct Go typed nested map", func(t *testing.T) {
+		request := validClaimRequest()
+		request.Spec.Task.Input = map[string]any{
+			"provider": map[string]string{"ANTHROPIC_API_KEY": "not-inspected"},
+		}
+		assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategorySecretValue, "spec.task.input.provider.ANTHROPIC_API_KEY")
+	})
+}
+
 func TestValidateClaimRequestRejectsNonPositiveTimeout(t *testing.T) {
 	for _, d := range []time.Duration{0, -5 * time.Minute} {
 		t.Run(d.String(), func(t *testing.T) {

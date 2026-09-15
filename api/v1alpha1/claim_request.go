@@ -249,6 +249,9 @@ func validateTaskInputValue(path string, value any, active map[uintptr]struct{})
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
+			if ReservedCredentialFieldName(key) {
+				return validationError(ValidationCategorySecretValue, joinPath(path, key), "credential-bearing fields are not allowed in task input")
+			}
 			item := container.MapIndex(reflect.ValueOf(key).Convert(container.Type().Key())).Interface()
 			if err := validateTaskInputValue(joinPath(path, key), item, active); err != nil {
 				return err
@@ -373,6 +376,9 @@ func validateTaskInputMappingNode(node *yaml.Node, path string) *ValidationError
 			return validationError(ValidationCategoryInvalidDocument, fieldPath, "duplicate key")
 		}
 		seen[key.Value] = struct{}{}
+		if ReservedCredentialFieldName(key.Value) {
+			return validationError(ValidationCategorySecretValue, fieldPath, "credential-bearing fields are not allowed in task input")
+		}
 		if err := validateTaskInputValueNode(value, fieldPath); err != nil {
 			return err
 		}
