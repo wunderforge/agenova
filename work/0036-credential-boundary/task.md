@@ -83,3 +83,4 @@ Out of scope:
 - Decision: structural exclusion plus mechanical fixture/config assertions are the v0 guarantee. Arbitrary prose and repository content are not a secret-detection surface.
 - Evidence: `go test -count=1 ./api/v1alpha1 ./internal/app ./internal/gateway ./internal/toolgateway ./internal/modelgateway ./internal/runtime/agentsandbox` and `.\scripts\check.ps1 -All` pass, including nested public-input rejection, zero-allocation launch rejection, adapter-private configuration, and credential-free worker-template cases.
 - Blockers: none; #34 and #35 are merged.
+- Review follow-up: added normalized OAuth `client_secret`/`clientSecret` rejection across task, launch, and gateway inputs, and direct JSON nested-field coverage. The focused gate and full baseline pass again.

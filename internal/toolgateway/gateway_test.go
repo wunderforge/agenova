@@ -233,6 +233,7 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"empty scope", func(r *Request) { r.ResourceScope = "" }, gateway.CategoryAmbiguousResourceScope},
 		{"wildcard scope", func(r *Request) { r.ResourceScope = "repo:*" }, gateway.CategoryAmbiguousResourceScope},
 		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
+		{"OAuth client secret", func(r *Request) { r.Parameters = map[string]string{"client_secret": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

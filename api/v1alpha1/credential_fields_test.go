@@ -10,6 +10,8 @@ func TestReservedCredentialFieldNameUsesExactNormalizedVocabulary(t *testing.T) 
 		"githubToken",
 		"GITHUB_TOKEN",
 		"API_KEY",
+		"client_secret",
+		"clientSecret",
 		"AWS_SECRET_ACCESS_KEY",
 		"ANTHROPIC_API_KEY",
 		"GOOGLE_APPLICATION_CREDENTIALS",

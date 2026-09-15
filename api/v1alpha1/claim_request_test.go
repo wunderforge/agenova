@@ -584,6 +584,19 @@ spec:
 		assertClaimRequestValidationError(t, err, ValidationCategorySecretValue, "spec.task.input.provider.GITHUB_TOKEN")
 	})
 
+	t.Run("JSON nested input", func(t *testing.T) {
+		request := validClaimRequest()
+		request.Spec.Task.Input = map[string]any{
+			"provider": map[string]any{"client_secret": "not-inspected"},
+		}
+		input, marshalErr := json.Marshal(request)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		_, err := ParseClaimRequestJSON(input)
+		assertClaimRequestValidationError(t, err, ValidationCategorySecretValue, "spec.task.input.provider.client_secret")
+	})
+
 	t.Run("direct Go typed nested map", func(t *testing.T) {
 		request := validClaimRequest()
 		request.Spec.Task.Input = map[string]any{

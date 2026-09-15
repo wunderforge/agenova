@@ -239,17 +239,21 @@ func TestRunServiceRejectsLaunchForDifferentRuntimeProfile(t *testing.T) {
 }
 
 func TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation(t *testing.T) {
-	backend := newRecordingBackend()
-	service := newTestRunService(t, backend, RunServiceOptions{})
-	issued := pendingIssuedState(time.Minute)
-	launch := testLaunch(issued)
-	launch.Input["GITHUB_TOKEN"] = "not-inspected"
+	for _, key := range []string{"GITHUB_TOKEN", "client_secret"} {
+		t.Run(key, func(t *testing.T) {
+			backend := newRecordingBackend()
+			service := newTestRunService(t, backend, RunServiceOptions{})
+			issued := pendingIssuedState(time.Minute)
+			launch := testLaunch(issued)
+			launch.Input[key] = "not-inspected"
 
-	result, err := service.Run(issued, launch, func() error { return nil })
-	if !errors.Is(err, ErrInvalidRun) || result != nil || !strings.Contains(err.Error(), "GITHUB_TOKEN") {
-		t.Fatalf("Run = (%+v, %v), want pre-allocation credential rejection", result, err)
+			result, err := service.Run(issued, launch, func() error { return nil })
+			if !errors.Is(err, ErrInvalidRun) || result != nil || !strings.Contains(err.Error(), key) {
+				t.Fatalf("Run = (%+v, %v), want pre-allocation credential rejection", result, err)
+			}
+			assertTrace(t, backend)
+		})
 	}
-	assertTrace(t, backend)
 }
 
 func TestRunServiceWorkFailurePublishesFailedBeforeTeardown(t *testing.T) {

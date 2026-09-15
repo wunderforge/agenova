@@ -17,6 +17,7 @@ var reservedCredentialFieldNames = map[string]struct{}{
 	"githubtoken":                  {},
 	"accesstoken":                  {},
 	"refreshtoken":                 {},
+	"clientsecret":                 {},
 	"apikey":                       {},
 	"openaiapikey":                 {},
 	"anthropicapikey":              {},
