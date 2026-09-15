@@ -78,11 +78,22 @@ func RequireRunningClaim(reader ClaimReader, claimID string) error {
 	}
 }
 
+// ResolvedLaunch is the trusted, backend-neutral output of runtime-profile
+// resolution. ProfileRef proves which granted runtime profile was resolved;
+// TemplateRef is the runtime template selected by that resolution and is not
+// the claim's AgentTemplate reference. RunService supplies the ClaimID.
+type ResolvedLaunch struct {
+	ProfileRef  string
+	TemplateRef string
+	Input       map[string]string
+}
+
 // RunServiceOptions contains the two seams needed for deterministic deadline
 // and readiness tests. Zero values select wall-clock behavior.
 type RunServiceOptions struct {
 	Now          func() time.Time
 	Wait         func(time.Duration)
+	After        func(time.Duration) <-chan time.Time
 	PollInterval time.Duration
 }
 
@@ -93,11 +104,13 @@ type RunService struct {
 	backend runtime.RuntimeBackend
 	now     func() time.Time
 	wait    func(time.Duration)
+	after   func(time.Duration) <-chan time.Time
 	poll    time.Duration
 
-	runMu sync.Mutex
-	mu    sync.RWMutex
-	state map[string]*v1alpha1.IssuedState
+	runMu         sync.Mutex
+	mu            sync.RWMutex
+	state         map[string]*v1alpha1.IssuedState
+	identityOwner map[v1alpha1.SandboxClaimBackendIdentity]string
 }
 
 var _ ClaimReader = (*RunService)(nil)
@@ -115,16 +128,22 @@ func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*
 	if wait == nil {
 		wait = time.Sleep
 	}
+	after := options.After
+	if after == nil {
+		after = time.After
+	}
 	poll := options.PollInterval
 	if poll <= 0 {
 		poll = 10 * time.Millisecond
 	}
 	return &RunService{
-		backend: backend,
-		now:     now,
-		wait:    wait,
-		poll:    poll,
-		state:   make(map[string]*v1alpha1.IssuedState),
+		backend:       backend,
+		now:           now,
+		wait:          wait,
+		after:         after,
+		poll:          poll,
+		state:         make(map[string]*v1alpha1.IssuedState),
+		identityOwner: make(map[v1alpha1.SandboxClaimBackendIdentity]string),
 	}, nil
 }
 
@@ -147,7 +166,7 @@ func (s *RunService) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
 // Run consumes one accepted Allow/Pending issued snapshot and drives the
 // backend-neutral lifecycle. The returned state is a defensive copy of the
 // same authoritative evidence model exposed during the run.
-func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRequest, work WorkFunc) (*v1alpha1.IssuedState, error) {
+func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, work WorkFunc) (*v1alpha1.IssuedState, error) {
 	if s == nil {
 		return nil, fmt.Errorf("%w: run service is required", ErrInvalidRun)
 	}
@@ -171,7 +190,21 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRe
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
 
-	allocation, allocateErr := s.backend.Allocate(cloneAllocateRequest(launch))
+	allocateRequest := runtime.AllocateRequest{
+		ClaimID:     claimID,
+		TemplateRef: launch.TemplateRef,
+		Input:       cloneStringMap(launch.Input),
+	}
+	allocation, allocateErr := s.backend.Allocate(allocateRequest)
+	if s.deadlineReached(deadline) {
+		state, transitionErr := s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+		if allocateErr == nil && validateAllocation(claimID, allocation) == nil {
+			if reserveErr := s.reserveIdentity(claimID, allocation.Identity); reserveErr == nil {
+				return s.teardown(state, allocation.Identity, transitionErr)
+			}
+		}
+		return state, transitionErr
+	}
 	if allocateErr != nil {
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, EventAllocationFailed, fmt.Errorf("allocate runtime: %w", allocateErr))
 	}
@@ -179,9 +212,8 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRe
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, EventAllocationFailed, err)
 	}
 	identity := allocation.Identity
-	if s.deadlineReached(deadline) {
-		state, transitionErr := s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
-		return s.teardown(state, identity, transitionErr)
+	if err := s.reserveIdentity(claimID, identity); err != nil {
+		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, EventAllocationFailed, err)
 	}
 	if err := s.transition(claimID, v1alpha1.ClaimPhaseBound, EventBound, &identity); err != nil {
 		return s.current(claimID), err
@@ -193,6 +225,10 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRe
 			return s.teardown(state, identity, transitionErr)
 		}
 		observation, observeErr := s.backend.Observe(identity)
+		if s.deadlineReached(deadline) {
+			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+			return s.teardown(state, identity, transitionErr)
+		}
 		if observeErr != nil {
 			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, fmt.Errorf("observe runtime: %w", observeErr))
 			return s.teardown(state, identity, transitionErr)
@@ -227,7 +263,22 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRe
 		return s.current(claimID), err
 	}
 
-	workErr := work()
+	workDone := make(chan error, 1)
+	go func() {
+		workDone <- work()
+	}()
+	remaining := deadline.Sub(s.now())
+	if remaining <= 0 {
+		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+		return s.teardown(state, identity, transitionErr)
+	}
+	var workErr error
+	select {
+	case workErr = <-workDone:
+	case <-s.after(remaining):
+		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+		return s.teardown(state, identity, transitionErr)
+	}
 	var outcomeErr error
 	switch {
 	case s.deadlineReached(deadline):
@@ -249,7 +300,7 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch runtime.AllocateRe
 	return s.teardown(s.current(claimID), identity, outcomeErr)
 }
 
-func validateInitialRun(issued *v1alpha1.IssuedState, launch runtime.AllocateRequest) (*v1alpha1.IssuedState, error) {
+func validateInitialRun(issued *v1alpha1.IssuedState, launch ResolvedLaunch) (*v1alpha1.IssuedState, error) {
 	if validationErr := v1alpha1.ValidateIssuedState(issued); validationErr != nil {
 		return nil, fmt.Errorf("%w: issued state: %v", ErrInvalidRun, validationErr)
 	}
@@ -259,11 +310,11 @@ func validateInitialRun(issued *v1alpha1.IssuedState, launch runtime.AllocateReq
 	if issued.Claim.Phase != v1alpha1.ClaimPhasePending || issued.Claim.BackendIdentity != nil {
 		return nil, fmt.Errorf("%w: run requires an unbound Pending claim", ErrInvalidRun)
 	}
-	if launch.ClaimID != issued.Claim.ID {
-		return nil, fmt.Errorf("%w: launch claim %q does not match issued claim %q", ErrInvalidRun, launch.ClaimID, issued.Claim.ID)
+	if launch.ProfileRef == "" || launch.ProfileRef != issued.EffectiveAuthority.Runtime.ProfileRef {
+		return nil, fmt.Errorf("%w: launch profile %q does not match granted runtime profile %q", ErrInvalidRun, launch.ProfileRef, issued.EffectiveAuthority.Runtime.ProfileRef)
 	}
-	if launch.TemplateRef != issued.Claim.TemplateRef {
-		return nil, fmt.Errorf("%w: launch template %q does not match issued template %q", ErrInvalidRun, launch.TemplateRef, issued.Claim.TemplateRef)
+	if launch.TemplateRef == "" {
+		return nil, fmt.Errorf("%w: resolved runtime template is required", ErrInvalidRun)
 	}
 	return cloneIssuedState(issued), nil
 }
@@ -296,6 +347,16 @@ func (s *RunService) insert(state *v1alpha1.IssuedState) error {
 		return fmt.Errorf("%w: claim %q already exists", ErrInvalidRun, claimID)
 	}
 	s.state[claimID] = cloneIssuedState(state)
+	return nil
+}
+
+func (s *RunService) reserveIdentity(claimID string, identity v1alpha1.SandboxClaimBackendIdentity) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if owner, exists := s.identityOwner[identity]; exists && owner != claimID {
+		return fmt.Errorf("%w: backend identity %s/%s is already bound to claim %q", ErrInvalidRun, identity.Backend, identity.WorkerID, owner)
+	}
+	s.identityOwner[identity] = claimID
 	return nil
 }
 
@@ -439,13 +500,13 @@ func cloneClaim(source v1alpha1.SandboxClaim) v1alpha1.SandboxClaim {
 	return copy
 }
 
-func cloneAllocateRequest(source runtime.AllocateRequest) runtime.AllocateRequest {
-	copy := source
-	if source.Input != nil {
-		copy.Input = make(map[string]string, len(source.Input))
-		for key, value := range source.Input {
-			copy.Input[key] = value
-		}
+func cloneStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	copy := make(map[string]string, len(source))
+	for key, value := range source {
+		copy[key] = value
 	}
 	return copy
 }
