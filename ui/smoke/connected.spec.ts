@@ -22,6 +22,12 @@ async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest
   if(path==='/api/requests'&&route.request().method()==='POST'){submitted?.(route.request().postDataJSON() as ClaimRequest);
 return route.fulfill({status:202,json:current()[0]});
 }
+  if(path==='/api/requests')return route.fulfill({json:current()});
+  const ref=decodeURIComponent(path.split('/')[3]||'');
+const found=current().find(w=>w.requestRef===ref);
+return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
+ });
+}
 test('malformed connected percent escapes show an error instead of a blank page',async({page})=>{
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));
@@ -34,13 +40,8 @@ test('malformed connected percent escapes show an error instead of a blank page'
  await page.goto('/?mode=connected#/work/valid/activity/%');
  await expect(page.getByRole('alert')).toContainText('Invalid work reference.');
  expect(errors).toEqual([]);
+ expect(calls).toBe(0);
 });
-  if(path==='/api/requests')return route.fulfill({json:current()});
-  const ref=decodeURIComponent(path.split('/')[3]||'');
-const found=current().find(w=>w.requestRef===ref);
-return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
- });
-}
 test('live source submits canonical intent then polls actual result and narrowed authority',async({page},info)=>{
  let observed:ClaimRequest|undefined;
 let done=false;

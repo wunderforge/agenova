@@ -117,7 +117,9 @@ function useConnection(parts: string[], revision: number) {
     };
   }, [ref, routeError, revision]);
 
-  return { setup, works, current, loading, error, paused };
+  // Guard synchronously: hash navigation can render a new record route with
+  // the previous work's state before the effect has reset it.
+  return { setup, works, current, loading: routeError ? false : loading, error: routeError || error, paused };
 }
 function Records({ work, observations }: { work: View; observations: Observation[] }) {
   return <div className="portal-record-list">
