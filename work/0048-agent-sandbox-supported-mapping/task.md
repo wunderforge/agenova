@@ -62,13 +62,13 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the accepted RuntimeBackend, #66 mapping/evidence, #89 filesystem handoff, adapter implementation/tests, and current status note.
-- [ ] Record Owner approval from Frank Yang and independent Reviewer approval from `wunderforge` on Ticket #48 before implementation.
-- [ ] Replace the stale formal adapter summary with the frozen operation and filesystem mapping from the approved specification.
-- [ ] Align package documentation and the existing support-matrix test output without changing RuntimeBackend behavior.
-- [ ] Update `docs/project-status.md` and add task-local evidence with retained-source hashes and exact commands.
-- [ ] Run the focused adapter gate, `./scripts/check.ps1 -Docs`, and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for provider leakage, unsupported parity claims, stale evidence, and changes outside #48.
-- [ ] Update the PR with exact evidence, request Codex and independent review, and hand the frozen matrix to #49/#51.
+- [x] Record Owner approval from Frank Yang and independent Reviewer approval from `wunderforge` on Ticket #48 before implementation.
+- [x] Replace the stale formal adapter summary with the frozen operation and filesystem mapping from the approved specification.
+- [x] Align package documentation and the existing support-matrix test output without changing RuntimeBackend behavior.
+- [x] Update `docs/project-status.md` and add task-local evidence with retained-source hashes and exact commands.
+- [x] Run the focused adapter gate, `./scripts/check.ps1 -Docs`, and `./scripts/check.ps1 -All`.
+- [x] Review the diff for provider leakage, unsupported parity claims, stale evidence, and changes outside #48.
+- [x] Update the PR with exact evidence, request Codex and independent review, and hand the frozen matrix to #49/#51.
 
 ## Quality Gates
 
@@ -95,4 +95,5 @@ Out of scope:
 - Owner: Frank Yang (`yanyang15037755`). Independent Reviewer: `wunderforge`.
 - Agent Sandbox stays a verified spike/partial backend; #48 does not rename `SpikeAdapter` or claim production readiness.
 - Existing retained #66 real-cluster evidence is reused because #48 changes classification documentation and evidence wording only. #51 owns new G5 worker/isolation proof.
-- Blocker: implementation cannot begin until Owner and independent Reviewer approval of this Task + Spec + Design packet is recorded on Ticket #48.
+- Owner approval and independent Reviewer approval are recorded on Ticket #48. Implementation completed without changing the shared contract or ordinary adapter behavior.
+- #134's opt-in controlled-worker protocol is #51 evidence. It does not change the ordinary adapter classifications frozen by this Ticket.
