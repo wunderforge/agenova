@@ -8,6 +8,13 @@
 // Agent Sandbox controller (sigs.k8s.io/agent-sandbox) via kubectl for local
 // e2e validation. This is a spike backend - explicit, thin, and close to the
 // raw upstream API - not a production implementation.
+// The reduced five-operation mapping is Allocate=translated,
+// Observe=translated (Bound-level readiness), Start=unsupported,
+// Terminate=unsupported, and Cleanup=translated (confirmed release only).
+// Backend identity is translated from the assigned sandbox name. Allocation
+// correlation is process-local, FilesystemBoundary is explicitly Unsupported,
+// and general worker isolation is unverified. The retained #66 kind experiment
+// verifies this bounded mapping, not work start, restart recovery, or isolation.
 //
 // # Semantic gap summary
 //
@@ -19,8 +26,10 @@
 //     conditions to a local Bound phase through BindClaim. StartClaim now
 //     rejects work start explicitly and never promotes readiness to Running.
 //     Under the reduced RuntimeBackend contract (allocation.go) readiness is
-//     Bound-level evidence only, and Start/Terminate are reported as
-//     unsupported instead of being inferred from readiness or deletion.
+//     Bound-level evidence only. Ordinary Start/Terminate remain unsupported
+//     rather than inferred from readiness or deletion. ControlledAdapter is
+//     an opt-in adapter-held worker protocol for a disposable kind test image;
+//     it does not add native upstream semantics or govern arbitrary images.
 //
 //  2. No SucceedClaim / FailClaim primitives. The upstream controller manages
 //     sandbox termination through pod lifecycle and lifecycle.shutdownPolicy.

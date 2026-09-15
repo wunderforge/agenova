@@ -64,14 +64,14 @@ Out of scope:
 ## Execution Todo
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies; read #30's handoff and confirm #29 is merged and closed.
-- [ ] Confirm this Task + Spec + Design with the Owner and an independent Reviewer before implementation.
-- [ ] Slice 1: add the application-owned lifecycle store/state machine and focused valid/invalid transition tests, with no backend call composition yet.
-- [ ] Slice 2: compose issued Pending state with Allocate/Observe/Start and deterministic success, allocation-failure, and start-failure traces.
-- [ ] Slice 3: add deadline handling, terminal-before-teardown ordering, and termination/cleanup-failure evidence without outcome rewriting.
-- [ ] Slice 4: expose the narrow authoritative read boundary and document the #32 handoff without changing gateway authorization.
-- [ ] Add focused deterministic lifecycle evidence and update task-local decisions/blockers.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, source-of-truth changes, and #29/#32 boundary compliance.
+- [x] Confirm this Task + Spec + Design with the Owner and an independent Reviewer before implementation.
+- [x] Slice 1: add the application-owned lifecycle store/state machine and focused valid/invalid transition tests, with no backend call composition yet.
+- [x] Slice 2: compose issued Pending state with Allocate/Observe/Start and deterministic success, allocation-failure, and start-failure traces.
+- [x] Slice 3: add deadline handling, terminal-before-teardown ordering, and termination/cleanup-failure evidence without outcome rewriting.
+- [x] Slice 4: expose the narrow authoritative read boundary and document the #32 handoff without changing gateway authorization.
+- [x] Add focused deterministic lifecycle evidence and update task-local decisions/blockers.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, source-of-truth changes, and #29/#32 boundary compliance.
 
 ## Quality Gates
 
@@ -102,4 +102,9 @@ Out of scope:
 - #29 is merged through PR #129 and closed. #31 will consume the accepted pure `internal/issuance.Issue` entry point and its validated Allow-form `IssuedState` without duplicating issuance.
 - Owner-approved lifecycle-contract decision ([PR #131 review](https://github.com/wunderforge/agenova/pull/131#issuecomment-5659891364)): add `Pending -> Failed` for allocation failure only. Allocation failure has no backend identity, so publishing `Bound` would fabricate a binding; leaving the claim non-terminal would hide the application failure. The transition must carry allocation-failure evidence and must not call identity-dependent teardown. The implementation slice will update the architecture lifecycle table and test this edge.
 - `RuntimeBackend` calls have no context parameter. The MVP deadline can govern readiness polling and results observed between calls, but this Ticket must not claim preemption of a backend call already in progress.
-- Packet approval and an independent Reviewer are still required before implementation by the repository AIDLC.
+- The Owner approved implementation in PR #131 at `3984f28`; takeover implementation preserves Sonia's approved Task, Spec, Design, and commit history.
+- `internal/app.RunService` now owns the serialized reference execution path and a concurrency-safe `Claim(claimID)` reader of defensive public claim snapshots. Gateway eligibility remains unchanged for #32.
+- Lifecycle and teardown facts append to the existing `IssuedState.Evidence.RuntimeEvents`; returned diagnostics are errors only and do not form a second evidence model.
+- Focused evidence passed: `go test -count=1 -v ./internal/app/...`. It covers success, reference-backend execution, readiness polling, allocation/start/work failures, Pending/Bound/Running deadlines, terminal-before-teardown ordering, teardown failures, correlation rejection, terminal immutability, and concurrent defensive reads.
+- Repository evidence passed: `./scripts/check.ps1 -All` (with process-local Git `safe.directory` entries required by the Codex sandbox). All Go, contract, frontend, production-build, and seven browser-smoke checks passed.
+- The requested local race command is environment-blocked because this Windows Go environment has `CGO_ENABLED=0`; PR CI remains the authoritative race profile. No passing local race result is claimed.
