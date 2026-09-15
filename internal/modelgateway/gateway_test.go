@@ -106,6 +106,65 @@ func TestGatewayAllowCarriesPolicyReason(t *testing.T) {
 	}
 }
 
+func TestGatewayEnforcesEffectiveModelProfileBeforePolicy(t *testing.T) {
+	policyCalls := 0
+	gw, claims, store, _, adapter := fixture(t, WithPolicy(func(Request) gateway.Outcome {
+		policyCalls++
+		return gateway.Allowed()
+	}))
+	req := teamARequest(t)
+	claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+	req.Profile = "ungranted-premium-model"
+
+	decision := invoke(t, gw, req)
+	if decision.Result != gateway.ResultDeny || decision.Category != gateway.CategoryModelProfileNotGranted {
+		t.Fatalf("decision = %+v, want Deny/%s", decision, gateway.CategoryModelProfileNotGranted)
+	}
+	if policyCalls != 0 || len(adapter.calls) != 0 {
+		t.Fatalf("authority denial reached policy or provider: policy=%d adapter=%d", policyCalls, len(adapter.calls))
+	}
+	found := store.ModelInvocations(req.ClaimID)
+	if len(found) != 1 || found[0].Result != gateway.ResultDeny || found[0].InvocationID != decision.InvocationID {
+		t.Fatalf("denial fact = %+v, want one correlated Deny", found)
+	}
+}
+
+func TestGatewayRejectsMissingOrMismatchedModelAuthority(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(string, *gatewaytest.Claims)
+	}{
+		{
+			name: "missing",
+			mutate: func(claimID string, claims *gatewaytest.Claims) {
+				delete(claims.Authorities, claimID)
+			},
+		},
+		{
+			name: "mismatched",
+			mutate: func(claimID string, claims *gatewaytest.Claims) {
+				authority := claims.Authorities[claimID]
+				authority.ID = "authority:other"
+				claims.Authorities[claimID] = authority
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gw, claims, store, _, adapter := fixture(t)
+			req := teamARequest(t)
+			claims.Put(req.ClaimID, v1alpha1.ClaimPhaseRunning)
+			test.mutate(req.ClaimID, claims)
+			decision := invoke(t, gw, req)
+			if decision.Result != gateway.ResultDeny || decision.Category != gateway.CategoryAuthorityUnavailable {
+				t.Fatalf("decision = %+v", decision)
+			}
+			if len(adapter.calls) != 0 || len(store.ModelInvocations(req.ClaimID)) != 1 {
+				t.Fatal("invalid authority must record one Deny and make zero provider calls")
+			}
+		})
+	}
+}
+
 func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing.T) {
 	base := teamARequest(t)
 	tests := []struct {

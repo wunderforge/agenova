@@ -66,6 +66,40 @@ func TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence(t *testing.T) {
 	)
 }
 
+func TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot(t *testing.T) {
+	backend := newRecordingBackend()
+	service := newTestRunService(t, backend, RunServiceOptions{})
+	issued := pendingIssuedState(time.Minute)
+	issued.EffectiveAuthority.Tools = []string{"git.read"}
+	issued.EffectiveAuthority.ResourceScopes = []string{"repo:acme/payments"}
+	if _, err := service.Run(issued, testLaunch(issued), func() error { return nil }); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	snapshot, ok := service.ClaimAuthority(issued.Claim.ID)
+	if !ok {
+		t.Fatal("ClaimAuthority did not return the stored issued snapshot")
+	}
+	if snapshot.Claim.AuthorityRef != snapshot.EffectiveAuthority.ID || snapshot.EffectiveAuthority.ID == "" {
+		t.Fatalf("claim/authority correlation = claim %q authority %q", snapshot.Claim.AuthorityRef, snapshot.EffectiveAuthority.ID)
+	}
+
+	wantTool := snapshot.EffectiveAuthority.Tools[0]
+	wantScope := snapshot.EffectiveAuthority.ResourceScopes[0]
+	snapshot.Claim.AuthorityRef = "mutated"
+	snapshot.EffectiveAuthority.ID = "mutated"
+	snapshot.EffectiveAuthority.Tools[0] = "mutated"
+	snapshot.EffectiveAuthority.ResourceScopes[0] = "mutated"
+
+	again, ok := service.ClaimAuthority(issued.Claim.ID)
+	if !ok || again.Claim.AuthorityRef != issued.Claim.AuthorityRef || again.EffectiveAuthority.ID != issued.EffectiveAuthority.ID {
+		t.Fatalf("authoritative correlation was mutated: %+v, %v", again, ok)
+	}
+	if again.EffectiveAuthority.Tools[0] != wantTool || again.EffectiveAuthority.ResourceScopes[0] != wantScope {
+		t.Fatalf("authoritative grant slices were mutated: %+v", again.EffectiveAuthority)
+	}
+}
+
 func TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge(t *testing.T) {
 	backend := newRecordingBackend()
 	backend.allocateErr = errors.New("capacity exhausted")

@@ -128,6 +128,67 @@ func TestGatewayAllowCarriesPolicyReason(t *testing.T) {
 	}
 }
 
+func TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy(t *testing.T) {
+	base := teamARequest(t)
+	tests := []struct {
+		name     string
+		mutate   func(*Request, *gatewaytest.Claims)
+		category string
+	}{
+		{
+			name:     "forbidden tool",
+			mutate:   func(req *Request, _ *gatewaytest.Claims) { req.Action = "write" },
+			category: gateway.CategoryToolNotGranted,
+		},
+		{
+			name:     "wrong repository",
+			mutate:   func(req *Request, _ *gatewaytest.Claims) { req.ResourceScope = "repo:acme/billing" },
+			category: gateway.CategoryResourceNotGranted,
+		},
+		{
+			name: "missing authority",
+			mutate: func(req *Request, claims *gatewaytest.Claims) {
+				delete(claims.Authorities, req.ClaimID)
+			},
+			category: gateway.CategoryAuthorityUnavailable,
+		},
+		{
+			name: "mismatched authority",
+			mutate: func(req *Request, claims *gatewaytest.Claims) {
+				authority := claims.Authorities[req.ClaimID]
+				authority.ID = "authority:other"
+				claims.Authorities[req.ClaimID] = authority
+			},
+			category: gateway.CategoryAuthorityUnavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			policyCalls := 0
+			gw, claims, store, _, adapter := fixture(t, WithPolicy(func(Request) gateway.Outcome {
+				policyCalls++
+				return gateway.Allowed()
+			}))
+			claims.Put(base.ClaimID, v1alpha1.ClaimPhaseRunning)
+			req := base
+			test.mutate(&req, claims)
+
+			decision := invoke(t, gw, req)
+			if decision.Result != gateway.ResultDeny || decision.Category != test.category {
+				t.Fatalf("decision = %+v, want Deny/%s", decision, test.category)
+			}
+			if policyCalls != 0 || len(adapter.calls) != 0 {
+				t.Fatalf("authority denial reached policy or adapter: policy=%d adapter=%d", policyCalls, len(adapter.calls))
+			}
+			found := store.ToolInvocations(req.ClaimID)
+			if len(found) != 1 || found[0].Result != gateway.ResultDeny || found[0].InvocationID != decision.InvocationID {
+				t.Fatalf("denial fact = %+v, want one correlated Deny", found)
+			}
+		})
+	}
+}
+
 func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing.T) {
 	base := teamARequest(t)
 	tests := []struct {
@@ -172,7 +233,7 @@ func TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := facts.NewStore()
 			claims := gatewaytest.NewClaims()
-			var reader app.ClaimReader = claims
+			var reader app.ClaimAuthorityReader = claims
 			if test.unavailable {
 				reader = nil
 			}
