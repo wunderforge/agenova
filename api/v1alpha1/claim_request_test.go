@@ -511,6 +511,7 @@ func TestParseClaimRequestRejectsNonJSONTaskInput(t *testing.T) {
 // The same JSON-compatibility invariants protect directly constructed
 // requests: the public contract fails closed, not only the parser.
 func TestValidateClaimRequestRejectsNonJSONTaskInputValues(t *testing.T) {
+	type namedBytes []byte
 	cyclicSlice := make([]any, 1)
 	cyclicSlice[0] = cyclicSlice
 	cyclicMap := map[string]any{}
@@ -524,6 +525,9 @@ func TestValidateClaimRequestRejectsNonJSONTaskInputValues(t *testing.T) {
 		"infinite float":     {map[string]any{"bad": math.Inf(1)}, "spec.task.input.bad"},
 		"time value":         {map[string]any{"at": time.Now()}, "spec.task.input.at"},
 		"binary value":       {map[string]any{"blob": []byte("hi")}, "spec.task.input.blob"},
+		"named binary value": {map[string]any{"blob": namedBytes("hi")}, "spec.task.input.blob"},
+		"empty named bytes":  {map[string]any{"blob": namedBytes{}}, "spec.task.input.blob"},
+		"raw JSON object":    {map[string]any{"provider": json.RawMessage(`{"client_secret":"not-inspected"}`)}, "spec.task.input.provider"},
 		"nested bad item":    {map[string]any{"steps": []any{"ok", time.Now()}}, "spec.task.input.steps[1]"},
 		"nested bad map":     {map[string]any{"limits": map[string]any{"cpu": math.NaN()}}, "spec.task.input.limits.cpu"},
 		"non-string-key map": {map[string]any{"byID": map[int]string{1: "x"}}, "spec.task.input.byID"},
@@ -559,6 +563,88 @@ func TestValidateClaimRequestAcceptsTypedTaskInputContainers(t *testing.T) {
 	}
 	if err := ValidateClaimRequest(request); err != nil {
 		t.Fatalf("typed JSON-compatible containers must be valid, got %#v", err)
+	}
+}
+
+func TestClaimRequestRejectsCredentialBearingTaskInputFields(t *testing.T) {
+	t.Run("YAML nested input", func(t *testing.T) {
+		input := `apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: credential-boundary
+spec:
+  templateRef: engineer
+  task:
+    type: repository-change
+    input:
+      objective: Fix the payment timeout bug
+      provider:
+        GITHUB_TOKEN: not-inspected
+  runtime:
+    profileRef: standard-isolated
+    timeout: 20m
+`
+		_, err := ParseClaimRequestYAML([]byte(input))
+		assertClaimRequestValidationError(t, err, ValidationCategorySecretValue, "spec.task.input.provider.GITHUB_TOKEN")
+	})
+
+	t.Run("JSON nested input", func(t *testing.T) {
+		request := validClaimRequest()
+		request.Spec.Task.Input = map[string]any{
+			"provider": map[string]any{"client_secret": "not-inspected"},
+		}
+		input, marshalErr := json.Marshal(request)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		_, err := ParseClaimRequestJSON(input)
+		assertClaimRequestValidationError(t, err, ValidationCategorySecretValue, "spec.task.input.provider.client_secret")
+	})
+
+	t.Run("direct Go typed nested map", func(t *testing.T) {
+		request := validClaimRequest()
+		request.Spec.Task.Input = map[string]any{
+			"provider": map[string]string{"ANTHROPIC_API_KEY": "not-inspected"},
+		}
+		assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategorySecretValue, "spec.task.input.provider.ANTHROPIC_API_KEY")
+	})
+
+	t.Run("Azure client secret across parsers and direct Go", func(t *testing.T) {
+		request := validClaimRequest()
+		request.Spec.Task.Input = map[string]any{"provider": map[string]string{"AZURE_CLIENT_SECRET": "not-inspected"}}
+		assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategorySecretValue, "spec.task.input.provider.AZURE_CLIENT_SECRET")
+		inputJSON, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, jsonErr := ParseClaimRequestJSON(inputJSON)
+		assertClaimRequestValidationError(t, jsonErr, ValidationCategorySecretValue, "spec.task.input.provider.AZURE_CLIENT_SECRET")
+		inputYAML, err := yaml.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, yamlErr := ParseClaimRequestYAML(inputYAML)
+		assertClaimRequestValidationError(t, yamlErr, ValidationCategorySecretValue, "spec.task.input.provider.AZURE_CLIENT_SECRET")
+	})
+
+	for _, key := range []string{"GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "NPM_TOKEN", "GITLAB_TOKEN", "SSH_PRIVATE_KEY", "_auth", "_authToken"} {
+		t.Run(key, func(t *testing.T) {
+			request := validClaimRequest()
+			request.Spec.Task.Input = map[string]any{"provider": map[string]string{key: "not-inspected"}}
+			assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategorySecretValue, "spec.task.input.provider."+key)
+			encodedJSON, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, jsonErr := ParseClaimRequestJSON(encodedJSON)
+			assertClaimRequestValidationError(t, jsonErr, ValidationCategorySecretValue, "spec.task.input.provider."+key)
+			encodedYAML, err := yaml.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, yamlErr := ParseClaimRequestYAML(encodedYAML)
+			assertClaimRequestValidationError(t, yamlErr, ValidationCategorySecretValue, "spec.task.input.provider."+key)
+		})
 	}
 }
 

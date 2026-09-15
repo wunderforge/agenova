@@ -196,6 +196,11 @@ func validateTaskInputValues(path string, values map[string]any) *ValidationErro
 }
 
 func validateTaskInputValue(path string, value any, active map[uintptr]struct{}) *ValidationError {
+	// Custom JSON encoders can emit a different shape from the Go value we
+	// inspect (notably json.RawMessage). Require ordinary structured input.
+	if _, customJSON := value.(json.Marshaler); customJSON {
+		return validationError(ValidationCategoryInvalidValue, path, "custom JSON representations are not allowed in task input")
+	}
 	switch v := value.(type) {
 	case nil, string, bool:
 		return nil
@@ -215,6 +220,10 @@ func validateTaskInputValue(path string, value any, active map[uintptr]struct{})
 	container := reflect.ValueOf(value)
 	switch container.Kind() {
 	case reflect.Slice:
+		// Named byte slices have the same base64 representation as []byte.
+		if container.Type().Elem().Kind() == reflect.Uint8 {
+			return validationError(ValidationCategoryInvalidValue, path, "value has no consistent JSON representation")
+		}
 		if container.Len() == 0 {
 			return nil
 		}
@@ -249,6 +258,9 @@ func validateTaskInputValue(path string, value any, active map[uintptr]struct{})
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
+			if ReservedCredentialFieldName(key) {
+				return validationError(ValidationCategorySecretValue, joinPath(path, key), "credential-bearing fields are not allowed in task input")
+			}
 			item := container.MapIndex(reflect.ValueOf(key).Convert(container.Type().Key())).Interface()
 			if err := validateTaskInputValue(joinPath(path, key), item, active); err != nil {
 				return err
@@ -373,6 +385,9 @@ func validateTaskInputMappingNode(node *yaml.Node, path string) *ValidationError
 			return validationError(ValidationCategoryInvalidDocument, fieldPath, "duplicate key")
 		}
 		seen[key.Value] = struct{}{}
+		if ReservedCredentialFieldName(key.Value) {
+			return validationError(ValidationCategorySecretValue, fieldPath, "credential-bearing fields are not allowed in task input")
+		}
 		if err := validateTaskInputValueNode(value, fieldPath); err != nil {
 			return err
 		}
