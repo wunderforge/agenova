@@ -27,8 +27,8 @@ Additional task-specific context:
   fixture-mode label, test matrix)
 - [Contract fixture inventory](../../harness/fixtures/contract/v0/inventory_test.go)
   — source of the fixture manifest rules summarized in the guide
-- [Local governance setup guide](../../docs/harness/local-governance-setup.md) —
-  phased path the demo-day script aligns with
+- `docs/harness/local-governance-setup.md` (drafted, not yet committed) — phased
+  path the demo-day script aligns with; link once that guide lands
 
 ## Scope
 
