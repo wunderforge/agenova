@@ -21,7 +21,10 @@ import (
 // It is operator setup, not a ClaimRequest field or an authority flag.
 const LocalPrincipalEnv = "AGENOVA_LOCAL_PRINCIPAL"
 
-const referenceRuntimeTemplateRef = "reference-engineer-runtime"
+// ReferenceRuntimeTemplateRef is the backend-neutral runtime-template key used
+// by the canonical reference composition. A concrete backend maps this key to
+// its own workload artifact at the composition edge.
+const ReferenceRuntimeTemplateRef = "reference-engineer-runtime"
 
 // SubmitResult is the backend-neutral outcome of one run -f submission.
 type SubmitResult struct {
@@ -113,7 +116,7 @@ func SubmitClaimRequestFile(path string, backend runtime.RuntimeBackend, preset 
 	}
 	final, runErr := runner.Run(issued, ResolvedLaunch{
 		ProfileRef:  issued.EffectiveAuthority.Runtime.ProfileRef,
-		TemplateRef: referenceRuntimeTemplateRef,
+		TemplateRef: ReferenceRuntimeTemplateRef,
 	}, func() error { return nil })
 	if final != nil && final.Claim != nil {
 		report.ClaimID = final.Claim.ID

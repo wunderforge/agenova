@@ -166,9 +166,22 @@ func newIntegrationFixture(t *testing.T) *integrationFixture {
 }
 
 func kubectl(args ...string) ([]byte, error) {
+	return kubectlInNamespace(*namespace, args...)
+}
+
+func kubectlInNamespace(targetNamespace string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	fullArgs := append([]string{"--context", *kubeContext, "--namespace", *namespace}, args...)
+	fullArgs := append([]string{"--context", *kubeContext, "--namespace", targetNamespace}, args...)
+	cmd := exec.CommandContext(ctx, "kubectl", fullArgs...)
+	cmd.WaitDelay = time.Second
+	return cmd.CombinedOutput()
+}
+
+func kubectlForContext(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	fullArgs := append([]string{"--context", *kubeContext}, args...)
 	cmd := exec.CommandContext(ctx, "kubectl", fullArgs...)
 	cmd.WaitDelay = time.Second
 	return cmd.CombinedOutput()
