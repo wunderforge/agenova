@@ -22,25 +22,34 @@ func TestGovernedApplicationRun_Kind(t *testing.T) {
 	if *kubeContext == "" {
 		t.Fatal("explicit -kube-context required; no cluster was contacted")
 	}
-	if strings.TrimSpace(*namespace) == "" || *namespace == "default" {
+	runNamespace := strings.TrimSpace(*namespace)
+	if runNamespace == "" || runNamespace == "default" {
 		t.Fatal("explicit disposable non-default -namespace required; no cluster was contacted")
 	}
-	if out, err := kubectl("cluster-info"); err != nil {
+	if out, err := kubectlForContext("cluster-info"); err != nil {
 		t.Fatalf("context %q unavailable: %v %s", *kubeContext, err, out)
 	}
-
-	adapter := runtimeagentsandbox.NewControlled(*kubeContext, *namespace)
-	const poolName = "reference-engineer-pool"
+	if out, err := kubectlForContext("get", "namespace", runNamespace, "--ignore-not-found=true", "-o", "name"); err != nil {
+		t.Fatalf("check namespace ownership for %q: %v %s", runNamespace, err, out)
+	} else if len(strings.TrimSpace(string(out))) != 0 {
+		t.Fatalf("refuse to reuse namespace %q; provide a new disposable name: %s", runNamespace, out)
+	}
+	if out, err := kubectlForContext("create", "namespace", runNamespace); err != nil {
+		t.Fatalf("create owned namespace %q: %v %s", runNamespace, err, out)
+	}
+	cleanupConfirmed := false
 	t.Cleanup(func() {
-		for _, resource := range []string{
-			"sandboxwarmpools/agenova-pool-" + poolName,
-			"sandboxtemplates/agenova-tmpl-" + app.ReferenceRuntimeTemplateRef,
-		} {
-			if out, err := kubectl("delete", resource, "--ignore-not-found=true"); err != nil {
-				t.Errorf("cleanup integration-owned %s: %v %s", resource, err, out)
-			}
+		if !cleanupConfirmed {
+			t.Logf("retain namespace %q for diagnosis because application cleanup was not confirmed", runNamespace)
+			return
+		}
+		if out, err := kubectlForContext("delete", "namespace", runNamespace, "--wait=true"); err != nil {
+			t.Errorf("delete integration-owned namespace %q: %v %s", runNamespace, err, out)
 		}
 	})
+
+	adapter := runtimeagentsandbox.NewControlled(*kubeContext, runNamespace)
+	const poolName = "reference-engineer-pool"
 	if err := adapter.AddTemplate(v1alpha1.AgentSandboxTemplate{
 		Metadata: v1alpha1.ObjectMeta{Name: app.ReferenceRuntimeTemplateRef},
 		Spec: v1alpha1.AgentSandboxTemplateSpec{
@@ -104,8 +113,9 @@ func TestGovernedApplicationRun_Kind(t *testing.T) {
 		"sandbox/" + recorder.allocation.Identity.WorkerID,
 		"pod/" + recorder.allocation.Identity.WorkerID,
 	} {
-		assertAbsentEventually(t, resource)
+		assertAbsentEventuallyInNamespace(t, runNamespace, resource)
 	}
+	cleanupConfirmed = true
 	t.Logf("governed kind run complete: request=%s decision=%s claim=%s worker=%s phase=%s", allowed.RequestRef, allowed.Decision, allowed.ClaimID, recorder.allocation.Identity.WorkerID, allowed.Phase)
 	t.Logf("controlled worker result: %s", recorder.workerResult)
 	t.Logf("backend calls: %s", strings.Join(recorder.calls, " -> "))
@@ -189,10 +199,14 @@ func namesFor(t *testing.T, resource string) []string {
 }
 
 func assertAbsentEventually(t *testing.T, resource string) {
+	assertAbsentEventuallyInNamespace(t, *namespace, resource)
+}
+
+func assertAbsentEventuallyInNamespace(t *testing.T, targetNamespace, resource string) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		out, err := kubectl("get", resource, "--ignore-not-found=true", "-o", "name")
+		out, err := kubectlInNamespace(targetNamespace, "get", resource, "--ignore-not-found=true", "-o", "name")
 		if err != nil {
 			t.Fatalf("query released %s: %v %s", resource, err, out)
 		}
