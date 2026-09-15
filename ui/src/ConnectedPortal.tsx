@@ -73,9 +73,10 @@ function useConnection(parts: string[], revision: number) {
   let ref = '';
   let routeError = '';
   try {
-    if (parts[0] === 'work' && parts[1] && parts[1] !== 'new') ref = decodeURIComponent(parts[1]);
-    // Activity record references also come from the URL, not trusted data.
-    for (const part of parts) decodeURIComponent(part);
+    // Consume the decoded array: production optimizers can remove an unused
+    // decode call, including its validation side effect.
+    const decodedParts = parts.map(part => decodeURIComponent(part));
+    if (decodedParts[0] === 'work' && decodedParts[1] && decodedParts[1] !== 'new') ref = decodedParts[1];
   } catch {
     routeError = 'Invalid work reference.';
   }
