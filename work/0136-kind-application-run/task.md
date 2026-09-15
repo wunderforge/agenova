@@ -51,10 +51,10 @@ Out of scope:
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [x] Confirm this packet with the Owner and Reviewer before implementation; the Owner explicitly directed uninterrupted progress on the #107 critical path.
-- [ ] Add the application-to-controlled-backend integration gate.
-- [ ] Capture a fresh real-kind transcript with independent cleanup checks.
-- [ ] Run focused compile/tests and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Add the application-to-controlled-backend integration gate.
+- [x] Capture a fresh real-kind transcript with independent cleanup checks.
+- [x] Run focused compile/tests and the complete repository gate (`go test ./...`, both integration compiles, frontend check, and documentation/delivery checks).
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -78,4 +78,5 @@ Out of scope:
 
 - PR #134 supplies the opt-in controlled worker protocol because Agent Sandbox v0.4.6 does not natively acknowledge task start/stop.
 - #123 remains Future Backlog because its gateway and multi-agent/lineage scope exceeds the single-claim mid-term demo.
-- #41 / PR #128 is the dependency under review; this branch is intentionally based on its verified implementation and will be rebased after merge.
+- #41 / PR #128 is merged; #136 is rebased on that application submission path and has no remaining implementation dependency.
+- The fresh kind run passed on 2026-09-15; [evidence](../../docs/evidence/136/kind-application-run.md) records the denied and allowed paths, correlated claim/worker result, backend calls, and cleanup.

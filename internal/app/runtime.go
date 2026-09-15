@@ -28,7 +28,7 @@ func NewRuntime(backendName string) (runtime.RuntimeBackend, string, error) {
 	case MemoryBackend:
 		backend := operator.NewRuntime()
 		if err := backend.AddTemplate(v1alpha1.AgentSandboxTemplate{
-			Metadata: v1alpha1.ObjectMeta{Name: referenceRuntimeTemplateRef},
+			Metadata: v1alpha1.ObjectMeta{Name: ReferenceRuntimeTemplateRef},
 			Spec:     v1alpha1.AgentSandboxTemplateSpec{Image: "example.local/agenova/reference-worker:dev"},
 		}); err != nil {
 			return nil, "", fmt.Errorf("configure reference runtime template: %w", err)
@@ -36,7 +36,7 @@ func NewRuntime(backendName string) (runtime.RuntimeBackend, string, error) {
 		if err := backend.AddWarmPool(v1alpha1.SandboxWarmPool{
 			Metadata: v1alpha1.ObjectMeta{Name: "reference-engineer-pool"},
 			Spec: v1alpha1.SandboxWarmPoolSpec{
-				TemplateRef: referenceRuntimeTemplateRef,
+				TemplateRef: ReferenceRuntimeTemplateRef,
 				Replicas:    1,
 			},
 		}); err != nil {
