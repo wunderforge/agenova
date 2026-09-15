@@ -8,6 +8,13 @@
 // Agent Sandbox controller (sigs.k8s.io/agent-sandbox) via kubectl for local
 // e2e validation. This is a spike backend - explicit, thin, and close to the
 // raw upstream API - not a production implementation.
+// The reduced five-operation mapping is Allocate=translated,
+// Observe=translated (Bound-level readiness), Start=unsupported,
+// Terminate=unsupported, and Cleanup=translated (confirmed release only).
+// Backend identity is translated from the assigned sandbox name. Allocation
+// correlation is process-local, FilesystemBoundary is explicitly Unsupported,
+// and general worker isolation is unverified. The retained #66 kind experiment
+// verifies this bounded mapping, not work start, restart recovery, or isolation.
 //
 // # Semantic gap summary
 //
