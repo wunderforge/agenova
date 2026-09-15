@@ -8,6 +8,42 @@ export interface Action {
   project: string;
   templateRef: string;
 }
+export interface AgentTemplate {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: AgentTemplateSpec;
+}
+export interface AgentTemplateArtifact {
+  image: string;
+}
+export interface AgentTemplateCapabilityCeiling {
+  maxTimeout?: (string | null);
+  memoryScopes?: (Array<string> | null);
+  modelProfiles?: (Array<string> | null);
+  resourceScopes?: (Array<string> | null);
+  runtimeProfiles?: (Array<string> | null);
+  tools?: (Array<string> | null);
+}
+export interface AgentTemplateDefaults {
+  memoryScopes?: (Array<string> | null);
+  modelProfile?: string;
+}
+export interface AgentTemplateEntrypoint {
+  command: (Array<string> | null);
+}
+export interface AgentTemplateSpec {
+  artifact: (AgentTemplateArtifact | null);
+  capabilityCeiling: (AgentTemplateCapabilityCeiling | null);
+  defaults?: AgentTemplateDefaults;
+  entrypoint: (AgentTemplateEntrypoint | null);
+}
+export interface Change {
+  effective: string;
+  field: string;
+  reasonCode: string;
+  requested: string;
+}
 export type ClaimPhase = "Pending" | "Bound" | "Running" | "Succeeded" | "Failed" | "Expired";
 export interface ClaimRequest {
   apiVersion: string;
@@ -74,6 +110,26 @@ export interface EvidenceRuntimeEvent {
 export interface EvidenceToolInvocation {
   toolName?: string;
 }
+export interface Fact {
+  authorityChanges?: (Array<Change> | null);
+  backendIdentity?: (SandboxClaimBackendIdentity | null);
+  claimId?: string;
+  decision?: (Decision | null);
+  effectiveAuthority?: (EffectiveAuthority | null);
+  id: string;
+  invocationId?: string;
+  kind: string;
+  operation?: string;
+  policyRef?: (PolicyReference | null);
+  providerStatus?: string;
+  reason?: string;
+  reasonCode?: string;
+  requestRef: string;
+  result?: DecisionResult;
+  sequence: number;
+  target?: string;
+  timestamp: string;
+}
 export interface IssuedState {
   action: Action;
   claim?: (SandboxClaim | null);
@@ -84,8 +140,21 @@ export interface IssuedState {
   principal: Principal;
   requestRef: string;
 }
+export interface ModelResult {
+  inputTokens: number;
+  invocationId: string;
+  model: string;
+  outputTokens: number;
+  responseId?: string;
+}
 export interface ObjectMeta {
   name: string;
+}
+export interface Outcome {
+  failure?: string;
+  model?: (ModelResult | null);
+  status: string;
+  text?: string;
 }
 export interface PolicyReference {
   id: string;
@@ -108,6 +177,14 @@ export interface SandboxClaimBackendIdentity {
   backend: string;
   workerId: string;
 }
+export interface View {
+  facts: (Array<Fact> | null);
+  outcome?: (Outcome | null);
+  request: (ClaimRequest | null);
+  requestRef: string;
+  state?: (IssuedState | null);
+  version: string;
+}
 
 export const shapes = {
   "Action": {
@@ -124,6 +201,220 @@ export const shapes = {
         }
       },
       "templateRef": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
+  "AgentTemplate": {
+    "kind": "object",
+    "fields": {
+      "apiVersion": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "kind": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "metadata": {
+        "shape": {
+          "kind": "ref",
+          "ref": "ObjectMeta"
+        }
+      },
+      "spec": {
+        "shape": {
+          "kind": "ref",
+          "ref": "AgentTemplateSpec"
+        }
+      }
+    }
+  },
+  "AgentTemplateArtifact": {
+    "kind": "object",
+    "fields": {
+      "image": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
+  "AgentTemplateCapabilityCeiling": {
+    "kind": "object",
+    "fields": {
+      "maxTimeout": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "string"
+          }
+        },
+        "optional": true
+      },
+      "memoryScopes": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "modelProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "resourceScopes": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "runtimeProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "tools": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      }
+    }
+  },
+  "AgentTemplateDefaults": {
+    "kind": "object",
+    "fields": {
+      "memoryScopes": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "modelProfile": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      }
+    }
+  },
+  "AgentTemplateEntrypoint": {
+    "kind": "object",
+    "fields": {
+      "command": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "AgentTemplateSpec": {
+    "kind": "object",
+    "fields": {
+      "artifact": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AgentTemplateArtifact"
+          }
+        }
+      },
+      "capabilityCeiling": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AgentTemplateCapabilityCeiling"
+          }
+        }
+      },
+      "defaults": {
+        "shape": {
+          "kind": "ref",
+          "ref": "AgentTemplateDefaults"
+        },
+        "optional": true
+      },
+      "entrypoint": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AgentTemplateEntrypoint"
+          }
+        }
+      }
+    }
+  },
+  "Change": {
+    "kind": "object",
+    "fields": {
+      "effective": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "field": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "reasonCode": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "requested": {
         "shape": {
           "kind": "string"
         }
@@ -504,6 +795,138 @@ export const shapes = {
       }
     }
   },
+  "Fact": {
+    "kind": "object",
+    "fields": {
+      "authorityChanges": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "ref",
+              "ref": "Change"
+            }
+          }
+        },
+        "optional": true
+      },
+      "backendIdentity": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "SandboxClaimBackendIdentity"
+          }
+        },
+        "optional": true
+      },
+      "claimId": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "decision": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Decision"
+          }
+        },
+        "optional": true
+      },
+      "effectiveAuthority": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "EffectiveAuthority"
+          }
+        },
+        "optional": true
+      },
+      "id": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "invocationId": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "kind": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "operation": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "policyRef": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "PolicyReference"
+          }
+        },
+        "optional": true
+      },
+      "providerStatus": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "reason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "reasonCode": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "requestRef": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "result": {
+        "shape": {
+          "kind": "ref",
+          "ref": "DecisionResult"
+        },
+        "optional": true
+      },
+      "sequence": {
+        "shape": {
+          "kind": "number"
+        }
+      },
+      "target": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "timestamp": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "IssuedState": {
     "kind": "object",
     "fields": {
@@ -564,6 +987,37 @@ export const shapes = {
       }
     }
   },
+  "ModelResult": {
+    "kind": "object",
+    "fields": {
+      "inputTokens": {
+        "shape": {
+          "kind": "number"
+        }
+      },
+      "invocationId": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "model": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "outputTokens": {
+        "shape": {
+          "kind": "number"
+        }
+      },
+      "responseId": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      }
+    }
+  },
   "ObjectMeta": {
     "kind": "object",
     "fields": {
@@ -571,6 +1025,38 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      }
+    }
+  },
+  "Outcome": {
+    "kind": "object",
+    "fields": {
+      "failure": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "model": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "ModelResult"
+          }
+        },
+        "optional": true
+      },
+      "status": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "text": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
       }
     }
   },
@@ -659,6 +1145,62 @@ export const shapes = {
         }
       },
       "workerId": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
+  "View": {
+    "kind": "object",
+    "fields": {
+      "facts": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "ref",
+              "ref": "Fact"
+            }
+          }
+        }
+      },
+      "outcome": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Outcome"
+          }
+        },
+        "optional": true
+      },
+      "request": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "ClaimRequest"
+          }
+        }
+      },
+      "requestRef": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "state": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "IssuedState"
+          }
+        },
+        "optional": true
+      },
+      "version": {
         "shape": {
           "kind": "string"
         }

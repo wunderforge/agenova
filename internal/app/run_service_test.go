@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -29,7 +30,7 @@ func TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence(t *testing.T) {
 		}
 	}
 
-	result, err := service.Run(issued, launch, func() error {
+	result, err := service.Run(issued, launch, func(ctx context.Context) error {
 		workCalls++
 		claim, ok := service.Claim(issued.Claim.ID)
 		if !ok || claim.Phase != v1alpha1.ClaimPhaseRunning {
@@ -72,7 +73,7 @@ func TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot(t *testing.T
 	issued := pendingIssuedState(time.Minute)
 	issued.EffectiveAuthority.Tools = []string{"git.read"}
 	issued.EffectiveAuthority.ResourceScopes = []string{"repo:acme/payments"}
-	if _, err := service.Run(issued, testLaunch(issued), func() error { return nil }); err != nil {
+	if _, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil }); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -107,7 +108,7 @@ func TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge(t *testing.T) 
 	issued := pendingIssuedState(time.Minute)
 	workCalled := false
 
-	result, err := service.Run(issued, testLaunch(issued), func() error {
+	result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 		workCalled = true
 		return nil
 	})
@@ -132,7 +133,7 @@ func TestRunServiceStartFailureNeverPublishesRunningAndStillTearsDown(t *testing
 	issued := pendingIssuedState(time.Minute)
 	workCalled := false
 
-	result, err := service.Run(issued, testLaunch(issued), func() error {
+	result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 		workCalled = true
 		return nil
 	})
@@ -162,7 +163,7 @@ func TestRunServiceWaitsForReadinessBeforeStart(t *testing.T) {
 	})
 	issued := pendingIssuedState(time.Minute)
 
-	result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+	result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -193,7 +194,7 @@ func TestRunServiceDrivesReferenceBackend(t *testing.T) {
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	issued := pendingIssuedState(time.Minute)
 
-	result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+	result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate(t *te
 	launch := testLaunch(issued)
 	launch.TemplateRef = "runtime-engineer-v2"
 
-	result, err := service.Run(issued, launch, func() error { return nil })
+	result, err := service.Run(issued, launch, func(ctx context.Context) error { return nil })
 	if err != nil {
 		t.Fatalf("Run with separately resolved runtime template: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestRunServiceRejectsLaunchForDifferentRuntimeProfile(t *testing.T) {
 	launch := testLaunch(issued)
 	launch.ProfileRef = "ungranted-profile"
 
-	result, err := service.Run(issued, launch, func() error { return nil })
+	result, err := service.Run(issued, launch, func(ctx context.Context) error { return nil })
 	if !errors.Is(err, ErrInvalidRun) || result != nil {
 		t.Fatalf("Run = (%+v, %v), want pre-allocation ErrInvalidRun", result, err)
 	}
@@ -247,7 +248,7 @@ func TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation(t *testin
 			launch := testLaunch(issued)
 			launch.Input[key] = "not-inspected"
 
-			result, err := service.Run(issued, launch, func() error { return nil })
+			result, err := service.Run(issued, launch, func(ctx context.Context) error { return nil })
 			if !errors.Is(err, ErrInvalidRun) || result != nil || !strings.Contains(err.Error(), key) {
 				t.Fatalf("Run = (%+v, %v), want pre-allocation credential rejection", result, err)
 			}
@@ -261,7 +262,7 @@ func TestRunServiceWorkFailurePublishesFailedBeforeTeardown(t *testing.T) {
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	issued := pendingIssuedState(time.Minute)
 
-	result, err := service.Run(issued, testLaunch(issued), func() error {
+	result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 		return errors.New("agent failed")
 	})
 	if err == nil || !strings.Contains(err.Error(), "agent failed") {
@@ -290,7 +291,7 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{Now: now})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrRunDeadline) {
 			t.Fatalf("Run error = %v, want ErrRunDeadline", err)
 		}
@@ -306,7 +307,7 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrRunDeadline) {
 			t.Fatalf("Run error = %v, want ErrRunDeadline", err)
 		}
@@ -326,7 +327,7 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrRunDeadline) || strings.Contains(err.Error(), "late allocation failure") {
 			t.Fatalf("Run error = %v, want deadline to win over late backend failure", err)
 		}
@@ -343,7 +344,7 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrRunDeadline) {
 			t.Fatalf("Run error = %v, want ErrRunDeadline", err)
 		}
@@ -360,7 +361,7 @@ func TestRunServiceDeadlineAtEachNonTerminalPhase(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{Now: clock.Now})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error {
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 			clock.Advance(2 * time.Minute)
 			return nil
 		})
@@ -383,6 +384,7 @@ func TestRunServiceExpiresWhileWorkCallbackIsStillExecuting(t *testing.T) {
 	})
 	issued := pendingIssuedState(time.Minute)
 	workStarted := make(chan struct{})
+	workCancelled := make(chan struct{})
 	releaseWork := make(chan struct{})
 	workFinished := make(chan struct{})
 	resultDone := make(chan struct {
@@ -391,8 +393,10 @@ func TestRunServiceExpiresWhileWorkCallbackIsStillExecuting(t *testing.T) {
 	}, 1)
 
 	go func() {
-		state, err := service.Run(issued, testLaunch(issued), func() error {
+		state, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 			close(workStarted)
+			<-ctx.Done()
+			close(workCancelled)
 			<-releaseWork
 			close(workFinished)
 			return nil
@@ -404,30 +408,51 @@ func TestRunServiceExpiresWhileWorkCallbackIsStillExecuting(t *testing.T) {
 	}()
 	<-workStarted
 	deadline <- time.Unix(1_700_000_060, 0)
+	<-workCancelled
+	observationDeadline := time.Now().Add(time.Second)
+	for {
+		claim, _ := service.Claim(issued.Claim.ID)
+		if claim.Phase == v1alpha1.ClaimPhaseExpired {
+			break
+		}
+		if time.Now().After(observationDeadline) {
+			t.Fatal("deadline did not revoke authoritative claim")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case <-resultDone:
+		t.Fatal("Run returned before in-flight work finished")
+	default:
+	}
+	assertTrace(t, backend, "allocate", "observe", "start")
+	close(releaseWork)
 	result := <-resultDone
+	select {
+	case <-workFinished:
+	default:
+		t.Fatal("callback still active after Run")
+	}
 	if !errors.Is(result.err, ErrRunDeadline) {
 		t.Fatalf("Run error = %v, want ErrRunDeadline", result.err)
 	}
 	assertPhase(t, result.state, v1alpha1.ClaimPhaseExpired)
 	assertTrace(t, backend, "allocate", "observe", "start", "terminate", "cleanup")
 
-	// The callback is still blocked, but expiry has released the serialized
-	// run path so another independent claim can proceed.
+	// Authority expired before work was joined; now the completed teardown
+	// releases the serialized backend path for another independent claim.
 	second := pendingIssuedStateNamed("after-expiry", time.Minute)
 	secondIdentity := v1alpha1.SandboxClaimBackendIdentity{Backend: "test", WorkerID: "worker-2"}
 	backend.allocation = runtime.Allocation{ClaimID: second.Claim.ID, Identity: secondIdentity}
 	backend.observation = runtime.Observation{ClaimID: second.Claim.ID, Identity: secondIdentity, Ready: true}
 	backend.cleanup = runtime.CleanupResult{Identity: secondIdentity, Released: true}
-	secondResult, err := service.Run(second, testLaunch(second), func() error { return nil })
+	secondResult, err := service.Run(second, testLaunch(second), func(ctx context.Context) error { return nil })
 	if err != nil {
-		t.Fatalf("second Run while first callback remains blocked: %v", err)
+		t.Fatalf("second Run after cancelled callback finished: %v", err)
 	}
 	assertPhase(t, secondResult, v1alpha1.ClaimPhaseSucceeded)
 
-	// Expiry does not claim callback cancellation. Its eventual result is
-	// ignored and cannot rewrite the already terminal claim.
-	close(releaseWork)
-	<-workFinished
+	// A late callback success cannot rewrite the already expired claim.
 	claim, ok := service.Claim(issued.Claim.ID)
 	if !ok || claim.Phase != v1alpha1.ClaimPhaseExpired {
 		t.Fatalf("claim after late work result = %+v, %v; want Expired", claim, ok)
@@ -438,14 +463,14 @@ func TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim(t *testing.T
 	backend := newRecordingBackend()
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	first := pendingIssuedState(time.Minute)
-	if _, err := service.Run(first, testLaunch(first), func() error { return nil }); err != nil {
+	if _, err := service.Run(first, testLaunch(first), func(ctx context.Context) error { return nil }); err != nil {
 		t.Fatalf("first Run: %v", err)
 	}
 
 	second := pendingIssuedStateNamed("second", time.Minute)
 	backend.allocation.ClaimID = second.Claim.ID
 	backend.observation.ClaimID = second.Claim.ID
-	result, err := service.Run(second, testLaunch(second), func() error { return nil })
+	result, err := service.Run(second, testLaunch(second), func(ctx context.Context) error { return nil })
 	if !errors.Is(err, ErrInvalidRun) {
 		t.Fatalf("second Run error = %v, want ErrInvalidRun", err)
 	}
@@ -484,7 +509,7 @@ func TestRunServiceTeardownFailuresNeverRewriteOutcome(t *testing.T) {
 			service := newTestRunService(t, backend, RunServiceOptions{})
 			issued := pendingIssuedState(time.Minute)
 
-			result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+			result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 			if err == nil {
 				t.Fatal("Run should retain teardown failure")
 			}
@@ -503,7 +528,7 @@ func TestRunServiceRejectsMismatchedBackendEvidence(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrInvalidRun) {
 			t.Fatalf("Run error = %v, want ErrInvalidRun", err)
 		}
@@ -520,7 +545,7 @@ func TestRunServiceRejectsMismatchedBackendEvidence(t *testing.T) {
 		service := newTestRunService(t, backend, RunServiceOptions{})
 		issued := pendingIssuedState(time.Minute)
 
-		result, err := service.Run(issued, testLaunch(issued), func() error { return nil })
+		result, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil })
 		if !errors.Is(err, ErrInvalidRun) {
 			t.Fatalf("Run error = %v, want ErrInvalidRun", err)
 		}
@@ -534,7 +559,7 @@ func TestRunServiceRejectsInvalidAndLateTransitions(t *testing.T) {
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	issued := pendingIssuedState(time.Minute)
 
-	if _, err := service.Run(issued, testLaunch(issued), func() error { return nil }); err != nil {
+	if _, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil }); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	before := service.current(issued.Claim.ID)
@@ -566,7 +591,7 @@ func TestRunServiceReaderIsSafeDuringRunningWork(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		_, err := service.Run(issued, testLaunch(issued), func() error {
+		_, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 			close(workEntered)
 			<-releaseWork
 			return nil

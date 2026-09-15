@@ -18,8 +18,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
+	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/facts"
 )
 
 type shape struct {
@@ -77,7 +81,7 @@ func bindings(root string) ([]byte, error) {
 	marshaler := reflect.TypeFor[json.Marshaler]()
 	var visit func(reflect.Type) shape
 	visit = func(t reflect.Type) shape {
-		if t == reflect.TypeFor[v0.Duration]() {
+		if t == reflect.TypeFor[v0.Duration]() || t == reflect.TypeFor[time.Time]() {
 			return shape{Kind: "string"}
 		}
 		if t.Kind() == reflect.Pointer {
@@ -88,7 +92,7 @@ func bindings(root string) ([]byte, error) {
 			panic("unsupported custom JSON serializer: " + t.String())
 		}
 		if t.Name() != "" && t.PkgPath() != "" {
-			if t.PkgPath() != reflect.TypeFor[v0.ClaimRequest]().PkgPath() {
+			if t.PkgPath() != reflect.TypeFor[v0.ClaimRequest]().PkgPath() && t.PkgPath() != reflect.TypeFor[evidence.View]().PkgPath() && t.PkgPath() != reflect.TypeFor[facts.Fact]().PkgPath() && t.PkgPath() != reflect.TypeFor[authority.Change]().PkgPath() {
 				panic("non-v0 type: " + t.String())
 			}
 			name := t.Name()
@@ -119,6 +123,10 @@ func bindings(root string) ([]byte, error) {
 		switch t.Kind() {
 		case reflect.String:
 			return shape{Kind: "string"}
+		case reflect.Int, reflect.Uint64:
+			return shape{Kind: "number"}
+		case reflect.Bool:
+			return shape{Kind: "boolean"}
 		case reflect.Slice:
 			s := visit(t.Elem())
 			a := shape{Kind: "array", Item: &s}
@@ -132,7 +140,7 @@ func bindings(root string) ([]byte, error) {
 			panic("unsupported v0 shape: " + t.String())
 		}
 	}
-	for _, t := range []reflect.Type{reflect.TypeFor[v0.ClaimRequest](), reflect.TypeFor[v0.IssuedState]()} {
+	for _, t := range []reflect.Type{reflect.TypeFor[v0.ClaimRequest](), reflect.TypeFor[v0.IssuedState](), reflect.TypeFor[v0.AgentTemplate](), reflect.TypeFor[evidence.View]()} {
 		visit(t)
 	}
 	var tsType func(shape) string
@@ -140,6 +148,8 @@ func bindings(root string) ([]byte, error) {
 		switch s.Kind {
 		case "string":
 			return "string"
+		case "number", "boolean":
+			return s.Kind
 		case "ref":
 			return s.Ref
 		case "nullable":
@@ -200,8 +210,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if os.Args[1] == "fixtures" {
+	if os.Args[1] == "fixtures" || os.Args[1] == "console-fixtures" {
 		rows, err := fixtures(root)
+		if os.Args[1] == "console-fixtures" {
+			rows, err = consoleFixtures(root)
+		}
 		if err != nil {
 			panic(err)
 		}

@@ -46,15 +46,21 @@ type Policy func(req Request) gateway.Outcome
 
 // Gateway governs tool attempts against the application-owned claim view.
 type Gateway struct {
-	claims  app.ClaimAuthorityReader
-	lineage *governance.Lineage
-	store   *facts.Store
-	adapter Adapter
-	ids     gateway.IDSource
-	policy  Policy
+	claims   app.ClaimAuthorityReader
+	lineage  *governance.Lineage
+	store    *facts.Store
+	adapter  Adapter
+	ids      gateway.IDSource
+	policy   Policy
+	observer func(Request, gateway.Decision) error
 }
 
 type Option func(*Gateway)
+
+// WithObserver installs a trusted decision sink before any provider attempt.
+func WithObserver(observer func(Request, gateway.Decision) error) Option {
+	return func(g *Gateway) { g.observer = observer }
+}
 
 func WithAdapter(adapter Adapter) Option {
 	return func(g *Gateway) {
@@ -118,10 +124,10 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 		return decision(id, outcome), nil
 	}
 	if outcome, denied := g.claimBaseline(req.ClaimID, snapshot.Claim); denied {
-		return g.record(req, id, outcome), nil
+		return g.record(req, id, outcome)
 	}
 	if outcome, denied := enforceAuthority(req, snapshot); denied {
-		return g.record(req, id, outcome), nil
+		return g.record(req, id, outcome)
 	}
 	// Policy receives its own defensive copy so policy mutation cannot alter
 	// the request passed to the provider adapter after validation.
@@ -129,10 +135,13 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	policyReq.Parameters = cloneStringMap(req.Parameters)
 	outcome = g.policy(policyReq).Normalize()
 	if outcome.Result != gateway.ResultAllow {
-		return g.record(req, id, outcome), nil
+		return g.record(req, id, outcome)
 	}
 
-	allowed := g.record(req, id, outcome)
+	allowed, recordErr := g.record(req, id, outcome)
+	if recordErr != nil {
+		return allowed, recordErr
+	}
 	if err := g.adapter.Invoke(id, req); err != nil {
 		return allowed, fmt.Errorf("tool adapter invocation %s: %w", id, err)
 	}
@@ -159,9 +168,15 @@ func decision(id string, outcome gateway.Outcome) gateway.Decision {
 	}
 }
 
-func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) gateway.Decision {
+func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+	d := decision(id, outcome)
+	if g.observer != nil {
+		if err := g.observer(req, d); err != nil {
+			return d, fmt.Errorf("tool decision recording failed")
+		}
+	}
 	g.store.RecordToolInvocation(req.ClaimID, toolName(req), id, outcome.Result)
-	return decision(id, outcome)
+	return d, nil
 }
 
 func validate(req Request) (gateway.Outcome, bool) {

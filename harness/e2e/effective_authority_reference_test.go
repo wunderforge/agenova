@@ -4,6 +4,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func TestRunningClaimEnforcesEffectiveAuthorityAcrossGateways(t *testing.T) {
 	result, runErr := runs.Run(issued, app.ResolvedLaunch{
 		ProfileRef:  issued.EffectiveAuthority.Runtime.ProfileRef,
 		TemplateRef: "agent-v1",
-	}, func() error {
+	}, func(ctx context.Context) error {
 		toolDecision, invokeErr := toolGateway.Invoke(allowedTool)
 		if invokeErr != nil || toolDecision.Result != gateway.ResultAllow {
 			return fmt.Errorf("allowed tool decision=%+v error=%v", toolDecision, invokeErr)

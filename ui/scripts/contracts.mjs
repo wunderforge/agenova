@@ -13,6 +13,9 @@ export function go(...args) {
 export function fixtureRows() {
   return JSON.parse(go('run', './ui/contractgen', 'fixtures', '.'));
 }
+export function consoleFixtureRows() {
+  return JSON.parse(go('run', './ui/contractgen', 'console-fixtures', '.'));
+}
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const mode = process.argv[2];
   if (!['generate', 'check'].includes(mode)) throw new Error('expected generate or check');

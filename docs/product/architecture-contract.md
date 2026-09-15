@@ -83,6 +83,7 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 - CLI JSON, the read-only evidence API, and the React console must consume the same backend-neutral evidence representation.
 - An API or UI may transport, validate, and render governance evidence; it must not create a second claim, policy, decision, or evidence model.
 - The MVP console is read-only. Claim mutation, policy editing, workflow control, and broad administration require separately approved scope.
+- Approved exception, 15 September 2026 (#143): a loopback/internal demo submission endpoint may accept canonical ClaimRequest input and invoke the existing trusted admission, resolution and issuance boundary. It must not trust caller-provided principal or granted authority; it permits new request submission only, not editing existing claims, policy or identity. Evidence queries remain read-only.
 - A reference evidence endpoint must bind locally or internally by default and must not be exposed publicly without an upstream authentication boundary.
 
 ## Reference Installation and Bootstrap
