@@ -12,6 +12,7 @@ func TestReservedCredentialFieldNameUsesExactNormalizedVocabulary(t *testing.T) 
 		"API_KEY",
 		"client_secret",
 		"clientSecret",
+		"AZURE_CLIENT_SECRET",
 		"AWS_SECRET_ACCESS_KEY",
 		"ANTHROPIC_API_KEY",
 		"GOOGLE_APPLICATION_CREDENTIALS",

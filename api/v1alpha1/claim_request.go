@@ -196,6 +196,11 @@ func validateTaskInputValues(path string, values map[string]any) *ValidationErro
 }
 
 func validateTaskInputValue(path string, value any, active map[uintptr]struct{}) *ValidationError {
+	// Custom JSON encoders can emit a different shape from the Go value we
+	// inspect (notably json.RawMessage). Require ordinary structured input.
+	if _, customJSON := value.(json.Marshaler); customJSON {
+		return validationError(ValidationCategoryInvalidValue, path, "custom JSON representations are not allowed in task input")
+	}
 	switch v := value.(type) {
 	case nil, string, bool:
 		return nil
@@ -215,6 +220,10 @@ func validateTaskInputValue(path string, value any, active map[uintptr]struct{})
 	container := reflect.ValueOf(value)
 	switch container.Kind() {
 	case reflect.Slice:
+		// Named byte slices have the same base64 representation as []byte.
+		if container.Type().Elem().Kind() == reflect.Uint8 {
+			return validationError(ValidationCategoryInvalidValue, path, "value has no consistent JSON representation")
+		}
 		if container.Len() == 0 {
 			return nil
 		}

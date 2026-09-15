@@ -84,3 +84,4 @@ Out of scope:
 - Evidence: `go test -count=1 ./api/v1alpha1 ./internal/app ./internal/gateway ./internal/toolgateway ./internal/modelgateway ./internal/runtime/agentsandbox` and `.\scripts\check.ps1 -All` pass, including nested public-input rejection, zero-allocation launch rejection, adapter-private configuration, and credential-free worker-template cases.
 - Blockers: none; #34 and #35 are merged.
 - Review follow-up: added normalized OAuth `client_secret`/`clientSecret` rejection across task, launch, and gateway inputs, and direct JSON nested-field coverage. The focused gate and full baseline pass again.
+- Review follow-up: reserve `AZURE_CLIENT_SECRET` across the same boundaries; reject custom JSON encoders and named byte slices in direct-Go task input so serialized shapes cannot bypass structural validation. The focused gate and `.\scripts\check.ps1 -All` pass again, including all seven browser smoke cases.

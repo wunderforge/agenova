@@ -18,6 +18,7 @@ var reservedCredentialFieldNames = map[string]struct{}{
 	"accesstoken":                  {},
 	"refreshtoken":                 {},
 	"clientsecret":                 {},
+	"azureclientsecret":            {},
 	"apikey":                       {},
 	"openaiapikey":                 {},
 	"anthropicapikey":              {},

@@ -207,6 +207,7 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"missing profile", func(r *Request) { r.Profile = "\t" }, gateway.CategoryIncompleteOperation},
 		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
 		{"OAuth client secret", func(r *Request) { r.Parameters = map[string]string{"client_secret": "not-inspected"} }, gateway.CategorySecretValue},
+		{"Azure client secret", func(r *Request) { r.Parameters = map[string]string{"AZURE_CLIENT_SECRET": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
