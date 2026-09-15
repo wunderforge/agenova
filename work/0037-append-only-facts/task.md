@@ -30,7 +30,7 @@ Foreign attribution, duplicate attempt/outcome and denied provider attempts are 
 
 - [x] Owner approved #143 integration; independent planning/release core reviews recorded there. Original owner coordination recorded on #37.
 - [x] Implement producer hooks and journal with deterministic focused tests.
-- [ ] Complete repository/browser release gates and publish PR evidence.
+- [x] Complete repository/browser release gates and publish PR evidence: #144, full baseline and real browser/kind/model gates passed; merge remains subject to #36 safety fixes.
 
 ## Quality Gates
 

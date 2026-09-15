@@ -30,7 +30,7 @@ Caller identity envelopes, cross-origin requests, excessive bodies and malformed
 
 - [x] Planning approved via #143.
 - [x] Implement and pass HTTP contract tests.
-- [ ] Finish repository/browser release gates and publish examples.
+- [x] Finish repository/browser release gates and publish examples: #144, full baseline and real browser/kind/model gates passed; read-only request examples are in #143 demo.md; merge remains subject to #36 safety fixes.
 
 ## Quality Gates
 

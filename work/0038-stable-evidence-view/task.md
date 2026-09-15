@@ -29,7 +29,7 @@ Denial/ApprovalRequired cannot fabricate a claim, successful provider outcome or
 
 - [x] Scope and planning approved through #143; core independent review completed.
 - [x] Implement shared representation, defensive queries and golden projection cases.
-- [ ] Finish repository/browser release gates and record PR evidence.
+- [x] Finish repository/browser release gates and record PR evidence: #144, full baseline and real browser/kind/model gates passed; merge remains subject to #36 safety fixes.
 
 ## Quality Gates
 

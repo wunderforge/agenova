@@ -30,4 +30,8 @@ Integrated baseline passed with Git access: Go/vet, canonical generation, 72 uni
 
 Next action: record final release review, publish scoped PR and reconcile prerequisite PR #142. Final binary is running on loopback port 8088; repeat browser gate against final source and keep UI/server available for owner's walkthrough. Initial sandbox VCS failure was resolved with correct permissions, not a product workaround.
 
+Published PR #144; CI passed at a5a62d0 and final browser gate passed after f34b1b7 with merged security snapshots. #37/#38/#68/#143 are In Review, not Done.
+
+Release pause: new Codex finding on prerequisite #142 identifies native npm `_auth`/`_authToken` aliases. Isolated credential lane is fixing the exact vocabulary with regressions. Auto-review rejected admin merge; do not bypass. Reassess only after the new fix, review and CI are verified. All prior credential findings were fixed/resolved.
+
 Required user input: none for the local checkpoint. Existing local model only, synthetic/public tasks, no paid API calls or downloads. Tools/Memory, SSO and durable history remain outside this integration.
