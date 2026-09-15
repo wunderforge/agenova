@@ -89,6 +89,9 @@ export function workTitle(work: View): string {
 export function workStatus(work: View): string {
   if (work.state?.decision.result === 'Deny') return 'Denied';
   if (work.state?.decision.result === 'ApprovalRequired') return 'Approval required';
+  // Queued work can be cancelled before allocation, leaving the canonical
+  // claim Pending. The final outcome is authoritative for that work status.
+  if (work.outcome?.status === 'Cancelled') return 'Cancelled';
   const phase = work.state?.claim?.phase;
   if (phase === 'Bound') return 'Starting';
   // Terminal claim authority can precede the final work/cleanup report.
@@ -96,5 +99,5 @@ export function workStatus(work: View): string {
   return phase || 'Pending';
 }
 export function isTerminal(work: View): boolean {
-  return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required'].includes(workStatus(work));
+  return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled'].includes(workStatus(work));
 }

@@ -114,3 +114,25 @@ test('terminal authority keeps refreshing until final result and cleanup report 
   finishing.outcome = {status:'Succeeded',text:'Final observed task result.'};
   await expect(page.getByText('Final observed task result.')).toBeVisible();
 });
+
+test('queued cancellation overrides pending claim and stops automatic refresh', async ({page}) => {
+  await page.clock.install();
+  const cancelled = work();
+  cancelled.state!.claim!.phase = 'Pending';
+  delete cancelled.state!.claim!.backendIdentity;
+  cancelled.state!.evidence.runtimeEvents = [];
+  cancelled.facts = cancelled.facts.filter(fact => fact.kind !== 'Runtime');
+  cancelled.outcome = {status:'Cancelled',failure:'Queued work expired before allocation.'};
+  let evidenceReads = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/evidence')) evidenceReads++;
+  });
+  await api(page, () => [cancelled]);
+  await page.goto(`/?mode=connected#/work/${cancelled.requestRef}`);
+  await expect(page.locator('.portal-head').getByText('Cancelled',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Result',exact:true})).toHaveCount(0);
+  await expect(page.getByText('Queued work expired before allocation.').first()).toBeVisible();
+  expect(evidenceReads).toBe(1);
+  await page.clock.fastForward(5000);
+  expect(evidenceReads).toBe(1);
+});
