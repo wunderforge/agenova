@@ -627,11 +627,23 @@ spec:
 		assertClaimRequestValidationError(t, yamlErr, ValidationCategorySecretValue, "spec.task.input.provider.AZURE_CLIENT_SECRET")
 	})
 
-	for _, key := range []string{"GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"} {
+	for _, key := range []string{"GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "NPM_TOKEN", "GITLAB_TOKEN", "SSH_PRIVATE_KEY"} {
 		t.Run(key, func(t *testing.T) {
 			request := validClaimRequest()
 			request.Spec.Task.Input = map[string]any{"provider": map[string]string{key: "not-inspected"}}
 			assertClaimRequestValidationError(t, ValidateClaimRequest(request), ValidationCategorySecretValue, "spec.task.input.provider."+key)
+			encodedJSON, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, jsonErr := ParseClaimRequestJSON(encodedJSON)
+			assertClaimRequestValidationError(t, jsonErr, ValidationCategorySecretValue, "spec.task.input.provider."+key)
+			encodedYAML, err := yaml.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, yamlErr := ParseClaimRequestYAML(encodedYAML)
+			assertClaimRequestValidationError(t, yamlErr, ValidationCategorySecretValue, "spec.task.input.provider."+key)
 		})
 	}
 }
