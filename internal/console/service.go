@@ -38,7 +38,7 @@ type record struct {
 
 type Service struct {
 	mu        sync.RWMutex
-	executeMu sync.Mutex
+	executeMu chan struct{}
 	preset    app.ReferencePrincipalPreset
 	runner    *app.RunService
 	executor  Executor
@@ -58,7 +58,7 @@ func NewService(backend runtime.RuntimeBackend, executor Executor, provider mode
 	if _, err := app.NewReferencePrincipalSource(preset); err != nil {
 		return nil, err
 	}
-	s := &Service{preset: preset, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}}
+	s := &Service{preset: preset, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -177,18 +177,16 @@ func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
 
 func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective string) {
 	ref, claimID := p.Request.Metadata.Name, p.Issued.Claim.ID
-	s.executeMu.Lock()
-	defer s.executeMu.Unlock()
-	if ctx.Err() != nil {
-		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: "Cancelled", ReasonCode: "cancelled-before-allocation"})
-		s.mu.Lock()
-		s.records[ref].view.Outcome = &evidence.Outcome{Status: "Cancelled", Failure: "Request cancelled before worker allocation."}
-		s.mu.Unlock()
-		return
+	select {
+	case s.executeMu <- struct{}{}:
+		defer func() { <-s.executeMu }()
+	case <-ctx.Done():
+		// RunContext publishes canonical Failed/Expired without acquiring the
+		// backend lock or allocating an identity for this queued claim.
 	}
 	var observed *evidence.ModelResult
 	var modelText string
-	final, runErr := s.runner.RunContext(ctx, p.Issued, app.ResolvedLaunch{ProfileRef: p.Issued.EffectiveAuthority.Runtime.ProfileRef, TemplateRef: app.ReferenceRuntimeTemplateRef}, func() error {
+	final, runErr := s.runner.RunContext(ctx, p.Issued, app.ResolvedLaunch{ProfileRef: p.Issued.EffectiveAuthority.Runtime.ProfileRef, TemplateRef: app.ReferenceRuntimeTemplateRef}, func(ctx context.Context) error {
 		snapshot, ok := s.runner.ClaimAuthority(claimID)
 		if !ok || snapshot.Claim.BackendIdentity == nil {
 			return errors.New("running worker binding is missing")
@@ -236,6 +234,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 	status := "Failed"
 	if final != nil && final.Claim != nil {
 		status = string(final.Claim.Phase)
+	}
+	if errors.Is(runErr, context.Canceled) {
+		status = "Cancelled"
 	}
 	outcome := &evidence.Outcome{Status: status}
 	if final != nil && final.Claim != nil && final.Claim.Phase == v0.ClaimPhaseSucceeded {

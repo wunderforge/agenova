@@ -24,7 +24,7 @@ func TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker(t *tes
 			}})
 			issued := pendingIssuedState(time.Minute)
 			workCalls := 0
-			final, err := service.Run(issued, testLaunch(issued), func() error {
+			final, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error {
 				workCalls++
 				if event == EventFailed {
 					return errors.New("task failed")
@@ -57,7 +57,7 @@ func TestRunContextCancellationBeforeAllocationMakesZeroBackendCalls(t *testing.
 	backend := newRecordingBackend()
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	issued := pendingIssuedState(time.Minute)
-	final, err := service.RunContext(ctx, issued, testLaunch(issued), func() error { t.Fatal("cancelled work ran"); return nil })
+	final, err := service.RunContext(ctx, issued, testLaunch(issued), func(ctx context.Context) error { t.Fatal("cancelled work ran"); return nil })
 	if !errors.Is(err, context.Canceled) || final.Claim.Phase != v0.ClaimPhaseFailed || len(backend.trace) != 0 {
 		t.Fatalf("cancelled allocation: final=%+v err=%v trace=%v", final, err, backend.trace)
 	}

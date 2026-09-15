@@ -42,8 +42,11 @@ var (
 )
 
 // WorkFunc represents the application work performed after the backend has
-// acknowledged Start and the authoritative claim has become Running.
-type WorkFunc func() error
+// acknowledged Start and the authoritative claim has become Running. Work
+// must honor cancellation and return after its in-flight operations have ended.
+// RunService revokes authority immediately on interruption, then joins work
+// before cleanup and final outcome publication.
+type WorkFunc func(context.Context) error
 
 // ClaimReader is the application-owned lifecycle view used by governed
 // interfaces. Implementations return defensive public claim snapshots; they
@@ -245,17 +248,31 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 	if err != nil {
 		return nil, err
 	}
+	claimID := initial.Claim.ID
+	interrupted := func() (*v1alpha1.IssuedState, error) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+		}
+		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
+	}
+	// An expired/cancelled queued request does not need the backend execution
+	// lock: register its canonical terminal state without allocating anything.
+	if ctx.Err() != nil {
+		if err := s.insert(initial); err != nil {
+			return s.current(claimID), err
+		}
+		return interrupted()
+	}
 
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
 
-	claimID := initial.Claim.ID
 	if err := s.insert(initial); err != nil {
 		return s.current(claimID), err
 	}
 	deadline := s.now().Add(time.Duration(initial.EffectiveAuthority.Runtime.Timeout))
 	if err := ctx.Err(); err != nil {
-		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", err)
+		return interrupted()
 	}
 	if s.deadlineReached(deadline) {
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
@@ -291,6 +308,10 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		return s.teardown(state, identity, transitionErr)
 	}
 	cancelled := func() (*v1alpha1.IssuedState, error) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			state, err := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+			return s.teardown(state, identity, err)
+		}
 		state, err := s.finish(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
 		return s.teardown(state, identity, err)
 	}
@@ -353,29 +374,49 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		return s.teardown(state, identity, transitionErr)
 	}
 
+	workCtx, cancelWork := context.WithCancel(ctx)
+	defer cancelWork()
 	workDone := make(chan error, 1)
 	go func() {
-		workDone <- work()
+		workDone <- work(workCtx)
 	}()
+	stopWork := func(phase v1alpha1.ClaimPhase, event string, cause error) (*v1alpha1.IssuedState, error) {
+		cancelWork()
+		state, transitionErr := s.finish(claimID, phase, event, cause)
+		// A revoked claim cannot authorize more calls. Join cancellation-aware
+		// work so all observed provider outcomes precede cleanup/final outcome.
+		<-workDone
+		return s.teardown(state, identity, transitionErr)
+	}
 	remaining := deadline.Sub(s.now())
 	if remaining <= 0 {
-		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
-		return s.teardown(state, identity, transitionErr)
+		return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
 	var workErr error
 	select {
 	case workErr = <-workDone:
 	case <-ctx.Done():
-		return cancelled()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+		}
+		return stopWork(v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
 	case <-s.after(remaining):
-		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
-		return s.teardown(state, identity, transitionErr)
+		return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
 	var outcomeErr error
 	switch {
 	case s.deadlineReached(deadline):
 		outcomeErr = ErrRunDeadline
 		if err := s.transition(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, nil); err != nil {
+			outcomeErr = errors.Join(outcomeErr, err)
+		}
+	case ctx.Err() != nil:
+		phase, event := v1alpha1.ClaimPhaseFailed, "Cancelled"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			phase, event = v1alpha1.ClaimPhaseExpired, EventExpired
+		}
+		outcomeErr = ctx.Err()
+		if err := s.transition(claimID, phase, event, nil); err != nil {
 			outcomeErr = errors.Join(outcomeErr, err)
 		}
 	case workErr != nil:
