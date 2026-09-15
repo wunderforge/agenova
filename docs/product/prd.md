@@ -120,6 +120,7 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - A React console uses bounded polling to display live lifecycle, requested versus effective authority, decisions, invocations, outcome, and backend identity.
 - CLI, API, and UI share one evidence contract; the frontend does not create a separate governance model.
 - Claim search, mutation controls, policy editing, WebSocket/SSE streaming, and broad administration remain outside the MVP.
+- Owner-approved mid-term exception (15 September 2026, #143): the local/internal demo console may submit a canonical ClaimRequest through the existing trusted application boundary and then follow the same evidence view. The server supplies identity separately; submission does not permit modifying claims, grants, policy or identity. The mid-term worker must demonstrate one task-dependent real LLM response; tools may remain explicit mocks.
 
 ### 8. Demonstrable contributor path
 
