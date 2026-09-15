@@ -7,7 +7,7 @@
 - SandboxClaim CRD: served/stored `v1alpha1`
 - kind: v0.32.0; kubectl client v1.32.2; Kubernetes server v1.36.1
 - Test image ID: `sha256:798e4b9c4b798dc70a9165f7e388783c03f98f7feff7e752a82dd1afe4c8f249`
-- Result: pass on PR #134 commit `7526372` after all five Codex findings were addressed
+- Result: pass against the code committed as `8d4eee7`, after both Codex review rounds were addressed
 
 ## Reproduce
 
@@ -25,20 +25,20 @@ The test uses a separate `controlled` build tag so the ordinary `check.ps1 -Inte
 ## Observed flow
 
 ```text
-allocated claim=run51-18d557dbd272f9a4-claim
-  worker=agenova-pool-run51-18d557dbd272f9a4-pool-lpkhf backend=agent-sandbox
+allocated claim=run51-18d55912c415cd90-claim
+  worker=agenova-pool-run51-18d55912c415cd90-pool-sbj86 backend=agent-sandbox
 Ready is infrastructure-only for that claim/worker
 actual child-task result:
-  state=running claim=sha256:a5a584b151e484ed14878708f9da58d5b39f086e85b5cee483cf5f451afb88bc
-  result=probe-cee667ca2e07ea77
+  state=running claim=sha256:a5a1e9d204669944be4b3133668189a35e0c74d0315e53996b2aae22f8c9f54e
+  result=probe-9af335af96434d0e
 task process stopped before resource deletion:
-  state=stopped claim=sha256:a5a584b151e484ed14878708f9da58d5b39f086e85b5cee483cf5f451afb88bc
-  result=probe-cee667ca2e07ea77
+  state=stopped claim=sha256:a5a1e9d204669944be4b3133668189a35e0c74d0315e53996b2aae22f8c9f54e
+  result=probe-9af335af96434d0e
 confirmed cleanup: same claim/worker, released=true
-TestControlledRuntimeBackend_Kind PASS (8.57s)
+TestControlledRuntimeBackend_Kind PASS (7.43s)
 ```
 
-The adapter derives the fixed control token from the system-issued claim ID, and the real child process derives its result from that token. Start waited for the exact token-bound acknowledgement and then checked status. Terminate waited for child exit and checked stopped status while the Pod still existed. Cleanup was a later, separate operation. Unit tests cover arbitrary claim IDs, wrong/stale identities, not-Ready, duplicate Start, failed/uncertain stop, pre-start cancellation, Start/Terminate and Cleanup/Start serialization, failed-Cleanup no-restart, and concurrent-Terminate serialization.
+The adapter derives the fixed control token from the system-issued claim ID, and the real child process derives its result from that token. Start first waited for the non-mutating control-server status, then required the start and running acknowledgements to preserve the same token-bound result. Terminate waited for child exit and checked stopped status while the Pod still existed. Cleanup was a later, separate operation. Unit tests cover arbitrary claim IDs, wrong/stale identities, not-Ready, control-server startup, inconsistent results, duplicate Start, failed/uncertain stop, pre-start cancellation, Start/Terminate and Cleanup/Start serialization, shared concurrent operation outcomes, failed-Cleanup no-restart, and idempotent release.
 
 ## Limits and next integration
 
