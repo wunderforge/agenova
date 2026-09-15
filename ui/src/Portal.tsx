@@ -5,6 +5,7 @@ import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type Ag
 import { ConnectedPortal } from './ConnectedPortal';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity, demoWorkerActions } from './WorkerActivity';
+import { WorkDetailLayout } from './WorkDetailLayout';
 import { usePortalMotion } from './portal-motion';
 import './portal.css';
 import './portal-motion.css';
@@ -59,10 +60,10 @@ function WorkDetail({ work }: { work: WorkItem }) {
     : work.status === 'Failed' ? ['Work failed', work.outcome]
     : work.status === 'Denied' ? ['Request denied', 'No claim was issued and no worker started.']
     : ['Request received', 'No authorization or worker allocation has been recorded.'];
-  return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: work.title }]}/>
-    <Head title={work.title} subtitle={`Submitted ${work.submitted} · ${work.requestRef}`} action={<Badge value={work.status}/>}/>
+  return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: 'Details' }]}/>
+    <Head title={work.title} subtitle={`Submitted ${work.submitted}`} action={<Badge value={work.status}/>}/>
     <div className="portal-top-facts">{work.context && <Fact label={work.context.label} value={work.context.value}/>}<Fact label={work.branch ? 'Base branch' : 'Team'} value={work.branch || work.team}/><Fact label="Agent" value={work.agent}/><Fact label="Requested by" value={work.principal}/></div>
-    <RunFlow activityHref={href(`work/${work.id}/activity`)} evidence={{
+    <WorkDetailLayout activityHref={href(`work/${work.id}/activity`)} status={<RunFlow summary={message[0] === 'Work completed' ? 'Task completed.' : message[1] || message[0]} activityHref={href(`work/${work.id}/activity`)} evidence={{
       status: work.status,
       received: work.events.some(event => event.kind === 'Request'),
       authorized: work.decision === 'Allowed' && !!work.granted,
@@ -70,19 +71,16 @@ function WorkDetail({ work }: { work: WorkItem }) {
       result: work.status === 'Succeeded' && !!work.outcome,
       cleanup: work.events.some(event => /environment released|cleanup confirmed/i.test(event.title)),
       failureAt: work.status === 'Failed' ? 'Worker' : undefined,
-    }}/>
-    <WorkerActivity actions={demoWorkerActions(work.events, href(`work/${work.id}/activity`))} status={work.status} activityHref={href(`work/${work.id}/activity`)}/>
-    <div className="portal-detail-grid"><section><div className="portal-section-head"><h2>Progress</h2><small>{work.updated} last update</small></div>
-      <div className={`portal-state ${work.status.toLowerCase()}`} role="status"><strong>{message[0]}</strong><p>{message[1]}</p></div>
-      <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
-        <li key={event.id}><a href={href(`work/${work.id}/activity/${event.id}`)}>{event.title}</a><p>{event.description}</p></li>)}</ol>
-    </section><aside className="portal-access-card"><h2>{work.granted ? work.status === 'Running' ? 'Active access' : 'Issued access' : work.status === 'Denied' ? 'Access denied' : 'Request pending'}</h2>
+    }}/>} activity={<WorkerActivity actions={demoWorkerActions(work.events, href(`work/${work.id}/activity`))} status={work.status} activityHref={href(`work/${work.id}/activity`)}/>} access={<aside className="portal-access-card"><h2>{work.granted ? work.status === 'Running' ? 'Active access' : 'Issued access' : work.status === 'Denied' ? 'Access denied' : 'Request pending'}</h2>
       <p>{work.granted ? work.status === 'Running' ? 'Effective authority for this running claim.' : 'Authority is inactive after this claim ended.' : 'No authority has been issued.'}</p>
       {work.granted ? <AccessFields access={work.granted} runtime={work.effectiveRuntime || work.requestedRuntime}/> : <><Fact label="Policy decision" value={work.status === 'Pending' ? 'Not evaluated' : work.decisionReason}/><Fact label="Requested tools" value={<Chips values={work.requested.tools}/>}/></>}
       <div className="portal-card-links"><a href={href(`work/${work.id}/access`)}>{work.granted ? 'Compare requested and granted' : 'View full request'}</a><a href={href('policy')}>View policy</a></div>
-    </aside></div>
-    <section className="portal-lower"><div className="portal-section-head"><h2>Recent activity</h2><a href={href(`work/${work.id}/activity`)}>View all activity</a></div><Records work={work} events={work.events.slice(-4)}/></section>
-    <details className="portal-details"><summary>Execution details</summary><p>IDs linking the request, claim, and worker.</p><div className="portal-fact-grid"><Fact label="Request ID" value={work.requestRef}/><Fact label="Claim ID" value={work.claimId}/><Fact label="Runtime backend" value={work.backend}/><Fact label="Worker ID" value={work.worker}/><Fact label="Policy version" value={work.policy}/><Fact label="Decision" value={work.decision}/></div></details></>;
+    </aside>} result={work.status === 'Succeeded' && work.outcome && <section className="portal-result"><h2>Result</h2><p className="portal-result-text">{work.outcome}</p></section>} details={<>
+      <small>{work.updated} last update</small>
+      <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
+        <li key={event.id}><a href={href(`work/${work.id}/activity/${event.id}`)}>{event.title}</a><p>{event.description}</p></li>)}</ol>
+      <div className="portal-fact-grid"><Fact label="Request ID" value={work.requestRef}/><Fact label="Claim ID" value={work.claimId}/><Fact label="Runtime backend" value={work.backend}/><Fact label="Worker ID" value={work.worker}/><Fact label="Policy version" value={work.policy}/><Fact label="Decision" value={work.decision}/></div>
+    </>}/></>;
 }
 function FilterButtons<T extends string>({ values, selected, onSelect, label }: { values: readonly T[]; selected: T; onSelect: (value: T) => void; label: string }) {
   return <div className="portal-filters" role="group" aria-label={label}>{values.map(value => <button key={value} type="button" className={selected === value ? 'selected' : ''} onClick={() => onSelect(value)}>{kindLabel(value)}</button>)}</div>;
@@ -224,7 +222,7 @@ export function Portal({ mode }: { mode: PortalMode }) {
     const event = work.events.find(item => item.id === parts[3]);
     content = event ? <EventDetail work={work} event={event}/> : <Head title="Record not found"/>;
   } else if (section === 'work' && work && parts[2] === 'activity') content = <WorkActivity work={work} initial={query.get('type') || 'All'}/>;
-  else if (section === 'work' && work) content = <WorkDetail work={work}/>;
+  else if (section === 'work' && work) content = <WorkDetail key={work.id} work={work}/>;
   else if (section === 'agents' && agent) content = <AgentPage agent={agent}/>;
   else if (section === 'agents') content = <AgentsPage/>;
   else if (section === 'policy') content = <PolicyPage/>;

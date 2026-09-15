@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 test('lightweight dark portal keeps lifecycle static and preserves navigation', async ({page},info)=>{
   const errors:string[]=[]; page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/#/work/fix-payment-timeout');
-  await expect(page.locator('.portal-flow-node.active')).toContainText('Worker');
+  await expect(page.locator('.portal-flow-node.active')).toContainText('Agent');
   await expect(page.locator('.portal-worker')).toContainText('No active call recorded');
   await expect(page.locator('.portal-flow-track')).not.toHaveClass(/in-flight/);
   expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).colorScheme)).toBe('dark');
@@ -17,13 +17,13 @@ test('lightweight dark portal keeps lifecycle static and preserves navigation', 
   await page.evaluate(()=>window.scrollTo({top:220,behavior:'instant'}));
   expect(await page.locator('.portal-scroll-progress').evaluate(el=>getComputedStyle(el).transform)).not.toBe('none');
   await page.getByText('Execution details',{exact:true}).click();
-  await expect(page.locator('details[open]')).toHaveCount(1);
+  await expect(page.locator('.portal-work-execution[open]')).toHaveCount(1);
   await page.goto('/#/work/review-checkout-change');
   await expect(page.locator('.portal-flow-node.blocked')).toContainText('Access');
   await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
   await page.screenshot({path:info.outputPath('react-denied.png'),fullPage:true});
   await page.goto('/#/work/auth-failure-investigation');
-  await expect(page.locator('.portal-flow-node.blocked')).toContainText('Worker');
+  await expect(page.locator('.portal-flow-node.blocked')).toContainText('Agent');
   await page.screenshot({path:info.outputPath('react-failed.png'),fullPage:true});
   await page.goto('/#/work/invoice-retry-tests');
   await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);

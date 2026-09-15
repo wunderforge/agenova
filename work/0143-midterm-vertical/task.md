@@ -45,6 +45,10 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-approved reading-path correction: remove competing lifecycle summaries,
+  group recorded agent turns, lead with actual result after completion and progressively
+  disclose limits/technical records. See [work detail plan](work-reading-path.md).
+
 - [x] Owner-approved multi-step demo agent: replace one-shot execution with a bounded,
   model-directed ReAct loop and real turn/tool/model evidence. See [loop acceptance](react-loop.md).
 - [x] Owner correction: remove expensive broad motion and move execution feedback to recorded Worker activity, with invocation correlation, no invented loop/tool execution, and before/after profiling. See [motion plan](ui-motion.md).

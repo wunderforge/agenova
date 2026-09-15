@@ -20,6 +20,9 @@ describe('evidence-driven static lifecycle', () => {
   it('running only identifies the worker lifecycle stage', () => {
     expect(flowStages({...base,status:'Running',authorized:true,started:true})[2]).toMatchObject({state:'active',detail:'Running'});
   });
+  it('missing earlier evidence is not shown as an upcoming step', () => {
+    expect(flowStages({...base,received:false,status:'Running',authorized:true,started:true})[0]).toMatchObject({state:'waiting',detail:'No record'});
+  });
   it('success does not imply cleanup confirmation', () => {
     const stages=flowStages({...base,status:'Succeeded',authorized:true,started:true,result:true});
     expect(stages[3].state).toBe('done');

@@ -5,6 +5,7 @@ import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Ob
 import { connectedSource, isTerminal, workStatus, workTitle, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity, workerActions } from './WorkerActivity';
+import { WorkDetailLayout } from './WorkDetailLayout';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -192,18 +193,18 @@ function WorkDetail({ work }: { work: View }) {
     !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
   const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
-    : work.outcome?.failure || state?.decision.reason || 'Request received; waiting for authorization.';
+    : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
-      <a href={link('work')}>Work</a> / {workTitle(work)}
+      <a href={link('work')}>Work</a> / Details
     </nav>
-    <Heading title={workTitle(work)} subtitle={work.requestRef} action={<Badge value={status}/>}/>
+    <Heading title={workTitle(work)} action={<Badge value={status}/>}/>
     <div className="portal-top-facts">
       <Field label="Team" value={state?.principal.team}/>
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
-    <RunFlow activityHref={link(`${workLink(work)}/activity`)} evidence={{
+    <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
       authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
@@ -214,28 +215,11 @@ function WorkDetail({ work }: { work: View }) {
         : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
         : ['Failed', 'Expired', 'Cancelled'].includes(status)
           ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
-    }}/>
-    <WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)}/>
-    <div className="portal-detail-grid">
-      <section>
-        <div className="portal-section-head"><h2>Progress</h2>
-          <small>{time(work.facts.at(-1)?.timestamp)} last update</small></div>
-        <div className={`portal-state ${status.toLowerCase()}`} role="status">
-          <strong>{status}</strong><p>{summary}</p>
-        </div>
-        {work.outcome?.failure && <div className="portal-state failed" role="alert">
+    }}/>} failure={work.outcome?.failure && <div className="portal-state failed" role="alert">
           <strong>{work.outcome.status === 'Succeeded'
             ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
           <p>{work.outcome.failure}</p>
-        </div>}
-        <ol className="portal-timeline">{progress.map(fact =>
-          <li key={fact.id}>
-            <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
-            {recordReason(fact) && <p>{recordReason(fact)}</p>}
-          </li>
-        )}</ol>
-      </section>
-      <aside className="portal-access-card">
+        </div>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
           ? state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
@@ -245,21 +229,20 @@ function WorkDetail({ work }: { work: View }) {
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
           <a href={link('policy')}>View policy</a>
         </div>
-      </aside>
-    </div>
-    {work.outcome?.text && <section className="portal-lower portal-result">
+      </aside>} result={work.outcome?.text && <section className="portal-result">
       <h2>Result</h2><pre>{work.outcome.text}</pre>
       {work.outcome.model && <p className="portal-source-note">
         Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens
       </p>}
-    </section>}
-    <section className="portal-lower">
-      <div className="portal-section-head"><h2>Recent activity</h2>
-        <a href={link(`${workLink(work)}/activity`)}>View all activity</a></div>
-      <Records work={work} observations={work.facts.slice(-4)}/>
-    </section>
-    <details className="portal-details"><summary>Execution details</summary>
+    </section>} details={<>
+      <small className="portal-source-note">{time(work.facts.at(-1)?.timestamp)} last update</small>
+      <ol className="portal-timeline">{progress.map(fact =>
+        <li key={fact.id}>
+          <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
+          {recordReason(fact) && <p>{recordReason(fact)}</p>}
+        </li>
+      )}</ol>
       <div className="portal-fact-grid">
         <Field label="Request ID" value={work.requestRef}/>
         <Field label="Claim ID" value={state?.claim?.id}/>
@@ -267,7 +250,7 @@ function WorkDetail({ work }: { work: View }) {
         <Field label="Worker ID" value={state?.claim?.backendIdentity?.workerId}/>
         <Field label="Policy version" value={state ? `${state.policyRef.id} / ${state.policyRef.version}` : undefined}/>
       </div>
-    </details>
+    </>}/>
   </>;
 }
 function WorkAccess({ work }: { work: View }) {
@@ -555,7 +538,7 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
   } else if (section === 'work' && data.current) {
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
-      : <WorkDetail work={data.current}/>;
+      : <WorkDetail key={data.current.requestRef} work={data.current}/>;
   } else if (section === 'platform') {
     content = <Platform setup={setup} works={data.works} activity={parts[1] === 'activity'}/>;
   } else if (section === 'agents') content = <Templates setup={setup}/>;

@@ -13,14 +13,17 @@ test('portal journey keeps work evidence scoped and shows narrowed authority', a
   await expect(page.getByText('Example data', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('portal-work-list.png'), fullPage: true });
   await page.getByRole('link', { name: 'Update invoice retry tests' }).click();
-  await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Work status' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Progress' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0);
+  await page.getByText('Access & limits', { exact: true }).click();
   await expect(page.getByText('cpu-intensive · 30 min', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Compare requested and granted' }).click();
   await expect(page.locator('.portal-compare-side').first().getByText('shell.exec', { exact: true })).toBeVisible();
   await expect(page.getByText('cpu-intensive · 45 min')).toBeVisible();
   await expect(page.getByText('cpu-intensive · 30 min')).toBeVisible();
   await page.getByRole('link', { name: 'Update invoice retry tests' }).first().click();
-  await page.getByRole('link', { name: 'View all activity' }).click();
+  await page.getByRole('link', { name: 'Full activity record' }).click();
   await expect(page.getByRole('link', { name: 'Other repository blocked' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Request resolution' }).click();
   await page.getByRole('link', { name: 'Access narrowed' }).click();
@@ -38,6 +41,7 @@ test('new example request stays pending with no invented grant or worker', async
   await page.getByLabel('Repository').fill('acme/checkout');
   await page.getByRole('button', { name: 'Create example request' }).click();
   await expect(page.getByRole('heading', { name: 'Improve checkout tests' })).toBeVisible();
+  await page.getByText('Access & limits', { exact: true }).click();
   await expect(page.getByText('No authority has been issued.')).toBeVisible();
   await page.getByText('Execution details').click();
   for (const label of ['Claim ID', 'Runtime backend', 'Worker ID']) {
@@ -57,6 +61,7 @@ test('research work uses a topic, not a repository field', async ({ page }) => {
   await page.getByRole('button', { name: 'Create example request' }).click();
   await expect(page.getByRole('heading', { name: 'Investigate login failures' })).toBeVisible();
   await expect(page.locator('.portal-top-facts').getByText('Customer authentication')).toBeVisible();
+  await page.getByText('Access & limits', { exact: true }).click();
   await expect(page.getByText('No authority has been issued.')).toBeVisible();
 });
 
@@ -79,7 +84,7 @@ test('portal remains usable at mobile width', async ({ page }, info) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Work', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Update invoice retry tests' }).click();
-  await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Work status' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('portal-mobile-work.png'), fullPage: true });
 });

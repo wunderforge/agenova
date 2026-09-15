@@ -2,9 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from 'vitest';
 import type { Fact } from './contracts.generated';
-import { workerActions, demoWorkerActions } from './WorkerActivity';
+import { workerActions, demoWorkerActions, groupWorkerTurns } from './WorkerActivity';
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
+  it('groups actual turns, retains failed observations and excludes permission checks from execution',()=>{
+    const facts:Fact[]=[
+      {...fact('turn1',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 1'},
+      {...fact('decision',2,'ToolDecision','t1'),result:'Allow'},
+      {...fact('attempt',3,'ProviderAttempt','t1'),operation:'tool.invoke'},
+      {...fact('failed',4,'ProviderOutcome','t1','Failed'),operation:'tool.invoke'},
+      {...fact('observation',5,'WorkerActivity'),operation:'ObservationReceived',target:'Turn 1'},
+      {...fact('turn2',6,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'},
+      fact('retry',7,'ProviderAttempt','m2'),
+    ];
+    const groups=groupWorkerTurns(workerActions(facts,'Running','#/activity'));
+    expect(groups.map(g=>[g.id,g.calls.length,g.observations,g.active])).toEqual([['Turn 1',1,1,false],['Turn 2',1,0,true]]);
+    expect(groups[0].calls[0]).toMatchObject({state:'Failed',href:'#/activity/failed'});
+  });
+  it('does not invent turns or call permission decisions execution',()=>{
+    expect(groupWorkerTurns(workerActions([fact('a',1,'ProviderAttempt','m')],'Running','#/activity'))[0].id).toBe('Recorded calls');
+    expect(groupWorkerTurns(workerActions([fact('d',1,'ToolDecision')],'Running','#/activity'))[0].id).toBe('Recorded access checks');
+    const mixed=groupWorkerTurns(workerActions([fact('d',1,'ModelDecision'),fact('a',2,'ProviderAttempt','m')],'Running','#/activity'));
+    expect(mixed[0].calls.map(a=>a.label)).toEqual(['Model request']);
+  });
   it('shows actual loop turns and mock tool completion without treating it as model inference',()=>{
     const facts:Fact[]=[{...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'}, {...fact('d',2,'ToolDecision','tool-1'),result:'Allow'}, {...fact('a',3,'ProviderAttempt','tool-1'),operation:'tool.invoke'}, {...fact('o',4,'ProviderOutcome','tool-1','Succeeded'),operation:'tool.invoke'}];
     const actions=workerActions(facts,'Running','#/activity');

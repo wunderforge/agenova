@@ -79,6 +79,46 @@ body:has(.portal-shell){background:#091b26}
 .portal-worker-actions li[data-active=true] .portal-worker-state{color:#ffdca2}
 .portal-shell button:active,.portal-button:active{background:#32616b}
 @keyframes portal-worker-wait{0%,100%{opacity:1}50%{opacity:.35}}
+/* One reading path: compact status, result, turn history, then inspection. */
+.portal-work-reading{display:flex;flex-direction:column;gap:24px}
+.portal-page:has(.portal-work-reading) .portal-head h1{font-size:28px;line-height:1.35;max-width:65ch}
+.portal-work-reading .portal-flow{margin:0;padding:18px 20px;background:transparent;box-shadow:none;border-color:var(--portal-line);border-radius:8px}
+.portal-work-reading .portal-flow-head{margin-bottom:8px}
+.portal-work-summary{margin:0 0 18px;font-size:14px;line-height:1.5;color:var(--portal-ink)}
+.portal-work-reading .portal-flow-orb{width:20px;height:20px;font-size:10px;box-shadow:none}
+.portal-work-reading .portal-flow-node:not(:last-child):after{top:9px;left:calc(50% + 14px);right:calc(-50% + 14px);height:1px}
+.portal-work-reading .portal-flow-node a{margin-top:6px}
+.portal-work-reading .portal-result{padding:22px;border-left:3px solid #70e7d0;background:#13303b;border-radius:0 8px 8px 0}
+.portal-work-reading .portal-result pre,.portal-result-text{background:transparent;border:0;border-radius:0;padding:0;margin:14px 0 0;font:inherit;font-size:15px;line-height:1.65;max-width:76ch}
+.portal-work-reading .portal-worker{margin:0;padding:0;border:0;border-radius:0;background:transparent}
+.portal-work-reading .portal-worker.has-active-call{border-left:0}
+.portal-activity-help{margin:5px 0 0;font-size:12px;color:var(--portal-muted);font-weight:400}
+.portal-worker-current>span:last-child{min-width:0;overflow-wrap:anywhere}
+.portal-turn-count{font-size:11px;color:var(--portal-muted);margin:0 0 16px}
+.portal-turn{border-bottom:1px solid var(--portal-line)}
+.portal-turn>summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;padding:14px 2px;font-size:13px;transition:color .18s}
+.portal-turn>summary::-webkit-details-marker,.portal-work-inspect summary::-webkit-details-marker{display:none}
+.portal-turn>summary:before,.portal-work-inspect summary:before{content:'›';font-size:20px;width:14px;flex:none;line-height:1;transition:transform .18s ease-out;color:var(--portal-muted)}
+.portal-turn[open]>summary:before,.portal-work-inspect details[open]>summary:before{transform:rotate(90deg)}
+.portal-turn>summary>span{margin-left:auto;color:var(--portal-muted);font-size:11px;text-align:right}
+.portal-turn-failed{color:#ffb3bd}
+.portal-turn[data-active=true]>summary{color:var(--portal-teal);background:#173b4355}
+.portal-turn[data-active=true][open]>.portal-worker-actions{animation:portal-turn-arrive .18s ease-out}
+.portal-turn>summary:hover,.portal-work-inspect summary:hover{color:var(--portal-teal)}
+.portal-turn .portal-worker-actions{padding:0 0 10px 26px}
+.portal-turn .portal-worker-actions li{padding:10px 0;font-size:12px}
+.portal-work-inspect{border-top:1px solid var(--portal-line)}
+.portal-work-inspect .portal-details{margin:0;padding:0;border-top:0;border-bottom:1px solid var(--portal-line)}
+.portal-work-inspect summary{display:flex;align-items:center;gap:12px;list-style:none;padding:17px 2px;color:var(--portal-ink);text-shadow:none;font-size:13px}
+.portal-work-inspect summary:hover{text-shadow:none}
+.portal-work-inspect summary small{margin-left:auto;font-size:11px;color:var(--portal-muted);font-weight:400;text-align:right}
+.portal-disclosure-body{padding:0 0 20px 26px}
+.portal-disclosure-body .portal-access-card{padding:0!important;background:transparent!important;box-shadow:none;border:0}
+.portal-disclosure-body .portal-access-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:26px}
+.portal-full-record{align-self:flex-start;font-size:12px;margin-top:-8px}
+@keyframes portal-turn-arrive{from{opacity:.55;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:650px){.portal-work-reading{gap:20px}.portal-work-inspect summary{flex-wrap:wrap;gap:8px}.portal-work-inspect summary small{flex-basis:100%;text-align:left;margin-left:26px}.portal-turn>summary{flex-wrap:wrap}.portal-disclosure-body .portal-access-fields{grid-template-columns:1fr}.portal-work-reading .portal-flow-track{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.portal-work-reading .portal-flow-node:nth-child(3):after{display:block!important}.portal-work-reading .portal-flow-node a{font-size:10px}.portal-work-reading .portal-flow-node small{font-size:9px}.portal-work-reading .portal-result{padding:18px}}
 @media(max-width:900px){.portal-sidebar{height:100vh}.portal-flow-node a{font-size:11px}}
+@media(max-width:650px){.portal-page:has(.portal-work-reading){padding-top:32px}.portal-page:has(.portal-work-reading) .portal-head{flex-direction:column-reverse;gap:12px}.portal-page:has(.portal-work-reading) .portal-head h1{font-size:24px;line-height:1.4}}
 @media(max-width:650px){.portal-sidebar{position:static;height:auto;min-height:0}.portal-topbar{height:auto;min-height:52px}.portal-page .portal-flow{padding:16px 12px}.portal-flow-track{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:20px}.portal-flow-node:nth-child(3):after,.portal-flow-node:nth-child(3):before{display:none!important}.portal-page h1{font-size:27px}}
 @media(prefers-reduced-motion:reduce){.portal-shell *,.portal-shell *:before,.portal-shell *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

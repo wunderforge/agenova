@@ -61,6 +61,7 @@ try{
   assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='tool.invoke'&&f.reasonCode==='mock-tool'&&f.providerStatus==='Succeeded'));
   assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.providerStatus==='Succeeded'&&f.invocationId===final.outcome.model.invocationId));
   await page.screenshot({path:`${output}/real-result.png`,fullPage:true});
+  await page.getByText('Access & limits',{exact:true}).click();
   await page.getByRole('link',{name:'Compare requested and granted',exact:true}).click();
   await expect(page.getByText('standard-isolated · 45m0s',{exact:true})).toBeVisible();
   await expect(page.getByText('standard-isolated · 30m0s',{exact:true})).toBeVisible();
