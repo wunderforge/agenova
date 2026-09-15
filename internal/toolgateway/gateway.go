@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
@@ -38,21 +39,28 @@ func (unconfiguredAdapter) Invoke(string, Request) error {
 	return errors.New("no provider adapter configured")
 }
 
-// Policy evaluates a structurally valid request after the authoritative
-// Running-only baseline. Effective-authority enforcement is supplied by #34.
+// Policy evaluates a request only after the authoritative Running and
+// effective-authority ceilings allow it. It may further restrict a request;
+// it can never widen the system-issued grant.
 type Policy func(req Request) gateway.Outcome
 
 // Gateway governs tool attempts against the application-owned claim view.
 type Gateway struct {
-	claims  app.ClaimReader
-	lineage *governance.Lineage
-	store   *facts.Store
-	adapter Adapter
-	ids     gateway.IDSource
-	policy  Policy
+	claims   app.ClaimAuthorityReader
+	lineage  *governance.Lineage
+	store    *facts.Store
+	adapter  Adapter
+	ids      gateway.IDSource
+	policy   Policy
+	observer func(Request, gateway.Decision) error
 }
 
 type Option func(*Gateway)
+
+// WithObserver installs a trusted decision sink before any provider attempt.
+func WithObserver(observer func(Request, gateway.Decision) error) Option {
+	return func(g *Gateway) { g.observer = observer }
+}
 
 func WithAdapter(adapter Adapter) Option {
 	return func(g *Gateway) {
@@ -78,7 +86,7 @@ func WithPolicy(policy Policy) Option {
 	}
 }
 
-func NewGateway(claims app.ClaimReader, lineage *governance.Lineage, store *facts.Store, opts ...Option) *Gateway {
+func NewGateway(claims app.ClaimAuthorityReader, lineage *governance.Lineage, store *facts.Store, opts ...Option) *Gateway {
 	if store == nil {
 		store = facts.NewStore()
 	}
@@ -104,26 +112,51 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 		return gateway.Decision{}, errors.New("tool gateway is unavailable")
 	}
 	id := g.ids()
+	// Detach caller-owned parameters before validation; later caller mutation
+	// cannot add a credential key after the boundary check.
+	req.Parameters = cloneStringMap(req.Parameters)
 
 	if outcome, rejected := validate(req); rejected {
 		return decision(id, outcome), nil
 	}
-	if outcome, unresolved := g.resolveClaim(req.ClaimID); unresolved {
+	snapshot, outcome, unresolved := g.resolveClaim(req.ClaimID)
+	if unresolved {
 		return decision(id, outcome), nil
 	}
-	if outcome, denied := g.claimBaseline(req.ClaimID); denied {
-		return g.record(req, id, outcome), nil
+	if outcome, denied := g.claimBaseline(req.ClaimID, snapshot.Claim); denied {
+		return g.record(req, id, outcome)
 	}
-	outcome := g.policy(req).Normalize()
+	if outcome, denied := enforceAuthority(req, snapshot); denied {
+		return g.record(req, id, outcome)
+	}
+	// Policy receives its own defensive copy so policy mutation cannot alter
+	// the request passed to the provider adapter after validation.
+	policyReq := req
+	policyReq.Parameters = cloneStringMap(req.Parameters)
+	outcome = g.policy(policyReq).Normalize()
 	if outcome.Result != gateway.ResultAllow {
-		return g.record(req, id, outcome), nil
+		return g.record(req, id, outcome)
 	}
 
-	allowed := g.record(req, id, outcome)
+	allowed, recordErr := g.record(req, id, outcome)
+	if recordErr != nil {
+		return allowed, recordErr
+	}
 	if err := g.adapter.Invoke(id, req); err != nil {
 		return allowed, fmt.Errorf("tool adapter invocation %s: %w", id, err)
 	}
 	return allowed, nil
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	copy := make(map[string]string, len(source))
+	for key, value := range source {
+		copy[key] = value
+	}
+	return copy
 }
 
 func decision(id string, outcome gateway.Outcome) gateway.Decision {
@@ -135,9 +168,15 @@ func decision(id string, outcome gateway.Outcome) gateway.Decision {
 	}
 }
 
-func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) gateway.Decision {
+func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+	d := decision(id, outcome)
+	if g.observer != nil {
+		if err := g.observer(req, d); err != nil {
+			return d, fmt.Errorf("tool decision recording failed")
+		}
+	}
 	g.store.RecordToolInvocation(req.ClaimID, toolName(req), id, outcome.Result)
-	return decision(id, outcome)
+	return d, nil
 }
 
 func validate(req Request) (gateway.Outcome, bool) {
@@ -158,19 +197,20 @@ func validate(req Request) (gateway.Outcome, bool) {
 
 // resolveClaim prevents an untrusted or unknown claim ID from acquiring a
 // fabricated claim-attributed fact.
-func (g *Gateway) resolveClaim(claimID string) (gateway.Outcome, bool) {
+func (g *Gateway) resolveClaim(claimID string) (app.ClaimAuthoritySnapshot, gateway.Outcome, bool) {
 	if g.claims == nil {
-		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryGatewayUnavailable, Reason: "authoritative claim reader is unavailable"}, true
+		return app.ClaimAuthoritySnapshot{}, gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryGatewayUnavailable, Reason: "authoritative claim and authority reader is unavailable"}, true
 	}
-	if _, ok := g.claims.Claim(claimID); !ok {
-		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryUnknownClaim, Reason: fmt.Sprintf("unknown claim: %s", claimID)}, true
+	snapshot, ok := g.claims.ClaimAuthority(claimID)
+	if !ok {
+		return app.ClaimAuthoritySnapshot{}, gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryUnknownClaim, Reason: fmt.Sprintf("unknown claim: %s", claimID)}, true
 	}
-	return gateway.Allowed(), false
+	return snapshot, gateway.Allowed(), false
 }
 
-func (g *Gateway) claimBaseline(claimID string) (gateway.Outcome, bool) {
-	if outcome, denied := g.requireRunning(claimID); denied {
-		return outcome, true
+func (g *Gateway) claimBaseline(claimID string, claim v1alpha1.SandboxClaim) (gateway.Outcome, bool) {
+	if err := app.RequireRunningClaimSnapshot(claim, claimID); err != nil {
+		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryClaimNotActive, Reason: err.Error()}, true
 	}
 	if g.lineage != nil {
 		if parentID, ok := g.lineage.Parent(claimID); ok {
@@ -178,6 +218,33 @@ func (g *Gateway) claimBaseline(claimID string) (gateway.Outcome, bool) {
 				return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryOutOfParentScope, Reason: fmt.Sprintf("child claim %q is out of parent scope: parent %q is not running", claimID, parentID)}, true
 			}
 		}
+	}
+	return gateway.Allowed(), false
+}
+
+func enforceAuthority(req Request, snapshot app.ClaimAuthoritySnapshot) (gateway.Outcome, bool) {
+	authority := snapshot.EffectiveAuthority
+	if authority.ID == "" || authority.ID != snapshot.Claim.AuthorityRef {
+		return gateway.Outcome{
+			Result:   gateway.ResultDeny,
+			Category: gateway.CategoryAuthorityUnavailable,
+			Reason:   fmt.Sprintf("claim %q has no matching system-issued effective authority", req.ClaimID),
+		}, true
+	}
+	operation := toolName(req)
+	if !contains(authority.Tools, operation) {
+		return gateway.Outcome{
+			Result:   gateway.ResultDeny,
+			Category: gateway.CategoryToolNotGranted,
+			Reason:   fmt.Sprintf("tool operation %q is not granted to claim %q", operation, req.ClaimID),
+		}, true
+	}
+	if !contains(authority.ResourceScopes, req.ResourceScope) {
+		return gateway.Outcome{
+			Result:   gateway.ResultDeny,
+			Category: gateway.CategoryResourceNotGranted,
+			Reason:   fmt.Sprintf("resource scope %q is not granted to claim %q", req.ResourceScope, req.ClaimID),
+		}, true
 	}
 	return gateway.Allowed(), false
 }
@@ -191,4 +258,13 @@ func (g *Gateway) requireRunning(claimID string) (gateway.Outcome, bool) {
 
 func toolName(req Request) string {
 	return req.Tool + "." + req.Action
+}
+
+func contains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

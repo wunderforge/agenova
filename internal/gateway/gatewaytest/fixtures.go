@@ -34,10 +34,7 @@ type TeamAAuthority struct {
 func LoadTeamAAuthority(tb testing.TB) TeamAAuthority {
 	tb.Helper()
 
-	state, validationErr := v1alpha1.ParseSystemIssuedState(readFixture(tb, "inputs/issued-state/valid-team-a-engineer.json"))
-	if validationErr != nil {
-		tb.Fatalf("team A issued-state fixture no longer parses as a valid system-issued state: %v", validationErr)
-	}
+	state := LoadTeamAIssuedState(tb)
 	if state.Claim == nil || state.EffectiveAuthority == nil {
 		tb.Fatal("team A issued-state fixture no longer carries a claim and effective authority; realign gateway tests with the shared fixture set")
 	}
@@ -52,6 +49,18 @@ func LoadTeamAAuthority(tb testing.TB) TeamAAuthority {
 		ResourceScopes: authority.ResourceScopes,
 		ModelProfile:   authority.ModelProfile,
 	}
+}
+
+// LoadTeamAIssuedState returns the parsed canonical Team A issued-state
+// fixture. Callers receive a fresh snapshot and may narrow its lifecycle for
+// an executable reference scenario without changing the shared fixture.
+func LoadTeamAIssuedState(tb testing.TB) *v1alpha1.IssuedState {
+	tb.Helper()
+	state, validationErr := v1alpha1.ParseSystemIssuedState(readFixture(tb, "inputs/issued-state/valid-team-a-engineer.json"))
+	if validationErr != nil {
+		tb.Fatalf("team A issued-state fixture no longer parses as a valid system-issued state: %v", validationErr)
+	}
+	return state
 }
 
 // SecretParameterKey returns a credential-bearing key from the frozen

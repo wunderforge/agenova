@@ -1,0 +1,26 @@
+/* Copyright 2026 Dapeng Zhang and Agenova contributors.
+ * SPDX-License-Identifier: Apache-2.0 */
+.console { max-width: 1040px; }
+.console:focus { outline: none; }
+.console-nav { display: flex; flex-wrap: wrap; gap: 14px 24px; margin: 24px 0; }
+.console-nav a { color: #235c4c; text-underline-offset: 4px; }
+.console-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.console-grid section { margin: 0; min-width: 0; }
+.console-wide { grid-column: 1 / -1; }
+.console-source { margin: 22px 0; padding: 18px; background: #e8eeeb; border-radius: 8px; overflow-wrap: anywhere; }
+.console-source select { max-width: 360px; }
+.console-notice { border-left: 3px solid #8c512a; padding: 8px 12px; background: #fff7ec; overflow-wrap: anywhere; }
+.decision-badge { display: inline-block; background: #e5f2e9; color: #245236; padding: 6px 14px; font-weight: 700; border-radius: 4px; margin: 0; }
+.decision-deny { background: #fce9e3; color: #813b22; }
+.console table { width: 100%; border-collapse: collapse; font-size: .9rem; table-layout: fixed; }
+.console caption { text-align: left; font-weight: 600; padding: 12px 0; }
+.console th, .console td { text-align: left; vertical-align: top; border-bottom: 1px solid #d5dfda; padding: 12px 8px; overflow-wrap: anywhere; }
+.console thead { background: #f0f4f1; }
+.skip-link { position: absolute; top: -80px; left: 16px; background: white; padding: 12px; z-index: 10; }
+.skip-link:focus { top: 12px; }
+.console summary { cursor: pointer; padding: 4px; }
+@media (max-width: 650px) {
+  .console-grid { grid-template-columns: minmax(0, 1fr); }
+  .console section { padding: 16px; }
+  .console th, .console td { padding: 10px 4px; font-size: .78rem; }
+}

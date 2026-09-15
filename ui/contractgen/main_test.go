@@ -8,10 +8,50 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 )
+
+func TestConsoleNarrowing(t *testing.T) {
+	canonical, err := fixtures("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := consoleFixtures("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(canonical)+1 {
+		t.Fatal("expected one derived scenario")
+	}
+	derived := rows[len(rows)-1]
+	if derived.ID != "derived.console.narrowed" || derived.DerivedFrom != "issued-state.valid.team-a-engineer" {
+		t.Fatal("derivation provenance missing")
+	}
+	state := derived.Data.(*v0.IssuedState)
+	if !reflect.DeepEqual(state.EffectiveAuthority.Tools, []string{"git.read", "git.write"}) {
+		t.Fatal("unexpected narrowed tools")
+	}
+	if failure := v0.ValidateIssuedState(state); failure != nil {
+		t.Fatal(failure)
+	}
+	for i, row := range canonical {
+		a, _ := json.Marshal(row)
+		b, _ := json.Marshal(rows[i])
+		if !bytes.Equal(a, b) {
+			t.Fatal("canonical fixture was mutated")
+		}
+		if row.ID == derived.DerivedFrom {
+			original := row.Data.(*v0.IssuedState)
+			state.EffectiveAuthority.Tools = original.EffectiveAuthority.Tools
+			if !reflect.DeepEqual(state, original) {
+				t.Fatal("narrowing changed more than effective tools")
+			}
+		}
+	}
+}
 
 func TestCanonicalFixtures(t *testing.T) {
 	rows, err := fixtures("../..")

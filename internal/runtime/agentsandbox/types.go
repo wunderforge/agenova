@@ -46,7 +46,11 @@ type upstreamPodTemplate struct {
 }
 
 type upstreamPodSpec struct {
-	Containers []upstreamContainer `json:"containers"`
+	// Explicit false is part of the serialized worker boundary. Keep this as a
+	// non-pointer, non-omitempty field so the manifest cannot prove the policy
+	// merely by omitting the upstream default.
+	AutomountServiceAccountToken bool                `json:"automountServiceAccountToken"`
+	Containers                   []upstreamContainer `json:"containers"`
 }
 
 type upstreamContainer struct {

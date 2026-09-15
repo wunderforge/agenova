@@ -4,6 +4,7 @@
 package agentsandbox
 
 import (
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -12,6 +13,59 @@ import (
 	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
+
+type templateCaptureKube struct {
+	manifest []byte
+}
+
+func (k *templateCaptureKube) applyBytes(manifest []byte) error {
+	k.manifest = append([]byte(nil), manifest...)
+	return nil
+}
+
+func (*templateCaptureKube) get(string, string, any) error { return errors.New("unexpected get") }
+func (*templateCaptureKube) delete(string, string) error   { return errors.New("unexpected delete") }
+func (*templateCaptureKube) exists(string, string) (bool, error) {
+	return false, errors.New("unexpected exists")
+}
+
+func TestAddTemplateRendersNoCredentialInjectionSurface(t *testing.T) {
+	kube := &templateCaptureKube{}
+	adapter := newSpikeAdapter(kube, "credential-boundary-test")
+	if err := adapter.AddTemplate(v1alpha1.AgentSandboxTemplate{
+		Metadata: v1alpha1.ObjectMeta{Name: "engineer"},
+		Spec: v1alpha1.AgentSandboxTemplateSpec{
+			Image:   "example.local/agenova/engineer:test",
+			Command: []string{"/agenova-agent", "run"},
+		},
+	}); err != nil {
+		t.Fatalf("AddTemplate: %v", err)
+	}
+	var rendered struct {
+		Spec struct {
+			PodTemplate struct {
+				Spec struct {
+					AutomountServiceAccountToken *bool `json:"automountServiceAccountToken"`
+				} `json:"spec"`
+			} `json:"podTemplate"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(kube.manifest, &rendered); err != nil {
+		t.Fatalf("decode rendered template: %v", err)
+	}
+	if rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken == nil || *rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken {
+		t.Fatalf("rendered worker template must explicitly set automountServiceAccountToken:false: %s", kube.manifest)
+	}
+	encoded := string(kube.manifest)
+	for _, forbidden := range []string{`"env"`, `"envFrom"`, `"secretKeyRef"`} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("rendered worker template contains credential injection surface %s: %s", forbidden, encoded)
+		}
+	}
+	if !strings.Contains(encoded, `"image":"example.local/agenova/engineer:test"`) || !strings.Contains(encoded, `"command":["/agenova-agent","run"]`) {
+		t.Fatalf("rendered worker template lost declared artifact: %s", encoded)
+	}
+}
 
 func TestLegacyStartClaim_doesNotGrantRunningFromReadiness(t *testing.T) {
 	k := newFakeKube()

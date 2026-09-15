@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -41,14 +42,34 @@ var (
 )
 
 // WorkFunc represents the application work performed after the backend has
-// acknowledged Start and the authoritative claim has become Running.
-type WorkFunc func() error
+// acknowledged Start and the authoritative claim has become Running. Work
+// must honor cancellation and return after its in-flight operations have ended.
+// RunService revokes authority immediately on interruption, then joins work
+// before cleanup and final outcome publication.
+type WorkFunc func(context.Context) error
 
 // ClaimReader is the application-owned lifecycle view used by governed
 // interfaces. Implementations return defensive public claim snapshots; they
 // never derive authority from backend readiness or resource existence.
 type ClaimReader interface {
 	Claim(claimID string) (v1alpha1.SandboxClaim, bool)
+}
+
+// ClaimAuthoritySnapshot is the minimum system-owned state a governed
+// interface needs at invocation time. Claim and EffectiveAuthority come from
+// one immutable issued-state snapshot; request intent and backend state are
+// not authority sources.
+type ClaimAuthoritySnapshot struct {
+	Claim              v1alpha1.SandboxClaim
+	EffectiveAuthority v1alpha1.EffectiveAuthority
+}
+
+// ClaimAuthorityReader extends the lifecycle view with the immutable
+// effective authority issued for the same claim. Implementations must return
+// defensive copies so gateway callers cannot mutate authoritative state.
+type ClaimAuthorityReader interface {
+	ClaimReader
+	ClaimAuthority(claimID string) (ClaimAuthoritySnapshot, bool)
 }
 
 // RequireRunningClaim applies the shared lifecycle eligibility rule used by
@@ -62,6 +83,12 @@ func RequireRunningClaim(reader ClaimReader, claimID string) error {
 	if !ok {
 		return fmt.Errorf("unknown claim: %s", claimID)
 	}
+	return RequireRunningClaimSnapshot(claim, claimID)
+}
+
+// RequireRunningClaimSnapshot applies the lifecycle eligibility rule to a
+// claim already read as part of a larger atomic application snapshot.
+func RequireRunningClaimSnapshot(claim v1alpha1.SandboxClaim, claimID string) error {
 	if claim.ID == "" || claim.ID != claimID || claim.RequestRef == "" || claim.TemplateRef == "" || claim.AuthorityRef == "" {
 		return fmt.Errorf("claim %q has an invalid authoritative snapshot", claimID)
 	}
@@ -85,12 +112,18 @@ func RequireRunningClaim(reader ClaimReader, claimID string) error {
 type ResolvedLaunch struct {
 	ProfileRef  string
 	TemplateRef string
-	Input       map[string]string
+	// Input is task data resolved by the trusted composition layer. Reserved
+	// provider-credential fields are rejected before backend allocation.
+	Input map[string]string
 }
 
 // RunServiceOptions contains the two seams needed for deterministic deadline
 // and readiness tests. Zero values select wall-clock behavior.
 type RunServiceOptions struct {
+	// OnEvent is a trusted append-only evidence sink. Failure stops execution,
+	// but never rolls back authoritative revocation or skips allocated cleanup.
+	// It must not call back into RunService while its snapshot is being published.
+	OnEvent      func(*v1alpha1.IssuedState, string) error
 	Now          func() time.Time
 	Wait         func(time.Duration)
 	After        func(time.Duration) <-chan time.Time
@@ -106,6 +139,7 @@ type RunService struct {
 	wait    func(time.Duration)
 	after   func(time.Duration) <-chan time.Time
 	poll    time.Duration
+	onEvent func(*v1alpha1.IssuedState, string) error
 
 	runMu         sync.Mutex
 	mu            sync.RWMutex
@@ -114,6 +148,7 @@ type RunService struct {
 }
 
 var _ ClaimReader = (*RunService)(nil)
+var _ ClaimAuthorityReader = (*RunService)(nil)
 
 // NewRunService constructs an application lifecycle owner over one backend.
 func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*RunService, error) {
@@ -142,6 +177,7 @@ func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*
 		wait:          wait,
 		after:         after,
 		poll:          poll,
+		onEvent:       options.OnEvent,
 		state:         make(map[string]*v1alpha1.IssuedState),
 		identityOwner: make(map[v1alpha1.SandboxClaimBackendIdentity]string),
 	}, nil
@@ -163,29 +199,81 @@ func (s *RunService) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
 	return cloneClaim(*state.Claim), true
 }
 
+// ClaimAuthority returns one defensive claim-plus-authority snapshot from
+// the application state owner. A stored but malformed snapshot remains
+// observable to gateway validation instead of being disguised as unknown.
+func (s *RunService) ClaimAuthority(claimID string) (ClaimAuthoritySnapshot, bool) {
+	if s == nil {
+		return ClaimAuthoritySnapshot{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.state[claimID]
+	if !ok {
+		return ClaimAuthoritySnapshot{}, false
+	}
+	var snapshot ClaimAuthoritySnapshot
+	if state.Claim != nil {
+		snapshot.Claim = cloneClaim(*state.Claim)
+	}
+	if state.EffectiveAuthority != nil {
+		snapshot.EffectiveAuthority = cloneEffectiveAuthority(*state.EffectiveAuthority)
+	}
+	return snapshot, true
+}
+
 // Run consumes one accepted Allow/Pending issued snapshot and drives the
 // backend-neutral lifecycle. The returned state is a defensive copy of the
 // same authoritative evidence model exposed during the run.
 func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, work WorkFunc) (*v1alpha1.IssuedState, error) {
+	return s.RunContext(context.Background(), issued, launch, work)
+}
+
+// RunContext adds cancellation without changing RuntimeBackend. Individual
+// backend operations retain their adapter-specific bounded execution.
+func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedState, launch ResolvedLaunch, work WorkFunc) (*v1alpha1.IssuedState, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("%w: context is required", ErrInvalidRun)
+	}
 	if s == nil {
 		return nil, fmt.Errorf("%w: run service is required", ErrInvalidRun)
 	}
 	if work == nil {
 		return nil, fmt.Errorf("%w: work callback is required", ErrInvalidRun)
 	}
+	// Snapshot caller-owned launch input before validation and before waiting
+	// behind runMu. The same immutable map is then forwarded to allocation.
+	launch.Input = cloneStringMap(launch.Input)
 	initial, err := validateInitialRun(issued, launch)
 	if err != nil {
 		return nil, err
+	}
+	claimID := initial.Claim.ID
+	interrupted := func() (*v1alpha1.IssuedState, error) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+		}
+		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
+	}
+	// An expired/cancelled queued request does not need the backend execution
+	// lock: register its canonical terminal state without allocating anything.
+	if ctx.Err() != nil {
+		if err := s.insert(initial); err != nil {
+			return s.current(claimID), err
+		}
+		return interrupted()
 	}
 
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
 
-	claimID := initial.Claim.ID
 	if err := s.insert(initial); err != nil {
-		return nil, err
+		return s.current(claimID), err
 	}
 	deadline := s.now().Add(time.Duration(initial.EffectiveAuthority.Runtime.Timeout))
+	if err := ctx.Err(); err != nil {
+		return interrupted()
+	}
 	if s.deadlineReached(deadline) {
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
@@ -216,15 +304,30 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, wo
 		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, EventAllocationFailed, err)
 	}
 	if err := s.transition(claimID, v1alpha1.ClaimPhaseBound, EventBound, &identity); err != nil {
-		return s.current(claimID), err
+		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, err)
+		return s.teardown(state, identity, transitionErr)
+	}
+	cancelled := func() (*v1alpha1.IssuedState, error) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			state, err := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+			return s.teardown(state, identity, err)
+		}
+		state, err := s.finish(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
+		return s.teardown(state, identity, err)
 	}
 
 	for {
+		if ctx.Err() != nil {
+			return cancelled()
+		}
 		if s.deadlineReached(deadline) {
 			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 			return s.teardown(state, identity, transitionErr)
 		}
 		observation, observeErr := s.backend.Observe(identity)
+		if ctx.Err() != nil {
+			return cancelled()
+		}
 		if s.deadlineReached(deadline) {
 			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 			return s.teardown(state, identity, transitionErr)
@@ -239,7 +342,8 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, wo
 		}
 		if observation.Ready {
 			if err := s.recordEvent(claimID, EventBackendReady); err != nil {
-				return s.current(claimID), err
+				state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, err)
+				return s.teardown(state, identity, transitionErr)
 			}
 			break
 		}
@@ -250,7 +354,13 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, wo
 		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 		return s.teardown(state, identity, transitionErr)
 	}
+	if ctx.Err() != nil {
+		return cancelled()
+	}
 	startErr := s.backend.Start(identity)
+	if ctx.Err() != nil {
+		return cancelled()
+	}
 	if s.deadlineReached(deadline) {
 		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 		return s.teardown(state, identity, transitionErr)
@@ -260,30 +370,53 @@ func (s *RunService) Run(issued *v1alpha1.IssuedState, launch ResolvedLaunch, wo
 		return s.teardown(state, identity, transitionErr)
 	}
 	if err := s.transition(claimID, v1alpha1.ClaimPhaseRunning, EventRunning, nil); err != nil {
-		return s.current(claimID), err
+		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, err)
+		return s.teardown(state, identity, transitionErr)
 	}
 
+	workCtx, cancelWork := context.WithCancel(ctx)
+	defer cancelWork()
 	workDone := make(chan error, 1)
 	go func() {
-		workDone <- work()
+		workDone <- work(workCtx)
 	}()
+	stopWork := func(phase v1alpha1.ClaimPhase, event string, cause error) (*v1alpha1.IssuedState, error) {
+		cancelWork()
+		state, transitionErr := s.finish(claimID, phase, event, cause)
+		// A revoked claim cannot authorize more calls. Join cancellation-aware
+		// work so all observed provider outcomes precede cleanup/final outcome.
+		<-workDone
+		return s.teardown(state, identity, transitionErr)
+	}
 	remaining := deadline.Sub(s.now())
 	if remaining <= 0 {
-		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
-		return s.teardown(state, identity, transitionErr)
+		return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
 	var workErr error
 	select {
 	case workErr = <-workDone:
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ctx.Err())
+		}
+		return stopWork(v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
 	case <-s.after(remaining):
-		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
-		return s.teardown(state, identity, transitionErr)
+		return stopWork(v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
 	}
 	var outcomeErr error
 	switch {
 	case s.deadlineReached(deadline):
 		outcomeErr = ErrRunDeadline
 		if err := s.transition(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, nil); err != nil {
+			outcomeErr = errors.Join(outcomeErr, err)
+		}
+	case ctx.Err() != nil:
+		phase, event := v1alpha1.ClaimPhaseFailed, "Cancelled"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			phase, event = v1alpha1.ClaimPhaseExpired, EventExpired
+		}
+		outcomeErr = ctx.Err()
+		if err := s.transition(claimID, phase, event, nil); err != nil {
 			outcomeErr = errors.Join(outcomeErr, err)
 		}
 	case workErr != nil:
@@ -316,6 +449,9 @@ func validateInitialRun(issued *v1alpha1.IssuedState, launch ResolvedLaunch) (*v
 	if launch.TemplateRef == "" {
 		return nil, fmt.Errorf("%w: resolved runtime template is required", ErrInvalidRun)
 	}
+	if key, found := v1alpha1.FindReservedCredentialFieldName(launch.Input); found {
+		return nil, fmt.Errorf("%w: launch input %q is credential-bearing; provider credentials stay behind gateway adapters", ErrInvalidRun, key)
+	}
 	return cloneIssuedState(issued), nil
 }
 
@@ -347,6 +483,11 @@ func (s *RunService) insert(state *v1alpha1.IssuedState) error {
 		return fmt.Errorf("%w: claim %q already exists", ErrInvalidRun, claimID)
 	}
 	s.state[claimID] = cloneIssuedState(state)
+	if s.onEvent != nil {
+		if err := s.onEvent(cloneIssuedState(state), "Pending"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -433,6 +574,11 @@ func (s *RunService) transition(claimID string, to v1alpha1.ClaimPhase, event st
 		return fmt.Errorf("%w: transition produced invalid issued state: %v", ErrInvalidRun, validationErr)
 	}
 	s.state[claimID] = next
+	if s.onEvent != nil {
+		if err := s.onEvent(cloneIssuedState(next), event); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -446,6 +592,11 @@ func (s *RunService) recordEvent(claimID, event string) error {
 	next := cloneIssuedState(current)
 	next.Evidence.RuntimeEvents = append(next.Evidence.RuntimeEvents, v1alpha1.EvidenceRuntimeEvent{Kind: event})
 	s.state[claimID] = next
+	if s.onEvent != nil {
+		if err := s.onEvent(cloneIssuedState(next), event); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -453,6 +604,14 @@ func (s *RunService) current(claimID string) *v1alpha1.IssuedState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneIssuedState(s.state[claimID])
+}
+
+// State returns a defensive canonical lifecycle/evidence snapshot for queries.
+func (s *RunService) State(claimID string) *v1alpha1.IssuedState {
+	if s == nil {
+		return nil
+	}
+	return s.current(claimID)
 }
 
 func allowedTransition(from, to v1alpha1.ClaimPhase) bool {
@@ -474,10 +633,7 @@ func cloneIssuedState(source *v1alpha1.IssuedState) *v1alpha1.IssuedState {
 	}
 	copy := *source
 	if source.EffectiveAuthority != nil {
-		authority := *source.EffectiveAuthority
-		authority.Tools = append([]string(nil), source.EffectiveAuthority.Tools...)
-		authority.ResourceScopes = append([]string(nil), source.EffectiveAuthority.ResourceScopes...)
-		authority.MemoryScopes = append([]string(nil), source.EffectiveAuthority.MemoryScopes...)
+		authority := cloneEffectiveAuthority(*source.EffectiveAuthority)
 		copy.EffectiveAuthority = &authority
 	}
 	if source.Claim != nil {
@@ -489,6 +645,14 @@ func cloneIssuedState(source *v1alpha1.IssuedState) *v1alpha1.IssuedState {
 	copy.Evidence.ToolInvocations = append([]v1alpha1.EvidenceToolInvocation{}, source.Evidence.ToolInvocations...)
 	copy.Evidence.ModelInvocations = append([]v1alpha1.EvidenceModelInvocation{}, source.Evidence.ModelInvocations...)
 	return &copy
+}
+
+func cloneEffectiveAuthority(source v1alpha1.EffectiveAuthority) v1alpha1.EffectiveAuthority {
+	copy := source
+	copy.Tools = append([]string(nil), source.Tools...)
+	copy.ResourceScopes = append([]string(nil), source.ResourceScopes...)
+	copy.MemoryScopes = append([]string(nil), source.MemoryScopes...)
+	return copy
 }
 
 func cloneClaim(source v1alpha1.SandboxClaim) v1alpha1.SandboxClaim {

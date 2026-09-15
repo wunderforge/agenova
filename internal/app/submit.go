@@ -4,15 +4,16 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
-	"github.com/wunderforge/agenova/internal/authority"
-	"github.com/wunderforge/agenova/internal/authorization"
-	"github.com/wunderforge/agenova/internal/issuance"
+	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
@@ -34,6 +35,7 @@ type SubmitResult struct {
 	Allocated  bool
 	ClaimID    string
 	Phase      v1alpha1.ClaimPhase
+	Evidence   *evidence.View
 }
 
 // PrincipalPresetFromEnv reads the local identity boundary. An empty value
@@ -66,63 +68,68 @@ func SubmitClaimRequestFile(path string, backend runtime.RuntimeBackend, preset 
 		return SubmitResult{}, fmt.Errorf("read claim request: %w", err)
 	}
 
-	policies := &policy.Loader{}
-	if err := policies.Load(referencePolicyBundle()); err != nil {
-		return SubmitResult{}, err
-	}
-	request, validationErr := v1alpha1.ParseClaimRequestYAML(data)
-	if validationErr != nil {
-		return SubmitResult{}, validationErr
-	}
-	service, err := NewReferenceAssignmentService(preset, authorization.Authorizer{Policies: policies})
+	prepared, err := PrepareReferenceAssignment(data, preset)
 	if err != nil {
 		return SubmitResult{}, err
 	}
-
-	var issued *v1alpha1.IssuedState
-	result, err := service.AdmitYAML(data, func(admission authorization.Admission) error {
-		template, templateErr := referenceAgentTemplate(request.Spec.TemplateRef)
-		if templateErr != nil {
-			return templateErr
-		}
-		resolution, resolveErr := authority.ResolveForIssuance(request, template, admission)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		issued, validationErr = issuance.Issue(request, service.principals.Principal(), admission.Decision(), resolution, admission)
-		if validationErr != nil {
-			return validationErr
-		}
-		return nil
-	})
-	if err != nil {
-		return SubmitResult{}, err
-	}
+	result, issued := prepared.Admission, prepared.Issued
 	report := SubmitResult{
 		RequestRef: result.RequestRef,
 		Decision:   result.Decision.Result,
 		Principal:  result.Principal.Subject,
 	}
+	journal := facts.NewJournal()
+	if err := journal.RegisterRequest(result.RequestRef, result.Principal); err != nil {
+		return report, err
+	}
+	if _, err := journal.Append(facts.Fact{Kind: "RequestReceived", RequestRef: result.RequestRef}); err != nil {
+		return report, err
+	}
+	d := result.Decision
+	if _, err := journal.Append(facts.Fact{Kind: "RequestResolution", RequestRef: result.RequestRef, Decision: &d, Result: d.Result, ReasonCode: "assignment-" + strings.ToLower(string(d.Result)), PolicyRef: &d.PolicyRef}); err != nil {
+		return report, err
+	}
+	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: result.RequestRef, Request: prepared.Request, State: issued, Facts: journal.ForRequest(result.RequestRef)}
+	report.Evidence = &view
 	if result.Decision.Result != v1alpha1.DecisionResultAllow {
+		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		return report, nil
 	}
 	if issued == nil || issued.EffectiveAuthority == nil {
 		return report, fmt.Errorf("allowed submission did not produce an issued claim")
 	}
 
-	runner, err := NewRunService(backend, RunServiceOptions{})
+	if err := journal.BindClaim(result.RequestRef, *issued.Claim); err != nil {
+		return report, err
+	}
+	if _, err := journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: result.RequestRef, ClaimID: issued.Claim.ID, Authority: issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling"}); err != nil {
+		return report, err
+	}
+	runner, err := NewRunService(backend, RunServiceOptions{OnEvent: func(state *v1alpha1.IssuedState, event string) error {
+		_, err := journal.Append(facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef})
+		return err
+	}})
 	if err != nil {
 		return report, err
 	}
 	final, runErr := runner.Run(issued, ResolvedLaunch{
 		ProfileRef:  issued.EffectiveAuthority.Runtime.ProfileRef,
 		TemplateRef: ReferenceRuntimeTemplateRef,
-	}, func() error { return nil })
+	}, func(ctx context.Context) error { return nil })
 	if final != nil && final.Claim != nil {
 		report.ClaimID = final.Claim.ID
 		report.Phase = final.Claim.Phase
 		report.Allocated = final.Claim.BackendIdentity != nil
+		view.State = final
 	}
+	view.Outcome = &evidence.Outcome{Status: string(report.Phase)}
+	if runErr != nil {
+		view.Outcome.Failure = "Execution or cleanup failed; inspect the recorded facts."
+	}
+	if _, err := journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: result.RequestRef, ClaimID: issued.Claim.ID, Operation: string(report.Phase), ReasonCode: "run-" + string(report.Phase)}); err != nil {
+		return report, errors.Join(runErr, err)
+	}
+	view.Facts = journal.ForRequest(result.RequestRef)
 	return report, runErr
 }
 

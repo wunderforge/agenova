@@ -7,8 +7,10 @@ package e2e
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
 	"github.com/wunderforge/agenova/internal/governance"
@@ -299,4 +301,33 @@ func (r legacyClaimReader) Claim(claimID string) (v1alpha1.SandboxClaim, bool) {
 		}
 	}
 	return result, true
+}
+
+func (r legacyClaimReader) ClaimAuthority(claimID string) (app.ClaimAuthoritySnapshot, bool) {
+	claim, ok := r.Claim(claimID)
+	if !ok {
+		return app.ClaimAuthoritySnapshot{}, false
+	}
+	authority := v1alpha1.EffectiveAuthority{
+		ID:             claim.AuthorityRef,
+		ResourceScopes: []string{"repo:acme/payments"},
+		Runtime: v1alpha1.EffectiveAuthorityRuntime{
+			ProfileRef: "experimental-reference",
+			Timeout:    v1alpha1.Duration(time.Minute),
+		},
+	}
+	switch claimID {
+	case "orchestrator":
+		authority.Tools = []string{"plan.compose"}
+		authority.ModelProfile = "approved-planning-model"
+	case "worker-a":
+		authority.Tools = []string{"web.search"}
+		authority.ModelProfile = "approved-research-model"
+	case "worker-b":
+		authority.Tools = []string{"code.exec"}
+		authority.ModelProfile = "approved-coding-model"
+	case "standalone":
+		authority.Tools = []string{"file.read"}
+	}
+	return app.ClaimAuthoritySnapshot{Claim: claim, EffectiveAuthority: authority}, true
 }

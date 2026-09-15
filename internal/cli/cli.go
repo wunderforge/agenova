@@ -4,10 +4,12 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
@@ -35,6 +37,7 @@ type RunReport struct {
 	Allocated  bool
 	ClaimID    string
 	Phase      string
+	Evidence   *evidence.View
 }
 
 const helpText = `Agenova hosts claim-scoped application services for one agent worker run.
@@ -52,6 +55,7 @@ Flags:
   --help             Show this help
   --version          Print version and the hosted runtime backend
   -f, --file string  ClaimRequest YAML for agenova run
+  --json            Print the shared evidence View for agenova run
 
 This composition root hosts the in-memory reference backend. Command behavior
 does not import Kubernetes or other provider types, and it does not accept
@@ -63,6 +67,7 @@ comes from the local principal boundary, not from the file or CLI flags.
 
 const runHelpText = `Usage:
   agenova run -f <claim-request.yaml>
+  agenova run -f <claim-request.yaml> --json
 
 Submit exactly one ClaimRequest YAML document. Requested access is intent.
 The CLI does not accept --repo, --tools, or --model authority shortcuts.
@@ -76,6 +81,7 @@ type parsedArgs struct {
 	backendSet bool
 	file       string
 	fileSet    bool
+	json       bool
 }
 
 // Main is the CLI entrypoint. args[0] is the program name, matching os.Args.
@@ -141,7 +147,10 @@ func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFac
 	report, err := run(parsed.file, backend)
 	if err != nil {
 		if report.RequestRef != "" || report.ClaimID != "" || report.Phase != "" {
-			printRunReport(stdout, report)
+			if outputErr := printRunReport(stdout, report, parsed.json); outputErr != nil {
+				fmt.Fprintln(stderr, outputErr)
+				return 1
+			}
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
@@ -149,14 +158,23 @@ func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFac
 		fmt.Fprintln(stderr, "Run 'agenova run --help' for usage.")
 		return ExitUsage
 	}
-	printRunReport(stdout, report)
+	if outputErr := printRunReport(stdout, report, parsed.json); outputErr != nil {
+		fmt.Fprintln(stderr, outputErr)
+		return 1
+	}
 	if strings.EqualFold(report.Decision, "Deny") {
 		return 1
 	}
 	return 0
 }
 
-func printRunReport(stdout io.Writer, report RunReport) {
+func printRunReport(stdout io.Writer, report RunReport, jsonOutput bool) error {
+	if jsonOutput {
+		if report.Evidence == nil {
+			return fmt.Errorf("shared evidence view is unavailable")
+		}
+		return json.NewEncoder(stdout).Encode(report.Evidence)
+	}
 	fmt.Fprintf(stdout, "request: %s\n", report.RequestRef)
 	fmt.Fprintf(stdout, "decision: %s\n", report.Decision)
 	fmt.Fprintf(stdout, "principal: %s\n", report.Principal)
@@ -167,6 +185,7 @@ func printRunReport(stdout io.Writer, report RunReport) {
 	if report.Phase != "" {
 		fmt.Fprintf(stdout, "phase: %s\n", report.Phase)
 	}
+	return nil
 }
 
 func printVersion(stdout, stderr io.Writer, backendName string, newRuntime RuntimeFactory) int {
@@ -198,6 +217,8 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			parsed.help = true
 		case arg == "--version" || arg == "-v":
 			parsed.version = true
+		case arg == "--json":
+			parsed.json = true
 		case arg == "--backend":
 			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("flag --backend requires a value")
@@ -237,6 +258,9 @@ func parseArgs(argv []string) (parsedArgs, error) {
 	}
 	if parsed.fileSet && parsed.command != "run" && !parsed.help {
 		return parsedArgs{}, fmt.Errorf("-f is only valid with agenova run")
+	}
+	if parsed.json && parsed.command != "run" && !parsed.help {
+		return parsedArgs{}, fmt.Errorf("--json is only valid with agenova run")
 	}
 	return parsed, nil
 }

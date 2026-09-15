@@ -16,7 +16,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 | Resolve requested access | Implemented in reference | Template, request, and policy limits resolve to an effective-authority snapshot that the CLI path consumes before issuance. |
 | Create one claim per run | Implemented in reference | The allowed CLI path creates one system-managed claim and `RunService` owns its authoritative lifecycle and teardown evidence. |
 | Bind a runtime backend | Implemented in reference; partial on Kubernetes | The reduced five-operation reference backend and reusable contract suite are merged. Agent Sandbox v0.4.6 translates Allocate, readiness Observe, identity, and confirmed Cleanup; ordinary Start/Terminate and filesystem evidence remain unsupported. See the bounded [#66 kind evidence](evidence/E8-S1/agent-sandbox-mapping/summary.md). |
-| Enforce effective authority | Partial reference | Tool and Model Gateways require a `Running` claim and retain experimental parent-scope checks, but do not yet enforce resolved tool, model, or resource authority. |
+| Enforce effective authority | Partial reference | In-process Tool and Model Gateways now read one application-owned claim/authority snapshot and exact-match the granted tool operation, resource scope, and logical model profile. Trusted workload context and network enforcement remain unimplemented. |
 | Execute through gateways | Partial | Authorization methods exist; there is no network gateway or real upstream proxy path. |
 | Record claim-scoped facts | Reference only | In-memory Tool, Model, and Runtime fact store; no durable storage or denial facts. |
 | End authority with the claim | Implemented in reference | Terminal negative tests pass; experimental child-out-of-scope tests also remain. |
@@ -31,7 +31,8 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - Reusable backend contract test suite.
 - Trusted-local principal boundary, reference policy bundle, action authorization, and effective-authority resolution.
 - Claim-scoped filesystem semantics in the reference backend, with simulated boundary cases and a separate local Git/Go compatibility fixture.
-- Tool and Model Gateway allow/deny behavior based on active claim state.
+- Tool and Model Gateway allow/deny behavior based on active claim state and exact system-issued tool, resource, and logical model authority.
+- Credential-bearing fields are structurally excluded from ClaimRequest task input, resolved runtime launch input, and gateway parameters by one exact-name rule. The reference Agent Sandbox template renders no environment or Secret injection surface; provider configuration remains adapter-private. This does not inspect arbitrary task prose or source files and is not a network anti-bypass guarantee.
 - Experimental parent/child lineage and child-out-of-scope denial, retained outside the committed MVP.
 - In-memory `RuntimeEvent`, `ToolInvocation`, and `ModelInvocation` storage and claim queries.
 - In-memory multi-agent reference scenario, retained as experimental behavior outside the committed MVP.
@@ -66,7 +67,7 @@ The next slice should make the reference governance path usable before adding mo
 1. Compose the merged application run service with the controlled Agent Sandbox adapter on kind.
 2. Assemble one stable evidence view from the authorization, authority, lifecycle, invocation, outcome, and backend facts.
 3. Expose that same view to the read-only React console without creating a UI-only governance model.
-4. Drive claim lifecycle, one allowed tool call, one allowed model call, and one denied request through the reference path.
+4. Compose the proven in-process allowed/denied Tool and Model Gateway calls into the real-backend golden path.
 5. Return a single claim evidence view containing lifecycle, effective authority, invocations, outcome, and backend identity.
 6. Turn that path into a deterministic E2E test and quickstart.
 7. Add the supported idempotent reference install and initial-policy bootstrap path for an existing test cluster.
