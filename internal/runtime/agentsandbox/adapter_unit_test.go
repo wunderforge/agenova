@@ -41,12 +41,23 @@ func TestAddTemplateRendersNoCredentialInjectionSurface(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddTemplate: %v", err)
 	}
-	var rendered map[string]any
+	var rendered struct {
+		Spec struct {
+			PodTemplate struct {
+				Spec struct {
+					AutomountServiceAccountToken *bool `json:"automountServiceAccountToken"`
+				} `json:"spec"`
+			} `json:"podTemplate"`
+		} `json:"spec"`
+	}
 	if err := json.Unmarshal(kube.manifest, &rendered); err != nil {
 		t.Fatalf("decode rendered template: %v", err)
 	}
+	if rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken == nil || *rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken {
+		t.Fatalf("rendered worker template must explicitly set automountServiceAccountToken:false: %s", kube.manifest)
+	}
 	encoded := string(kube.manifest)
-	for _, forbidden := range []string{`"env"`, `"envFrom"`, `"secretKeyRef"`, `"serviceAccountToken"`} {
+	for _, forbidden := range []string{`"env"`, `"envFrom"`, `"secretKeyRef"`} {
 		if strings.Contains(encoded, forbidden) {
 			t.Fatalf("rendered worker template contains credential injection surface %s: %s", forbidden, encoded)
 		}

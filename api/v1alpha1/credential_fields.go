@@ -15,6 +15,9 @@ import (
 var reservedCredentialFieldNames = map[string]struct{}{
 	"token":                        {},
 	"githubtoken":                  {},
+	"ghtoken":                      {},
+	"ghenterprisetoken":            {},
+	"githubenterprisetoken":        {},
 	"accesstoken":                  {},
 	"refreshtoken":                 {},
 	"clientsecret":                 {},

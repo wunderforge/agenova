@@ -9,6 +9,9 @@ func TestReservedCredentialFieldNameUsesExactNormalizedVocabulary(t *testing.T) 
 	for _, name := range []string{
 		"githubToken",
 		"GITHUB_TOKEN",
+		"GH_TOKEN",
+		"GH_ENTERPRISE_TOKEN",
+		"GITHUB_ENTERPRISE_TOKEN",
 		"API_KEY",
 		"client_secret",
 		"clientSecret",
