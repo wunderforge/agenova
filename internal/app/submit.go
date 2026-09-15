@@ -10,9 +10,6 @@ import (
 	"time"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
-	"github.com/wunderforge/agenova/internal/authority"
-	"github.com/wunderforge/agenova/internal/authorization"
-	"github.com/wunderforge/agenova/internal/issuance"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
@@ -66,38 +63,11 @@ func SubmitClaimRequestFile(path string, backend runtime.RuntimeBackend, preset 
 		return SubmitResult{}, fmt.Errorf("read claim request: %w", err)
 	}
 
-	policies := &policy.Loader{}
-	if err := policies.Load(referencePolicyBundle()); err != nil {
-		return SubmitResult{}, err
-	}
-	request, validationErr := v1alpha1.ParseClaimRequestYAML(data)
-	if validationErr != nil {
-		return SubmitResult{}, validationErr
-	}
-	service, err := NewReferenceAssignmentService(preset, authorization.Authorizer{Policies: policies})
+	prepared, err := PrepareReferenceAssignment(data, preset)
 	if err != nil {
 		return SubmitResult{}, err
 	}
-
-	var issued *v1alpha1.IssuedState
-	result, err := service.AdmitYAML(data, func(admission authorization.Admission) error {
-		template, templateErr := referenceAgentTemplate(request.Spec.TemplateRef)
-		if templateErr != nil {
-			return templateErr
-		}
-		resolution, resolveErr := authority.ResolveForIssuance(request, template, admission)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		issued, validationErr = issuance.Issue(request, service.principals.Principal(), admission.Decision(), resolution, admission)
-		if validationErr != nil {
-			return validationErr
-		}
-		return nil
-	})
-	if err != nil {
-		return SubmitResult{}, err
-	}
+	result, issued := prepared.Admission, prepared.Issued
 	report := SubmitResult{
 		RequestRef: result.RequestRef,
 		Decision:   result.Decision.Result,
