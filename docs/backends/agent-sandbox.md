@@ -16,20 +16,27 @@ To reproduce the pinned upstream substrate itself (disposable `kind` cluster + o
 - Claim deletion triggers sandbox cleanup and warm-pool replenishment.
 - Upstream API details remain confined to `internal/runtime/agentsandbox`.
 
-The earlier spike was exercised with Agent Sandbox v0.4.6 on a local kind cluster. That historical run does not verify the reduced contract or the changed legacy start behavior. The current integration gate must be re-run; see the [current environment blocker](../evidence/30/agent-sandbox/summary.md).
+The earlier #30 spike did not verify the reduced contract on a real cluster. The later, bounded [#66 v0.4.6 kind run](../evidence/E8-S1/agent-sandbox-mapping/summary.md) did: it observed allocation, identity-matched readiness, explicit unsupported Start/Terminate, and confirmed cleanup. That run does not prove work execution, restart recovery, or isolation.
 
 ## Reduced RuntimeBackend Contract (Ticket #30)
 
-Support of the five reduced operations against the upstream controller, verified with a simulated controller at the `kubeClient` seam (`internal/runtime/agentsandbox/allocation_test.go`); real-cluster evidence for these operations is still a blocker (no verified test kube context in the current owner environment).
+The five operations are classified against the pinned upstream v0.4.6 source, the [simulated-controller test](../../internal/runtime/agentsandbox/allocation_test.go), and the retained [#66 real-cluster transcript](../evidence/E8-S1/agent-sandbox-mapping/output.txt). `Translated` means an upstream resource signal is mapped into the neutral contract; it does not mean complete backend parity. The [provisional source mapping](agent-sandbox-v0.4.6-mapping.md) retains the individual upstream references.
 
-| Operation | Support | Notes |
+| Operation | Classification | Verified behavior and remaining gap |
 | --- | --- | --- |
-| Allocate | supported, with an unprovable recovery case | Creates the upstream claim and waits for sandbox assignment. Recovery checks and reserves the assigned worker before deleting the claim, and completes only after both resources are confirmed absent. Unknown identities stay recovery-pending; conflicting identities retain their upstream claim without deletion. |
-| Observe | supported (readiness only) | `Ready` mirrors the upstream `Ready=True` condition, and only when the claim still carries the recorded worker; a different or missing worker is reported as an identity mismatch. Replacement is not observable and stays `false`. Query failures are returned as errors. |
-| Start | unsupported | The controller starts the pod on its own; there is no channel to acknowledge actual work start. |
-| Terminate | unsupported | No worker-stop evidence exists apart from resource deletion. |
-| Cleanup | supported (release) | Rechecks the recorded worker binding before deletion; changed/missing bindings or query failures prevent deletion. `Released` is reported only after both the claim and the assigned sandbox are confirmed absent; failures are explicit and retryable after identity/release can be confirmed. |
-| Filesystem boundary | unsupported | Allocation and observation explicitly report `FilesystemEvidenceUnsupported`. Ticket #48 must map the worker-visible directory and mount/profile behavior; #51 must provide real isolation evidence before this can become `BackendVerified`. |
+| Allocate | `translated` | Creates an upstream claim, observes its assigned sandbox and returns a correlated neutral identity. Unknown-worker recovery and an atomic binding precondition remain unproved. |
+| Observe | `translated` | Accepts `Ready=True` only for the recorded worker. This is Bound-level readiness, never work start; mismatch/query failure remains an error. |
+| Start | `unsupported` | A valid Ready worker still returns `ErrUnsupported`: ordinary upstream readiness does not acknowledge Agenova work start. |
+| Terminate | `unsupported` | No ordinary worker-stop acknowledgement exists independently of resource deletion. |
+| Cleanup | `translated` | Rechecks the binding, deletes the claim and confirms both claim and recorded sandbox absent before `Released=true`; replacement is not inferred. The check and deletion are not atomic. |
+
+The assigned upstream sandbox name maps to neutral `Backend/WorkerID` identity. The allocation, worker reservation and release maps exist only in the adapter process; restart durability is `unsupported`, even though upstream Kubernetes resources may remain. The retained #66 kind run covers the five rows above but not adapter restart or broad timing/concurrency cases.
+
+### Filesystem and isolation boundary
+
+`FilesystemBoundary` is currently `unsupported`: Allocate and Observe return `EvidenceLevel=Unsupported` with `WorkingDirectory` and `OutsideBoundary` empty and `Ephemeral=false`. These empty fields are **absence of verified capability**, not permission to access arbitrary paths or a retention guarantee. General filesystem, process and network isolation remains `unknown` until [#51](https://github.com/wunderforge/agenova/issues/51) supplies worker-level evidence.
+
+The candidate worker-visible task directory, writable versus read-only mounts, HOME/temp/cache placement, cleanup retention, unintended host-path exposure and long-lived credential exposure are not established by the current adapter. Upstream template PodSpec configurability does not prove that the actual worker sees the required [#89 boundary](../product/architecture-contract.md#backend-neutrality): a backend-selected writable task directory; readable but read-only runtime files; other task data outside the directory unavailable; ephemeral release. #51 must run the worker and negative outside-boundary/mount probes before any field can be promoted to `BackendVerified`. See the [#89 handoff](../../work/0089-filesystem-boundary/handoff-0048-0051.md) for the exact probes.
 
 `kubectl` invocations carry a per-command deadline and resource absence is classified by exit status and empty output, never by error text.
 
@@ -63,13 +70,13 @@ The integration gate now checks Allocate, identity-matched Observe, explicit uns
 ## Known Gaps
 
 1. Upstream claims use conditions rather than Agenova work phases.
-2. Upstream has no Agenova `SucceedClaim` or `FailClaim` primitive; terminal state is currently held in adapter memory and is lost after restart.
+2. Upstream has no Agenova `SucceedClaim` or `FailClaim` primitive. Legacy adapter helpers keep local terminal bookkeeping, but the reduced backend does not own application outcome; the #31 run service owns it. The adapter's allocation/release correlation is lost after restart.
 3. Pool status exposes less detail; Agenova counts are approximated from local state.
 4. The spike is only accurate for the validated single-pool path.
 5. `Claim()` returns status but not the original claim spec.
 6. Gateway transport, claim identity, external-egress controls, and durable facts are not integrated with the Kubernetes path.
 7. Workers cannot be enumerated independently of their claim, so if the claim disappears before the worker is observed, its release cannot be confirmed and non-allocation cannot be proven.
-8. The worker filesystem layout, writable task directory, synthetic HOME/cache placement, and outside-boundary enforcement are not yet mapped or verified.
+8. The worker filesystem layout, writable task directory, HOME/temp/cache placement, host-path and credential exposure, and outside-boundary enforcement are not verified; the adapter reports an unsupported filesystem boundary.
 
 ## Integration Gate
 
@@ -92,7 +99,7 @@ Run:
 
 Before describing this as a supported backend:
 
-- preserve terminal claim state across adapter restart;
+- keep application outcome in the application lifecycle owner, and reconstruct allocation/release correlation after adapter restart;
 - enumerate workers independently of the claim (owner reference or label selector) so recovery can confirm release without a prior status observation;
 - return complete claim identity/spec data;
 - calculate per-pool status correctly;
