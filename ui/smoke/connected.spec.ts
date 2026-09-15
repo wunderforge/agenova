@@ -60,6 +60,51 @@ test('connected motion follows provider and cleanup evidence without resetting D
  await page.screenshot({path:info.outputPath('connected-motion-result.png'),fullPage:true});
 });
 
+test('cobalt light locates real pending calls and separates success from failure',async({page},info)=>{
+ const current=work();
+ const add=(kind:string,extra:Partial<Fact>={})=>current.facts.push({id:`signal-${current.facts.length}`,sequence:current.facts.length+1,timestamp:'2026-09-15T02:00:03Z',kind,requestRef:current.requestRef,...extra});
+ add('WorkerActivity',{operation:'TurnStarted',target:'Turn 1'});
+ add('ProviderAttempt',{invocationId:'signal-model',operation:'model.invoke'});
+ await api(page,()=>[current]);
+ const cdp=await page.context().newCDPSession(page);
+ await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
+ expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).getPropertyValue('--portal-paper').trim())).toBe('#050914');
+ await expect(page.locator('.portal-head .portal-badge')).toHaveCSS('color','rgb(168, 206, 255)');
+ const row=page.locator('.portal-worker-actions li[data-active=true]');
+ await expect(row).toHaveAttribute('data-kind','model');
+ expect(await row.evaluate(el=>getComputedStyle(el,'::before').boxShadow)).not.toBe('none');
+ await page.locator('.portal-turn > summary').hover();
+ await expect.poll(()=>page.locator('.portal-turn > summary').evaluate(el=>getComputedStyle(el,'::after').opacity)).toBe('1');
+ const frameReport=await page.evaluate(async()=>{
+   const deltas:number[]=[];let last=0;
+   await new Promise<void>(resolve=>{let start=0;const frame=(now:number)=>{if(!start)start=now;if(last)deltas.push(now-last);last=now;if(now-start<1000)requestAnimationFrame(frame);else resolve();};requestAnimationFrame(frame);});
+   deltas.sort((a,b)=>a-b);
+   const ongoing=document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity);
+   return {cpuThrottle:4,frames:deltas.length,p95FrameMs:deltas[Math.floor(deltas.length*.95)],framesOver25ms:deltas.filter(d=>d>25).length,
+     ongoing:ongoing.length,properties:ongoing.flatMap(a=>Object.keys((a.effect as KeyframeEffect).getKeyframes()[0]).filter(k=>!['offset','computedOffset','easing','composite'].includes(k)))};
+ });
+ expect(frameReport.ongoing).toBe(1);
+ expect(frameReport.properties).toEqual(['opacity']);
+ await info.attach('cobalt-wait-performance',{body:JSON.stringify(frameReport,null,2),contentType:'application/json'});
+ await page.screenshot({path:info.outputPath('cobalt-model-wait.png'),fullPage:true});
+ add('ProviderOutcome',{invocationId:'signal-model',operation:'model.invoke',providerStatus:'Succeeded'});
+ add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',target:'Mock git.read'});
+ await expect(row).toHaveAttribute('data-kind','tool');
+ expect(await row.evaluate(el=>getComputedStyle(el).getPropertyValue('--call-light').trim())).toBe('#76d9f4');
+ await expect(page.locator('.portal-worker-state.positive')).toHaveCSS('color','rgb(140, 213, 178)');
+ await page.screenshot({path:info.outputPath('cobalt-tool-wait.png'),fullPage:true});
+ add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',providerStatus:'Failed'});
+ current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'The recorded mock tool call failed.'};
+ await expect(page.locator('.portal-worker-state.negative')).toHaveCSS('color','rgb(255, 140, 164)');
+ await expect(page.locator('.portal-turn[data-negative=true] > summary')).toContainText('1 failed');
+ await expect(page.locator('.portal-worker')).not.toHaveClass(/has-active-call/);
+ expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(0);
+ await page.screenshot({path:info.outputPath('cobalt-failure.png'),fullPage:true});
+ await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
+});
+
 test('malformed connected percent escapes show an error instead of a blank page',async({page})=>{
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));

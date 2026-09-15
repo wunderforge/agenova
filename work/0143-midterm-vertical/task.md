@@ -45,6 +45,10 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-approved cobalt visual refinement: preserve the reading path, distinguish
+  navigation/current calls from permission results, and prove localized light/motion
+  without performance regression. See [visual plan](cobalt-visual.md).
+
 - [x] Owner-approved reading-path correction: remove competing lifecycle summaries,
   group recorded agent turns, lead with actual result after completion and progressively
   disclose limits/technical records. See [work detail plan](work-reading-path.md).

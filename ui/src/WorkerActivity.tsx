@@ -77,7 +77,7 @@ export function WorkerActivity({ actions, status, activityHref }: { actions: Wor
       const failures = group.calls.filter(a => /failed/i.test(a.state)).length;
       const blocked = group.calls.filter(a => /deny|denied/i.test(a.state)).length;
       const noun = group.calls.every(a => ['Tool access', 'Model access'].includes(a.label)) && group.calls.length ? 'check' : 'call';
-      return <details className="portal-turn" key={group.id} open={open} data-active={group.active}>
+      return <details className="portal-turn" key={group.id} open={open} data-active={group.active} data-negative={failures > 0 || blocked > 0}>
         <summary onClick={event => {
           event.preventDefault();
           setFollowLatest(!open && group.id === latest);
@@ -85,9 +85,9 @@ export function WorkerActivity({ actions, status, activityHref }: { actions: Wor
         }}>
           <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${group.calls.length} ${noun}${group.calls.length === 1 ? '' : 's'}`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-failed"> · {blocked} blocked</span>}</span>
         </summary>
-        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active}>
+        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-kind={a.label === 'Tool call (mock)' ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
           <div><a href={a.href}>{a.label}</a><small>{a.target}</small></div>
-          <span className={`portal-worker-state ${/deny|denied|failed|cancelled/i.test(a.state) ? 'negative' : ''}`}>{a.state}</span>
+          <span className={`portal-worker-state ${/deny|denied|failed|cancelled/i.test(a.state) ? 'negative' : /^(succeeded|allowed|allow)$/i.test(a.state) ? 'positive' : ''}`}>{a.state}</span>
         </li>)}</ul>
         {!group.calls.length && <p className="portal-source-note">No execution call recorded for this turn yet.</p>}
       </details>;
