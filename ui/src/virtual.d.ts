@@ -4,3 +4,7 @@ declare module 'virtual:agenova-fixtures' {
   const rows: import('./fixture-source').FixtureRow[];
   export default rows;
 }
+declare module 'virtual:agenova-console-fixtures' {
+  const rows: import('./fixture-source').FixtureRow[];
+  export default rows;
+}

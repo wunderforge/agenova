@@ -30,8 +30,55 @@ type fixtureCase struct {
 }
 type fixtureRow struct {
 	fixtureCase
-	Data       any         `json:"data,omitempty"`
-	Diagnostic *diagnostic `json:"diagnostic,omitempty"`
+	Data        any         `json:"data,omitempty"`
+	Diagnostic  *diagnostic `json:"diagnostic,omitempty"`
+	DerivedFrom string      `json:"derivedFrom,omitempty"`
+}
+
+// consoleFixtures adds one explicitly derived presentation scenario. Canonical
+// payload files and fixture inventory remain unchanged; Go validates the result.
+func consoleFixtures(root string) ([]fixtureRow, error) {
+	rows, err := fixtures(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.ID != "issued-state.valid.team-a-engineer" {
+			continue
+		}
+		encoded, err := json.Marshal(row.Data)
+		if err != nil {
+			return nil, err
+		}
+		state, failure := v0.ParseSystemIssuedState(encoded)
+		if failure != nil {
+			return nil, fmt.Errorf("narrowing base failed validation")
+		}
+		tools := []string{}
+		for _, tool := range state.EffectiveAuthority.Tools {
+			if tool != "github.pull-request" {
+				tools = append(tools, tool)
+			}
+		}
+		if len(tools) == len(state.EffectiveAuthority.Tools) {
+			return nil, fmt.Errorf("narrowing scenario no longer removes a requested tool")
+		}
+		state.EffectiveAuthority.Tools = tools
+		encoded, err = json.Marshal(state)
+		if err != nil {
+			return nil, err
+		}
+		validated, failure := v0.ParseSystemIssuedState(encoded)
+		if failure != nil {
+			return nil, fmt.Errorf("narrowed fixture failed canonical validation")
+		}
+		derived := row
+		derived.ID = "derived.console.narrowed"
+		derived.DerivedFrom = row.ID
+		derived.Data = validated
+		return append(rows, derived), nil
+	}
+	return nil, fmt.Errorf("canonical Team A fixture missing")
 }
 
 // The canonical parser is the sole semantic validator. Only normalized valid

@@ -15,7 +15,7 @@ const object = (v: unknown): v is Record<string, unknown> => v !== null && typeo
 
 // Wire-shape/display integrity only. Semantic validation stays in canonical Go
 // parsers at the fixture build boundary. This function never authorizes a run.
-export function shapeDiagnostics(type: 'ClaimRequest' | 'IssuedState', data: unknown): Diagnostic[] {
+export function shapeDiagnostics(type: keyof typeof shapes, data: unknown): Diagnostic[] {
   const issues: Diagnostic[] = [];
   const issue = (category: string, fieldPath: string) => issues.push({ category, fieldPath });
   const jsonValue = (value: unknown): boolean => value === null || typeof value === 'string' || typeof value === 'boolean' ||
@@ -26,6 +26,8 @@ export function shapeDiagnostics(type: 'ClaimRequest' | 'IssuedState', data: unk
       case 'ref': visit(definitions[s.ref!], value, path); break;
       case 'nullable': if (value !== null) visit(s.item!, value, path); break;
       case 'string': if (typeof value !== 'string') issue('invalid-value', path); break;
+      case 'number': if (typeof value !== 'number' || !Number.isFinite(value)) issue('invalid-value', path); break;
+      case 'boolean': if (typeof value !== 'boolean') issue('invalid-value', path); break;
       case 'enum': if (typeof value !== 'string' || !s.values!.includes(value)) issue('invalid-value', path); break;
       case 'json-map': if (value !== null && (!object(value) || !jsonValue(value))) issue('invalid-value', path); break;
       case 'array':
