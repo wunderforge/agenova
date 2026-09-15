@@ -21,11 +21,13 @@ the **real** Agenova code paths. The agent is a prop; the governance is genuine.
 
 ### In plain words
 
-**Agenova is a security guard for AI agents.** The product itself (Epics 1–8) is
-already built and tested: it issues permission slips (claims), checks every tool and
-model call against them, logs everything, and cuts off access the moment the slip
-expires. The problem is that all this proof lives inside test files — there is no
-way to sit someone down and *show* it working.
+**Agenova is a security guard for AI agents.** The reference implementation already
+walks the core paths: issuing permission slips (claims), checking tool and model
+calls against them, recording facts, and cutting off access when the slip ends.
+[docs/project-status.md](../project-status.md) is the evidence-backed record of
+exactly what is proven today and which gaps remain. The problem is that this proof
+lives inside test files — there is no way to sit someone down and *show* it
+working.
 
 **A demo-agent epic builds the show, nothing more.** The "agent" in the demo is an
 actor, not a real AI: a small program that plays the role Claude Code would play.
@@ -35,7 +37,8 @@ whole trick. (Later, a real agent can replace the actor, because the demo uses t
 exact connection points a real agent supports.)
 
 So a demo-agent epic is *neither* building a production agent *nor* testing
-Agenova: the agent is a prop, and Epics 1–8 already have their own tests. It builds
+Agenova: the agent is a prop, and the reference paths already have their own tests.
+It builds
 the **demonstration** — the runnable story that proves and teaches what Agenova
 does. That is why the tickets look the way they do: sample permission files, the
 bad-actor scene, the two checkpoints the actor must pass through, the actor and its
@@ -51,16 +54,22 @@ must fit this arc and must never fake an outcome the real path didn't produce.
    to do and what access it requests. Requested access is intent, never authority.
 2. **Bounded permission** — Agenova authorizes the caller, intersects the request
    with the template ceiling and policy, and issues a `SandboxClaim` with effective
-   authority. Requests can narrow authority, never create it.
+   authority. Requests can narrow authority, never create it: access requested
+   beyond the ceiling is not an error — resolution narrows it to the intersection
+   (per the #116 owner clarification); only a request whose access resolves
+   completely empty is refused.
 3. **Governed execution** — the running agent reaches tools and models only through
-   governed interfaces (Tool/Model gateways). Each call is checked first; allowed
-   calls are recorded as facts (`ToolInvocation`, `ModelInvocation`) attributed to
-   exactly one claim.
-4. **Lock-out** — the claim reaches a terminal state; the very next call is denied
-   and no new fact appears. Expiry mid-run shows the same thing.
-5. **The bad actor** — an unauthorized submission (wrong team, over-ceiling request)
-   is denied *pre-claim* with a real `Decision` record naming the policy and reason;
-   the claim store stays empty and zero facts are recorded.
+   governed interfaces (Tool/Model gateways). Each call is checked first and
+   recorded as an invocation fact — with its Allow or Deny result — attributed to
+   exactly one resolved claim.
+4. **Lock-out** — the claim reaches a terminal state; the very next attempt is
+   denied, and that denial is itself recorded as a **Deny invocation fact** against
+   the claim. Expiry mid-run shows the same thing.
+5. **The bad actor** — a submission from an unauthorized principal is denied
+   *pre-claim* with a real `Decision` record naming the policy and reason; the
+   claim store stays empty and **no invocation fact** is recorded. The no-fact rule
+   applies only here — to pre-claim/unresolved and context-mismatch rejections —
+   not to every denial (see chapter 4).
 6. **The evidence** — the demo ends with a deterministic summary: claim outcome,
    invocations with claim IDs, decisions. Evidence is the product; the agent's
    "work" is beside the point.
@@ -72,23 +81,25 @@ Reuse this decomposition — and the existing layers — for any new demo.
 
 | Layer | E9 instance | Depends on | What it proves |
 |---|---|---|---|
-| **1. Fixtures** — canonical inputs (agent template with capability ceiling, valid request, invalid/over-ceiling request) | #116 | nothing — do this first | The declarative contract is concrete and testable |
+| **1. Fixtures** — canonical inputs (agent template with capability ceiling, valid request, over-ceiling request used to show narrowing) | #116 | nothing — do this first | The declarative contract is concrete and testable |
 | **2. Pre-claim denial** — bad-actor demo through the real admission path | #115 | fixtures conventions only | The boundary holds before any claim exists |
 | **3a. Governed tool interface** — proxy that checks `ToolGateway.Authorize()` before every tool call | #117 | Layer 1 | Tool access is claim-scoped and recorded |
 | **3b. Governed model interface** — proxy that checks `ModelGateway.Authorize()` before every model call | #118 | Layer 1 (parallel with 3a) | Model access is claim-scoped and recorded |
 | **4. The demo agent** — one binary wiring backend + both interfaces, runs the full narrative | #119 | 3a + 3b | The whole story in one command |
 | **5. Workload identity** — short-lived claim-bound token, verified before any authority use | #121 | 3a, 3b, 4 + an owner design decision | Governance is enforced by proof, not assertion |
 | **6. Packaging** — container image + compose so anyone can run it | #122 | 4 | Same story, no local toolchain |
-| **7. Real backend** — the same governance against a real cluster lifecycle | #123 | everything above + healthy test cluster | Backend-neutrality is real |
+| **7. Real backend** — a single claim driven via the RunService with an actual Start on a real cluster | #123 | everything above + healthy test cluster | Backend-neutrality is real |
 
 Two structural facts to plan around:
 
 - **The critical path is sequential**: fixtures → interfaces → agent → identity →
   real backend. Only 3a/3b (and the pre-claim denial) parallelize.
 - **The demo layers consume the product read-only.** Claim lifecycle, gateways,
-  facts, policy/authorization/authority/issuance already exist and are tested —
-  plug into them, never modify or rebuild them, and never re-test them (that is
-  `scripts/check.ps1` and the harness contract tests' job).
+  facts, and the policy/authorization/authority/issuance reference paths are
+  implemented (see [docs/project-status.md](../project-status.md) for what is
+  proven and which gaps remain) — plug into them, never modify or rebuild them,
+  and never re-test them (that is `scripts/check.ps1` and the harness contract
+  tests' job).
 
 Out of scope until re-prioritized: parent/child lineage and multi-agent
 orchestration (#110). Multi-claim demos use independent claims; the mismatch case is
@@ -149,8 +160,12 @@ demo code follows these unless the task packet records a deviation.
 **Tests and evidence**
 - Minimum matrix: valid YAML run, valid JSON run, invalid input (non-zero exit,
   actionable error naming file + field, **zero invocations/facts, empty stdout**),
-  plus the demo's denial case asserted on the fact store
-  (`len(store.ToolInvocations(id))` unchanged), not on printed output.
+  plus the demo's denial cases asserted on the fact store, not on printed output.
+- Assert the correct fact semantics per denial kind: an attempt against a
+  **resolved** inactive/terminal claim records a **Deny invocation fact** (assert
+  the new fact and its Deny result); **pre-claim/unresolved** and
+  **context-mismatch** rejections record **no invocation fact** (assert the count
+  is unchanged). Do not assert "no fact" for every denial.
 - PR evidence: exact build command + binary identity, full run outputs (labels
   visible), invalid-input output, focused test output, passing baseline.
 
@@ -165,8 +180,15 @@ demo code follows these unless the task packet records a deviation.
 ## 6. Demo day — showing Agenova to an audience, step by step
 
 The run order for presenting the finished E9 demo. Each act maps to a chapter of
-the section-2 story. Commands assume all E9 tickets are merged; acts 5–7 need their
+the section-2 story. Commands assume all E9 tickets are merged; acts 5–6 need their
 external prerequisites (Docker; the kind cluster with the Agent Sandbox controller).
+
+> **Illustrative plan, not acceptance authority.** The commands and outputs below
+> sketch the finished show; the authoritative requirements are the tickets and task
+> packets, as corrected by the owner clarifications recorded in #116 (over-ceiling
+> access is narrowed by resolution, not rejected) and #123 (Kubernetes integration
+> is single-claim via the RunService with an actual Start). Where this script and a
+> ticket disagree, the ticket wins and this script gets updated.
 
 **Act 0 — setup (before the audience arrives)**
 
@@ -202,20 +224,22 @@ Walk the output top to bottom as it prints:
    the agent is now working under it.
 2. A tool call — **allowed and logged** with claim ID, tool, timestamp.
 3. A model call — **allowed and logged** the same way.
-4. The claim completes (`Succeeded`) — and the very next call is **denied**. Say:
-   *"Permission ended; access ended. Immediately. No cleanup job, no grace period."*
+4. The claim completes (`Succeeded`) — and the very next call is **denied**, with
+   the denial recorded as a Deny invocation fact against the claim. Say:
+   *"Permission ended; access ended. Immediately — and even the refusal is on the
+   record."*
 5. The evidence summary — every action, attributed to exactly one claim. Say:
    *"This audit trail is the product. You always know who did what under which
    authority."*
 
-**Act 4 — asking for too much fails before it starts.**
+**Act 4 — asking for too much: authority is narrowed, never granted.**
 
-```
-go run ./examples/coding-agent --task harness/fixtures/contract/v0/inputs/claim-request/invalid-claude-code-over-ceiling.yaml
-```
-
-Rejected before any claim is created; the error names the ceiling field that was
-exceeded; zero invocations recorded.
+Run the over-ceiling ClaimRequest fixture (per the corrected #116) and put the
+requested access next to the effective authority the claim actually received:
+everything beyond the template ceiling is gone. Resolution intersects — it never
+grants — and only a request whose access resolves completely empty is refused with
+an error naming the field. Say: *"You get at most what the ceiling allows, no
+matter what you ask for."*
 
 **Act 5 — same show, containers.**
 
@@ -233,18 +257,19 @@ go test -v -tags integration -timeout 10m ./harness/integration/agentsandbox/ \
   -kube-context kind-agenova-k8s-lab -run TestGovernedCodingAgent
 ```
 
-The claim binds to a real sandbox pod; the same allow → log → terminal-state →
-deny sequence passes against a live cluster. Say: *"The governance layer didn't
-change — only the backend did. That's backend-neutrality."*
+A single claim is driven via the RunService with an actual Start (per the
+corrected #123): it binds to a real sandbox pod, the governed call is allowed and
+recorded, the claim reaches its terminal state, and the follow-up attempt is
+denied with a Deny invocation fact — against a live cluster. Say: *"The
+governance layer didn't change — only the backend did. That's
+backend-neutrality."*
 
-**Act 7 (optional, once workload identity #121 is merged) — a real agent plugs in.**
-Run the coding-agent, then copy-paste the launch command it prints
-(`AGENOVA_CLAIM_TOKEN=… ANTHROPIC_BASE_URL=http://localhost:8181 claude
---mcp-config examples/toolproxy/mcp.json …`) to connect a real Claude Code process.
-Its calls are authenticated by the claim-bound token, intercepted, checked, and
-logged live. Be explicit with the audience: model responses are still mocked at
-this stage — this act proves the *interception and identity seams* with real
-traffic, not a full live coding session.
+**Act 7 (future) — a real agent plugs in.** Once the approved #121 workload-identity
+path exists, a real agent process can connect through the same interfaces,
+authenticated by a short-lived claim-bound credential that the runtime delivers
+securely — credential values are never printed, logged, or pasted, in the demo or
+in this guide. Until that path is merged, the show ends at Act 6; do not improvise
+a credential hand-off on stage.
 
 Rehearse the acts in order at least once before the real audience; capture each
 act's output as the fallback if a live step misbehaves.
