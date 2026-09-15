@@ -70,8 +70,15 @@ function useConnection(parts: string[], revision: number) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [paused, setPaused] = useState(false);
-  const ref = parts[0] === 'work' && parts[1] && parts[1] !== 'new'
-    ? decodeURIComponent(parts[1]) : '';
+  let ref = '';
+  let routeError = '';
+  try {
+    if (parts[0] === 'work' && parts[1] && parts[1] !== 'new') ref = decodeURIComponent(parts[1]);
+    // Activity record references also come from the URL, not trusted data.
+    for (const part of parts) decodeURIComponent(part);
+  } catch {
+    routeError = 'Invalid work reference.';
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,6 +86,10 @@ function useConnection(parts: string[], revision: number) {
     let disposed = false;
     const started = Date.now();
     setLoading(true); setError(''); setCurrent(undefined); setPaused(false);
+    if (routeError) {
+      setLoading(false); setError(routeError);
+      return () => controller.abort();
+    }
 
     async function load() {
       try {
@@ -104,7 +115,7 @@ function useConnection(parts: string[], revision: number) {
       disposed = true; controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [ref, revision]);
+  }, [ref, routeError, revision]);
 
   return { setup, works, current, loading, error, paused };
 }

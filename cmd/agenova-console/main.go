@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -71,7 +72,7 @@ func run() error {
 		}
 		handler.ServeHTTP(w, r)
 	})}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := consoleSignalContext(context.Background())
 	defer stop()
 	go func() {
 		<-ctx.Done()
@@ -84,4 +85,8 @@ func run() error {
 		return fmt.Errorf("console server failed")
 	}
 	return nil
+}
+
+func consoleSignalContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 }

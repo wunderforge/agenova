@@ -34,6 +34,8 @@ Published PR #144; CI passed at a5a62d0 and final browser gate passed after f34b
 
 Native npm `_auth`/`_authToken` aliases fixed at 504fd3e with shared boundary regressions; focused/full gates passed in the credential worktree and focused integrated tests passed. Exact reported review thread resolved.
 
-Release pause: [#145](https://github.com/wunderforge/agenova/issues/145) records registry-qualified compound credential keys outside the existing exact-name grammar. Owner approval requested before changing that contract; do not implement or merge #142/#144 before the decision. Auto-review rejected the earlier admin merge; do not bypass. Final full integrated gate passed after the alias fix (72 unit / 37 browser); independent alias re-review found no regression. All reported credential threads were fixed/resolved, but that does not conceal the newly identified grammar gap.
+Release decision: owner approved merging with the disclosed exact-name boundary on 15 Sep. #142 is merged; [#145](https://github.com/wunderforge/agenova/issues/145) remains deferred compound-key grammar, not an implemented guarantee. Earlier merge rejection was resolved with explicit owner authorization and verified prerequisites, not a workaround.
+
+PR #144's five Codex follow-ups are implemented: join cancelled work before cleanup/final evidence; graceful SIGTERM; malformed-route error; canonical queued Expired without allocation; shared CLI evidence JSON. Focused regressions passed. Next: full baseline, final live browser check, commit/push, verified CI and merge, then reconcile tickets. Never report a merge before verifying GitHub state.
 
 Required user input: none for the local checkpoint. Existing local model only, synthetic/public tasks, no paid API calls or downloads. Tools/Memory, SSO and durable history remain outside this integration.

@@ -22,6 +22,19 @@ async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest
   if(path==='/api/requests'&&route.request().method()==='POST'){submitted?.(route.request().postDataJSON() as ClaimRequest);
 return route.fulfill({status:202,json:current()[0]});
 }
+test('malformed connected percent escapes show an error instead of a blank page',async({page})=>{
+ const errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ let calls=0;
+ await page.route('**/api/**',async route=>{calls++;await route.fulfill({status:500,json:{code:'unexpected',message:'Should not be called'}});});
+ await page.goto('/?mode=connected#/work/%');
+ await expect(page.getByRole('alert')).toContainText('Invalid work reference.');
+ expect(errors).toEqual([]);
+ expect(calls).toBe(0);
+ await page.goto('/?mode=connected#/work/valid/activity/%');
+ await expect(page.getByRole('alert')).toContainText('Invalid work reference.');
+ expect(errors).toEqual([]);
+});
   if(path==='/api/requests')return route.fulfill({json:current()});
   const ref=decodeURIComponent(path.split('/')[3]||'');
 const found=current().find(w=>w.requestRef===ref);
