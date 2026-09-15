@@ -115,7 +115,7 @@ For the opt-in #51 worker-control proof, build and load the disposable test imag
 ```powershell
 docker build -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
 kind load docker-image agenova-testworker:kind --name agenova-k8s-lab
-go test -count=1 -v -tags integration -timeout 5m ./harness/integration/agentsandbox/ -run '^TestControlledRuntimeBackend_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace default
+go test -count=1 -v -tags 'integration controlled' -timeout 5m ./harness/integration/agentsandbox/ -run '^TestControlledRuntimeBackend_Kind$' -args -kube-context kind-agenova-k8s-lab -namespace default
 ```
 
 The test uses unique names and cleans only its own resources. It never creates or deletes the cluster. Do not run the #50 cluster teardown from a checkout without that cluster's ownership receipt.

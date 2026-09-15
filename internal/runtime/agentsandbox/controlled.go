@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
@@ -40,15 +41,29 @@ const (
 	controlReleased
 )
 
+type terminateOperation struct {
+	done chan struct{}
+	err  error
+}
+
+type cleanupOperation struct {
+	done   chan struct{}
+	result runtime.CleanupResult
+	err    error
+}
+
 // ControlledAdapter adds a deliberate worker-control channel to SpikeAdapter.
 // Use it only with an image implementing /agenova-workerctl. New() continues
 // to report ErrUnsupported for Start/Terminate on ordinary images.
 type ControlledAdapter struct {
 	*SpikeAdapter
-	control workerControl
-	mu      sync.Mutex
-	changed *sync.Cond
-	phases  map[string]controlPhase // keyed by the observed worker identity
+	control  workerControl
+	mu       sync.Mutex
+	changed  *sync.Cond
+	phases   map[string]controlPhase // keyed by the observed worker identity
+	stops    map[string]*terminateOperation
+	cleanups map[string]*cleanupOperation
+	releases map[string]runtime.CleanupResult
 }
 
 var _ runtime.RuntimeBackend = (*ControlledAdapter)(nil)
@@ -65,6 +80,9 @@ func newControlledAdapter(base *SpikeAdapter, control workerControl) *Controlled
 		SpikeAdapter: base,
 		control:      control,
 		phases:       make(map[string]controlPhase),
+		stops:        make(map[string]*terminateOperation),
+		cleanups:     make(map[string]*cleanupOperation),
+		releases:     make(map[string]runtime.CleanupResult),
 	}
 	adapter.changed = sync.NewCond(&adapter.mu)
 	return adapter
@@ -100,6 +118,10 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 	if !obs.Ready {
 		return fmt.Errorf("start %s: %w", entry.claimID, runtime.ErrNotReady)
 	}
+	claimToken := controlClaimToken(entry.claimID)
+	if err := a.waitWorkerControl(id.WorkerID, claimToken); err != nil {
+		return fmt.Errorf("start %s: worker control not ready: %w", entry.claimID, err)
+	}
 	a.mu.Lock()
 	if err := startPhaseError(a.phases[id.WorkerID], entry.claimID); err != nil {
 		a.mu.Unlock()
@@ -108,15 +130,24 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 	a.phases[id.WorkerID] = controlStarting
 	a.mu.Unlock()
 
-	claimToken := controlClaimToken(entry.claimID)
 	out, err := a.control.execWorker(id.WorkerID, "start", claimToken)
-	if err == nil && !workerAck(out, "started", claimToken) {
-		err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+	var startResult string
+	if err == nil {
+		var ok bool
+		startResult, ok = workerAckResult(out, "started", claimToken)
+		if !ok {
+			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+		}
 	}
 	if err == nil {
 		out, err = a.control.execWorker(id.WorkerID, "status", claimToken)
-		if err == nil && !workerAck(out, "running", claimToken) {
-			err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+		if err == nil {
+			runningResult, ok := workerAckResult(out, "running", claimToken)
+			if !ok {
+				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+			} else if runningResult != startResult {
+				err = fmt.Errorf("worker result changed from %q to %q", startResult, runningResult)
+			}
 		}
 	}
 	a.mu.Lock()
@@ -131,6 +162,26 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		return fmt.Errorf("start %s: acknowledgement unconfirmed: %w", entry.claimID, err)
 	}
 	return nil
+}
+
+func (a *ControlledAdapter) waitWorkerControl(workerID, claimToken string) error {
+	deadline := time.Now().Add(10 * time.Second)
+	var lastErr error
+	for {
+		out, err := a.control.execWorker(workerID, "status", claimToken)
+		if err == nil {
+			result, ok := workerAckResult(out, "idle", claimToken)
+			if ok && result == "none" {
+				return nil
+			}
+			return fmt.Errorf("unexpected pre-start status %q", strings.TrimSpace(out))
+		}
+		lastErr = err
+		if !time.Now().Before(deadline) {
+			return lastErr
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func (a *ControlledAdapter) checkStartPhase(workerID, claimID string) error {
@@ -162,6 +213,7 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 	if err != nil {
 		return err
 	}
+	var operation *terminateOperation
 	for {
 		a.mu.Lock()
 		phase := a.phases[id.WorkerID]
@@ -174,13 +226,22 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 			a.changed.Broadcast()
 			a.mu.Unlock()
 			return nil
-		case controlStarting, controlStopping:
-			// A concurrent Start/Terminate owns the in-flight protocol call.
-			// Wait for its bounded acknowledgement before deciding whether a
-			// stop is still required; never return while work may start later.
+		case controlStarting:
+			// Start owns the in-flight protocol call. Wait for its bounded
+			// acknowledgement, then decide whether a stop is required.
 			a.changed.Wait()
 			a.mu.Unlock()
 			continue
+		case controlStopping:
+			// Concurrent callers share the exact result of the in-flight stop.
+			// A later explicit call may retry only after that operation returns.
+			operation = a.stops[id.WorkerID]
+			a.mu.Unlock()
+			if operation == nil {
+				return fmt.Errorf("terminate %s: missing in-flight operation", entry.claimID)
+			}
+			<-operation.done
+			return operation.err
 		case controlCleaning, controlCleanupUnknown, controlReleased:
 			a.mu.Unlock()
 			return fmt.Errorf("terminate %s: %w: cleanup in progress or complete", entry.claimID, runtime.ErrReleased)
@@ -198,6 +259,8 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		a.mu.Lock()
 		phase = a.phases[id.WorkerID]
 		if phase == controlRunning || phase == controlUnknown {
+			operation = &terminateOperation{done: make(chan struct{})}
+			a.stops[id.WorkerID] = operation
 			a.phases[id.WorkerID] = controlStopping
 			a.mu.Unlock()
 			break
@@ -209,41 +272,53 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 
 	claimToken := controlClaimToken(entry.claimID)
 	out, err := a.control.execWorker(id.WorkerID, "stop", claimToken)
-	if err == nil && !workerAck(out, "stopped", claimToken) {
-		err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+	var stopResult string
+	if err == nil {
+		var ok bool
+		stopResult, ok = workerAckResult(out, "stopped", claimToken)
+		if !ok {
+			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+		}
 	}
 	if err == nil {
 		out, err = a.control.execWorker(id.WorkerID, "status", claimToken)
-		if err == nil && !workerAck(out, "stopped", claimToken) {
-			err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+		if err == nil {
+			statusResult, ok := workerAckResult(out, "stopped", claimToken)
+			if !ok {
+				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+			} else if statusResult != stopResult {
+				err = fmt.Errorf("worker result changed from %q to %q", stopResult, statusResult)
+			}
 		}
 	}
+	var finalErr error
 	if err != nil {
-		a.mu.Lock()
-		if a.phases[id.WorkerID] == controlStopping {
-			a.phases[id.WorkerID] = controlUnknown
-		}
-		a.changed.Broadcast()
-		a.mu.Unlock()
-		return fmt.Errorf("terminate %s: stop unconfirmed: %w", entry.claimID, err)
+		finalErr = fmt.Errorf("terminate %s: stop unconfirmed: %w", entry.claimID, err)
 	}
 	a.mu.Lock()
 	if a.phases[id.WorkerID] == controlStopping {
-		a.phases[id.WorkerID] = controlTerminated
+		if finalErr == nil {
+			a.phases[id.WorkerID] = controlTerminated
+		} else {
+			a.phases[id.WorkerID] = controlUnknown
+		}
 	}
+	operation.err = finalErr
+	close(operation.done)
+	delete(a.stops, id.WorkerID)
 	a.changed.Broadcast()
 	a.mu.Unlock()
-	return nil
+	return finalErr
 }
 
-func workerAck(output, state, claimID string) bool {
+func workerAckResult(output, state, claimID string) (string, bool) {
 	line := strings.TrimSpace(output)
 	prefix := "state=" + state + " claim=" + claimID + " result="
 	if !strings.HasPrefix(line, prefix) {
-		return false
+		return "", false
 	}
 	result := strings.TrimPrefix(line, prefix)
-	return result != "" && !strings.ContainsAny(result, " \t\r\n")
+	return result, result != "" && !strings.ContainsAny(result, " \t\r\n")
 }
 
 // Cleanup refuses to hide unconfirmed running/unknown work behind resource
@@ -260,31 +335,41 @@ func (a *ControlledAdapter) Cleanup(id v1alpha1.SandboxClaimBackendIdentity) (ru
 		return runtime.CleanupResult{}, fmt.Errorf("cleanup %s: %w: worker stop unconfirmed", entry.claimID, runtime.ErrUnsupported)
 	}
 	if phase == controlCleaning {
+		operation := a.cleanups[id.WorkerID]
 		a.mu.Unlock()
-		return runtime.CleanupResult{}, fmt.Errorf("cleanup %s: %w: cleanup already in progress", entry.claimID, runtime.ErrUnsupported)
+		if operation == nil {
+			return runtime.CleanupResult{}, fmt.Errorf("cleanup %s: missing in-flight operation", entry.claimID)
+		}
+		<-operation.done
+		return operation.result, operation.err
+	}
+	if phase == controlReleased {
+		result := a.releases[id.WorkerID]
+		a.mu.Unlock()
+		return result, nil
 	}
 	// An earlier delete/confirmation failure can be retried, but work must
 	// never restart: the previous deletion may already have reached the API.
+	operation := &cleanupOperation{done: make(chan struct{})}
+	a.cleanups[id.WorkerID] = operation
 	a.phases[id.WorkerID] = controlCleaning
 	a.mu.Unlock()
 	result, err := a.SpikeAdapter.Cleanup(id)
-	if err != nil {
-		a.mu.Lock()
-		a.phases[id.WorkerID] = controlCleanupUnknown
-		a.changed.Broadcast()
-		a.mu.Unlock()
-		return result, err
-	}
-	if !result.Released {
-		a.mu.Lock()
-		a.phases[id.WorkerID] = controlCleanupUnknown
-		a.changed.Broadcast()
-		a.mu.Unlock()
-		return result, errors.New("cleanup returned no release evidence")
+	if err == nil && !result.Released {
+		err = errors.New("cleanup returned no release evidence")
 	}
 	a.mu.Lock()
-	a.phases[id.WorkerID] = controlReleased
+	if err == nil {
+		a.phases[id.WorkerID] = controlReleased
+		a.releases[id.WorkerID] = result
+	} else {
+		a.phases[id.WorkerID] = controlCleanupUnknown
+	}
+	operation.result = result
+	operation.err = err
+	close(operation.done)
+	delete(a.cleanups, id.WorkerID)
 	a.changed.Broadcast()
 	a.mu.Unlock()
-	return result, nil
+	return result, err
 }

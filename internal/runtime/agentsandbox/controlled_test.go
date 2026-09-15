@@ -46,7 +46,11 @@ func (f *fakeWorkerControl) execWorker(workerID string, args ...string) (string,
 		f.state = "stopped"
 		return "state=stopped claim=" + claimToken + " result=probe-ok\n", nil
 	case "status":
-		return "state=" + f.state + " claim=" + claimToken + " result=probe-ok\n", nil
+		result := "probe-ok"
+		if f.state == "idle" {
+			result = "none"
+		}
+		return "state=" + f.state + " claim=" + claimToken + " result=" + result + "\n", nil
 	}
 	return "", fmt.Errorf("unexpected command %s", args[0])
 }
@@ -240,6 +244,50 @@ func TestControlledAdapter_terminateWaitsForInFlightStartThenStops(t *testing.T)
 	}
 }
 
+type initiallyUnavailableControl struct {
+	*fakeWorkerControl
+	remaining int
+}
+
+func (c *initiallyUnavailableControl) execWorker(workerID string, args ...string) (string, error) {
+	if len(args) > 0 && args[0] == "status" && c.remaining > 0 {
+		c.remaining--
+		return "", errors.New("control socket not bound")
+	}
+	return c.fakeWorkerControl.execWorker(workerID, args...)
+}
+
+func TestControlledAdapter_waitsForControlServerBeforeStart(t *testing.T) {
+	a, k, f, alloc := controlledFixture(t)
+	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	a.control = &initiallyUnavailableControl{fakeWorkerControl: f, remaining: 2}
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatalf("Start did not wait for non-mutating worker readiness: %v", err)
+	}
+	if f.starts != 1 {
+		t.Fatalf("start calls = %d, want 1", f.starts)
+	}
+}
+
+type mismatchedStartResultControl struct{ *fakeWorkerControl }
+
+func (c *mismatchedStartResultControl) execWorker(workerID string, args ...string) (string, error) {
+	out, err := c.fakeWorkerControl.execWorker(workerID, args...)
+	if err == nil && len(args) > 0 && args[0] == "status" && c.state == "running" {
+		return strings.Replace(out, "result=probe-ok", "result=other-result", 1), nil
+	}
+	return out, err
+}
+
+func TestControlledAdapter_requiresStableStartResult(t *testing.T) {
+	a, k, f, alloc := controlledFixture(t)
+	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	a.control = &mismatchedStartResultControl{fakeWorkerControl: f}
+	if err := a.Start(alloc.Identity); err == nil || !strings.Contains(err.Error(), "worker result changed") {
+		t.Fatalf("mismatched result was accepted: %v", err)
+	}
+}
+
 func TestKubectlWorkerControl_usesExactContextNamespaceAndPod(t *testing.T) {
 	r := newKubectlRunner("kind-agenova-k8s-lab", "agenova-e2e")
 	r.command = func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
@@ -278,10 +326,14 @@ func TestControlledAdapter_cleanupSerializesWithStart(t *testing.T) {
 	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
 	block := &blockedControlDelete{fakeKube: k, entered: make(chan struct{}), release: make(chan struct{})}
 	a.SpikeAdapter.kube = block
-	done := make(chan error, 1)
+	type cleanupCall struct {
+		result runtime.CleanupResult
+		err    error
+	}
+	done := make(chan cleanupCall, 1)
 	go func() {
-		_, err := a.Cleanup(alloc.Identity)
-		done <- err
+		result, err := a.Cleanup(alloc.Identity)
+		done <- cleanupCall{result: result, err: err}
 	}()
 	select {
 	case <-block.entered:
@@ -297,9 +349,62 @@ func TestControlledAdapter_cleanupSerializesWithStart(t *testing.T) {
 	if f.starts != 0 {
 		t.Fatal("worker started after cleanup began")
 	}
+	second := make(chan cleanupCall, 1)
+	go func() {
+		result, err := a.Cleanup(alloc.Identity)
+		second <- cleanupCall{result: result, err: err}
+	}()
+	select {
+	case value := <-second:
+		t.Fatalf("concurrent Cleanup returned before release was known: %+v", value)
+	case <-time.After(50 * time.Millisecond):
+	}
 	close(block.release)
-	if err := <-done; err != nil {
-		t.Fatalf("cleanup failed: %v", err)
+	firstResult := <-done
+	secondResult := <-second
+	if firstResult.err != nil || secondResult.err != nil || firstResult.result != secondResult.result || !firstResult.result.Released {
+		t.Fatalf("concurrent Cleanup results differ: first=%+v second=%+v", firstResult, secondResult)
+	}
+	if again, err := a.Cleanup(alloc.Identity); err != nil || again != firstResult.result {
+		t.Fatalf("released Cleanup was not idempotent: result=%+v err=%v", again, err)
+	}
+}
+
+func TestControlledAdapter_concurrentCleanupSharesFailureThenAllowsRetry(t *testing.T) {
+	a, k, _, alloc := controlledFixture(t)
+	k.deleteErr = errors.New("delete response uncertain")
+	block := &blockedControlDelete{fakeKube: k, entered: make(chan struct{}), release: make(chan struct{})}
+	a.SpikeAdapter.kube = block
+	type cleanupCall struct {
+		result runtime.CleanupResult
+		err    error
+	}
+	first := make(chan cleanupCall, 1)
+	go func() {
+		result, err := a.Cleanup(alloc.Identity)
+		first <- cleanupCall{result: result, err: err}
+	}()
+	<-block.entered
+	second := make(chan cleanupCall, 1)
+	go func() {
+		result, err := a.Cleanup(alloc.Identity)
+		second <- cleanupCall{result: result, err: err}
+	}()
+	select {
+	case value := <-second:
+		t.Fatalf("concurrent Cleanup returned before failure was known: %+v", value)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(block.release)
+	firstResult := <-first
+	secondResult := <-second
+	if firstResult.err == nil || secondResult.err == nil || firstResult.err.Error() != secondResult.err.Error() || firstResult.result != secondResult.result {
+		t.Fatalf("concurrent Cleanup failure differs: first=%+v second=%+v", firstResult, secondResult)
+	}
+	k.deleteErr = nil
+	a.SpikeAdapter.kube = k
+	if result, err := a.Cleanup(alloc.Identity); err != nil || !result.Released {
+		t.Fatalf("explicit cleanup retry = %+v %v", result, err)
 	}
 }
 
@@ -370,5 +475,37 @@ func TestControlledAdapter_concurrentTerminateCannotClobberStop(t *testing.T) {
 	}
 	if res, err := a.Cleanup(alloc.Identity); err != nil || !res.Released {
 		t.Fatalf("cleanup after serialized stop: %+v %v", res, err)
+	}
+}
+
+func TestControlledAdapter_concurrentTerminateSharesFailureThenAllowsRetry(t *testing.T) {
+	a, k, f, alloc := controlledFixture(t)
+	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	f.failStop = true
+	block := &blockedWorkerStop{fakeWorkerControl: f, entered: make(chan struct{}), release: make(chan struct{})}
+	a.control = block
+	first := make(chan error, 1)
+	go func() { first <- a.Terminate(alloc.Identity) }()
+	<-block.entered
+	second := make(chan error, 1)
+	go func() { second <- a.Terminate(alloc.Identity) }()
+	select {
+	case err := <-second:
+		t.Fatalf("concurrent Terminate returned before failure was known: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(block.release)
+	firstErr := <-first
+	secondErr := <-second
+	if firstErr == nil || secondErr == nil || firstErr.Error() != secondErr.Error() || f.stops != 1 {
+		t.Fatalf("concurrent Terminate failure differs: first=%v second=%v stops=%d", firstErr, secondErr, f.stops)
+	}
+	f.failStop = false
+	a.control = f
+	if err := a.Terminate(alloc.Identity); err != nil || f.stops != 2 {
+		t.Fatalf("explicit Terminate retry: err=%v stops=%d", err, f.stops)
 	}
 }
