@@ -21,6 +21,8 @@ var reservedCredentialFieldNames = map[string]struct{}{
 	"npmtoken":                     {},
 	"gitlabtoken":                  {},
 	"sshprivatekey":                {},
+	"auth":                         {},
+	"authtoken":                    {},
 	"accesstoken":                  {},
 	"refreshtoken":                 {},
 	"clientsecret":                 {},
