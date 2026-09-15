@@ -60,6 +60,7 @@ Out of scope:
 - Invalid ClaimRequest fixtures exit 2 and do not allocate.
 - Team B Deny exits 1, prints `allocated: false`, and does not allocate.
 - Team A output contains the issued claim ID, `allocated: true`, and the terminal phase.
+- An operational backend failure exits 1 and preserves any available claim ID and terminal phase; it is not reported as a CLI usage error.
 
 ## Execution Todo
 

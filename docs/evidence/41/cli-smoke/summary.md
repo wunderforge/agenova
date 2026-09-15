@@ -16,6 +16,7 @@ Executable output: `binary-output.txt`. Focused test output is reproduced by the
 - Secret-value, self-asserted principal, missing template, and malformed YAML fail before allocation (allocation spy stays at 0).
 - `agenova run` without `-f`, `run -f --help` as a missing value, unknown `--backend`, and `--repo` exit 2.
 - The CLI reports the system-issued claim ID and backend-neutral terminal phase.
+- Focused tests prove an operational backend failure retains its claim/phase report and exits 1 without usage help.
 
 ## Limitations
 

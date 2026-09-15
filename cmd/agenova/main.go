@@ -21,9 +21,6 @@ func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunRep
 		return cli.RunReport{}, err
 	}
 	result, err := app.SubmitClaimRequestFile(path, backend, preset)
-	if err != nil {
-		return cli.RunReport{}, err
-	}
 	return cli.RunReport{
 		RequestRef: result.RequestRef,
 		Decision:   string(result.Decision),
@@ -31,5 +28,5 @@ func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunRep
 		Allocated:  result.Allocated,
 		ClaimID:    result.ClaimID,
 		Phase:      string(result.Phase),
-	}, nil
+	}, err
 }

@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -142,5 +143,45 @@ func TestRunReportsApplicationAllocation(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "allocated: true") || !strings.Contains(stdout.String(), "phase: Succeeded") {
 		t.Fatalf("stdout %q", stdout.String())
+	}
+}
+
+func TestRunPreservesTerminalReportOnOperationalFailure(t *testing.T) {
+	t.Parallel()
+	handler := func(string, runtime.RuntimeBackend) (RunReport, error) {
+		return RunReport{
+			RequestRef: "fix-payment-timeout",
+			Decision:   "Allow",
+			Principal:  "user:team-a-engineer",
+			Allocated:  true,
+			ClaimID:    "claim-1",
+			Phase:      "Failed",
+		}, errors.New("cleanup runtime: release unconfirmed")
+	}
+	var stdout, stderr strings.Builder
+	code := Main([]string{"agenova", "run", "-f", "request.yaml"}, &stdout, &stderr, memoryFactory, handler)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(stdout.String(), "claim: claim-1") || !strings.Contains(stdout.String(), "phase: Failed") {
+		t.Fatalf("terminal report lost: %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "release unconfirmed") || strings.Contains(stderr.String(), "for usage") {
+		t.Fatalf("operational error misclassified: %q", stderr.String())
+	}
+}
+
+func TestRunTreatsEmptyReportErrorAsInvalidSubmission(t *testing.T) {
+	t.Parallel()
+	handler := func(string, runtime.RuntimeBackend) (RunReport, error) {
+		return RunReport{}, errors.New("invalid ClaimRequest")
+	}
+	var stdout, stderr strings.Builder
+	code := Main([]string{"agenova", "run", "-f", "request.yaml"}, &stdout, &stderr, memoryFactory, handler)
+	if code != ExitUsage {
+		t.Fatalf("exit %d, want %d", code, ExitUsage)
+	}
+	if stdout.String() != "" || !strings.Contains(stderr.String(), "for usage") {
+		t.Fatalf("invalid submission output: stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }

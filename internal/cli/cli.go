@@ -140,10 +140,23 @@ func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFac
 	}
 	report, err := run(parsed.file, backend)
 	if err != nil {
+		if report.RequestRef != "" || report.ClaimID != "" || report.Phase != "" {
+			printRunReport(stdout, report)
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
 		fmt.Fprintln(stderr, err.Error())
 		fmt.Fprintln(stderr, "Run 'agenova run --help' for usage.")
 		return ExitUsage
 	}
+	printRunReport(stdout, report)
+	if strings.EqualFold(report.Decision, "Deny") {
+		return 1
+	}
+	return 0
+}
+
+func printRunReport(stdout io.Writer, report RunReport) {
 	fmt.Fprintf(stdout, "request: %s\n", report.RequestRef)
 	fmt.Fprintf(stdout, "decision: %s\n", report.Decision)
 	fmt.Fprintf(stdout, "principal: %s\n", report.Principal)
@@ -154,10 +167,6 @@ func printRun(stdout, stderr io.Writer, parsed parsedArgs, newRuntime RuntimeFac
 	if report.Phase != "" {
 		fmt.Fprintf(stdout, "phase: %s\n", report.Phase)
 	}
-	if strings.EqualFold(report.Decision, "Deny") {
-		return 1
-	}
-	return 0
 }
 
 func printVersion(stdout, stderr io.Writer, backendName string, newRuntime RuntimeFactory) int {
