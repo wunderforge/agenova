@@ -43,6 +43,23 @@ npm --prefix ui run dev -- --port 5175 --strictPort
 
 服务仅监听本机，使用 operator 固定的可信身份。不是上线后的登录或多用户部署方案。要演示拒绝场景，可以在独立端口/namespace 启动 `-principal team-b`；浏览器不能通过提交字段更改身份。
 
+## 直接查看 evidence API
+
+从 Work 页面复制 request reference 或展开的 claim ID，替换下列占位值：
+
+```powershell
+curl.exe --noproxy "*" http://127.0.0.1:8088/api/requests/REQUEST_REFERENCE/evidence
+curl.exe --noproxy "*" http://127.0.0.1:8088/api/claims/CLAIM_ID/evidence
+```
+
+两种查询返回相同的 `agenova.evidence/v0` View：`requestRef`、原始 `request`、可信 `state`、有序 `facts`、实际 `outcome`。成功的 `outcome` 包含 `text` 和模型调用/用量；运行中尚无最终 outcome；拒绝可以按 request 查询，但没有 claim。未知引用返回 404，非法引用返回 400。
+
+可复验的 HTTP 用例使用真实 handler，不依赖浏览器 mock：
+
+```powershell
+go test -count=1 -v ./internal/console -run TestHTTP
+```
+
 ## 可复验的 gate
 
 ```powershell
