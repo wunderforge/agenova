@@ -627,7 +627,7 @@ spec:
 		assertClaimRequestValidationError(t, yamlErr, ValidationCategorySecretValue, "spec.task.input.provider.AZURE_CLIENT_SECRET")
 	})
 
-	for _, key := range []string{"GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "NPM_TOKEN", "GITLAB_TOKEN", "SSH_PRIVATE_KEY"} {
+	for _, key := range []string{"GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "NPM_TOKEN", "GITLAB_TOKEN", "SSH_PRIVATE_KEY", "_auth", "_authToken"} {
 		t.Run(key, func(t *testing.T) {
 			request := validClaimRequest()
 			request.Spec.Task.Input = map[string]any{"provider": map[string]string{key: "not-inspected"}}

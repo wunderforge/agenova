@@ -257,6 +257,8 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"NPM token", func(r *Request) { r.Parameters = map[string]string{"NPM_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 		{"GitLab token", func(r *Request) { r.Parameters = map[string]string{"GITLAB_TOKEN": "not-inspected"} }, gateway.CategorySecretValue},
 		{"SSH private key", func(r *Request) { r.Parameters = map[string]string{"SSH_PRIVATE_KEY": "not-inspected"} }, gateway.CategorySecretValue},
+		{"npm auth", func(r *Request) { r.Parameters = map[string]string{"_auth": "not-inspected"} }, gateway.CategorySecretValue},
+		{"npm auth token", func(r *Request) { r.Parameters = map[string]string{"_authToken": "not-inspected"} }, gateway.CategorySecretValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

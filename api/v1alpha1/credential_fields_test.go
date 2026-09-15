@@ -15,6 +15,8 @@ func TestReservedCredentialFieldNameUsesExactNormalizedVocabulary(t *testing.T) 
 		"NPM_TOKEN",
 		"GITLAB_TOKEN",
 		"SSH_PRIVATE_KEY",
+		"_auth",
+		"_authToken",
 		"API_KEY",
 		"client_secret",
 		"clientSecret",
