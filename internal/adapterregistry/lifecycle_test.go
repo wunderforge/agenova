@@ -94,3 +94,25 @@ func TestInitRejectsAdapterEmittedCredentialConfiguration(t *testing.T) {
 		t.Fatalf("Init() = %#v, %v", fragment, err)
 	}
 }
+
+func TestLifecycleConstructUsesRegisteredCapabilityFactory(t *testing.T) {
+	implementation := &struct{ Name string }{Name: "deployment"}
+	registration := testRegistration("example.com/deployment/reference", "1.0.0")
+	registration.Factories[platform.CapabilityDeployment] = func() (any, error) { return implementation, nil }
+	registry, err := New(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := NewLifecycle(registry, NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := lifecycle.Construct(registration.Manifest.ID, registration.Manifest.Version, platform.CapabilityDeployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != implementation {
+		t.Fatalf("Construct() = %#v, want registered implementation %#v", got, implementation)
+	}
+}

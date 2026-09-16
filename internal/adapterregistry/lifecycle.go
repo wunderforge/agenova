@@ -37,6 +37,13 @@ func (l *Lifecycle) Lookup(id, version string) (platform.Descriptor, bool) {
 	return l.registry.Lookup(id, version)
 }
 
+// Construct creates one capability implementation from the same immutable
+// registry used for lookup and activation. Platform orchestration therefore
+// cannot validate one registration and accidentally execute another.
+func (l *Lifecycle) Construct(id, version string, capability platform.Capability) (any, error) {
+	return l.registry.Construct(id, version, capability)
+}
+
 func (l *Lifecycle) List() (InstallationLock, error) {
 	lock, err := l.store.List()
 	if err != nil {
