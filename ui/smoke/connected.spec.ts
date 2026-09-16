@@ -28,6 +28,42 @@ const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
+test('failed work shows a separate red outcome, reason and failed detail record without recoloring successful calls',async({page},info)=>{
+ const current=work();
+ current.state!.claim!.phase='Failed';
+ const reason='The agent exited without returning a final answer.';
+ current.outcome={status:'Failed',failure:reason};
+ current.facts.push(
+  {id:'turn',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'WorkerActivity',requestRef:current.requestRef,operation:'TurnStarted',target:'Turn 6'},
+  {id:'model-start',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'ProviderAttempt',requestRef:current.requestRef,operation:'model.invoke',invocationId:'model-ok'},
+  {id:'model-ok',sequence:6,timestamp:'2026-09-15T02:00:05Z',kind:'ProviderOutcome',requestRef:current.requestRef,operation:'model.invoke',invocationId:'model-ok',providerStatus:'Succeeded'},
+  {id:'failed-runtime',sequence:7,timestamp:'2026-09-15T02:00:06Z',kind:'Runtime',requestRef:current.requestRef,operation:'Failed'},
+  {id:'cleanup-ok',sequence:8,timestamp:'2026-09-15T02:00:07Z',kind:'Runtime',requestRef:current.requestRef,operation:'CleanupSucceeded'},
+  {id:'work-failed',sequence:9,timestamp:'2026-09-15T02:00:08Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed',reason,reasonCode:'agent-no-final-result'},
+ );
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-agent-failure')).toContainText(reason);
+ await expect(page.locator('.portal-agent-failure strong')).toHaveCSS('color','rgb(255, 140, 164)');
+ await expect(page.locator('.portal-worker-state.positive')).toHaveText('Succeeded');
+ await expect(page.locator('.portal-worker-state.negative')).toHaveCount(0);
+ await page.screenshot({path:info.outputPath('work-outcome-failed.png'),fullPage:true});
+ await page.getByRole('link',{name:'View failure record'}).click();
+ await expect(page.locator('.portal-head .portal-badge.failed')).toHaveText('Failed');
+ await expect(page.getByRole('alert')).toContainText(reason);
+ await page.screenshot({path:info.outputPath('failed-record-detail.png'),fullPage:true});
+ await page.getByRole('link',{name:'Activity',exact:true}).click();
+ await expect(page.locator('.portal-record-row').filter({hasText:'Work failed'}).locator('.portal-badge.failed')).toHaveCount(2);
+});
+test('historical missing failure reason is explicit, not inferred from successful model calls',async({page})=>{
+ const current=work();current.state!.claim!.phase='Failed';
+ current.outcome={status:'Failed',failure:'Execution or cleanup failed; inspect the recorded activity.'};
+ current.facts.push({id:'failed',sequence:4,timestamp:'2026-09-15T02:00:08Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed'});
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}/activity/failed`);
+ await expect(page.locator('.portal-head .portal-badge.failed')).toHaveText('Failed');
+ await expect(page.getByRole('alert')).toContainText('No specific failure reason was recorded for this work.');
+});
 test('connected motion follows provider and cleanup evidence without resetting DOM or scroll',async({page},info)=>{
  const current=work();
  current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'call-1',providerStatus:'Attempted'});

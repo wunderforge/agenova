@@ -38,6 +38,14 @@ function recordTitle(fact: Observation): string {
   return category(fact);
 }
 const recordReason = (fact: Observation) => fact.reason || fact.decision?.reason || '';
+const recordStatus = (fact: Observation) => fact.result || fact.providerStatus || fact.decision?.result
+  || (['Runtime', 'RunOutcome'].includes(fact.kind) && /Failed$/.test(fact.operation || '') ? 'Failed'
+    : fact.kind === 'RunOutcome' && ['Succeeded', 'Cancelled', 'Expired'].includes(fact.operation || '') ? fact.operation! : 'Recorded');
+const outcomeReason = (work: View) => {
+  const reason = [...work.facts].reverse().find(f => f.kind === 'RunOutcome')?.reason || work.outcome?.failure;
+  return reason && !/^Execution or cleanup failed;/.test(reason) ? reason
+    : 'No specific failure reason was recorded for this work.';
+};
 
 function Badge({ value }: { value: string }) {
   return <span className={`portal-badge ${value.toLowerCase().replace(/\s+/g, '-')}`}>{value}</span>;
@@ -139,7 +147,7 @@ function Records({ work, observations }: { work: View; observations: Observation
           <small>{fact.target || recordReason(fact)}</small>
         </div>
         <span className="portal-record-source">{category(fact)}</span>
-        <Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>
+        <Badge value={recordStatus(fact)}/>
       </div>
     ) : <p className="portal-empty">No activity recorded yet.</p>}
   </div>;
@@ -218,8 +226,11 @@ function WorkDetail({ work }: { work: View }) {
     }}/>} failure={work.outcome?.failure && <div className="portal-state failed" role="alert">
           <strong>{work.outcome.status === 'Succeeded'
             ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
-          <p>{work.outcome.failure}</p>
-        </div>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)}/>} access={<aside className="portal-access-card">
+          <p>{outcomeReason(work)}</p>
+        </div>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)} failure={status === 'Failed' ? {
+          reason: outcomeReason(work),
+          href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
+        } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
           ? state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
@@ -238,9 +249,10 @@ function WorkDetail({ work }: { work: View }) {
     </section>} details={<>
       <small className="portal-source-note">{time(work.facts.at(-1)?.timestamp)} last update</small>
       <ol className="portal-timeline">{progress.map(fact =>
-        <li key={fact.id}>
+        <li key={fact.id} data-negative={recordStatus(fact) === 'Failed'}>
           <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
-          {recordReason(fact) && <p>{recordReason(fact)}</p>}
+          {recordStatus(fact) === 'Failed' && <Badge value="Failed"/>}
+          {(recordReason(fact) || (fact.kind === 'RunOutcome' && recordStatus(fact) === 'Failed')) && <p>{recordReason(fact) || outcomeReason(work)}</p>}
         </li>
       )}</ol>
       <div className="portal-fact-grid">
@@ -283,7 +295,11 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
     return <>
       <nav className="portal-crumbs"><a href={link(`${workLink(work)}/activity`)}>Activity</a></nav>
       <Heading title={recordTitle(fact)}
-        action={<Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>}/>
+        action={<Badge value={recordStatus(fact)}/>}/>
+      {recordStatus(fact) === 'Failed' && <div className="portal-state failed" role="alert">
+        <strong>{recordTitle(fact)}</strong>
+        <p>{recordReason(fact) || (fact.kind === 'RunOutcome' ? outcomeReason(work) : 'No specific failure reason was recorded for this event.')}</p>
+      </div>}
       <section className="portal-panel"><h2>What this record says</h2>
         <p>{recordReason(fact) || recordTitle(fact)}</p>
         <div className="portal-fact-grid">
@@ -338,7 +354,7 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
           </div>
           <div><a href={link(workLink(work))}>{workTitle(work)}</a>
             <small>{work.state?.principal.team}</small></div>
-          <Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>
+          <Badge value={recordStatus(fact)}/>
         </div>
       )}{!records.length && <p className="portal-empty">No governance activity recorded yet.</p>}</div>
     </>;

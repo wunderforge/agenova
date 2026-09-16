@@ -15,6 +15,11 @@ const ReAct = "react"
 const MaxTurns = 6
 const MaxOperations = MaxTurns * 2
 
+// Safe, typed demo-edge failures; callers must not expose raw transport errors.
+var ErrTurnLimit = errors.New("agent turn limit reached")
+var ErrNoFinalResult = errors.New("agent exited without a final result")
+var ErrInvalidFinalResult = errors.New("agent final result did not match governed evidence")
+
 // Demo-edge schema; the platform gateway does not prescribe agent reasoning.
 // Keep the provider schema to the locally verified grammar subset. Byte limits
 // are enforced by ParseAction and the host, not entrusted to model generation.

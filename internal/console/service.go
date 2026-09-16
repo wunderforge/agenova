@@ -251,7 +251,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			}
 			turn++
 			if turn > workerprotocol.MaxTurns {
-				return workerprotocol.Reply{}, errors.New("agent turn cap exceeded")
+				return workerprotocol.Reply{}, workerprotocol.ErrTurnLimit
 			}
 			if err := step("TurnStarted"); err != nil {
 				return workerprotocol.Reply{}, err
@@ -297,19 +297,61 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 		outcome.Text = modelText
 		outcome.Model = observed
 	}
+	code := "run-" + status
 	if runErr != nil {
-		outcome.Failure = "Execution or cleanup failed; inspect the recorded activity."
-		if status == "Succeeded" {
-			outcome.Failure = "Task completed, but runtime stop or cleanup failed; inspect activity."
-		}
+		code, outcome.Failure = runFailure(runErr, s.journal.ForRequest(ref))
 	}
-	_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: "run-" + status})
+	_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: code, Reason: outcome.Failure})
 	s.mu.Lock()
 	if final != nil {
 		s.records[ref].view.State = final
 	}
 	s.records[ref].view.Outcome = outcome
 	s.mu.Unlock()
+}
+
+// Classify only trusted categories/facts. Never return arbitrary backend,
+// provider, model output or operating-system error text to the browser.
+func runFailure(err error, recorded []facts.Fact) (string, string) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "run-cancelled", "The work was cancelled before execution completed."
+	case errors.Is(err, app.ErrRunDeadline), errors.Is(err, context.DeadlineExceeded):
+		return "run-deadline", "The work exceeded its execution time limit."
+	case errors.Is(err, workerprotocol.ErrTurnLimit):
+		return "agent-turn-limit", "The agent reached its model-turn limit without a final answer."
+	case errors.Is(err, workerprotocol.ErrNoFinalResult):
+		return "agent-no-final-result", "The agent exited without returning a final answer."
+	case errors.Is(err, workerprotocol.ErrInvalidFinalResult):
+		return "agent-invalid-final-result", "The agent returned a result that did not match its governed model and tool evidence."
+	}
+	var sawProvider, sawDecision bool
+	for i := len(recorded) - 1; i >= 0; i-- {
+		f := recorded[i]
+		if f.Kind == "ProviderOutcome" && !sawProvider {
+			sawProvider = true
+			if f.ProviderStatus == "Failed" {
+				return "provider-failed", "The last governed provider call failed. Open the failed call record for context."
+			}
+		}
+		if (f.Kind == "ModelDecision" || f.Kind == "ToolDecision") && !sawDecision {
+			sawDecision = true
+			if f.Result == v0.DecisionResultDeny {
+				return "invocation-denied", "The last governed request was denied; the agent did not complete."
+			}
+		}
+	}
+	for _, f := range recorded {
+		if f.Operation == "Failed" || f.Operation == "StartFailed" || f.Operation == "AllocateFailed" {
+			return "execution-failed", "Execution failed; no more specific failure reason was recorded."
+		}
+	}
+	for _, f := range recorded {
+		if f.Operation == "CleanupFailed" || f.Operation == "TerminateFailed" {
+			return "runtime-cleanup-failed", "Runtime stop or cleanup failed. Inspect the cleanup records."
+		}
+	}
+	return "execution-failed", "Execution failed; no more specific failure reason was recorded."
 }
 
 type completionAdapter struct {
@@ -344,7 +386,14 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 		status = "Cancelled"
 		providerErr = err
 	}
-	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: status}); err != nil {
+	reason, reasonCode := "", ""
+	if status == "Failed" {
+		reasonCode, reason = "model-provider-failed", "The model provider call failed before a usable response was available."
+	}
+	if status == "Cancelled" {
+		reasonCode, reason = "model-call-cancelled", "The model call was cancelled or its claim became inactive."
+	}
+	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: status, Reason: reason, ReasonCode: reasonCode}); err != nil {
 		return err
 	}
 	if providerErr != nil {

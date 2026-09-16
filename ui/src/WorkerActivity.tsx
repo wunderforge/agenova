@@ -53,7 +53,7 @@ export function groupWorkerTurns(actions: WorkerAction[]): WorkerTurn[] {
   }
   return [...groups.values()];
 }
-export function WorkerActivity({ actions, status, activityHref }: { actions: WorkerAction[]; status: string; activityHref: string }) {
+export function WorkerActivity({ actions, status, activityHref, failure }: { actions: WorkerAction[]; status: string; activityHref: string; failure?: {reason: string; href: string} }) {
   const [chosen, setChosen] = useState<string>();
   const [followLatest, setFollowLatest] = useState(true);
   const pending = actions.filter(a => a.active);
@@ -70,7 +70,7 @@ export function WorkerActivity({ actions, status, activityHref }: { actions: Wor
     : 'No active calls';
   return <section className={`portal-worker ${pending.length ? 'has-active-call' : ''}`} aria-label="Worker activity">
     <div className="portal-section-head"><div><h2>Agent activity</h2><p className="portal-activity-help">{turn ? 'Model calls and tool results, grouped by turn.' : actions.some(a => ['Model request', 'Tool call (mock)'].includes(a.label)) ? 'Recorded model and tool calls.' : 'Access checks only; no execution calls recorded.'}</p></div><a href={activityHref}>View records</a></div>
-    <p className="portal-worker-current" role="status"><span className="portal-worker-lamp" aria-hidden="true"/><span>{turn && `${turn} · `}{summary}</span></p>
+    <p className="portal-worker-current" data-negative={status === 'Failed'} role="status"><span className="portal-worker-lamp" aria-hidden="true"/><span>{turn && `${turn} · `}{summary}</span></p>
     {turns > 0 && <p className="portal-turn-count">{turns} model turns · {observations} tool observations</p>}
     <div className="portal-turns">{groups.map(group => {
       const open = followLatest ? group.id === latest : chosen === group.id;
@@ -92,5 +92,8 @@ export function WorkerActivity({ actions, status, activityHref }: { actions: Wor
         {!group.calls.length && <p className="portal-source-note">No execution call recorded for this turn yet.</p>}
       </details>;
     })}</div>
+    {failure && <div className="portal-agent-failure" role="alert">
+      <strong>Work failed</strong><p>{failure.reason}</p><a href={failure.href}>View failure record</a>
+    </div>}
   </section>;
 }

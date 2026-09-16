@@ -45,6 +45,12 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-requested failure visibility: mark failed lifecycle/outcome records in
+  detail and activity views, expose a separate failed work outcome below successful
+  calls, and record sanitized failure reasons without inventing missing historical
+  evidence. Prove with deterministic backend and browser tests; no new inference.
+  See [failure visibility and evidence](work-reading-path.md#failure-visibility-follow-up-16-september).
+
 - [x] Owner-approved cobalt visual refinement: preserve the reading path, distinguish
   navigation/current calls from permission results, and prove localized light/motion
   without performance regression. See [visual plan](cobalt-visual.md).

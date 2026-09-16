@@ -72,3 +72,35 @@ the same reading order but never mix evidence.
   no horizontal overflow at 1360px/390px and no page errors. No new inference run.
   Reproduce from `ui`: `node scripts/inspect-work-layout.mjs <existing-local-work-url>`.
   Local desktop/history/mobile screenshots and report: `.tmp/work-reading-path/`.
+
+## Failure visibility follow-up (16 September)
+
+Owner reported that a failed work's detail record said Recorded and its successful
+model calls hid the failed overall outcome. Runtime/RunOutcome failure operations
+now render Failed badges in record lists, detail pages and execution history.
+Agent activity has a separate red work-outcome record; successful model/tool calls
+stay successful. Only genuine pending calls animate.
+
+This follow-up also corrects evidence production, not only presentation. The local
+console writes a sanitized reason/code into RunOutcome and the same reason into
+Outcome.failure. Typed demo-edge errors identify turn-limit, missing-final-result
+and invalid-final-result failures. Provider failures/cancellations get safe reasons
+in their own records. Raw provider/transport error text is never exposed. Recovered
+earlier call failures are not used to explain an unrelated terminal failure.
+
+Historical facts remain immutable: when no specific cause was recorded, say so.
+The owner's retained work-411260e1-6547-448f-b650-e5cfd6e5d5de has six successful
+model calls, three successful mock reads, a failed task and confirmed cleanup; it
+does not record the underlying cause. No new inference was made for this correction.
+Read-only screenshots: `.tmp/failure-record-detail.png`, `.tmp/failure-work-detail.png`.
+The running console binary was deliberately not restarted: its process-local
+evidence would be lost. New backend reason production requires loading the updated
+binary after the owner finishes inspecting this session.
+
+Focused tests cover typed transport errors, sanitized/correlated reasons, recovered
+call handling, failed-detail/list colors, missing historical causes and successful
+call/cleanup preservation. The connected browser suite has 12 passing tests.
+Final `scripts/check.ps1 -All` passed: documentation/contracts, formatting/tidy/vet,
+Go tests, integration compilation, UI types/build, 101 component tests and 44 browser
+tests. Read-only inspection of the owner's retained failure confirmed the Failed
+badge, explicit missing cause, separate agent outcome and zero ongoing animations.

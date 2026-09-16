@@ -188,12 +188,12 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			if task.Mode == workerprotocol.ReAct {
 				a, err := workerprotocol.ParseAction(modelText)
 				if err != nil || a.Action != "finish" || modelTurns < 2 || (task.ResourceScope != "" && observations == 0) {
-					return "", errors.New("worker lacks completed ReAct evidence")
+					return "", workerprotocol.ErrInvalidFinalResult
 				}
 				expected = a.Answer
 			}
 			if modelText == "" || message.Result != expected {
-				return "", errors.New("worker result lacks matching governed model response")
+				return "", workerprotocol.ErrInvalidFinalResult
 			}
 			result = message.Result
 			continue
@@ -211,7 +211,7 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			return "", errors.New("worker operation shape rejected")
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "model" && modelTurns >= workerprotocol.MaxTurns {
-			return "", errors.New("model turn cap exceeded before invocation")
+			return "", workerprotocol.ErrTurnLimit
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
 			a, err := workerprotocol.ParseAction(modelText)
@@ -232,7 +232,7 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		if op.Kind == "model" {
 			modelTurns++
 			if task.Mode == workerprotocol.ReAct && modelTurns > workerprotocol.MaxTurns {
-				return "", errors.New("model turn cap exceeded")
+				return "", workerprotocol.ErrTurnLimit
 			}
 			if !reply.Allowed || strings.TrimSpace(reply.Text) == "" || reply.Error != "" {
 				return "", errors.New("worker model operation did not produce an allowed response")
@@ -256,7 +256,7 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		return "", errors.New("worker output malformed or exceeds limit")
 	}
 	if result == "" {
-		return "", errors.New("worker exited without final result")
+		return "", workerprotocol.ErrNoFinalResult
 	}
 	return result, nil
 }

@@ -15,6 +15,7 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
@@ -51,6 +52,7 @@ type verticalExecutor struct {
 	foreign   bool
 	ungranted bool
 	calls     atomic.Int32
+	exitErr   error
 }
 
 func (e *verticalExecutor) Execute(ctx context.Context, id v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handle workerprotocol.Handler) (string, error) {
@@ -69,7 +71,65 @@ func (e *verticalExecutor) Execute(ctx context.Context, id v0.SandboxClaimBacken
 	if !reply.Allowed {
 		return "", errors.New("model denied")
 	}
+	if e.exitErr != nil {
+		return "", e.exitErr
+	}
 	return reply.Text, nil
+}
+
+func TestRunFailureReasonsAreRecordedAndSanitized(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"turn-limit", workerprotocol.ErrTurnLimit, "agent-turn-limit"},
+		{"no-result", workerprotocol.ErrNoFinalResult, "agent-no-final-result"},
+		{"invalid-result", workerprotocol.ErrInvalidFinalResult, "agent-invalid-final-result"},
+		{"unknown", errors.New("private transport credential details"), "execution-failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := NewService(&verticalBackend{}, &verticalExecutor{exitErr: tc.err}, &verticalProvider{}, app.ReferencePrincipalTeamA)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			if _, err := s.Submit(verticalRequest(t, tc.name)); err != nil {
+				t.Fatal(err)
+			}
+			v := awaitVertical(t, s, tc.name)
+			last := v.Facts[len(v.Facts)-1]
+			if last.Kind != "RunOutcome" || last.Operation != "Failed" || last.ReasonCode != tc.code || last.Reason == "" || last.Reason != v.Outcome.Failure {
+				t.Fatalf("missing failure provenance: %+v / %+v", last, v.Outcome)
+			}
+			var modelSuccess, cleanupSuccess bool
+			for _, f := range v.Facts {
+				modelSuccess = modelSuccess || (f.Kind == "ProviderOutcome" && f.ProviderStatus == "Succeeded")
+				cleanupSuccess = cleanupSuccess || f.Operation == "CleanupSucceeded"
+			}
+			if !modelSuccess || !cleanupSuccess {
+				t.Fatal("task failure lost successful call/cleanup evidence")
+			}
+			data, _ := json.Marshal(v)
+			if strings.Contains(string(data), "private transport") {
+				t.Fatal("private error leaked")
+			}
+		})
+	}
+}
+
+func TestRunFailureDoesNotBlameRecoveredCalls(t *testing.T) {
+	code, _ := runFailure(errors.New("private execution details"), []facts.Fact{
+		{Kind: "ProviderOutcome", ProviderStatus: "Failed"},
+		{Kind: "ToolDecision", Result: v0.DecisionResultDeny},
+		{Kind: "ModelDecision", Result: v0.DecisionResultAllow},
+		{Kind: "ProviderOutcome", ProviderStatus: "Succeeded"},
+		{Kind: "Runtime", Operation: "Failed"},
+		{Kind: "Runtime", Operation: "CleanupSucceeded"},
+	})
+	if code != "execution-failed" {
+		t.Fatalf("blamed a recovered call: %s", code)
+	}
 }
 
 type verticalProvider struct {
@@ -242,6 +302,9 @@ func TestVerticalServiceProviderFailureIsNotPermissionDenial(t *testing.T) {
 		}
 		if f.Kind == "ProviderOutcome" {
 			failed = f.ProviderStatus == "Failed"
+			if failed && (f.Reason == "" || f.ReasonCode != "model-provider-failed") {
+				t.Fatal("failed provider record has no sanitized reason")
+			}
 		}
 	}
 	if !allowed || !failed {

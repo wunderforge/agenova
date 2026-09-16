@@ -37,6 +37,26 @@ func modelMessage(task workerprotocol.Task) workerprotocol.Message {
 	return workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}
 }
 
+func TestExecutionFailureCategoriesSurviveTransport(t *testing.T) {
+	task := executionTask()
+	for _, tc := range []struct {
+		name, input string
+		want        error
+	}{
+		{"missing-final-result", protocolLines(modelMessage(task)), workerprotocol.ErrNoFinalResult},
+		{"mismatched-final-result", protocolLines(modelMessage(task), workerprotocol.Message{Result: "unverified answer"}), workerprotocol.ErrInvalidFinalResult},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := exchangeWorker(context.Background(), strings.NewReader(tc.input), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+				return workerprotocol.Reply{Allowed: true, Text: "governed answer"}, nil
+			})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("failure category lost: %v", err)
+			}
+		})
+	}
+}
+
 func TestExecutionExchangeTaskDependentResult(t *testing.T) {
 	task := executionTask()
 	var output bytes.Buffer
