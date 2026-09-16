@@ -57,7 +57,7 @@ Out of scope:
 - [x] Add CLI commands, confirmation, and stable human/JSON output.
 - [x] Add fake-target failures and real kind first/second apply plus denied-RBAC evidence.
 - [x] Run focused gates and `.\scripts\check.ps1 -All`.
-- [ ] Review the diff and record exact evidence in PR and Ticket.
+- [x] Review the diff and record exact evidence in PR and Ticket.
 
 ## Quality Gates
 
@@ -83,4 +83,4 @@ Out of scope:
 - Decision: runtime and model adapters are validated/activated independently; this ticket does not deploy their external prerequisites.
 - Evidence: `docs/evidence/45/platform-apply-kind.md` records Ready first apply, zero-change second apply, stable resource count, internal status, and denied-RBAC behavior.
 - Full `.\scripts\check.ps1 -All` passed, including Go, frontend unit/build and 48 browser smoke tests (after installing locked UI dependencies in this worktree).
-- Blocker: #151 must merge before this stacked branch is rebased and published.
+- #151 merged; this branch was rebased onto the resulting `main` before publication.
