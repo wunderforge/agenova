@@ -281,7 +281,7 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 }
 
 func printPlatformApplyHuman(output io.Writer, result platformapply.ApplyResult) {
-	fmt.Fprintf(output, "platform: %s\nrevision: %s\ntarget: %s\nchanged: %t\nready: %t\n", result.Plan.PlatformName, result.Plan.Revision, result.Plan.Target, result.Applied, result.Ready)
+	fmt.Fprintf(output, "platform: %s\nrevision: %s\ntarget: %s\nchanged: %t\nready: %t\nreadiness scope: %s\n", result.Plan.PlatformName, result.Plan.Revision, result.Plan.Target, result.Applied, result.Ready, result.ReadinessScope)
 	for _, component := range result.Components {
 		fmt.Fprintf(output, "- %s/%s: %s\n", component.Category, component.Name, component.State)
 	}

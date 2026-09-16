@@ -19,10 +19,11 @@ import (
 	"github.com/wunderforge/agenova/internal/platform"
 )
 
-const (
-	ReferencePolicyID      = "reference-default-deny"
-	ReferencePolicyVersion = "1"
-)
+// PolicyAvailability validates an initial policy reference against the
+// catalog supplied by the application composition root.
+type PolicyAvailability interface {
+	Require(v1alpha1.PlatformPolicyReference) error
+}
 
 type Change struct {
 	Component string `json:"component"`
@@ -44,21 +45,30 @@ type Plan struct {
 	Changes       []Change          `json:"changes"`
 	Components    []ComponentStatus `json:"components"`
 	targetChanged bool
+	targetChanges []Change
 }
 
 func (p Plan) Changed() bool { return len(p.Changes) > 0 }
 
 type ApplyResult struct {
-	Plan       Plan              `json:"plan"`
-	Applied    bool              `json:"applied"`
-	Ready      bool              `json:"ready"`
-	Components []ComponentStatus `json:"components"`
+	Plan    Plan `json:"plan"`
+	Applied bool `json:"applied"`
+	Ready   bool `json:"ready"`
+	// Ready covers only the declared installation components, not a functional
+	// end-to-end agent run or the health of external adapter prerequisites.
+	ReadinessScope string            `json:"readinessScope"`
+	Components     []ComponentStatus `json:"components"`
 }
+
+const ReadinessScopeInstallation = "installation-components"
 
 type DeploymentRequest struct {
 	Platform *platform.ResolvedPlatform
 	Lock     *platform.PlatformLock
 	Config   map[string]any
+	// TargetChanges is the exact target subset confirmed by the operator.
+	// Nil allows a directly invoked adapter to calculate its own plan.
+	TargetChanges []Change
 }
 
 // DeploymentAdapter owns target vocabulary and mutations. The application
@@ -71,6 +81,7 @@ type DeploymentAdapter interface {
 
 type Service struct {
 	Adapters *adapterregistry.Lifecycle
+	Policies PolicyAvailability
 }
 
 func (s Service) ValidateFile(path string) (*platform.ResolvedPlatform, *platform.PlatformLock, error) {
@@ -93,8 +104,11 @@ func (s Service) Validate(input *v1alpha1.Platform) (*platform.ResolvedPlatform,
 	if resolveErr != nil {
 		return nil, nil, fmt.Errorf("resolve Platform: %w", resolveErr)
 	}
-	if resolved.InitialPolicyRef.ID != ReferencePolicyID || resolved.InitialPolicyRef.Version != ReferencePolicyVersion {
-		return nil, nil, fmt.Errorf("initial policy %s@%s is not available; reference install requires %s@%s", resolved.InitialPolicyRef.ID, resolved.InitialPolicyRef.Version, ReferencePolicyID, ReferencePolicyVersion)
+	if s.Policies == nil {
+		return nil, nil, fmt.Errorf("initial policy catalog is required")
+	}
+	if err := s.Policies.Require(resolved.InitialPolicyRef); err != nil {
+		return nil, nil, fmt.Errorf("initial policy: %w", err)
 	}
 	return resolved, lock, nil
 }
@@ -129,7 +143,7 @@ func (s Service) Plan(ctx context.Context, resolved *platform.ResolvedPlatform, 
 		statuses = []ComponentStatus{}
 	}
 	sortPlan(changes, statuses)
-	return Plan{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: target, Changes: changes, Components: statuses, targetChanged: len(targetChanges) > 0}, nil
+	return Plan{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: target, Changes: changes, Components: statuses, targetChanged: len(targetChanges) > 0, targetChanges: targetChanges}, nil
 }
 
 func (s Service) ApplyFile(ctx context.Context, path string) (ApplyResult, error) {
@@ -156,14 +170,14 @@ func (s Service) ApplyPlanned(ctx context.Context, resolved *platform.ResolvedPl
 		return ApplyResult{}, err
 	}
 	if !reflect.DeepEqual(current, confirmed) {
-		return ApplyResult{Plan: current, Components: current.Components}, fmt.Errorf("Platform plan changed before apply; review the new plan and retry")
+		return ApplyResult{Plan: current, ReadinessScope: ReadinessScopeInstallation, Components: current.Components}, fmt.Errorf("Platform plan changed before apply; review the new plan and retry")
 	}
 	return s.applyWithPlan(ctx, resolved, lock, current)
 }
 
 func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedPlatform, lock *platform.PlatformLock, plan Plan) (ApplyResult, error) {
 	if !plan.Changed() {
-		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), Components: plan.Components}, nil
+		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), ReadinessScope: ReadinessScopeInstallation, Components: plan.Components}, nil
 	}
 	var request DeploymentRequest
 	var adapter DeploymentAdapter
@@ -171,12 +185,13 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 	if plan.targetChanged {
 		request, adapter, err = s.deployment(resolved, lock)
 		if err != nil {
-			return ApplyResult{Plan: plan}, err
+			return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation}, err
 		}
+		request.TargetChanges = append([]Change(nil), plan.targetChanges...)
 		// Target authority is checked before even the local adapter lock changes.
 		// The deployment adapter still rechecks at mutation time to narrow TOCTOU.
 		if err := adapter.Preflight(ctx, request); err != nil {
-			return ApplyResult{Plan: plan}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
+			return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
 		}
 	}
 	activated := false
@@ -185,7 +200,7 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 		if err != nil {
 			_, statuses, statusErr := s.activationPlan(resolved.Adapters)
 			if statusErr != nil {
-				return ApplyResult{Plan: plan, Applied: activated}, fmt.Errorf("activate adapter %s@%s: %w; inspect partial adapter state: %v", requirement.ID, requirement.Version, err, statusErr)
+				return ApplyResult{Plan: plan, Applied: activated, ReadinessScope: ReadinessScopeInstallation}, fmt.Errorf("activate adapter %s@%s: %w; inspect partial adapter state: %v", requirement.ID, requirement.Version, err, statusErr)
 			}
 			for index := range statuses {
 				if statuses[index].Name == requirement.Name && statuses[index].Category == "adapter" {
@@ -193,26 +208,26 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 				}
 			}
 			sortPlan(nil, statuses)
-			return ApplyResult{Plan: plan, Applied: activated, Components: statuses}, fmt.Errorf("activate adapter %s@%s: %w", requirement.ID, requirement.Version, err)
+			return ApplyResult{Plan: plan, Applied: activated, ReadinessScope: ReadinessScopeInstallation, Components: statuses}, fmt.Errorf("activate adapter %s@%s: %w", requirement.ID, requirement.Version, err)
 		}
 		activated = activated || installation.Changed
 	}
 	_, adapterStatuses, statusErr := s.activationPlan(resolved.Adapters)
 	if statusErr != nil {
-		return ApplyResult{Plan: plan, Applied: true}, statusErr
+		return ApplyResult{Plan: plan, Applied: true, ReadinessScope: ReadinessScopeInstallation}, statusErr
 	}
 	if !plan.targetChanged {
 		statuses := append(adapterStatuses, targetStatuses(plan.Components)...)
 		sortPlan(nil, statuses)
-		return ApplyResult{Plan: plan, Applied: activated, Ready: allReady(statuses), Components: statuses}, nil
+		return ApplyResult{Plan: plan, Applied: activated, Ready: allReady(statuses), ReadinessScope: ReadinessScopeInstallation, Components: statuses}, nil
 	}
 	statuses, targetMutationAttempted, err := adapter.Apply(ctx, request)
 	statuses = append(adapterStatuses, statuses...)
 	sortPlan(nil, statuses)
 	if err != nil {
-		return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, Components: statuses}, fmt.Errorf("apply Platform revision %s: %w", resolved.Revision, err)
+		return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, ReadinessScope: ReadinessScopeInstallation, Components: statuses}, fmt.Errorf("apply Platform revision %s: %w", resolved.Revision, err)
 	}
-	return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, Ready: allReady(statuses), Components: statuses}, nil
+	return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, Ready: allReady(statuses), ReadinessScope: ReadinessScopeInstallation, Components: statuses}, nil
 }
 
 func targetStatuses(components []ComponentStatus) []ComponentStatus {

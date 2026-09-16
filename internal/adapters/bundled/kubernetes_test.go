@@ -50,6 +50,98 @@ func TestKubernetesPlanIsReadOnlyAndReportsMissingTarget(t *testing.T) {
 	}
 }
 
+func TestKubernetesPlanRejectsPolicyOutsideReferenceCatalog(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.InitialPolicyRef.Version = "2"
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "reference install provides") || len(runner.calls) != 0 {
+		t.Fatalf("Plan() = %v, calls %#v; want policy rejection before target access", err, runner.calls)
+	}
+}
+
+func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
+	request := deploymentRequest()
+	policyApplied := false
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		switch {
+		case contains(args, "version"):
+			return commandResult{stdout: `{}`}, nil
+		case contains(args, "can-i"):
+			return commandResult{stdout: "yes\n"}, nil
+		case contains(args, "apply"):
+			policyApplied = true
+			return commandResult{}, nil
+		case contains(args, "rollout"):
+			return commandResult{}, nil
+		case contains(args, "get") && contains(args, "json"):
+			result, ok := readyResourceResult(args, request)
+			if !ok {
+				return commandResult{}, errors.New("unexpected resource")
+			}
+			if contains(args, policyRecord) && !policyApplied {
+				var object map[string]any
+				_ = json.Unmarshal([]byte(result.stdout), &object)
+				object["data"].(map[string]any)["policy.json"] = "stale"
+				data, _ := json.Marshal(object)
+				result.stdout = string(data)
+			}
+			return result, nil
+		case contains(args, "get"):
+			return commandResult{stdout: "found"}, nil
+		}
+		return commandResult{}, nil
+	}}
+	adapter := newKubernetesDeployment(runner)
+	_, changes, _, err := adapter.Plan(context.Background(), request)
+	if err != nil || len(changes) != 1 || changes[0].Component != policyRecord {
+		t.Fatalf("Plan() changes = %#v, %v", changes, err)
+	}
+	request.TargetChanges = changes
+	statuses, attempted, err := adapter.Apply(context.Background(), request)
+	if err != nil || !attempted || len(statuses) != 5 {
+		t.Fatalf("Apply() = %#v, %t, %v", statuses, attempted, err)
+	}
+	applyCount := 0
+	for index, call := range runner.calls {
+		if contains(call, "apply") {
+			applyCount++
+			if !strings.Contains(string(runner.inputs[index]), "name: "+policyRecord) {
+				t.Fatalf("unexpected resource mutation: %s", runner.inputs[index])
+			}
+		}
+		if contains(call, "can-i") && (contains(call, "create") || contains(call, "patch")) && !contains(call, "configmaps") {
+			t.Fatalf("unplanned write RBAC requested: %#v", call)
+		}
+	}
+	if applyCount != 1 {
+		t.Fatalf("applied %d resources, want only policy record", applyCount)
+	}
+}
+
+func TestKubernetesApplyRejectsStaleConfirmedTargetPlan(t *testing.T) {
+	request := deploymentRequest()
+	request.TargetChanges = []platformapply.Change{{Component: policyRecord, Action: "reconcile"}}
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "version") {
+			return commandResult{stdout: `{}`}, nil
+		}
+		if result, ok := readyResourceResult(args, request); ok {
+			return result, nil
+		}
+		return commandResult{}, nil
+	}}
+	_, attempted, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "target changed before apply") || attempted {
+		t.Fatalf("Apply() = attempted %t, error %v; want fresh confirmation", attempted, err)
+	}
+	for _, call := range runner.calls {
+		if contains(call, "apply") || contains(call, "patch") {
+			t.Fatalf("stale plan mutated target: %#v", call)
+		}
+	}
+}
+
 func TestKubernetesApplyDeniesBeforeMutationWhenRBACMissing(t *testing.T) {
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 		if contains(args, "can-i") {
@@ -345,7 +437,7 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	if deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("same-revision managed environment drift must be reconciled")
 	}
-	environment[2].(map[string]any)["value"] = platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion
+	environment[2].(map[string]any)["value"] = "reference-default-deny@1"
 	pod := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
 	pod["dnsPolicy"] = "ClusterFirst"
 	pod["restartPolicy"] = "Always"
@@ -648,7 +740,7 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 }
 
 func deploymentRequest() platformapply.DeploymentRequest {
-	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: platformapply.ReferencePolicyID, Version: platformapply.ReferencePolicyVersion}}
+	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}}
 	lock := &platform.PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, InitialPolicyRef: resolved.InitialPolicyRef}
 	return platformapply.DeploymentRequest{Platform: resolved, Lock: lock, Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}}
 }

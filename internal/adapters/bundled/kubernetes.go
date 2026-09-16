@@ -63,6 +63,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
+	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
+		return target, nil, nil, fmt.Errorf("initial policy: %w", err)
+	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); errors.Is(err, errKubectlUnavailable) {
 		return target, nil, nil, err
 	} else if err != nil {
@@ -148,7 +151,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	statuses := []platformapply.ComponentStatus{
 		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
 		{Name: platformRecord, Category: "deployment", State: state(recordReady, "configured", "unavailable"), Reference: request.Platform.Revision},
-		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
+		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
 		{Name: controlPlaneName, Category: "deployment", State: state(ready, "available", "unavailable")},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: state(serviceReady, "available", "unavailable")},
 	}
@@ -159,6 +162,24 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	contextName, namespace, err := deploymentCoordinates(request.Config)
 	if err != nil {
 		return nil, false, err
+	}
+	// A direct adapter call has no confirmed plan. Preserve fail-closed RBAC
+	// preflight before inspecting and planning the target.
+	if request.TargetChanges == nil {
+		if err := k.Preflight(ctx, request); err != nil {
+			return failedStatuses(request.Platform.Revision), false, err
+		}
+	}
+	_, currentChanges, currentStatuses, err := k.Plan(ctx, request)
+	if err != nil {
+		return nil, false, err
+	}
+	if request.TargetChanges != nil && !reflect.DeepEqual(currentChanges, request.TargetChanges) {
+		return nil, false, fmt.Errorf("Kubernetes target changed before apply; review the new plan and retry")
+	}
+	request.TargetChanges = currentChanges
+	if len(currentChanges) == 0 {
+		return currentStatuses, false, nil
 	}
 	if err := k.Preflight(ctx, request); err != nil {
 		return failedStatuses(request.Platform.Revision), false, err
@@ -173,6 +194,9 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	}
 	mutationAttempted := false
 	for index, step := range steps {
+		if !plannedComponent(request.TargetChanges, step.name) {
+			continue
+		}
 		replaceSelector := false
 		replaceDeploymentSpec := false
 		if step.name == controlPlaneName+"-service" {
@@ -231,7 +255,9 @@ func (k *KubernetesDeployment) stepFailure(ctx context.Context, request platform
 	statuses := k.observedAfterFailure(ctx, request)
 	markStepStatus(statuses, steps[index], "failed")
 	for _, pending := range steps[index+1:] {
-		markStepStatus(statuses, pending, "pending")
+		if plannedComponent(request.TargetChanges, pending.name) {
+			markStepStatus(statuses, pending, "pending")
+		}
 	}
 	return statuses, mutationAttempted, fmt.Errorf("reconcile Kubernetes %s: %w", steps[index].name, cause)
 }
@@ -312,10 +338,28 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 	if err != nil {
 		return err
 	}
-	return k.preflight(ctx, contextName, namespace)
+	if request.TargetChanges == nil {
+		// Standalone callers have not yet confirmed a target plan; require
+		// authority for every managed reference resource.
+		request.TargetChanges = []platformapply.Change{
+			{Component: namespace}, {Component: platformRecord},
+			{Component: policyRecord}, {Component: controlPlaneName},
+			{Component: controlPlaneName + "-service"},
+		}
+	}
+	return k.preflight(ctx, contextName, namespace, request.TargetChanges)
 }
 
-func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string) error {
+func plannedComponent(changes []platformapply.Change, component string) bool {
+	for _, change := range changes {
+		if change.Component == component {
+			return true
+		}
+	}
+	return false
+}
+
+func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
 	// rollout status watches the Deployment after apply; require that verb before
 	// any target mutation, not after the resources have already been created.
 	if err := k.requireRBAC(ctx, contextName, "watch", "deployments.apps", namespace); err != nil {
@@ -333,6 +377,13 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		{resource: "services", name: controlPlaneName, namespace: namespace},
 	}
 	for _, target := range targets {
+		component := target.name
+		if target.resource == "services" {
+			component += "-service"
+		}
+		if !plannedComponent(changes, component) {
+			continue
+		}
 		if err := k.requireRBAC(ctx, contextName, "get", target.resource, target.namespace); err != nil {
 			return err
 		}
@@ -478,7 +529,7 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		"env": []any{
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
 			map[string]any{"name": "AGENOVA_PLATFORM_REVISION", "value": request.Platform.Revision},
-			map[string]any{"name": "AGENOVA_POLICY_REF", "value": platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
+			map[string]any{"name": "AGENOVA_POLICY_REF", "value": request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 	}
@@ -713,7 +764,7 @@ func state(ok bool, yes, no string) string {
 }
 
 func failedStatuses(revision string) []platformapply.ComponentStatus {
-	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed", Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion}}
+	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}}
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
 	return statuses
 }
