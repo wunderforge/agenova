@@ -1,0 +1,28 @@
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: invalid-unknown-backend
+spec:
+  adapters:
+    - name: deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: deployment
+      config: {}
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: runtime
+        config: {}
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: missing-runtime
+        config: {}
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"
