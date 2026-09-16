@@ -21,6 +21,7 @@ import (
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 func main() {
@@ -44,7 +45,7 @@ func run() error {
 	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
 		return fmt.Errorf("console must listen on a literal loopback address; no public authentication is provided")
 	}
-	provider, err := modelprovider.New(modelprovider.Config{Endpoint: *endpoint, Models: map[string]string{"approved-coding-model": *model}, MaxTokens: 256, Timeout: 2 * time.Minute})
+	provider, err := modelprovider.New(modelprovider.Config{Endpoint: *endpoint, Models: map[string]string{"approved-coding-model": *model}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute})
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func run() error {
 		defer cancel()
 		_ = server.Shutdown(bounded)
 	}()
-	fmt.Printf("Internal demo listening at http://%s; fixed principal=%s. Tools/memory are not connected.\n", *listen, *principal)
+	fmt.Printf("Internal demo listening at http://%s; fixed principal=%s. ReAct uses governed mock reads; memory is not connected.\n", *listen, *principal)
 	if err = server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("console server failed")
 	}

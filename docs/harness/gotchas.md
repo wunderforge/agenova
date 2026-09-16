@@ -1,5 +1,18 @@
 # Harness Gotchas
 
+## Rebuilt code is not a restarted console
+
+- Trap: React HMR is current, but the loopback console still runs an older
+  executable; new failure reasons never appear in real evidence.
+- Before restart, verify exact process identity and no unfinished work. Export
+  retained synthetic evidence when needed; history is process-local.
+- Rebuild console and worker image, load the image into the explicit kind cluster,
+  start the intended binary and verify current facts through actual API/browser
+  gates. Never use the export as a Connected fallback.
+- Gate: `harness/e2e/ui-kind-checkpoint.mjs` requires current action-validation
+  facts; `harness/e2e/ui-failure-diagnostics.mjs` verifies retained failed-loop
+  reasons and record drill-down without submitting work.
+
 Only recurring or high-risk Agenova mistakes belong here.
 
 ## One question must have one authority

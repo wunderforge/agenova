@@ -20,7 +20,7 @@ await mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:1000}});
 page.setDefaultTimeout(180_000);
-const objective='Explain in one short sentence why retries need a time limit.';
+const objective='Investigate why synthetic payment retries exceed the deadline. Read the available artifacts and recommend a specific fix.';
 try{
   await page.goto(new URL('/?mode=connected#/work',base).href);
   await expect(page.getByRole('heading',{name:'Work',exact:true})).toBeVisible();
@@ -36,8 +36,12 @@ try{
   assert.equal(posted.spec.requestedAccess.resourceScopes[0],'repo:acme/payments');
   assert.equal(JSON.stringify(posted).includes('principal'),false);
   const initial=await response.json();
-  await expect(page.getByRole('heading',{name:objective,exact:true})).toBeVisible();
-  await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible({timeout:180_000});
+  await expect(page.getByRole('heading',{name:'Investigate why synthetic payment retries exceed the deadline.',exact:true})).toBeVisible();
+  await expect.poll(async()=>page.evaluate(async ref=>{
+    const response=await fetch(`/api/requests/${encodeURIComponent(ref)}/evidence`);
+    if(!response.ok)throw new Error('Evidence query failed.');
+    return (await response.json()).outcome?.status;
+  },initial.requestRef),{timeout:180_000}).toBeTruthy();
   const final=await page.evaluate(async ref=>{
     const response=await fetch(`/api/requests/${encodeURIComponent(ref)}/evidence`);
     if(!response.ok)throw new Error('Final evidence query failed.');
@@ -45,21 +49,28 @@ try{
   },initial.requestRef);
   assert.equal(final.state.claim.phase,'Succeeded');
   assert.equal(final.outcome.status,'Succeeded');
+  await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible();
   assert.equal(final.outcome.failure,undefined);
   assert.ok(final.outcome.text.trim());
   assert.equal(final.outcome.model.model,'llama3.1:latest');
   assert.ok(final.outcome.model.inputTokens>0&&final.outcome.model.outputTokens>0);
   assert.equal(final.state.effectiveAuthority.runtime.timeout,'30m0s');
   assert.ok(final.facts.some(f=>f.kind==='Runtime'&&f.operation==='CleanupSucceeded'));
+  assert.ok(final.facts.filter(f=>f.kind==='WorkerActivity'&&f.operation==='TurnStarted').length>=2);
+  assert.ok(final.facts.some(f=>f.kind==='WorkerActivity'&&f.operation==='ObservationReceived'));
+  assert.ok(final.facts.some(f=>f.kind==='WorkerActivity'&&f.operation==='ActionValidated'),'Running console is missing current action diagnostics; rebuild/restart it.');
+  assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='tool.invoke'&&f.reasonCode==='mock-tool'&&f.providerStatus==='Succeeded'));
   assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.providerStatus==='Succeeded'&&f.invocationId===final.outcome.model.invocationId));
   await page.screenshot({path:`${output}/real-result.png`,fullPage:true});
+  await page.getByText('Access & limits',{exact:true}).click();
   await page.getByRole('link',{name:'Compare requested and granted',exact:true}).click();
   await expect(page.getByText('standard-isolated · 45m0s',{exact:true})).toBeVisible();
   await expect(page.getByText('standard-isolated · 30m0s',{exact:true})).toBeVisible();
   await page.screenshot({path:`${output}/real-authority.png`,fullPage:true});
   await page.goto(new URL('/?mode=connected#/platform',base).href);
   await expect(page.getByRole('row',{name:/Model Gateway/})).toContainText('Activity recorded');
-  await expect(page.getByRole('row',{name:/Tool Gateway/})).toContainText('Not connected');
+  await expect(page.getByRole('row',{name:/Tool Gateway/})).toContainText('mock');
+  await expect(page.getByRole('row',{name:/Tool Gateway/})).toContainText('Activity recorded');
   await page.screenshot({path:`${output}/real-platform.png`,fullPage:true});
   await writeFile(`${output}/evidence.json`,`${JSON.stringify(final,null,2)}\n`);
   console.log(JSON.stringify({status:'PASS',requestRef:final.requestRef,claimId:final.state.claim.id,worker:final.state.claim.backendIdentity,model:final.outcome.model,result:final.outcome.text,facts:final.facts.length,cleanup:'confirmed',screenshots:output}));

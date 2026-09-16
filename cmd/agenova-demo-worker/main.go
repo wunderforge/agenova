@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -34,6 +35,12 @@ func run(input io.Reader, output io.Writer) error {
 	if task.ClaimID == "" || task.ModelProfile == "" || strings.TrimSpace(task.Objective) == "" {
 		return errors.New("invalid task")
 	}
+	if task.Mode == workerprotocol.ReAct {
+		return reactLoop(scanner, output, task)
+	}
+	if task.Mode != "" {
+		return errors.New("unsupported agent mode")
+	}
 	if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}); err != nil {
 		return err
 	}
@@ -45,6 +52,74 @@ func run(input io.Reader, output io.Writer) error {
 		return errors.New("model request failed")
 	}
 	return writeLine(output, workerprotocol.Message{Result: reply.Text})
+}
+
+func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Task) error {
+	transcript := ""
+	observations := 0
+	readFiles := []string{}
+	seen := map[string]bool{}
+	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
+		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read files: %q.\n", turn, workerprotocol.MaxTurns, observations, readFiles)
+		promptTask := task
+		if len(readFiles) == 3 || turn == workerprotocol.MaxTurns {
+			promptTask.ResourceScope = ""
+		}
+		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
+		if len(prompt) > 60<<10 {
+			return errors.New("transcript limit reached")
+		}
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
+			return err
+		}
+		var reply workerprotocol.Reply
+		if err := readLine(scanner, &reply); err != nil {
+			return err
+		}
+		if !reply.Allowed || reply.Error != "" || strings.TrimSpace(reply.Text) == "" {
+			return errors.New("model request failed")
+		}
+		action, err := workerprotocol.ParseAction(reply.Text)
+		if err != nil {
+			_, issue := workerprotocol.ActionIssue(reply.Text)
+			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
+			continue
+		}
+		if action.Action == "finish" {
+			if turn < 2 || (task.ResourceScope != "" && observations == 0) {
+				transcript += "\nObservation: premature finish. Complete the required read/review before finishing."
+				continue
+			}
+			return writeLine(output, workerprotocol.Message{Result: action.Answer})
+		}
+		if task.ResourceScope == "" {
+			transcript += "\nObservation: no tool is available. Review the objective then finish."
+			continue
+		}
+		if seen[action.Input] {
+			transcript += "\nObservation: file already read successfully; choose new evidence or finish."
+			continue
+		}
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: task.ResourceScope, Input: action.Input}}); err != nil {
+			return err
+		}
+		var observation workerprotocol.Reply
+		if err := readLine(scanner, &observation); err != nil {
+			return err
+		}
+		if observation.Allowed && observation.Error == "" && observation.Text != "" {
+			observations++
+			seen[action.Input] = true
+			readFiles = append(readFiles, action.Input)
+		}
+		data, _ := json.Marshal(struct {
+			Tool        string               `json:"tool"`
+			File        string               `json:"file"`
+			Observation workerprotocol.Reply `json:"observation"`
+		}{action.Tool, action.Input, observation})
+		transcript += "\n" + string(data)
+	}
+	return workerprotocol.ErrTurnLimit
 }
 
 func readLine(scanner *bufio.Scanner, value any) error {

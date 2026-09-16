@@ -24,6 +24,7 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	runtimeagentsandbox "github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 var liveModel = flag.Bool("live-model", false, "explicit authorization for existing local Ollama inference on synthetic input")
@@ -55,11 +56,11 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 	if err := adapter.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: "reference-engineer-pool"}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: app.ReferenceRuntimeTemplateRef, Replicas: 1}}); err != nil {
 		t.Fatal(err)
 	}
-	provider, err := modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{"approved-coding-model": "llama3.1:latest"}, MaxTokens: 96, Timeout: 2 * time.Minute})
+	provider, err := modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{"approved-coding-model": "llama3.1:latest"}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
-	counter := &checkpointProvider{Client: provider}
+	counter := &checkpointProvider{Client: provider, t: t}
 	recorder := &recordingRuntimeBackend{RuntimeBackend: adapter}
 	denied, err := console.NewService(recorder, adapter, counter, app.ReferencePrincipalTeamB)
 	if err != nil {
@@ -109,7 +110,7 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	if final.State.Claim.Phase != v0.ClaimPhaseSucceeded || final.Outcome.Failure != "" || strings.TrimSpace(final.Outcome.Text) == "" || final.Outcome.Model == nil || counter.calls.Load() != 1 {
+	if final.State.Claim.Phase != v0.ClaimPhaseSucceeded || final.Outcome.Failure != "" || strings.TrimSpace(final.Outcome.Text) == "" || final.Outcome.Model == nil || counter.calls.Load() < 2 || counter.calls.Load() > 6 {
 		t.Fatalf("real model checkpoint failed: state=%+v outcome=%+v providerCalls=%d", final.State.Claim, final.Outcome, counter.calls.Load())
 	}
 	if final.Outcome.Model.Model != "llama3.1:latest" || final.Outcome.Model.InputTokens <= 0 || final.Outcome.Model.OutputTokens <= 0 {
@@ -120,8 +121,15 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 		t.Fatalf("not narrowed: %+v", grant)
 	}
 	var decision, attempt, outcome, cleanup bool
+	var turns, observations int
 	inv := final.Outcome.Model.InvocationID
 	for _, f := range final.Facts {
+		if f.Kind == "WorkerActivity" && f.Operation == "TurnStarted" {
+			turns++
+		}
+		if f.Kind == "WorkerActivity" && f.Operation == "ObservationReceived" {
+			observations++
+		}
 		if f.ClaimID != "" && f.ClaimID != final.State.Claim.ID {
 			t.Fatal("cross-claim fact")
 		}
@@ -138,7 +146,7 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 			}
 		}
 	}
-	if !decision || !attempt || !outcome || !cleanup {
+	if !decision || !attempt || !outcome || !cleanup || turns < 2 || observations < 1 {
 		t.Fatal("missing same-invocation lifecycle/evidence")
 	}
 	id := final.State.Claim.BackendIdentity
@@ -152,21 +160,28 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 	t.Logf("UI API -> RunService -> kind worker -> Model Gateway -> Ollama -> worker result -> cleanup: request=%s claim=%s worker=%s invocation=%s", final.RequestRef, final.State.Claim.ID, id.WorkerID, inv)
 	t.Logf("Actual response: %s", final.Outcome.Text)
 	t.Logf("Provider metadata: model=%s response=%s inputTokens=%d outputTokens=%d; facts=%d; cleanup confirmed", final.Outcome.Model.Model, final.Outcome.Model.ResponseID, final.Outcome.Model.InputTokens, final.Outcome.Model.OutputTokens, len(final.Facts))
+	t.Logf("Real ReAct loop: modelTurns=%d mockObservations=%d", turns, observations)
 }
 
 type checkpointProvider struct {
 	modelprovider.Client
 	calls atomic.Int32
+	t     *testing.T
 }
 
 func (p *checkpointProvider) Complete(ctx context.Context, r modelprovider.Request) (modelprovider.Result, error) {
-	p.calls.Add(1)
-	return p.Client.Complete(ctx, r)
+	turn := p.calls.Add(1)
+	result, err := p.Client.Complete(ctx, r)
+	if err == nil {
+		a, validation := workerprotocol.ParseAction(result.Text)
+		p.t.Logf("Model turn %d: actionValid=%v actionTool=%v actionFinish=%v toolEmpty=%v inputEmpty=%v answerEmpty=%v bytes=%d outputTokens=%d validation=%v", turn, validation == nil, a.Action == "tool", a.Action == "finish", a.Tool == "", a.Input == "", a.Answer == "", len(result.Text), result.OutputTokens, validation)
+	}
+	return result, err
 }
 func checkpointRequest(t *testing.T, name string) []byte {
 	t.Helper()
 	timeout := v0.Duration(45 * time.Minute)
-	r := v0.ClaimRequest{APIVersion: v0.ClaimRequestAPIVersion, Kind: v0.ClaimRequestKind, Metadata: v0.ObjectMeta{Name: name}, Spec: v0.ClaimRequestSpec{TemplateRef: "engineer", ProjectRef: "payments", Task: &v0.ClaimRequestTask{Type: "repository-change", Input: map[string]any{"objective": "Explain in one short sentence how bounded retries prevent runaway resource usage.", "repository": "acme/payments"}}, RequestedAccess: v0.ClaimRequestedAccess{Tools: []string{"git.read", "shell.exec"}, ResourceScopes: []string{"repo:acme/payments"}, ModelProfile: "approved-coding-model"}, Runtime: &v0.ClaimRuntimeRequirements{ProfileRef: "standard-isolated", Timeout: &timeout}}}
+	r := v0.ClaimRequest{APIVersion: v0.ClaimRequestAPIVersion, Kind: v0.ClaimRequestKind, Metadata: v0.ObjectMeta{Name: name}, Spec: v0.ClaimRequestSpec{TemplateRef: "engineer", ProjectRef: "payments", Task: &v0.ClaimRequestTask{Type: "repository-change", Input: map[string]any{"objective": "Investigate why synthetic payment retries exceed the deadline. Read the available artifacts and recommend a specific fix.", "repository": "acme/payments"}}, RequestedAccess: v0.ClaimRequestedAccess{Tools: []string{"git.read", "shell.exec"}, ResourceScopes: []string{"repo:acme/payments"}, ModelProfile: "approved-coding-model"}, Runtime: &v0.ClaimRuntimeRequirements{ProfileRef: "standard-isolated", Timeout: &timeout}}}
 	data, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)

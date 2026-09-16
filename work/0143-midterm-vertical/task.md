@@ -45,6 +45,51 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] PR #148 independent review follow-up: no effective read-tool/resource
+  scope selects finish-only output on the first turn; missing synthetic artifacts
+  retain a static, invocation-correlated failure reason. Service regressions cover
+  both no-tool variants, zero tool calls, and exact failure attribution.
+
+- [x] Owner follow-up (16 Sep): locate the waiting lamp on each active call,
+  remove call-label underlines, and investigate the real failed ReAct run.
+  Separate pure evidence projections and connection lifecycle from rendering.
+  Validate safe, specific failure facts and UI drill-down, then rebuild/restart
+  the local console and verify actual kind/Ollama behavior. Export retained
+  evidence before restart; never present that export as a connected response.
+  [Investigation, design and evidence](failure-diagnostics.md).
+  Final full gate passed: Go/vet/contracts/build, 109 frontend unit tests and
+  48 browser tests. Real failed-run reason/drill-down passed before restart;
+  repaired kind/Ollama journey passed with 4 model turns, 3 mock observations,
+  48 correlated facts and confirmed cleanup. Current retained request:
+  `work-a17f5827-ec51-4c76-b978-446f8f549059`.
+
+- [x] Owner-approved work names: optional compact name, full instructions in a
+  collapsed detail disclosure, legacy first-sentence fallback, two-line list titles,
+  search by instructions/ID and copyable request identity. Use existing task input;
+  do not change authority, worker objective, contracts or invoke an LLM for naming.
+  Full gate passed: 106 frontend unit tests and 47 browser tests, plus Go/contracts.
+  Read-only retained-session screenshots: `.tmp/work-names-list.png`,
+  `.tmp/work-names-detail.png`, `.tmp/work-names-form.png`. No backend restart,
+  live submission or inference; previous session evidence remains intact.
+
+- [x] Owner-requested failure visibility: mark failed lifecycle/outcome records in
+  detail and activity views, expose a separate failed work outcome below successful
+  calls, and record sanitized failure reasons without inventing missing historical
+  evidence. Prove with deterministic backend and browser tests; no new inference.
+  See [failure visibility and evidence](work-reading-path.md#failure-visibility-follow-up-16-september).
+
+- [x] Owner-approved cobalt visual refinement: preserve the reading path, distinguish
+  navigation/current calls from permission results, and prove localized light/motion
+  without performance regression. See [visual plan](cobalt-visual.md).
+
+- [x] Owner-approved reading-path correction: remove competing lifecycle summaries,
+  group recorded agent turns, lead with actual result after completion and progressively
+  disclose limits/technical records. See [work detail plan](work-reading-path.md).
+
+- [x] Owner-approved multi-step demo agent: replace one-shot execution with a bounded,
+  model-directed ReAct loop and real turn/tool/model evidence. See [loop acceptance](react-loop.md).
+- [x] Owner correction: remove expensive broad motion and move execution feedback to recorded Worker activity, with invocation correlation, no invented loop/tool execution, and before/after profiling. See [motion plan](ui-motion.md).
+- [x] Owner-approved UI follow-up (15 Sep): port the accepted dark HTML motion study to React; prove evidence-driven stages, terminal/denial effects, reduced motion, stable polling DOM, and unchanged Demo/Connected boundaries. See [motion plan](ui-motion.md). No new backend behavior or automatic submission.
 - [x] Scout merged baseline, dirty worktrees, accepted kind seam and existing UI branch.
 - [x] Record independent planning review; owner approved checkpoint and internal submission on 15 Sep 2026; independent blind review approved corrected spec/design.
 - [x] Freeze fact/evidence and submission boundaries; finish prerequisite #36, including immutable input snapshots and exact credential aliases.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { AgentTemplate, ClaimRequest, Fact, Principal, View as CanonicalView } from './contracts.generated';
 import { shapeDiagnostics } from './shape-check';
+import { displayWorkName } from './work-name';
 
 // Live views must contain the canonical request and a fact array.
 export type View = Omit<CanonicalView, 'request' | 'facts'> & {
@@ -83,8 +84,8 @@ export const connectedSource = {
 };
 
 export function workTitle(work: View): string {
-  const objective = work.request.spec.task?.input?.objective;
-  return typeof objective === 'string' ? objective : work.requestRef;
+  const input = work.request.spec.task?.input;
+  return displayWorkName(input?.workName, input?.objective, work.requestRef);
 }
 export function workStatus(work: View): string {
   if (work.state?.decision.result === 'Deny') return 'Denied';

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -95,6 +96,82 @@ func TestUnknownProfileAndInvalidPromptMakeZeroRequests(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Errorf("got %d unexpected calls", calls.Load())
+	}
+}
+
+func TestPerCallFormatDoesNotMutateProviderDefault(t *testing.T) {
+	var schemas []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Format struct {
+				Schema struct {
+					Value json.RawMessage `json:"schema"`
+				} `json:"json_schema"`
+			} `json:"response_format"`
+		}
+		json.NewDecoder(r.Body).Decode(&payload)
+		schemas = append(schemas, string(payload.Format.Schema.Value))
+		io.WriteString(w, completion)
+	}))
+	defer server.Close()
+	a := newTestAdapter(t, Config{Endpoint: server.URL + "/v1", OutputSchema: []byte(`{"type":"object"}`)})
+	for _, schema := range []json.RawMessage{[]byte(`{"type":"string"}`), nil} {
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "Synthetic data", OutputSchema: schema}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(schemas) != 2 || schemas[0] != `{"type":"string"}` || schemas[1] != `{"type":"object"}` {
+		t.Fatalf("formats leaked across calls: %v", schemas)
+	}
+	for _, schema := range []json.RawMessage{[]byte("{"), []byte(strings.Repeat("x", 8193))} {
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "Synthetic data", OutputSchema: schema}); err == nil {
+			t.Fatal("invalid format accepted")
+		}
+	}
+	if len(schemas) != 2 {
+		t.Fatal("invalid format reached provider")
+	}
+}
+
+func TestStructuredOutputIsPrivateAndOptIn(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatal(err)
+				}
+				format, exists := payload["response_format"]
+				if exists != enabled {
+					t.Errorf("structured output enabled=%v, present=%v", enabled, exists)
+				}
+				if enabled {
+					var structured struct {
+						Type   string `json:"type"`
+						Schema struct {
+							Strict bool            `json:"strict"`
+							Schema json.RawMessage `json:"schema"`
+						} `json:"json_schema"`
+					}
+					if json.Unmarshal(format, &structured) != nil || structured.Type != "json_schema" || !structured.Schema.Strict || string(structured.Schema.Schema) != `{"type":"object"}` {
+						t.Errorf("unexpected output format: %s", format)
+					}
+				}
+				_, _ = io.WriteString(w, completion)
+			}))
+			defer server.Close()
+			cfg := Config{Endpoint: server.URL + "/v1"}
+			if enabled {
+				cfg.OutputSchema = []byte(`{"type":"object"}`)
+			}
+			a := newTestAdapter(t, cfg)
+			if enabled {
+				copy(cfg.OutputSchema, []byte(`{"type":"string"}`))
+			}
+			if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "Synthetic action."}); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

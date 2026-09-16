@@ -3,7 +3,15 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type AgentSummary, type EventKind, type WorkEvent, type WorkItem, type WorkStatus } from './portal-data';
 import { ConnectedPortal } from './ConnectedPortal';
+import { RunFlow } from './RunFlow';
+import { WorkerActivity } from './WorkerActivity';
+import { demoWorkerActions } from './worker-activity-model';
+import { WorkDetailLayout } from './WorkDetailLayout';
+import { usePortalMotion } from './portal-motion';
+import { displayWorkName, maxWorkName } from './work-name';
+import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import './portal.css';
+import './portal-motion.css';
 
 const workFilters = ['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending'] as const;
 const workActivityKinds = ['All', 'Request', 'Decision', 'Claim', 'Runtime', 'Tool', 'Model'] as const;
@@ -39,11 +47,11 @@ function WorkList({ works }: { works: WorkItem[] }) {
   const [filter, setFilter] = useState<(typeof workFilters)[number]>('All');
   const [search, setSearch] = useState('');
   const shown = works.filter(work => (filter === 'All' || work.status === filter) &&
-    `${work.title} ${work.team} ${work.agent} ${work.context?.value ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+    `${work.title} ${work.instructions || ''} ${work.requestRef} ${work.team} ${work.agent} ${work.context?.value ?? ''}`.toLowerCase().includes(search.toLowerCase()));
   return <><Head title="Work" subtitle="Requests and agent runs you can inspect." action={<a className="portal-button primary" href={href('work/new')}>New work</a>}/>
     <div className="portal-toolbar"><div className="portal-filters" role="group" aria-label="Filter work">{workFilters.map(item => <button key={item} type="button" className={filter === item ? 'selected' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div>
       <input aria-label="Search work" placeholder="Search work" type="search" value={search} onChange={event => setSearch(event.target.value)}/></div>
-    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Task</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead><tbody>
+    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead><tbody>
       {shown.map(work => <tr key={work.id}><td><a className="portal-work-title" href={href(`work/${work.id}`)}>{work.title}</a><small>{work.team}{work.context && <> · {work.context.label}: {work.context.value}</>}</small></td>
         <td>{work.agent}</td><td>{work.updated}</td><td><Badge value={work.status}/></td></tr>)}
     </tbody></table>{!shown.length && <p className="portal-empty">No work matches this filter.</p>}</div>
@@ -55,20 +63,29 @@ function WorkDetail({ work }: { work: WorkItem }) {
     : work.status === 'Failed' ? ['Work failed', work.outcome]
     : work.status === 'Denied' ? ['Request denied', 'No claim was issued and no worker started.']
     : ['Request received', 'No authorization or worker allocation has been recorded.'];
-  return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: work.title }]}/>
-    <Head title={work.title} subtitle={`Submitted ${work.submitted} · ${work.requestRef}`} action={<Badge value={work.status}/>}/>
+  return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: 'Details' }]}/>
+    <Head title={work.title} subtitle={`Submitted ${work.submitted}`} action={<Badge value={work.status}/>}/>
     <div className="portal-top-facts">{work.context && <Fact label={work.context.label} value={work.context.value}/>}<Fact label={work.branch ? 'Base branch' : 'Team'} value={work.branch || work.team}/><Fact label="Agent" value={work.agent}/><Fact label="Requested by" value={work.principal}/></div>
-    <div className="portal-detail-grid"><section><div className="portal-section-head"><h2>Progress</h2><small>{work.updated} last update</small></div>
-      <div className={`portal-state ${work.status.toLowerCase()}`} role="status"><strong>{message[0]}</strong><p>{message[1]}</p></div>
-      <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
-        <li key={event.id}><a href={href(`work/${work.id}/activity/${event.id}`)}>{event.title}</a><p>{event.description}</p></li>)}</ol>
-    </section><aside className="portal-access-card"><h2>{work.granted ? work.status === 'Running' ? 'Active access' : 'Issued access' : work.status === 'Denied' ? 'Access denied' : 'Request pending'}</h2>
+    <TaskInstructions text={work.instructions || work.title}/>
+    <WorkDetailLayout activityHref={href(`work/${work.id}/activity`)} status={<RunFlow summary={message[0] === 'Work completed' ? 'Task completed.' : message[1] || message[0]} activityHref={href(`work/${work.id}/activity`)} evidence={{
+      status: work.status,
+      received: work.events.some(event => event.kind === 'Request'),
+      authorized: work.decision === 'Allowed' && !!work.granted,
+      started: work.events.some(event => event.kind === 'Runtime' && /worker started/i.test(event.title)),
+      result: work.status === 'Succeeded' && !!work.outcome,
+      cleanup: work.events.some(event => /environment released|cleanup confirmed/i.test(event.title)),
+      failureAt: work.status === 'Failed' ? 'Worker' : undefined,
+    }}/>} activity={<WorkerActivity actions={demoWorkerActions(work.events, href(`work/${work.id}/activity`))} status={work.status} activityHref={href(`work/${work.id}/activity`)}/>} access={<aside className="portal-access-card"><h2>{work.granted ? work.status === 'Running' ? 'Active access' : 'Issued access' : work.status === 'Denied' ? 'Access denied' : 'Request pending'}</h2>
       <p>{work.granted ? work.status === 'Running' ? 'Effective authority for this running claim.' : 'Authority is inactive after this claim ended.' : 'No authority has been issued.'}</p>
       {work.granted ? <AccessFields access={work.granted} runtime={work.effectiveRuntime || work.requestedRuntime}/> : <><Fact label="Policy decision" value={work.status === 'Pending' ? 'Not evaluated' : work.decisionReason}/><Fact label="Requested tools" value={<Chips values={work.requested.tools}/>}/></>}
       <div className="portal-card-links"><a href={href(`work/${work.id}/access`)}>{work.granted ? 'Compare requested and granted' : 'View full request'}</a><a href={href('policy')}>View policy</a></div>
-    </aside></div>
-    <section className="portal-lower"><div className="portal-section-head"><h2>Recent activity</h2><a href={href(`work/${work.id}/activity`)}>View all activity</a></div><Records work={work} events={work.events.slice(-4)}/></section>
-    <details className="portal-details"><summary>Execution details</summary><p>IDs linking the request, claim, and worker.</p><div className="portal-fact-grid"><Fact label="Request ID" value={work.requestRef}/><Fact label="Claim ID" value={work.claimId}/><Fact label="Runtime backend" value={work.backend}/><Fact label="Worker ID" value={work.worker}/><Fact label="Policy version" value={work.policy}/><Fact label="Decision" value={work.decision}/></div></details></>;
+    </aside>} result={work.status === 'Succeeded' && work.outcome && <section className="portal-result"><h2>Result</h2><p className="portal-result-text">{work.outcome}</p></section>} details={<>
+      <small>{work.updated} last update</small>
+      <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
+        <li key={event.id}><a href={href(`work/${work.id}/activity/${event.id}`)}>{event.title}</a><p>{event.description}</p></li>)}</ol>
+      <div className="portal-fact-grid"><Fact label="Request ID" value={work.requestRef}/><Fact label="Claim ID" value={work.claimId}/><Fact label="Runtime backend" value={work.backend}/><Fact label="Worker ID" value={work.worker}/><Fact label="Policy version" value={work.policy}/><Fact label="Decision" value={work.decision}/></div>
+      <CopyRequestID value={work.requestRef}/>
+    </>}/></>;
 }
 function FilterButtons<T extends string>({ values, selected, onSelect, label }: { values: readonly T[]; selected: T; onSelect: (value: T) => void; label: string }) {
   return <div className="portal-filters" role="group" aria-label={label}>{values.map(value => <button key={value} type="button" className={selected === value ? 'selected' : ''} onClick={() => onSelect(value)}>{kindLabel(value)}</button>)}</div>;
@@ -163,7 +180,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
     const model = String(values.get('model') || '');
     const memory = String(values.get('memory') || '');
     const work: WorkItem = {
-      id, title: objective, status: 'Pending', agent: agentId, team: 'Team A', principal: demoIdentity.subject,
+      id, title: displayWorkName(values.get('workName'), objective, id), instructions: objective, status: 'Pending', agent: agentId, team: 'Team A', principal: demoIdentity.subject,
       context: { label: repositoryTask ? 'Repository' : 'Topic', value: contextValue }, branch: repositoryTask ? branch : undefined, submitted: 'Just now', updated: time, requestRef: id,
       decision: 'Pending', decisionReason: 'Authorization has not been evaluated.', requestedRuntime: `${runtime} · ${timeout} min`,
       requested: { resourceScopes: repositoryTask ? [`repo:${contextValue}`] : [], tools, model, memory: memory ? [memory] : [] },
@@ -174,6 +191,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
   }
   return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: 'New work' }]}/><Head title="New work"/>
     <form onSubmit={submit} className="portal-form"><div><section><h2>Task</h2><label>Agent<select name="agent" value={agentId} onChange={event => setAgentId(event.target.value)}>{agents.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
       <label>What should it do?<textarea name="objective" placeholder="For example: Fix the payment timeout bug"/><small>This becomes the task objective, not an access grant.</small></label>
       {repositoryTask ? <div className="portal-field-row"><label>Repository<input name="repository" placeholder="acme/payments"/></label><label>Base branch<input name="branch" defaultValue="main"/></label></div>
         : <label>Topic<input name="topic" placeholder="Customer authentication"/></label>}</section>
@@ -187,6 +205,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
 export type PortalMode = 'demo' | 'connected';
 export function Portal({ mode }: { mode: PortalMode }) {
   const [location, setLocation] = useState(() => window.location.hash);
+  const motionRoot = usePortalMotion(`${mode}:${location}`);
   const [works, setWorks] = useState<WorkItem[]>(() => exampleWorks.map(work => structuredClone(work)));
   useEffect(() => { const changed = () => setLocation(window.location.hash); window.addEventListener('hashchange', changed); return () => window.removeEventListener('hashchange', changed); }, []);
   const { parts, query } = route();
@@ -209,7 +228,7 @@ export function Portal({ mode }: { mode: PortalMode }) {
     const event = work.events.find(item => item.id === parts[3]);
     content = event ? <EventDetail work={work} event={event}/> : <Head title="Record not found"/>;
   } else if (section === 'work' && work && parts[2] === 'activity') content = <WorkActivity work={work} initial={query.get('type') || 'All'}/>;
-  else if (section === 'work' && work) content = <WorkDetail work={work}/>;
+  else if (section === 'work' && work) content = <WorkDetail key={work.id} work={work}/>;
   else if (section === 'agents' && agent) content = <AgentPage agent={agent}/>;
   else if (section === 'agents') content = <AgentsPage/>;
   else if (section === 'policy') content = <PolicyPage/>;
@@ -218,9 +237,9 @@ export function Portal({ mode }: { mode: PortalMode }) {
   else if (section === 'identity') content = <IdentityPage/>;
   else content = <><Head title="Work not found"/><a href={href('work')}>Back to Work</a></>;
   void location; // hashchange drives the render; route() reads the current URL.
-  return <div className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
+  return <div ref={motionRoot} className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
     <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a></nav>
     <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Current server session</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
-      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div></header>
+      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div><div className="portal-scroll-progress" aria-hidden="true"/></header>
       <main id="portal-main" tabIndex={-1} className="portal-page">{content}</main></div></div>;
 }

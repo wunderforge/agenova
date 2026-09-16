@@ -30,6 +30,7 @@ export interface WorkItem {
   id: string;
   title: string;
   status: WorkStatus;
+  instructions?: string;
   agent: string;
   team: string;
   principal: string;

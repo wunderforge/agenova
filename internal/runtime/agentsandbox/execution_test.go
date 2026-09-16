@@ -37,6 +37,43 @@ func modelMessage(task workerprotocol.Task) workerprotocol.Message {
 	return workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}
 }
 
+func TestReActExhaustionWithoutFinalRecordIsTurnLimit(t *testing.T) {
+	task := executionTask()
+	task.Mode = workerprotocol.ReAct
+	op := modelMessage(task)
+	op.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
+	var messages []any
+	for i := 0; i < workerprotocol.MaxTurns; i++ {
+		messages = append(messages, op)
+	}
+	_, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(messages...)), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+		return workerprotocol.Reply{Allowed: true, Text: "{}"}, nil
+	})
+	if !errors.Is(err, workerprotocol.ErrTurnLimit) {
+		t.Fatalf("lost exhaustion category: %v", err)
+	}
+}
+
+func TestExecutionFailureCategoriesSurviveTransport(t *testing.T) {
+	task := executionTask()
+	for _, tc := range []struct {
+		name, input string
+		want        error
+	}{
+		{"missing-final-result", protocolLines(modelMessage(task)), workerprotocol.ErrNoFinalResult},
+		{"mismatched-final-result", protocolLines(modelMessage(task), workerprotocol.Message{Result: "unverified answer"}), workerprotocol.ErrInvalidFinalResult},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := exchangeWorker(context.Background(), strings.NewReader(tc.input), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+				return workerprotocol.Reply{Allowed: true, Text: "governed answer"}, nil
+			})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("failure category lost: %v", err)
+			}
+		})
+	}
+}
+
 func TestExecutionExchangeTaskDependentResult(t *testing.T) {
 	task := executionTask()
 	var output bytes.Buffer
@@ -161,6 +198,42 @@ func TestExecutionPinsKubernetesArguments(t *testing.T) {
 	runner.context = ""
 	if _, err := runner.executionArgs("bound-pod"); err == nil {
 		t.Fatal("ambient context accepted")
+	}
+}
+
+func TestReActTransportKeepsFinalAndActionEvidence(t *testing.T) {
+	task := executionTask()
+	task.Mode = workerprotocol.ReAct
+	task.ResourceScope = "repo:acme/payments"
+	model := modelMessage(task)
+	model.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
+	tool := workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: task.ResourceScope, Input: "README.md"}}
+	for _, final := range []string{"Verified deadline fix.", "forged"} {
+		calls := 0
+		result, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(model, tool, model, workerprotocol.Message{Result: final})), io.Discard, task, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+			calls++
+			if calls == 1 {
+				return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","input":"README.md"}`}, nil
+			}
+			if op.Kind == "tool" {
+				return workerprotocol.Reply{Allowed: true, Text: "mock deadline log"}, nil
+			}
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Verified deadline fix."}`}, nil
+		})
+		if final == "forged" {
+			if err == nil {
+				t.Fatal("forged result accepted")
+			}
+		} else if err != nil || result != final || calls != 3 {
+			t.Fatalf("result=%q err=%v calls=%d", result, err, calls)
+		}
+	}
+	calls := 0
+	if _, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(tool)), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+		calls++
+		return workerprotocol.Reply{}, nil
+	}); err == nil || calls != 0 {
+		t.Fatal("tool not selected by model reached callback")
 	}
 }
 

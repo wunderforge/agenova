@@ -57,7 +57,7 @@ func Handler(service *Service) http.Handler {
 				writeError(w, 503, "unavailable", "The console service is unavailable.")
 				return
 			}
-			writeJSON(w, 200, Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "notConnected", "memory": "notConnected"}})
+			writeJSON(w, 200, Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}})
 		case "/api/requests":
 			switch r.Method {
 			case http.MethodGet:

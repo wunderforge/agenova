@@ -2,35 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
-import { connectedSource, isTerminal, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { connectedSource, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { RunFlow } from './RunFlow';
+import { WorkerActivity } from './WorkerActivity';
+import { workerActions } from './worker-activity-model';
+import { category, recordTitle, recordReason, recordStatus, outcomeReason } from './record-presentation';
+import { useConnection } from './useConnection';
+import { WorkDetailLayout } from './WorkDetailLayout';
+import { TaskInstructions, CopyRequestID } from './TaskInstructions';
+import { maxWorkName } from './work-name';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
 const time = (value?: string) => value
   ? new Date(value).toLocaleTimeString('en-AU', { hour12: false }) : 'Not recorded';
-const categories: Record<string, string> = {
-  RequestReceived: 'Request', RequestResolution: 'Request resolution',
-  AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway',
-  ProviderAttempt: 'Model Gateway', ProviderOutcome: 'Model Gateway',
-  ToolDecision: 'Tool Gateway', RunOutcome: 'Outcome',
-};
-const operationLabels: Record<string, string> = {
-  Pending: 'Request received', Bound: 'Worker assigned',
-  BackendReady: 'Environment ready', Running: 'Work started',
-  Succeeded: 'Work completed', Failed: 'Work failed', Cancelled: 'Work cancelled',
-  TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
-  TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
-};
-const category = (fact: Observation) => categories[fact.kind] || fact.kind;
-function recordTitle(fact: Observation): string {
-  if (fact.operation) return operationLabels[fact.operation] || fact.operation;
-  if (fact.kind === 'RequestReceived') return 'Request received';
-  if (fact.kind === 'AuthorityResolved') return 'Access resolved';
-  if (fact.kind === 'ProviderAttempt') return 'Model request started';
-  if (fact.kind === 'ProviderOutcome') return 'Model request finished';
-  return category(fact);
-}
-const recordReason = (fact: Observation) => fact.reason || fact.decision?.reason || '';
 
 function Badge({ value }: { value: string }) {
   return <span className={`portal-badge ${value.toLowerCase().replace(/\s+/g, '-')}`}>{value}</span>;
@@ -61,67 +46,6 @@ function Access({ value, runtime }: {
   </div>;
 }
 
-// Polling stops after the final outcome, not merely the terminal claim phase:
-// cleanup can still be in progress after authority is revoked.
-function useConnection(parts: string[], revision: number) {
-  const [setup, setSetup] = useState<Setup>();
-  const [works, setWorks] = useState<View[]>([]);
-  const [current, setCurrent] = useState<View>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [paused, setPaused] = useState(false);
-  let ref = '';
-  let routeError = '';
-  try {
-    // Consume the decoded array: production optimizers can remove an unused
-    // decode call, including its validation side effect.
-    const decodedParts = parts.map(part => decodeURIComponent(part));
-    if (decodedParts[0] === 'work' && decodedParts[1] && decodedParts[1] !== 'new') ref = decodedParts[1];
-  } catch {
-    routeError = 'Invalid work reference.';
-  }
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let disposed = false;
-    const started = Date.now();
-    setLoading(true); setError(''); setCurrent(undefined); setPaused(false);
-    if (routeError) {
-      setLoading(false); setError(routeError);
-      return () => controller.abort();
-    }
-
-    async function load() {
-      try {
-        const [nextSetup, list, detail] = await Promise.all([
-          connectedSource.setup(controller.signal),
-          connectedSource.list(controller.signal),
-          ref ? connectedSource.request(ref, controller.signal) : Promise.resolve(undefined),
-        ]);
-        if (disposed) return;
-        setSetup(nextSetup); setWorks(list); setCurrent(detail);
-        setLoading(false); setError('');
-        if (detail && isTerminal(detail) && detail.outcome) return;
-        if (Date.now() - started >= 120_000) { setPaused(true); return; }
-        timer = setTimeout(load, 1000);
-      } catch (cause) {
-        if (disposed) return;
-        setLoading(false);
-        setError(cause instanceof Error ? cause.message : 'The connection is unavailable.');
-      }
-    }
-    void load();
-    return () => {
-      disposed = true; controller.abort();
-      if (timer) clearTimeout(timer);
-    };
-  }, [ref, routeError, revision]);
-
-  // Guard synchronously: hash navigation can render a new record route with
-  // the previous work's state before the effect has reset it.
-  return { setup, works, current, loading: routeError ? false : loading, error: routeError || error, paused };
-}
 function Records({ work, observations }: { work: View; observations: Observation[] }) {
   return <div className="portal-record-list">
     {observations.length ? observations.map(fact =>
@@ -132,7 +56,7 @@ function Records({ work, observations }: { work: View; observations: Observation
           <small>{fact.target || recordReason(fact)}</small>
         </div>
         <span className="portal-record-source">{category(fact)}</span>
-        <Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>
+        <Badge value={recordStatus(fact)}/>
       </div>
     ) : <p className="portal-empty">No activity recorded yet.</p>}
   </div>;
@@ -149,7 +73,7 @@ function WorkList({ works }: { works: View[] }) {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
-    `${workTitle(work)} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
+    `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
     <Heading title="Work" subtitle="Current-session requests and results."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
@@ -160,7 +84,7 @@ function WorkList({ works }: { works: View[] }) {
         onChange={event => setSearch(event.target.value)}/>
     </div>
     <div className="portal-table-wrap"><table className="portal-table">
-      <thead><tr><th>Task</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
+      <thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
       <tbody>{shown.map(work =>
         <tr key={work.requestRef}>
           <td><a className="portal-work-title" href={link(workLink(work))}>{workTitle(work)}</a>
@@ -179,41 +103,44 @@ function WorkDetail({ work }: { work: View }) {
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
   const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
+  const latestFacts = [...work.facts].reverse();
+  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
+  const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
-    !['ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
+    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
   const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
-    : work.outcome?.failure || state?.decision.reason || 'Request received; waiting for authorization.';
+    : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
-      <a href={link('work')}>Work</a> / {workTitle(work)}
+      <a href={link('work')}>Work</a> / Details
     </nav>
-    <Heading title={workTitle(work)} subtitle={work.requestRef} action={<Badge value={status}/>}/>
+    <Heading title={workTitle(work)} action={<Badge value={status}/>}/>
     <div className="portal-top-facts">
       <Field label="Team" value={state?.principal.team}/>
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
-    <div className="portal-detail-grid">
-      <section>
-        <div className="portal-section-head"><h2>Progress</h2>
-          <small>{time(work.facts.at(-1)?.timestamp)} last update</small></div>
-        <div className={`portal-state ${status.toLowerCase()}`} role="status">
-          <strong>{status}</strong><p>{summary}</p>
-        </div>
-        {work.outcome?.failure && <div className="portal-state failed" role="alert">
+    <TaskInstructions text={work.request.spec.task?.input?.objective}/>
+    <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
+      status,
+      received: work.facts.some(fact => fact.kind === 'RequestReceived'),
+      authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
+      started: work.facts.some(fact => fact.operation === 'Running'),
+      result: work.outcome?.status === 'Succeeded',
+      cleanup: lastCleanup?.operation === 'CleanupSucceeded',
+      failureAt: lastCleanup?.operation === 'CleanupFailed' ? 'Cleanup'
+        : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
+        : ['Failed', 'Expired', 'Cancelled'].includes(status)
+          ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
+    }}/>} failure={work.outcome?.failure && status !== 'Failed' && <div className="portal-state failed" role="alert">
           <strong>{work.outcome.status === 'Succeeded'
             ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
-          <p>{work.outcome.failure}</p>
-        </div>}
-        <ol className="portal-timeline">{progress.map(fact =>
-          <li key={fact.id}>
-            <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
-            {recordReason(fact) && <p>{recordReason(fact)}</p>}
-          </li>
-        )}</ol>
-      </section>
-      <aside className="portal-access-card">
+          <p>{outcomeReason(work)}</p>
+        </div>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)} failure={status === 'Failed' ? {
+          reason: outcomeReason(work),
+          href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
+        } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
           ? state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
@@ -223,21 +150,21 @@ function WorkDetail({ work }: { work: View }) {
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
           <a href={link('policy')}>View policy</a>
         </div>
-      </aside>
-    </div>
-    {work.outcome?.text && <section className="portal-lower portal-result">
+      </aside>} result={work.outcome?.text && <section className="portal-result">
       <h2>Result</h2><pre>{work.outcome.text}</pre>
       {work.outcome.model && <p className="portal-source-note">
-        {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
+        Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens
       </p>}
-    </section>}
-    <section className="portal-lower">
-      <div className="portal-section-head"><h2>Recent activity</h2>
-        <a href={link(`${workLink(work)}/activity`)}>View all activity</a></div>
-      <Records work={work} observations={work.facts.slice(-4)}/>
-    </section>
-    <details className="portal-details"><summary>Execution details</summary>
+    </section>} details={<>
+      <small className="portal-source-note">{time(work.facts.at(-1)?.timestamp)} last update</small>
+      <ol className="portal-timeline">{progress.map(fact =>
+        <li key={fact.id} data-negative={recordStatus(fact) === 'Failed'}>
+          <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
+          {recordStatus(fact) === 'Failed' && <Badge value="Failed"/>}
+          {(recordReason(fact) || (fact.kind === 'RunOutcome' && recordStatus(fact) === 'Failed')) && <p>{recordReason(fact) || outcomeReason(work)}</p>}
+        </li>
+      )}</ol>
       <div className="portal-fact-grid">
         <Field label="Request ID" value={work.requestRef}/>
         <Field label="Claim ID" value={state?.claim?.id}/>
@@ -245,7 +172,8 @@ function WorkDetail({ work }: { work: View }) {
         <Field label="Worker ID" value={state?.claim?.backendIdentity?.workerId}/>
         <Field label="Policy version" value={state ? `${state.policyRef.id} / ${state.policyRef.version}` : undefined}/>
       </div>
-    </details>
+      <CopyRequestID value={work.requestRef}/>
+    </>}/>
   </>;
 }
 function WorkAccess({ work }: { work: View }) {
@@ -278,7 +206,11 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
     return <>
       <nav className="portal-crumbs"><a href={link(`${workLink(work)}/activity`)}>Activity</a></nav>
       <Heading title={recordTitle(fact)}
-        action={<Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>}/>
+        action={<Badge value={recordStatus(fact)}/>}/>
+      {recordStatus(fact) === 'Failed' && <div className="portal-state failed" role="alert">
+        <strong>{recordTitle(fact)}</strong>
+        <p>{recordReason(fact) || (fact.kind === 'RunOutcome' ? outcomeReason(work) : 'No specific failure reason was recorded for this event.')}</p>
+      </div>}
       <section className="portal-panel"><h2>What this record says</h2>
         <p>{recordReason(fact) || recordTitle(fact)}</p>
         <div className="portal-fact-grid">
@@ -333,13 +265,13 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
           </div>
           <div><a href={link(workLink(work))}>{workTitle(work)}</a>
             <small>{work.state?.principal.team}</small></div>
-          <Badge value={fact.result || fact.providerStatus || fact.decision?.result || 'Recorded'}/>
+          <Badge value={recordStatus(fact)}/>
         </div>
       )}{!records.length && <p className="portal-empty">No governance activity recorded yet.</p>}</div>
     </>;
   }
-  const observed = (kinds: string[]) => works.flatMap(work => work.facts)
-    .some(fact => kinds.includes(fact.kind));
+  const observed = (kinds: string[], key: string) => works.flatMap(work => work.facts)
+    .some(fact => kinds.includes(fact.kind) && (key !== 'model' || category(fact) === 'Model Gateway'));
   const capabilities: [string, string, string[]][] = [
     ['Task submission', 'taskSubmission', ['RequestReceived']],
     ['Runtime', 'runtime', ['Runtime']],
@@ -355,7 +287,7 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
         <td>{name}</td>
         <td><Badge value={setup.capabilities[key] === 'notConnected'
           ? 'Not connected' : setup.capabilities[key] || 'Not connected'}/></td>
-        <td>{observed(kinds) ? 'Activity recorded' : 'No activity recorded'}</td>
+        <td>{observed(kinds, key) ? 'Activity recorded' : 'No activity recorded'}</td>
         <td><a href={link('platform/activity')}>View activity</a></td>
       </tr>)}</tbody>
     </table></div>
@@ -373,6 +305,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const objective = String(form.get('objective') || '').trim();
+    const workName = String(form.get('workName') || '').trim();
     if (!objective) { setError('Describe the task.'); return; }
     const repository = String(form.get('repository') || '').trim();
     const scopes = (name: string) => String(form.get(name) || '')
@@ -387,6 +320,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
           type: 'repository-change',
           input: {
             objective,
+            ...(workName ? { workName } : {}),
             ...(repository ? { repository, baseBranch: String(form.get('branch') || 'main') } : {}),
           },
         },
@@ -415,6 +349,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
           <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
             <option>{setup.template.metadata.name}</option>
           </select></label>
+          <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
           <label>What should it do?<textarea name="objective" required/></label>
           <div className="portal-field-row">
             <label>Repository<input name="repository" defaultValue="acme/payments"/></label>
@@ -533,7 +468,7 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
   } else if (section === 'work' && data.current) {
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
-      : <WorkDetail work={data.current}/>;
+      : <WorkDetail key={data.current.requestRef} work={data.current}/>;
   } else if (section === 'platform') {
     content = <Platform setup={setup} works={data.works} activity={parts[1] === 'activity'}/>;
   } else if (section === 'agents') content = <Templates setup={setup}/>;
