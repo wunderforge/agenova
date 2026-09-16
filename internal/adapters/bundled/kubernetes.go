@@ -83,6 +83,20 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if serviceErr != nil && !isNotFound(serviceErr) {
 		return target, nil, nil, serviceErr
 	}
+	for _, existing := range []struct {
+		kind   string
+		name   string
+		object map[string]any
+	}{
+		{"configmap", platformRecord, record},
+		{"configmap", policyRecord, policyObject},
+		{"deployment", controlPlaneName, deployment},
+		{"service", controlPlaneName, service},
+	} {
+		if err := requireManaged(existing.object, existing.kind, existing.name); err != nil {
+			return target, nil, nil, err
+		}
+	}
 
 	lockJSON, err := platformapply.EncodeLock(request.Lock)
 	if err != nil {
@@ -182,6 +196,15 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		exists, err := k.resourceExists(ctx, contextName, target.resource, target.name, target.namespace)
 		if err != nil {
 			return err
+		}
+		if exists && target.resource != "namespaces" {
+			object, err := k.getJSON(ctx, contextName, target.namespace, target.resource, target.name)
+			if err != nil {
+				return err
+			}
+			if err := requireManaged(object, target.resource, target.name); err != nil {
+				return err
+			}
 		}
 		action := "create"
 		if exists {
@@ -358,6 +381,18 @@ func objectData(object map[string]any, key string) string {
 	data, _ := object["data"].(map[string]any)
 	value, _ := data[key].(string)
 	return value
+}
+
+func requireManaged(object map[string]any, kind, name string) error {
+	if object == nil {
+		return nil
+	}
+	metadata, _ := object["metadata"].(map[string]any)
+	labels, _ := metadata["labels"].(map[string]any)
+	if labels["app.kubernetes.io/managed-by"] != "agenova" {
+		return fmt.Errorf("Kubernetes %s/%s already exists but is not managed by Agenova", kind, name)
+	}
+	return nil
 }
 
 func deploymentMatches(object map[string]any, revision string) bool {

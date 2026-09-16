@@ -72,6 +72,9 @@ func TestKubernetesApplyUsesOneSecretFreeManifestAndWaitsReady(t *testing.T) {
 		if contains(args, "can-i") {
 			return commandResult{stdout: "yes\n"}, nil
 		}
+		if contains(args, "get") {
+			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+		}
 		return commandResult{}, nil
 	}}
 	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
@@ -119,15 +122,15 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 		case contains(args, "namespace"):
 			return `{"metadata":{"name":"agenova-system"}}`
 		case contains(args, "configmap") && contains(args, platformRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
 			return string(data)
 		case contains(args, "configmap") && contains(args, policyRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
 			return string(data)
 		case contains(args, "deployment"):
-			return `{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
+			return `{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"},"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
 		case contains(args, "service"):
-			return `{"metadata":{"name":"agenova-control-plane"},"spec":{"type":"ClusterIP","selector":{"app.kubernetes.io/name":"agenova-control-plane"},"ports":[{"port":8080,"targetPort":"http"}]}}`
+			return `{"metadata":{"name":"agenova-control-plane","labels":{"app.kubernetes.io/managed-by":"agenova"}},"spec":{"type":"ClusterIP","selector":{"app.kubernetes.io/name":"agenova-control-plane"},"ports":[{"port":8080,"targetPort":"http"}]}}`
 		default:
 			return `{}`
 		}
@@ -144,6 +147,46 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 	}
 	if len(changes) != 1 || changes[0].Component != controlPlaneName {
 		t.Fatalf("drift plan = %#v, want only deployment reconcile", changes)
+	}
+}
+
+func TestKubernetesPlanRejectsUnmanagedNameCollision(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "version") {
+			return commandResult{stdout: `{}`}, nil
+		}
+		if contains(args, platformRecord) {
+			return commandResult{stdout: `{"metadata":{"name":"agenova-platform"}}`}, nil
+		}
+		return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+	}}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), deploymentRequest())
+	if err == nil || !strings.Contains(err.Error(), "not managed by Agenova") {
+		t.Fatalf("Plan() error = %v, want unmanaged resource collision", err)
+	}
+}
+
+func TestKubernetesPreflightRejectsUnmanagedNameCollision(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "can-i") {
+			return commandResult{stdout: "yes\n"}, nil
+		}
+		if contains(args, "get") && contains(args, platformRecord) {
+			if contains(args, "json") {
+				return commandResult{stdout: `{"metadata":{"name":"agenova-platform"}}`}, nil
+			}
+			return commandResult{stdout: "configmap/agenova-platform\n"}, nil
+		}
+		return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+	}}
+	err := newKubernetesDeployment(runner).Preflight(context.Background(), deploymentRequest())
+	if err == nil || !strings.Contains(err.Error(), "not managed by Agenova") {
+		t.Fatalf("Preflight() error = %v, want unmanaged resource collision", err)
+	}
+	for _, call := range runner.calls {
+		if contains(call, "apply") {
+			t.Fatalf("preflight mutated target: %#v", call)
+		}
 	}
 }
 
