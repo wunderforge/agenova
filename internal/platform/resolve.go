@@ -10,7 +10,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -60,6 +62,22 @@ type Descriptor struct {
 
 type DescriptorLookup interface {
 	Lookup(id, version string) (Descriptor, bool)
+}
+
+// AdapterConfigError carries only a stable developer-authored code and field
+// path. Arbitrary adapter error strings are never returned to callers because
+// they may contain rejected provider values or credentials.
+type AdapterConfigError struct {
+	code      string
+	fieldPath string
+}
+
+func NewAdapterConfigError(code, fieldPath string) error {
+	return &AdapterConfigError{code: safeDiagnosticToken(code), fieldPath: safeDiagnosticPath(fieldPath)}
+}
+
+func (e *AdapterConfigError) Error() string {
+	return e.code + " at " + e.fieldPath
 }
 
 type ResolvedAdapter struct {
@@ -221,7 +239,7 @@ func resolveInstance(capability Capability, path string, input v1alpha1.Platform
 	}
 	canonical, err := requirement.descriptor.CanonicalizeInstance(capability, cloneConfig(input.Config))
 	if err != nil {
-		return &ResolveError{Category: ErrorInvalidConfig, FieldPath: path + ".config", Detail: err.Error()}
+		return &ResolveError{Category: ErrorInvalidConfig, FieldPath: path + ".config", Detail: safeAdapterErrorDetail(err)}
 	}
 	canonical = cloneConfig(canonical)
 	if validationErr := v1alpha1.ValidatePlatformConfig(canonical); validationErr != nil {
@@ -247,7 +265,7 @@ func resolveProfile(capability Capability, path string, input v1alpha1.PlatformP
 	}
 	canonical, err := descriptor.CanonicalizeProfile(capability, cloneConfig(backend.Config), cloneConfig(input.Config))
 	if err != nil {
-		return ResolvedProfile{}, &ResolveError{Category: ErrorInvalidConfig, FieldPath: path + ".config", Detail: err.Error()}
+		return ResolvedProfile{}, &ResolveError{Category: ErrorInvalidConfig, FieldPath: path + ".config", Detail: safeAdapterErrorDetail(err)}
 	}
 	canonical = cloneConfig(canonical)
 	if validationErr := v1alpha1.ValidatePlatformConfig(canonical); validationErr != nil {
@@ -325,20 +343,75 @@ func cloneConfig(input map[string]any) map[string]any {
 }
 
 func cloneValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		return cloneConfig(typed)
-	case []any:
-		result := make([]any, len(typed))
-		for i, item := range typed {
-			result[i] = cloneValue(item)
+	return cloneJSONValue(reflect.ValueOf(value))
+}
+
+func cloneJSONValue(value reflect.Value) any {
+	if !value.IsValid() {
+		return nil
+	}
+	if value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return nil
+		}
+		return cloneJSONValue(value.Elem())
+	}
+	switch value.Kind() {
+	case reflect.Map:
+		if value.IsNil() {
+			return nil
+		}
+		result := make(map[string]any, value.Len())
+		for _, key := range value.MapKeys() {
+			result[key.String()] = cloneJSONValue(value.MapIndex(key))
 		}
 		return result
-	case []string:
-		return append([]string(nil), typed...)
+	case reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
+		fallthrough
+	case reflect.Array:
+		result := make([]any, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			result[i] = cloneJSONValue(value.Index(i))
+		}
+		return result
 	default:
-		return typed
+		return value.Interface()
 	}
+}
+
+func safeAdapterErrorDetail(err error) string {
+	var safe *AdapterConfigError
+	if errors.As(err, &safe) {
+		return safe.Error()
+	}
+	return "adapter rejected configuration"
+}
+
+func safeDiagnosticToken(value string) string {
+	for _, char := range value {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
+			return "invalid-adapter-config"
+		}
+	}
+	if value == "" || len(value) > 64 {
+		return "invalid-adapter-config"
+	}
+	return value
+}
+
+func safeDiagnosticPath(value string) string {
+	if value == "" || len(value) > 128 {
+		return "config"
+	}
+	for _, char := range value {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '.' && char != '[' && char != ']' && char != '-' && char != '_' {
+			return "config"
+		}
+	}
+	return value
 }
 
 // CanonicalJSON exposes the frozen inspectable encoding used by golden tests

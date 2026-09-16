@@ -82,7 +82,7 @@ func TestPlatformContractProfileValidationConsumesCanonicalBackend(t *testing.T)
 	if resolved != nil || lock != nil || err == nil || err.Category != ErrorInvalidConfig {
 		t.Fatalf("Resolve() = %#v, %#v, %#v", resolved, lock, err)
 	}
-	if !strings.Contains(err.Detail, "in-cluster") {
+	if err.Detail != "unsupported-connection-mode at connection.mode" {
 		t.Fatalf("error detail = %q", err.Detail)
 	}
 }
@@ -127,6 +127,42 @@ func TestPlatformContractFailuresReturnNoPartialPlan(t *testing.T) {
 	}
 }
 
+func TestPlatformContractRedactsArbitraryAdapterErrors(t *testing.T) {
+	input := referencePlatform()
+	lookup := referenceLookup()
+	descriptor := lookup["agenova.io/model/openai-compatible@0.1.0"]
+	descriptor.CanonicalizeInstance = func(Capability, map[string]any) (map[string]any, error) {
+		return nil, errors.New("invalid endpoint https://user:super-secret@example.invalid")
+	}
+	lookup["agenova.io/model/openai-compatible@0.1.0"] = descriptor
+	_, _, err := Resolve(input, lookup)
+	if err == nil || err.Detail != "adapter rejected configuration" || strings.Contains(err.Error(), "super-secret") {
+		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestPlatformContractSnapshotsTypedJSONContainers(t *testing.T) {
+	input := referencePlatform()
+	connection := map[string]string{"mode": "in-cluster", "namespace": "agenova-workers"}
+	ports := []int{11434, 443}
+	input.Spec.Infrastructure.RuntimeBackends[0].Config["connection"] = connection
+	input.Spec.Services.ModelBackends[0].Config["ports"] = ports
+	resolved, lock, err := Resolve(input, referenceLookup())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	connection["namespace"] = "mutated"
+	ports[0] = 1
+	runtimeConfig := resolved.Instances[2].Config["connection"].(map[string]any)
+	modelPorts := resolved.Instances[1].Config["ports"].([]any)
+	if runtimeConfig["namespace"] != "agenova-workers" || modelPorts[0] != 11434 {
+		t.Fatalf("resolved snapshot mutated: runtime=%#v ports=%#v", runtimeConfig, modelPorts)
+	}
+	if lock.Revision != resolved.Revision {
+		t.Fatalf("lock revision %q differs from resolved %q", lock.Revision, resolved.Revision)
+	}
+}
+
 func referenceLookup() lookupMap {
 	identityInstance := func(_ Capability, config map[string]any) (map[string]any, error) { return config, nil }
 	identityProfile := func(_ Capability, _ map[string]any, config map[string]any) (map[string]any, error) {
@@ -135,11 +171,11 @@ func referenceLookup() lookupMap {
 	runtimeProfile := func(_ Capability, backend, profile map[string]any) (map[string]any, error) {
 		connection, _ := backend["connection"].(map[string]any)
 		if connection["mode"] != "in-cluster" {
-			return nil, errors.New("deployed runtime requires an in-cluster connection")
+			return nil, NewAdapterConfigError("unsupported-connection-mode", "connection.mode")
 		}
 		isolation, _ := profile["isolation"].(string)
 		if isolation != "dedicated" {
-			return nil, errors.New("unsupported isolation profile")
+			return nil, NewAdapterConfigError("unsupported-isolation", "isolation")
 		}
 		return map[string]any{"isolation": isolation}, nil
 	}

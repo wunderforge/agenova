@@ -317,12 +317,11 @@ func findPlatformCredentialReferenceValue(path string, value reflect.Value) *Val
 }
 
 func platformCredentialReferenceField(name string) bool {
-	switch NormalizeCredentialFieldName(name) {
-	case "credentialref", "credentialsref", "secretref":
-		return true
-	default:
+	normalized := NormalizeCredentialFieldName(name)
+	if !strings.HasSuffix(normalized, "ref") {
 		return false
 	}
+	return ReservedCredentialFieldName(strings.TrimSuffix(normalized, "ref"))
 }
 
 func validatePlatformDocumentShape(root *yaml.Node) *ValidationError {

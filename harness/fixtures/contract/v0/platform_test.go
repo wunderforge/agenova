@@ -4,7 +4,6 @@
 package contractv0
 
 import (
-	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -83,11 +82,11 @@ func platformFixtureDescriptors() platformFixtureLookup {
 	runtimeProfile := func(_ platformresolver.Capability, backend, profile map[string]any) (map[string]any, error) {
 		connection, _ := backend["connection"].(map[string]any)
 		if connection["mode"] != "in-cluster" {
-			return nil, errors.New("deployed runtime requires an in-cluster connection")
+			return nil, platformresolver.NewAdapterConfigError("unsupported-connection-mode", "connection.mode")
 		}
 		isolation, _ := profile["isolation"].(string)
 		if isolation != "dedicated" {
-			return nil, errors.New("unsupported isolation profile")
+			return nil, platformresolver.NewAdapterConfigError("unsupported-isolation", "isolation")
 		}
 		return map[string]any{"isolation": isolation}, nil
 	}

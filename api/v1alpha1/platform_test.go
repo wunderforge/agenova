@@ -38,6 +38,9 @@ func TestPlatformContractRejectsInvalidShapesAndReferences(t *testing.T) {
 		{"unknown adapter", replaceOnce(validPlatformYAML, "adapterRef: agent-sandbox-runtime", "adapterRef: missing-runtime"), ValidationCategoryInvalidValue, "spec.infrastructure.runtimeBackends[0].adapterRef"},
 		{"unknown backend", replaceOnce(validPlatformYAML, "backendRef: primary-runtime", "backendRef: missing-runtime"), ValidationCategoryInvalidValue, "spec.infrastructure.runtimeProfiles[0].backendRef"},
 		{"credential reference", replaceOnce(validPlatformYAML, "endpoint: https://ollama.agenova-models.svc.cluster.local/v1", "endpoint: https://ollama.agenova-models.svc.cluster.local/v1\n          credentialRef: model-key"), ValidationCategorySecretValue, "spec.services.modelBackends[0].config.credentialRef"},
+		{"API key reference", replaceOnce(validPlatformYAML, "endpoint: https://ollama.agenova-models.svc.cluster.local/v1", "endpoint: https://ollama.agenova-models.svc.cluster.local/v1\n          apiKeyRef: model-key"), ValidationCategorySecretValue, "spec.services.modelBackends[0].config.apiKeyRef"},
+		{"token reference", replaceOnce(validPlatformYAML, "endpoint: https://ollama.agenova-models.svc.cluster.local/v1", "endpoint: https://ollama.agenova-models.svc.cluster.local/v1\n          tokenRef: model-key"), ValidationCategorySecretValue, "spec.services.modelBackends[0].config.tokenRef"},
+		{"password reference", replaceOnce(validPlatformYAML, "endpoint: https://ollama.agenova-models.svc.cluster.local/v1", "endpoint: https://ollama.agenova-models.svc.cluster.local/v1\n          passwordRef: model-key"), ValidationCategorySecretValue, "spec.services.modelBackends[0].config.passwordRef"},
 		{"direct secret", replaceOnce(validPlatformYAML, "model: llama3.1:latest", "model: llama3.1:latest\n          apiKey: forbidden"), ValidationCategorySecretValue, "spec.services.modelProfiles[0].config.apiKey"},
 	}
 	for _, test := range tests {
