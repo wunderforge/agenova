@@ -237,7 +237,12 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 		}
 		return printPlatformPlan(stdout, stderr, plan, parsed.json)
 	case "apply":
-		plan, err := service.PlanFile(ctx, parsed.file)
+		resolved, lock, err := service.ValidateFile(parsed.file)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		plan, err := service.Plan(ctx, resolved, lock)
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
 			return 1
@@ -255,7 +260,7 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 				return 1
 			}
 		}
-		result, err := service.ApplyFile(ctx, parsed.file)
+		result, err := service.Apply(ctx, resolved, lock)
 		if err != nil {
 			if parsed.json {
 				_ = json.NewEncoder(stdout).Encode(result)

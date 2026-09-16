@@ -106,7 +106,48 @@ func TestServiceRejectsUnavailableInitialPolicy(t *testing.T) {
 	}
 }
 
+type failSecondInstallStore struct {
+	base  *adapterregistry.MemoryStore
+	calls int
+}
+
+func (s *failSecondInstallStore) List() (adapterregistry.InstallationLock, error) {
+	return s.base.List()
+}
+
+func (s *failSecondInstallStore) Install(adapter adapterregistry.InstalledAdapter) (bool, error) {
+	s.calls++
+	if s.calls == 2 {
+		return false, errors.New("injected adapter store failure")
+	}
+	return s.base.Install(adapter)
+}
+
+func TestServiceReportsAdaptersActivatedBeforeLaterFailure(t *testing.T) {
+	store := &failSecondInstallStore{base: adapterregistry.NewMemoryStore()}
+	service := newTestServiceWithStore(t, &fakeDeployment{}, store)
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Apply(context.Background(), resolved, lock)
+	if err == nil || !result.Applied {
+		t.Fatalf("Apply() = %#v, %v, want recorded partial activation", result, err)
+	}
+	states := map[string]string{}
+	for _, status := range result.Components {
+		states[status.Name] = status.State
+	}
+	if states["deployment"] != "used" || states["model"] != "failed" || states["runtime"] != "available" {
+		t.Fatalf("partial adapter states = %#v", result.Components)
+	}
+}
+
 func newTestService(t *testing.T, deployment DeploymentAdapter) Service {
+	return newTestServiceWithStore(t, deployment, adapterregistry.NewMemoryStore())
+}
+
+func newTestServiceWithStore(t *testing.T, deployment DeploymentAdapter, store adapterregistry.Store) Service {
 	t.Helper()
 	registrations := []adapterregistry.Registration{
 		testRegistration("example.com/deployment/fake", platform.CapabilityDeployment, func() (any, error) { return deployment, nil }),
@@ -117,7 +158,7 @@ func newTestService(t *testing.T, deployment DeploymentAdapter) Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lifecycle, err := adapterregistry.NewLifecycle(registry, adapterregistry.NewMemoryStore())
+	lifecycle, err := adapterregistry.NewLifecycle(registry, store)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -23,6 +25,8 @@ const (
 	policyRecord      = "agenova-policy-reference-default-deny-v1"
 	controlPlaneImage = "agenova-control-plane:0.1.0"
 )
+
+var errKubectlUnavailable = errors.New("kubectl executable is unavailable; install kubectl and add it to PATH")
 
 type commandResult struct {
 	stdout string
@@ -59,7 +63,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
-	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); err != nil {
+	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); errors.Is(err, errKubectlUnavailable) {
+		return target, nil, nil, err
+	} else if err != nil {
 		return target, nil, nil, fmt.Errorf("selected Kubernetes context %q is unavailable", contextName)
 	}
 	namespaceObject, namespaceErr := k.getJSON(ctx, contextName, "", "namespace", namespace)
@@ -110,7 +116,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
 	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
-	ready := deploymentMatches(deployment, request.Platform.Revision)
+	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service)
 	var changes []platformapply.Change
 	if !namespaceReady {
@@ -155,10 +161,18 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return failedStatuses(request.Platform.Revision), err
 	}
 	if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
-		return failedStatuses(request.Platform.Revision), fmt.Errorf("reconcile Kubernetes resources: %w", err)
+		statuses := k.observedAfterFailure(ctx, request)
+		statuses = append(statuses, platformapply.ComponentStatus{Name: "reconciliation", Category: "deployment", State: "failed"})
+		return statuses, fmt.Errorf("reconcile Kubernetes resources: %w", err)
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
-		return failedStatuses(request.Platform.Revision), fmt.Errorf("wait for reference control plane Ready: %w", err)
+		statuses := k.observedAfterFailure(ctx, request)
+		for index := range statuses {
+			if statuses[index].Name == controlPlaneName && statuses[index].Category == "deployment" {
+				statuses[index].State = "failed"
+			}
+		}
+		return statuses, fmt.Errorf("wait for reference control plane Ready: %w", err)
 	}
 	return []platformapply.ComponentStatus{
 		{Name: namespace, Category: "deployment", State: "available"},
@@ -167,6 +181,14 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		{Name: controlPlaneName, Category: "deployment", State: "available"},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: "available"},
 	}, nil
+}
+
+func (k *KubernetesDeployment) observedAfterFailure(ctx context.Context, request platformapply.DeploymentRequest) []platformapply.ComponentStatus {
+	_, _, statuses, err := k.Plan(ctx, request)
+	if err != nil {
+		return failedStatuses(request.Platform.Revision)
+	}
+	return statuses
 }
 
 func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformapply.DeploymentRequest) error {
@@ -178,6 +200,11 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 }
 
 func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string) error {
+	// rollout status watches the Deployment after apply; require that verb before
+	// any target mutation, not after the resources have already been created.
+	if err := k.requireRBAC(ctx, contextName, "watch", "deployments.apps", namespace); err != nil {
+		return err
+	}
 	targets := []struct {
 		resource  string
 		name      string
@@ -257,7 +284,7 @@ func (k *KubernetesDeployment) getJSON(ctx context.Context, contextName, namespa
 	args = append(args, "get", kind, name, "-o", "json")
 	result, err := k.run(ctx, nil, args...)
 	if err != nil {
-		return nil, fmt.Errorf("read Kubernetes %s/%s: %s", kind, name, safeKubectlError(result.stderr))
+		return nil, fmt.Errorf("read Kubernetes %s/%s: %w", kind, name, err)
 	}
 	var object map[string]any
 	if err := json.Unmarshal([]byte(result.stdout), &object); err != nil {
@@ -272,11 +299,10 @@ func (k *KubernetesDeployment) run(ctx context.Context, input []byte, args ...st
 	}
 	result, err := k.runner.Run(ctx, input, args...)
 	if err != nil {
-		message := safeKubectlError(result.stderr)
-		if message == "" {
-			message = "kubectl command failed"
+		if errors.Is(err, exec.ErrNotFound) {
+			return result, errKubectlUnavailable
 		}
-		return result, fmt.Errorf("%s", message)
+		return result, errors.New(safeKubectlError(result.stderr))
 	}
 	return result, nil
 }
@@ -395,22 +421,55 @@ func requireManaged(object map[string]any, kind, name string) error {
 	return nil
 }
 
-func deploymentMatches(object map[string]any, revision string) bool {
-	if objectAnnotation(object, "agenova.io/platform-revision") != revision || availableReplicas(object) < 1 {
+func deploymentMatches(object, desired map[string]any, revision string) bool {
+	if objectAnnotation(object, "agenova.io/platform-revision") != revision {
 		return false
 	}
-	spec, _ := object["spec"].(map[string]any)
-	replicas, _ := spec["replicas"].(float64)
-	template, _ := spec["template"].(map[string]any)
-	templateMeta, _ := template["metadata"].(map[string]any)
-	annotations, _ := templateMeta["annotations"].(map[string]any)
-	podSpec, _ := template["spec"].(map[string]any)
-	containers, _ := podSpec["containers"].([]any)
-	if replicas != 1 || annotations["agenova.io/platform-revision"] != revision || len(containers) != 1 {
+	data, err := json.Marshal(desired["spec"])
+	if err != nil {
 		return false
 	}
-	container, _ := containers[0].(map[string]any)
-	return container["image"] == controlPlaneImage
+	var expectedSpec any
+	if json.Unmarshal(data, &expectedSpec) != nil || !expectedFieldsMatch(object["spec"], expectedSpec) {
+		return false
+	}
+	metadata, _ := object["metadata"].(map[string]any)
+	status, _ := object["status"].(map[string]any)
+	generation, _ := metadata["generation"].(float64)
+	observed, _ := status["observedGeneration"].(float64)
+	replicas, _ := status["replicas"].(float64)
+	updated, _ := status["updatedReplicas"].(float64)
+	available, _ := status["availableReplicas"].(float64)
+	return generation > 0 && observed >= generation && replicas == 1 && updated == 1 && available == 1
+}
+
+func expectedFieldsMatch(actual, expected any) bool {
+	switch wanted := expected.(type) {
+	case map[string]any:
+		got, ok := actual.(map[string]any)
+		if !ok {
+			return false
+		}
+		for key, value := range wanted {
+			if !expectedFieldsMatch(got[key], value) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		got, ok := actual.([]any)
+		if !ok || len(got) != len(wanted) {
+			return false
+		}
+		for index := range wanted {
+			if !expectedFieldsMatch(got[index], wanted[index]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(actual, expected)
+	}
 }
 
 func serviceMatches(object map[string]any) bool {
@@ -427,25 +486,22 @@ func serviceMatches(object map[string]any) bool {
 	return port["port"] == float64(8080) && port["targetPort"] == "http"
 }
 
-func availableReplicas(object map[string]any) int {
-	status, _ := object["status"].(map[string]any)
-	value, _ := status["availableReplicas"].(float64)
-	return int(value)
-}
-
 func isNotFound(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")
 }
 
 func safeKubectlError(stderr string) string {
-	line := strings.TrimSpace(stderr)
-	if index := strings.IndexByte(line, '\n'); index >= 0 {
-		line = line[:index]
+	lower := strings.ToLower(stderr)
+	switch {
+	case strings.Contains(lower, "notfound"), strings.Contains(lower, "not found"):
+		return "Kubernetes resource not found"
+	case strings.Contains(lower, "forbidden"), strings.Contains(lower, "unauthorized"):
+		return "Kubernetes access denied for the current identity"
+	case strings.Contains(lower, "connection refused"), strings.Contains(lower, "unable to connect"), strings.Contains(lower, "i/o timeout"):
+		return "Kubernetes API is unreachable for the selected context"
+	default:
+		return "kubectl command failed; check the selected context and cluster access"
 	}
-	if len(line) > 240 {
-		line = line[:240]
-	}
-	return line
 }
 
 func state(ok bool, yes, no string) string {

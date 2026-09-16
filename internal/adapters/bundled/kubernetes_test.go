@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -187,6 +188,109 @@ func TestKubernetesPreflightRejectsUnmanagedNameCollision(t *testing.T) {
 		if contains(call, "apply") {
 			t.Fatalf("preflight mutated target: %#v", call)
 		}
+	}
+}
+
+func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
+	request := deploymentRequest()
+	desired := deploymentObject(request, "agenova-system")
+	data, err := json.Marshal(desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual map[string]any
+	if err := json.Unmarshal(data, &actual); err != nil {
+		t.Fatal(err)
+	}
+	metadata := actual["metadata"].(map[string]any)
+	metadata["generation"] = float64(2)
+	actual["status"] = map[string]any{"observedGeneration": float64(1), "replicas": float64(2), "updatedReplicas": float64(1), "availableReplicas": float64(1)}
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("old available ReplicaSet must not make a new rollout Ready")
+	}
+	actual["status"] = map[string]any{"observedGeneration": float64(2), "replicas": float64(1), "updatedReplicas": float64(1), "availableReplicas": float64(1)}
+	if !deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("matching current rollout should be Ready")
+	}
+	container := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
+	environment := container["env"].([]any)
+	environment[2].(map[string]any)["value"] = "unexpected-policy@2"
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("same-revision managed environment drift must be reconciled")
+	}
+}
+
+func TestKubernetesErrorsAreActionableWithoutForwardingStderr(t *testing.T) {
+	missing := &fakeKubectl{run: func([]string) (commandResult, error) {
+		return commandResult{}, exec.ErrNotFound
+	}}
+	_, _, _, err := newKubernetesDeployment(missing).Plan(context.Background(), deploymentRequest())
+	if err == nil || !strings.Contains(err.Error(), "install kubectl") {
+		t.Fatalf("missing kubectl error = %v", err)
+	}
+	const marker = "sensitive-provider-output"
+	failed := &fakeKubectl{run: func([]string) (commandResult, error) {
+		return commandResult{stderr: marker}, errors.New("exit 1")
+	}}
+	_, _, _, err = newKubernetesDeployment(failed).Plan(context.Background(), deploymentRequest())
+	if err == nil || strings.Contains(err.Error(), marker) {
+		t.Fatalf("untrusted subprocess stderr leaked: %v", err)
+	}
+}
+
+func TestKubernetesPreflightRequiresRolloutWatchBeforeMutation(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "can-i") && contains(args, "watch") {
+			return commandResult{stdout: "no\n"}, nil
+		}
+		return commandResult{stdout: "yes\n"}, nil
+	}}
+	_, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
+	if err == nil || !strings.Contains(err.Error(), "watch deployments.apps") {
+		t.Fatalf("Apply() error = %v, want missing rollout watch", err)
+	}
+	for _, call := range runner.calls {
+		if contains(call, "apply") {
+			t.Fatalf("denied rollout watch mutated target: %#v", call)
+		}
+	}
+}
+
+func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
+	request := deploymentRequest()
+	lockJSON, err := platformapply.EncodeLock(request.Lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partial := false
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		switch {
+		case contains(args, "can-i"):
+			return commandResult{stdout: "yes\n"}, nil
+		case contains(args, "version"):
+			return commandResult{stdout: `{}`}, nil
+		case contains(args, "apply"):
+			partial = true
+			return commandResult{stderr: "deployment rejected"}, errors.New("exit 1")
+		case contains(args, "get") && partial && contains(args, "namespace"):
+			return commandResult{stdout: `{"metadata":{"name":"agenova-system"}}`}, nil
+		case contains(args, "get") && partial && contains(args, platformRecord):
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			return commandResult{stdout: string(data)}, nil
+		default:
+			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+		}
+	}}
+	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
+	if err == nil || !partial {
+		t.Fatalf("Apply() = %#v, %v", statuses, err)
+	}
+	states := map[string]string{}
+	for _, status := range statuses {
+		states[status.Name] = status.State
+	}
+	if states["agenova-system"] != "available" || states[platformRecord] != "configured" || states["reconciliation"] != "failed" || states[controlPlaneName] != "unavailable" {
+		t.Fatalf("partial state = %#v", statuses)
 	}
 }
 

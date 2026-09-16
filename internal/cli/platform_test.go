@@ -6,6 +6,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,6 +59,35 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--json"}, "", factory)
 	if code != 0 || stderr != "" || !strings.Contains(stdout, `"applied":false`) || !strings.Contains(stdout, `"changes":[]`) {
 		t.Fatalf("no-op apply = %d %q %q", code, stdout, stderr)
+	}
+}
+
+type platformMutationInput struct {
+	path    string
+	reader  io.Reader
+	mutated bool
+}
+
+func (m *platformMutationInput) Read(p []byte) (int, error) {
+	if !m.mutated {
+		m.mutated = true
+		if err := os.WriteFile(m.path, []byte("invalid replacement"), 0o600); err != nil {
+			return 0, err
+		}
+	}
+	return m.reader.Read(p)
+}
+
+func TestPlatformCLIApplyUsesConfirmedSnapshot(t *testing.T) {
+	path := writePlatformFile(t)
+	deployment := &cliDeployment{}
+	var stdout, stderr bytes.Buffer
+	code := MainWithServices([]string{"agenova", "platform", "apply", "-f", path, "--json"}, &stdout, &stderr, Services{
+		NewPlatform: cliPlatformFactory(t, deployment),
+		Input:       &platformMutationInput{path: path, reader: strings.NewReader("yes\n")},
+	})
+	if code != 0 || !deployment.applied || !strings.Contains(stdout.String(), `"platformName":"reference"`) {
+		t.Fatalf("apply after confirmed file replacement = %d %q %q", code, stdout.String(), stderr.String())
 	}
 }
 

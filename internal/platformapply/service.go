@@ -155,10 +155,23 @@ func (s Service) Apply(ctx context.Context, resolved *platform.ResolvedPlatform,
 	if err := adapter.Preflight(ctx, request); err != nil {
 		return ApplyResult{Plan: plan}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
 	}
+	activated := false
 	for _, requirement := range resolved.Adapters {
-		if _, err := s.Adapters.Install(requirement.ID + "@" + requirement.Version); err != nil {
-			return ApplyResult{Plan: plan}, fmt.Errorf("activate adapter %s@%s: %w", requirement.ID, requirement.Version, err)
+		installation, err := s.Adapters.Install(requirement.ID + "@" + requirement.Version)
+		if err != nil {
+			_, statuses, statusErr := s.activationPlan(resolved.Adapters)
+			if statusErr != nil {
+				return ApplyResult{Plan: plan, Applied: activated}, fmt.Errorf("activate adapter %s@%s: %w; inspect partial adapter state: %v", requirement.ID, requirement.Version, err, statusErr)
+			}
+			for index := range statuses {
+				if statuses[index].Name == requirement.Name && statuses[index].Category == "adapter" {
+					statuses[index].State = "failed"
+				}
+			}
+			sortPlan(nil, statuses)
+			return ApplyResult{Plan: plan, Applied: activated, Components: statuses}, fmt.Errorf("activate adapter %s@%s: %w", requirement.ID, requirement.Version, err)
 		}
+		activated = activated || installation.Changed
 	}
 	_, adapterStatuses, statusErr := s.activationPlan(resolved.Adapters)
 	if statusErr != nil {
@@ -216,12 +229,17 @@ func (s Service) activationPlan(requirements []platform.ResolvedAdapter) ([]Chan
 		return nil, nil, fmt.Errorf("read active adapters: %w", err)
 	}
 	installed := make(map[string]struct{}, len(lock.Adapters))
+	versions := make(map[string]string, len(lock.Adapters))
 	for _, item := range lock.Adapters {
 		installed[item.ID+"@"+item.Version] = struct{}{}
+		versions[item.ID] = item.Version
 	}
 	var changes []Change
 	var statuses []ComponentStatus
 	for _, requirement := range requirements {
+		if version, ok := versions[requirement.ID]; ok && version != requirement.Version {
+			return nil, nil, fmt.Errorf("adapter %s already active at version %s; requested version %s requires an explicit upgrade", requirement.ID, version, requirement.Version)
+		}
 		ref := requirement.ID + "@" + requirement.Version
 		state := "available"
 		if _, ok := installed[ref]; ok {

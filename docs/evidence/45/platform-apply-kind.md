@@ -45,15 +45,15 @@ service/agenova-control-plane
 The internal ClusterIP status endpoint returned the same revision and policy with `state: available`.
 The seeded `policy.json` is the same canonical `reference-default-deny@1` baseline used by local admission: one explicit Team A engineer `claim.create` allow, all other assignments denied. A subsequent same-revision policy-content correction appeared as a plan change; after reconciliation, the next apply again reported `changes: []`.
 
-## Denied RBAC
+## Denied real-cluster apply
 
-A temporary service account with no Agenova namespace permissions used a temporary kubeconfig to run the compiled, read-only plan. It exited `1` before mutation:
+A compiled `agenova platform apply --yes --json` was run against the existing kind target with a probe Platform that changed the desired revision. A test-only `kubectl` wrapper used Kubernetes impersonation rather than copying kubeconfig credentials. The temporary impersonated user could `get` the managed resources but could not `watch deployments.apps`; the plan contained three changes, so the command reached the apply preflight and exited `1` without mutation:
 
 ```text
-read Kubernetes configmap/agenova-platform: Error from server (Forbidden):
-User "system:serviceaccount:default:agenova-platform-denied" cannot get resource
-"configmaps" in namespace "agenova-system"
+preflight target kind-agenova-k8s-lab/agenova-system:
+current Kubernetes identity lacks required RBAC: watch deployments.apps --namespace agenova-system
+apply_exit=1
+managed_before=4 managed_after=4
 ```
 
-The temporary kubeconfig and service account were removed after the check. Fake-runner tests separately prove `apply` performs all `auth can-i` checks before issuing its first mutation.
-The application service preflights the target before activating the local adapter lock, so a denied apply does not change local installation state either.
+The existing Platform revision stayed `sha256:5bbc6195ef78669bf189b2d210718ee922ff1eb136f5af4ff4875d77b4577fcc`. The temporary ClusterRole and ClusterRoleBinding named `agenova-platform-readonly-test` were deleted after the check. The probe manifest and wrapper are test harnesses only; they do not enter the installed Platform. Fake-runner tests also prove that denied `watch` stops before the first mutation.
