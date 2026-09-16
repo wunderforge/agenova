@@ -184,6 +184,52 @@ func TestServiceActivatesAdaptersWithoutTouchingReadyTarget(t *testing.T) {
 	}
 }
 
+type tamperingStore struct {
+	base   *adapterregistry.MemoryStore
+	tamper bool
+}
+
+func (s *tamperingStore) List() (adapterregistry.InstallationLock, error) {
+	lock, err := s.base.List()
+	if err == nil && s.tamper && len(lock.Adapters) > 0 {
+		lock.Adapters[0].Capabilities = []platform.Capability{platform.CapabilityModel}
+	}
+	return lock, err
+}
+
+func (s *tamperingStore) Install(adapter adapterregistry.InstalledAdapter) (bool, error) {
+	return s.base.Install(adapter)
+}
+
+func TestServiceRejectsInstalledAdapterMetadataDrift(t *testing.T) {
+	store := &tamperingStore{base: adapterregistry.NewMemoryStore()}
+	service := newTestServiceWithStore(t, &fakeDeployment{applied: true}, store)
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Apply(context.Background(), resolved, lock); err != nil {
+		t.Fatal(err)
+	}
+	store.tamper = true
+	if _, err := service.Plan(context.Background(), resolved, lock); err == nil || !strings.Contains(err.Error(), "does not match the bundled manifest") {
+		t.Fatalf("Plan() error = %v, want exact installed metadata validation", err)
+	}
+}
+
+func TestAllReadyFailsClosed(t *testing.T) {
+	for _, state := range []string{"pending", "", "unknown", "failed", "unavailable"} {
+		if allReady([]ComponentStatus{{State: state}}) {
+			t.Fatalf("state %q reported Ready", state)
+		}
+	}
+	for _, state := range []string{"available", "configured", "used"} {
+		if !allReady([]ComponentStatus{{State: state}}) {
+			t.Fatalf("state %q did not report Ready", state)
+		}
+	}
+}
+
 func newTestService(t *testing.T, deployment DeploymentAdapter) Service {
 	return newTestServiceWithStore(t, deployment, adapterregistry.NewMemoryStore())
 }

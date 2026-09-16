@@ -58,6 +58,12 @@ managed_before=4 managed_after=4
 
 The existing Platform revision stayed `sha256:5bbc6195ef78669bf189b2d210718ee922ff1eb136f5af4ff4875d77b4577fcc`. The temporary ClusterRole and ClusterRoleBinding named `agenova-platform-readonly-test` were deleted after the check. The probe manifest and wrapper are test harnesses only; they do not enter the installed Platform. Fake-runner tests also prove that denied `watch` stops before the first mutation.
 
+Reproduce the negative case from the repository root with `./harness/integration/platformapply/denied-rbac.ps1`. The committed script builds the CLI and impersonation wrapper, derives a changed-revision probe by changing only the reference Platform name, creates a temporary `get`-only ClusterRole and binding for the synthetic user, attempts apply without `watch deployments.apps`, compares managed-resource count and revision before/after, and removes both RBAC objects in `finally`. It refuses to replace any pre-existing RBAC objects with those test names.
+
 The adapter now applies resources one at a time. A fake-target failure injected at the Deployment step records the completed namespace and ConfigMaps as available/configured, that Deployment as failed, and the unattempted Service as pending. A current kind plan after these changes still reports `changes: []` for the original revision.
 
 With a fresh local `--state-dir` and the already-ready kind target, the plan contained exactly three `activate` actions and no target changes. The compiled CLI applied those local adapter activations with `ready: true`; the managed Kubernetes resource count stayed `4` before and after.
+
+## Same-revision pod-spec drift recovery
+
+On the local kind target, a temporary JSON patch added `spec.template.spec.hostNetwork: true` to the managed Deployment without changing the Platform revision. The compiled CLI plan reported exactly `agenova-control-plane: reconcile`. Apply replaced the owned pod spec, waited for rollout, then re-read every managed resource before reporting `ready: true`. A subsequent plan returned `changes: []`, and `hostNetwork` was absent again. This test left the reference target at its original revision.

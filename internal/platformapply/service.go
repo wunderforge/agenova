@@ -282,6 +282,9 @@ func (s Service) activationPlan(requirements []platform.ResolvedAdapter) ([]Chan
 		ref := requirement.ID + "@" + requirement.Version
 		state := "available"
 		if _, ok := installed[ref]; ok {
+			if _, err := s.Adapters.Inspect(ref); err != nil {
+				return nil, nil, fmt.Errorf("inspect active adapter %s: %w", ref, err)
+			}
 			state = "configured"
 			if hasCapability(requirement.Capabilities, platform.CapabilityDeployment) {
 				state = "used"
@@ -323,7 +326,9 @@ func allReady(statuses []ComponentStatus) bool {
 		return false
 	}
 	for _, status := range statuses {
-		if status.State == "failed" || status.State == "unavailable" {
+		switch status.State {
+		case "available", "configured", "used":
+		default:
 			return false
 		}
 	}

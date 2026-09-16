@@ -139,7 +139,11 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		changes = append(changes, platformapply.Change{Component: policyRecord, Action: "reconcile", Detail: "seed the versioned reference default-deny policy"})
 	}
 	if !serviceReady {
-		changes = append(changes, platformapply.Change{Component: controlPlaneName + "-service", Action: "create", Detail: "expose the internal reference status endpoint inside the cluster"})
+		action := "create"
+		if service != nil {
+			action = "reconcile"
+		}
+		changes = append(changes, platformapply.Change{Component: controlPlaneName + "-service", Action: action, Detail: "expose the internal reference status endpoint inside the cluster"})
 	}
 	statuses := []platformapply.ComponentStatus{
 		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
@@ -169,8 +173,15 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	}
 	for index, step := range steps {
 		replaceSelector := false
+		replacePodSpec := false
 		if step.name == controlPlaneName+"-service" {
 			replaceSelector, err = k.serviceSelectorDrift(ctx, contextName, namespace)
+			if err != nil {
+				return k.stepFailure(ctx, request, steps, index, err)
+			}
+		}
+		if step.name == controlPlaneName {
+			replacePodSpec, err = k.deploymentPodSpecDrift(ctx, contextName, namespace, step.object)
 			if err != nil {
 				return k.stepFailure(ctx, request, steps, index, err)
 			}
@@ -187,6 +198,11 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				return k.stepFailure(ctx, request, steps, index, err)
 			}
 		}
+		if replacePodSpec {
+			if err := k.replaceDeploymentPodSpec(ctx, contextName, namespace, step.object); err != nil {
+				return k.stepFailure(ctx, request, steps, index, err)
+			}
+		}
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
 		statuses := k.observedAfterFailure(ctx, request)
@@ -197,13 +213,14 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		}
 		return statuses, fmt.Errorf("wait for reference control plane Ready: %w", err)
 	}
-	return []platformapply.ComponentStatus{
-		{Name: namespace, Category: "deployment", State: "available"},
-		{Name: platformRecord, Category: "deployment", State: "configured", Reference: request.Platform.Revision},
-		{Name: policyRecord, Category: "policy", State: "configured", Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
-		{Name: controlPlaneName, Category: "deployment", State: "available"},
-		{Name: controlPlaneName + "-service", Category: "deployment", State: "available"},
-	}, nil
+	_, remaining, statuses, err := k.Plan(ctx, request)
+	if err != nil {
+		return failedStatuses(request.Platform.Revision), fmt.Errorf("verify reference control plane after rollout: %w", err)
+	}
+	if len(remaining) != 0 {
+		return statuses, fmt.Errorf("reference control plane is not reconciled after rollout; inspect the remaining plan")
+	}
+	return statuses, nil
 }
 
 func (k *KubernetesDeployment) stepFailure(ctx context.Context, request platformapply.DeploymentRequest, steps []manifestStep, index int, cause error) ([]platformapply.ComponentStatus, error) {
@@ -227,6 +244,29 @@ func (k *KubernetesDeployment) serviceSelectorDrift(ctx context.Context, context
 	selector, _ := spec["selector"].(map[string]any)
 	desiredSpec := serviceObject(namespace)["spec"].(map[string]any)
 	return !reflect.DeepEqual(selector, desiredSpec["selector"]), nil
+}
+
+func (k *KubernetesDeployment) deploymentPodSpecDrift(ctx context.Context, contextName, namespace string, desired map[string]any) (bool, error) {
+	object, err := k.getJSON(ctx, contextName, namespace, "deployment", controlPlaneName)
+	if isNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !managedPodSpecMatches(object, desired), nil
+}
+
+func (k *KubernetesDeployment) replaceDeploymentPodSpec(ctx context.Context, contextName, namespace string, desired map[string]any) error {
+	spec := desired["spec"].(map[string]any)["template"].(map[string]any)["spec"]
+	patch, err := json.Marshal([]map[string]any{{"op": "replace", "path": "/spec/template/spec", "value": spec}})
+	if err != nil {
+		return fmt.Errorf("encode Deployment pod spec patch: %w", err)
+	}
+	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "patch", "deployment", controlPlaneName, "--type=json", "-p", string(patch)); err != nil {
+		return fmt.Errorf("replace managed Deployment pod spec: %w", err)
+	}
+	return nil
 }
 
 func (k *KubernetesDeployment) replaceServiceSelector(ctx context.Context, contextName, namespace string) error {
@@ -517,7 +557,7 @@ func deploymentMatches(object, desired map[string]any, revision string) bool {
 		return false
 	}
 	var expectedSpec any
-	if json.Unmarshal(data, &expectedSpec) != nil || !expectedFieldsMatch(object["spec"], expectedSpec) {
+	if json.Unmarshal(data, &expectedSpec) != nil || !expectedFieldsMatch(object["spec"], expectedSpec) || !managedPodSpecMatches(object, desired) {
 		return false
 	}
 	metadata, _ := object["metadata"].(map[string]any)
@@ -528,6 +568,52 @@ func deploymentMatches(object, desired map[string]any, revision string) bool {
 	updated, _ := status["updatedReplicas"].(float64)
 	available, _ := status["availableReplicas"].(float64)
 	return generation > 0 && observed >= generation && replicas == 1 && updated == 1 && available == 1
+}
+
+func managedPodSpecMatches(object, desired map[string]any) bool {
+	actualSpec, _ := object["spec"].(map[string]any)
+	actualTemplate, _ := actualSpec["template"].(map[string]any)
+	actualPod, _ := actualTemplate["spec"].(map[string]any)
+	wantedSpec, _ := desired["spec"].(map[string]any)
+	wantedTemplate, _ := wantedSpec["template"].(map[string]any)
+	wantedPod, _ := wantedTemplate["spec"].(map[string]any)
+	if actualPod == nil || wantedPod == nil {
+		return false
+	}
+	podDefaults := map[string]any{"dnsPolicy": "ClusterFirst", "restartPolicy": "Always", "schedulerName": "default-scheduler", "securityContext": map[string]any{}, "terminationGracePeriodSeconds": float64(30)}
+	if !noUnexpectedFields(actualPod, wantedPod, podDefaults) {
+		return false
+	}
+	actualContainers, _ := actualPod["containers"].([]any)
+	wantedContainers, _ := wantedPod["containers"].([]any)
+	if len(actualContainers) != len(wantedContainers) {
+		return false
+	}
+	containerDefaults := map[string]any{"resources": map[string]any{}, "terminationMessagePath": "/dev/termination-log", "terminationMessagePolicy": "File"}
+	for index, wanted := range wantedContainers {
+		actual, _ := actualContainers[index].(map[string]any)
+		want, _ := wanted.(map[string]any)
+		if !noUnexpectedFields(actual, want, containerDefaults) {
+			return false
+		}
+	}
+	return true
+}
+
+func noUnexpectedFields(actual, desired, defaults map[string]any) bool {
+	if actual == nil || desired == nil {
+		return false
+	}
+	for key, value := range actual {
+		if _, owned := desired[key]; owned {
+			continue
+		}
+		defaultValue, known := defaults[key]
+		if !known || !reflect.DeepEqual(value, defaultValue) {
+			return false
+		}
+	}
+	return true
 }
 
 func expectedFieldsMatch(actual, expected any) bool {
