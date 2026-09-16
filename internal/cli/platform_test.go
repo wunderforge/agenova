@@ -64,7 +64,7 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 		t.Fatalf("cancel = %d %q applied=%t", code, stderr, deployment.applied)
 	}
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--json"}, "", factory)
-	if code != 0 || stderr != "" || !strings.Contains(stdout, `"applied":true`) || !strings.Contains(stdout, `"ready":true`) {
+	if code != 0 || stderr != "" || !strings.Contains(stdout, `"applied":true`) || !strings.Contains(stdout, `"ready":true`) || !strings.Contains(stdout, `"readinessScope":"installation-components"`) {
 		t.Fatalf("apply = %d %q %q", code, stdout, stderr)
 	}
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--json"}, "", factory)
@@ -131,8 +131,17 @@ func cliPlatformFactory(t *testing.T, deployment *cliDeployment) PlatformService
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := platformapply.Service{Adapters: lifecycle}
+	service := platformapply.Service{Adapters: lifecycle, Policies: cliPolicyCatalog{}}
 	return func(string) (platformapply.Service, error) { return service, nil }
+}
+
+type cliPolicyCatalog struct{}
+
+func (cliPolicyCatalog) Require(ref v1alpha1.PlatformPolicyReference) error {
+	if ref.ID != "reference-default-deny" || ref.Version != "1" {
+		return errors.New("initial policy is not available")
+	}
+	return nil
 }
 
 func cliRegistration(id string, capability platform.Capability, factory adapterregistry.Factory) adapterregistry.Registration {
@@ -150,7 +159,7 @@ func writePlatformFile(t *testing.T) string {
 		Adapters:         []v1alpha1.PlatformAdapterRequirement{{Name: "deployment", ID: "example.com/deployment/test", Version: "1.0.0"}, {Name: "runtime", ID: "example.com/runtime/test", Version: "1.0.0"}, {Name: "model", ID: "example.com/model/test", Version: "1.0.0"}},
 		Infrastructure:   v1alpha1.PlatformInfrastructure{Deployment: &v1alpha1.PlatformInstance{Name: "control", AdapterRef: "deployment"}, RuntimeBackends: []v1alpha1.PlatformInstance{{Name: "runtime", AdapterRef: "runtime"}}, RuntimeProfiles: []v1alpha1.PlatformProfile{{Name: "standard", BackendRef: "runtime"}}},
 		Services:         v1alpha1.PlatformServices{ModelBackends: []v1alpha1.PlatformInstance{{Name: "model", AdapterRef: "model"}}, ModelProfiles: []v1alpha1.PlatformProfile{{Name: "coding", BackendRef: "model"}}},
-		InitialPolicyRef: &v1alpha1.PlatformPolicyReference{ID: platformapply.ReferencePolicyID, Version: platformapply.ReferencePolicyVersion},
+		InitialPolicyRef: &v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"},
 	}}
 	data, err := yaml.Marshal(input)
 	if err != nil {

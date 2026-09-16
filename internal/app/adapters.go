@@ -44,5 +44,5 @@ func NewPlatformService(stateDirectory string) (platformapply.Service, error) {
 	if err != nil {
 		return platformapply.Service{}, err
 	}
-	return platformapply.Service{Adapters: lifecycle}, nil
+	return platformapply.Service{Adapters: lifecycle, Policies: bundled.ReferencePolicyCatalog{}}, nil
 }

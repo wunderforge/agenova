@@ -25,9 +25,15 @@ kubectl --context kind-agenova-k8s-lab get --raw `
 Expected behavior:
 
 - `plan` is read-only and lists exact adapter activations plus target changes.
-- first `apply` reports `applied: true` and `ready: true`;
-- second identical `apply` reports `changes: []`, `applied: false`, and `ready: true`;
+- first `apply` reports `applied: true`, `ready: true`, and `readinessScope: "installation-components"`;
+- second identical `apply` reports `changes: []`, `applied: false`, and the same scoped readiness;
 - the namespace contains two managed ConfigMaps, one Deployment, and one ClusterIP Service;
 - runtime and model adapters are configured independently; their external prerequisites are not installed by the deployment adapter.
+
+`ready` means the declared reference installation components reconciled. The
+internal status process is not a claim-serving control plane, and this check
+does not prove an end-to-end agent run or external runtime/model availability.
+For a drifted install, `apply` writes only the target resources named in the
+confirmed plan.
 
 The Platform file owns Kubernetes context and namespace. There are intentionally no root `--kube-context` or `--namespace` flags.

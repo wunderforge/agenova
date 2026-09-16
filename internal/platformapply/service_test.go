@@ -22,6 +22,21 @@ type fakeDeployment struct {
 	applyRuns     int
 }
 
+type testPolicyCatalog struct{}
+
+type policyAvailabilityFunc func(v1alpha1.PlatformPolicyReference) error
+
+func (f policyAvailabilityFunc) Require(ref v1alpha1.PlatformPolicyReference) error {
+	return f(ref)
+}
+
+func (testPolicyCatalog) Require(ref v1alpha1.PlatformPolicyReference) error {
+	if ref.ID != "reference-default-deny" || ref.Version != "1" {
+		return errors.New("requested policy is not available")
+	}
+	return nil
+}
+
 func (f *fakeDeployment) Preflight(context.Context, DeploymentRequest) error {
 	f.preflightRuns++
 	return f.denied
@@ -58,7 +73,7 @@ func TestServicePlansActivatesAndAppliesIdempotently(t *testing.T) {
 		t.Fatalf("first plan = %#v, want three adapter activations and one deployment change", plan)
 	}
 	result, err := service.Apply(context.Background(), resolved, lock)
-	if err != nil || !result.Applied || !result.Ready {
+	if err != nil || !result.Applied || !result.Ready || result.ReadinessScope != ReadinessScopeInstallation {
 		t.Fatalf("first apply = %#v, %v", result, err)
 	}
 	installed, err := service.Adapters.List()
@@ -66,7 +81,7 @@ func TestServicePlansActivatesAndAppliesIdempotently(t *testing.T) {
 		t.Fatalf("installed adapters = %#v, %v", installed, err)
 	}
 	second, err := service.Apply(context.Background(), resolved, lock)
-	if err != nil || second.Applied || !second.Ready || len(second.Plan.Changes) != 0 {
+	if err != nil || second.Applied || !second.Ready || second.ReadinessScope != ReadinessScopeInstallation || len(second.Plan.Changes) != 0 {
 		t.Fatalf("second apply = %#v, %v", second, err)
 	}
 }
@@ -127,6 +142,21 @@ func TestServiceRejectsUnavailableInitialPolicy(t *testing.T) {
 	input.Spec.InitialPolicyRef.Version = "2"
 	if _, _, err := service.Validate(input); err == nil || !strings.Contains(err.Error(), "is not available") {
 		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestServiceAcceptsPolicyProvidedByInjectedCatalog(t *testing.T) {
+	service := newTestService(t, &fakeDeployment{})
+	input := testPlatform()
+	input.Spec.InitialPolicyRef = &v1alpha1.PlatformPolicyReference{ID: "organization-baseline", Version: "2"}
+	service.Policies = policyAvailabilityFunc(func(ref v1alpha1.PlatformPolicyReference) error {
+		if ref.ID != "organization-baseline" || ref.Version != "2" {
+			return errors.New("unexpected policy reference")
+		}
+		return nil
+	})
+	if _, _, err := service.Validate(input); err != nil {
+		t.Fatalf("generic Platform validation rejected catalog policy: %v", err)
 	}
 }
 
@@ -295,7 +325,7 @@ func newTestServiceWithStore(t *testing.T, deployment DeploymentAdapter, store a
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Service{Adapters: lifecycle}
+	return Service{Adapters: lifecycle, Policies: testPolicyCatalog{}}
 }
 
 func testRegistration(id string, capability platform.Capability, factory adapterregistry.Factory) adapterregistry.Registration {
@@ -315,7 +345,7 @@ func testPlatform() *v1alpha1.Platform {
 			Adapters:         []v1alpha1.PlatformAdapterRequirement{{Name: "deployment", ID: "example.com/deployment/fake", Version: "1.0.0"}, {Name: "runtime", ID: "example.com/runtime/fake", Version: "1.0.0"}, {Name: "model", ID: "example.com/model/fake", Version: "1.0.0"}},
 			Infrastructure:   v1alpha1.PlatformInfrastructure{Deployment: &v1alpha1.PlatformInstance{Name: "control", AdapterRef: "deployment", Config: map[string]any{"target": "reference"}}, RuntimeBackends: []v1alpha1.PlatformInstance{{Name: "runtime", AdapterRef: "runtime"}}, RuntimeProfiles: []v1alpha1.PlatformProfile{{Name: "standard", BackendRef: "runtime"}}},
 			Services:         v1alpha1.PlatformServices{ModelBackends: []v1alpha1.PlatformInstance{{Name: "model", AdapterRef: "model"}}, ModelProfiles: []v1alpha1.PlatformProfile{{Name: "coding", BackendRef: "model"}}},
-			InitialPolicyRef: &v1alpha1.PlatformPolicyReference{ID: ReferencePolicyID, Version: ReferencePolicyVersion},
+			InitialPolicyRef: &v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"},
 		},
 	}
 }
