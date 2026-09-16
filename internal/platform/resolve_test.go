@@ -1,0 +1,178 @@
+// Copyright 2026 Dapeng Zhang and Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
+package platform
+
+import (
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
+)
+
+type lookupMap map[string]Descriptor
+
+func (l lookupMap) Lookup(id, version string) (Descriptor, bool) {
+	descriptor, ok := l[id+"@"+version]
+	return descriptor, ok
+}
+
+func TestPlatformContractResolveProducesActionablePlanAndDigestOnlyLock(t *testing.T) {
+	input := referencePlatform()
+	resolved, lock, err := Resolve(input, referenceLookup())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.Revision != "sha256:9e5a26c12cae8d966794f27daafff70d7a770f62935e50879a5892964bdc1090" {
+		t.Fatalf("revision = %q", resolved.Revision)
+	}
+	if lock.Revision != resolved.Revision || !strings.HasPrefix(lock.Revision, "sha256:") || len(lock.Revision) != 71 {
+		t.Fatalf("lock revision = %q", lock.Revision)
+	}
+	if len(resolved.ModelRoutes) != 1 || resolved.ModelRoutes[0].Gateway != CoreModelGateway || resolved.ModelRoutes[0].BackendRef != "local-ollama" {
+		t.Fatalf("model routes = %#v", resolved.ModelRoutes)
+	}
+	if len(resolved.Instances) != 3 || resolved.Instances[2].Config["connection"] == nil {
+		t.Fatalf("resolved instances = %#v", resolved.Instances)
+	}
+	encodedLock, marshalErr := CanonicalJSON(lock)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	if strings.Contains(string(encodedLock), "agenova-workers") || strings.Contains(string(encodedLock), "ollama.agenova-models") {
+		t.Fatalf("lock leaked actionable config: %s", encodedLock)
+	}
+	for _, item := range append(append([]LockedConfig{}, lock.Instances...), lock.Profiles...) {
+		if !strings.HasPrefix(item.ConfigDigest, "sha256:") || len(item.ConfigDigest) != 71 {
+			t.Fatalf("config digest = %q", item.ConfigDigest)
+		}
+	}
+}
+
+func TestPlatformContractResolutionIsStableAcrossInputOrdering(t *testing.T) {
+	first := referencePlatform()
+	second := referencePlatform()
+	extra := v1alpha1.PlatformAdapterRequirement{Name: "multi-capability", ID: "agenova.io/test/multi", Version: "0.1.0"}
+	first.Spec.Adapters = append(first.Spec.Adapters, extra)
+	second.Spec.Adapters = append(second.Spec.Adapters, extra)
+	second.Spec.Adapters[0], second.Spec.Adapters[2] = second.Spec.Adapters[2], second.Spec.Adapters[0]
+	firstLookup := referenceLookup()
+	secondLookup := referenceLookup()
+	firstLookup["agenova.io/test/multi@0.1.0"] = Descriptor{ID: "agenova.io/test/multi", Version: "0.1.0", Capabilities: []Capability{CapabilityRuntime, CapabilityModel}}
+	secondLookup["agenova.io/test/multi@0.1.0"] = Descriptor{ID: "agenova.io/test/multi", Version: "0.1.0", Capabilities: []Capability{CapabilityRuntime, CapabilityModel}}
+	descriptor := secondLookup["agenova.io/test/multi@0.1.0"]
+	descriptor.Capabilities[0], descriptor.Capabilities[1] = descriptor.Capabilities[1], descriptor.Capabilities[0]
+	secondLookup["agenova.io/test/multi@0.1.0"] = descriptor
+	firstResolved, firstLock, firstErr := Resolve(first, firstLookup)
+	secondResolved, secondLock, secondErr := Resolve(second, secondLookup)
+	if firstErr != nil || secondErr != nil {
+		t.Fatalf("resolve errors = %v, %v", firstErr, secondErr)
+	}
+	if firstResolved.Revision != secondResolved.Revision || !reflect.DeepEqual(firstLock, secondLock) {
+		t.Fatalf("ordering changed output:\nfirst=%#v\nsecond=%#v", firstLock, secondLock)
+	}
+}
+
+func TestPlatformContractProfileValidationConsumesCanonicalBackend(t *testing.T) {
+	input := referencePlatform()
+	input.Spec.Infrastructure.RuntimeBackends[0].Config = map[string]any{"connection": map[string]any{"mode": "host-context", "context": "kind-agenova"}}
+	resolved, lock, err := Resolve(input, referenceLookup())
+	if resolved != nil || lock != nil || err == nil || err.Category != ErrorInvalidConfig {
+		t.Fatalf("Resolve() = %#v, %#v, %#v", resolved, lock, err)
+	}
+	if !strings.Contains(err.Detail, "in-cluster") {
+		t.Fatalf("error detail = %q", err.Detail)
+	}
+}
+
+func TestPlatformContractFailuresReturnNoPartialPlan(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*v1alpha1.Platform, lookupMap)
+		want   ErrorCategory
+	}{
+		{"unknown descriptor", func(_ *v1alpha1.Platform, lookup lookupMap) {
+			delete(lookup, "agenova.io/model/openai-compatible@0.1.0")
+		}, ErrorUnknownAdapter},
+		{"capability mismatch", func(_ *v1alpha1.Platform, lookup lookupMap) {
+			descriptor := lookup["agenova.io/runtime/agent-sandbox@0.1.0"]
+			descriptor.Capabilities = []Capability{CapabilityModel}
+			lookup["agenova.io/runtime/agent-sandbox@0.1.0"] = descriptor
+		}, ErrorCapability},
+		{"adapter config failure", func(_ *v1alpha1.Platform, lookup lookupMap) {
+			descriptor := lookup["agenova.io/model/openai-compatible@0.1.0"]
+			descriptor.CanonicalizeInstance = func(Capability, map[string]any) (map[string]any, error) { return nil, errors.New("invalid endpoint") }
+			lookup["agenova.io/model/openai-compatible@0.1.0"] = descriptor
+		}, ErrorInvalidConfig},
+		{"adapter emits credential ref", func(_ *v1alpha1.Platform, lookup lookupMap) {
+			descriptor := lookup["agenova.io/model/openai-compatible@0.1.0"]
+			descriptor.CanonicalizeInstance = func(_ Capability, _ map[string]any) (map[string]any, error) {
+				return map[string]any{"credentialRef": "hidden"}, nil
+			}
+			lookup["agenova.io/model/openai-compatible@0.1.0"] = descriptor
+		}, ErrorInvalidConfig},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := referencePlatform()
+			lookup := referenceLookup()
+			test.mutate(input, lookup)
+			resolved, lock, err := Resolve(input, lookup)
+			if resolved != nil || lock != nil || err == nil || err.Category != test.want {
+				t.Fatalf("Resolve() = %#v, %#v, %#v; want %s", resolved, lock, err, test.want)
+			}
+		})
+	}
+}
+
+func referenceLookup() lookupMap {
+	identityInstance := func(_ Capability, config map[string]any) (map[string]any, error) { return config, nil }
+	identityProfile := func(_ Capability, _ map[string]any, config map[string]any) (map[string]any, error) {
+		return config, nil
+	}
+	runtimeProfile := func(_ Capability, backend, profile map[string]any) (map[string]any, error) {
+		connection, _ := backend["connection"].(map[string]any)
+		if connection["mode"] != "in-cluster" {
+			return nil, errors.New("deployed runtime requires an in-cluster connection")
+		}
+		isolation, _ := profile["isolation"].(string)
+		if isolation != "dedicated" {
+			return nil, errors.New("unsupported isolation profile")
+		}
+		return map[string]any{"isolation": isolation}, nil
+	}
+	return lookupMap{
+		"agenova.io/deployment/kubernetes@0.1.0":   {ID: "agenova.io/deployment/kubernetes", Version: "0.1.0", Capabilities: []Capability{CapabilityDeployment}, CanonicalizeInstance: identityInstance, CanonicalizeProfile: identityProfile},
+		"agenova.io/runtime/agent-sandbox@0.1.0":   {ID: "agenova.io/runtime/agent-sandbox", Version: "0.1.0", Capabilities: []Capability{CapabilityRuntime}, CanonicalizeInstance: identityInstance, CanonicalizeProfile: runtimeProfile},
+		"agenova.io/model/openai-compatible@0.1.0": {ID: "agenova.io/model/openai-compatible", Version: "0.1.0", Capabilities: []Capability{CapabilityModel}, CanonicalizeInstance: identityInstance, CanonicalizeProfile: identityProfile},
+	}
+}
+
+func referencePlatform() *v1alpha1.Platform {
+	return &v1alpha1.Platform{
+		APIVersion: v1alpha1.PlatformAPIVersion,
+		Kind:       v1alpha1.PlatformKind,
+		Metadata:   v1alpha1.ObjectMeta{Name: "reference-local"},
+		Spec: v1alpha1.PlatformSpec{
+			Adapters: []v1alpha1.PlatformAdapterRequirement{
+				{Name: "kubernetes-deployment", ID: "agenova.io/deployment/kubernetes", Version: "0.1.0"},
+				{Name: "agent-sandbox-runtime", ID: "agenova.io/runtime/agent-sandbox", Version: "0.1.0"},
+				{Name: "openai-compatible-backend", ID: "agenova.io/model/openai-compatible", Version: "0.1.0"},
+			},
+			Infrastructure: v1alpha1.PlatformInfrastructure{
+				Deployment: &v1alpha1.PlatformInstance{Name: "control-plane", AdapterRef: "kubernetes-deployment", Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}},
+				RuntimeBackends: []v1alpha1.PlatformInstance{{Name: "primary-runtime", AdapterRef: "agent-sandbox-runtime", Config: map[string]any{
+					"connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-workers"},
+				}}},
+				RuntimeProfiles: []v1alpha1.PlatformProfile{{Name: "standard-isolated", BackendRef: "primary-runtime", Config: map[string]any{"isolation": "dedicated"}}},
+			},
+			Services: v1alpha1.PlatformServices{
+				ModelBackends: []v1alpha1.PlatformInstance{{Name: "local-ollama", AdapterRef: "openai-compatible-backend", Config: map[string]any{"endpoint": "https://ollama.agenova-models.svc.cluster.local/v1"}}},
+				ModelProfiles: []v1alpha1.PlatformProfile{{Name: "approved-coding-model", BackendRef: "local-ollama", Config: map[string]any{"model": "llama3.1:latest"}}},
+			},
+			InitialPolicyRef: &v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"},
+		},
+	}
+}

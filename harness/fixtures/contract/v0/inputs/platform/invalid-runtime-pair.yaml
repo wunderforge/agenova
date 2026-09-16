@@ -1,0 +1,33 @@
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: invalid-runtime-pair
+spec:
+  adapters:
+    - name: deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: deployment
+      config:
+        context: kind-agenova
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: runtime
+        config:
+          connection:
+            mode: host-context
+            context: kind-agenova
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

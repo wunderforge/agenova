@@ -45,21 +45,14 @@ spec:
       - name: primary-runtime
         adapterRef: agent-sandbox-runtime
         config:
-          context: kind-agenova
-          namespace: agenova-workers
-          templates:
-            - name: reference-engineer-runtime
-              image: agenova-testworker:kind
-              command: [/agenova-workerctl, serve]
-          warmPools:
-            - name: reference-engineer-pool
-              templateRef: reference-engineer-runtime
-              replicas: 1
+          connection:
+            mode: in-cluster
+            namespace: agenova-workers
     runtimeProfiles:
       - name: standard-isolated
         backendRef: primary-runtime
         config:
-          template: reference-engineer-runtime
+          isolation: dedicated
   services:
     modelBackends:
       - name: local-ollama
@@ -89,7 +82,7 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 7. Generic validation performs envelope, reference, supported-category and secret-field checks, then invokes adapter-owned side-effect-free validation/canonicalization. Instance config is canonicalized first; profile canonicalization receives both the referenced instance's canonical config and the profile config so the adapter can reject unusable resource relationships. #44 has no target-mutation dependency.
 8. Reserved credential fields and inline credential-bearing values recognized by the generic boundary or adapter schema are rejected. Until #155 supplies the typed host-side resolver boundary, credential references are also rejected rather than producing a Platform that validates but cannot run. Neither the lock nor diagnostics expose credentials.
 9. The initial Policy is a reference only. #46 owns its seed/verification semantics and the operator's existing identity/RBAC authorizes installation.
-10. Adapter validation returns secret-free canonical config after applying adapter defaults. Runtime adapter canonicalization must retain the resources needed to allocate successfully, including worker template image/command and warm-pool template reference/replica count (or explicit adapter-owned defaults for them), and pair validation must prove the selected template has exactly one usable pool. Internal `ResolvedPlatform` retains that actionable canonical config for #45; the public/inspectable lock retains only exact identities, instance/profile paths and canonical digests. Both revision and lock are deterministic for semantically equivalent input and never contain credentials.
+10. Adapter validation returns secret-free canonical config after applying adapter defaults. Runtime pair validation proves the selected profile is usable with the backend connection and rejects unsupported connection/profile combinations. Deployment target context is operator-side input; a runtime used by the deployed control plane must declare an in-cluster connection rather than inherit host kubeconfig. AgentTemplate artifact/entrypoint and any substrate template/pool materialization are supplied through the trusted #147 registration/allocation path, never replaced by a fixed Platform demo image. Internal `ResolvedPlatform` retains actionable canonical config for #45/#146; the public/inspectable lock retains only exact identities, instance/profile paths and centrally computed canonical digests. Both revision and lock are deterministic for semantically equivalent input and never contain credentials.
 11. Platform/profile availability never grants an agent permission. AgentTemplate ceilings, policy and ClaimRequest resolution remain authoritative.
 12. Unsupported service categories fail explicitly. Tool, Memory and Observability remain absent until #150 defines and delivers their boundaries.
 13. All governed model calls use the installed lightweight Agenova Model Gateway. The Platform route fixes that boundary; #121 owns authentication that binds a live caller to one issued claim. Once a call is authoritatively attributed, the Gateway verifies the effective Model Profile, returns the decision, records one correlated claim-scoped `ModelInvocation`, and only then calls the resolved ModelBackend.
@@ -99,7 +92,7 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 ## Negative Cases
 
 - Unknown API version/kind, duplicate names, unknown `adapterRef`, version/capability mismatch or unsupported service category.
-- Missing deployment/runtime, missing allocation resources, a profile template with no pool or more than one matching pool, duplicate runtime/model profile, unknown ModelBackend/profile reference or malformed adapter-owned config.
+- Missing deployment/runtime, a host-context runtime selected for the in-cluster control plane, an unsupported runtime profile/backend pairing, duplicate runtime/model profile, unknown ModelBackend/profile reference or malformed adapter-owned config.
 - Kubernetes/provider fields outside `config`, provider SDK/CRD-shaped shared fields, credential references, inline tokens/passwords/secret values, or system-managed status/lock input.
 - Any resolved model path that omits the mandatory Gateway, gives the worker a backend endpoint/credential, or permits a denied call to reach a ModelBackend.
 - A validation failure produces no partial lock. The pure resolver has no installer, deployment, runtime, provider or target-mutation dependency; #45 proves fail-before-mutation when it adds reconciliation.
@@ -109,6 +102,8 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 - `ClaimRequest`, `AgentTemplate`, `SandboxClaim`, `RuntimeBackend`, authority resolution and evidence contracts remain unchanged.
 - Existing kind/Ollama demo configuration becomes a future Platform fixture; #44 does not replace current startup paths.
 - The canonical Kubernetes example uses an in-cluster HTTPS ModelBackend endpoint. A concrete reference fixture must prove the selected endpoint is reachable from the deployed control plane; loopback host configuration cannot be copied into a pod deployment.
+- Deployment `config.context` selects the existing target for operator-side plan/apply only. Runtime configuration uses `connection.mode: in-cluster`; it does not copy the operator's host kube-context into the deployed control plane. #146 owns the live in-cluster composition evidence.
+- A Platform runtime profile selects connection/isolation capability, not an agent image. #147 resolves the registered AgentTemplate artifact/entrypoint into the runtime allocation and must reject any mismatch; #44 does not claim executable AgentTemplate mapping evidence.
 - #151 may extend resolution sources without changing explicit adapter references; #45 consumes this contract to reconcile targets.
 - Existing `internal/modelgateway` remains the no-fee reference enforcement/evidence path. #44 configures its downstream ModelBackend; it does not make the core Gateway swappable.
 
