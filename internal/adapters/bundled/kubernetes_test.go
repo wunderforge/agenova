@@ -350,9 +350,16 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	pod["dnsPolicy"] = "ClusterFirst"
 	pod["restartPolicy"] = "Always"
 	container["resources"] = map[string]any{}
+	actual["spec"].(map[string]any)["progressDeadlineSeconds"] = float64(600)
+	actual["spec"].(map[string]any)["revisionHistoryLimit"] = float64(10)
 	if !deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("Kubernetes server defaults should not create drift")
 	}
+	actual["spec"].(map[string]any)["paused"] = true
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("unexpected Deployment-level pause must be reconciled")
+	}
+	delete(actual["spec"].(map[string]any), "paused")
 	pod["hostNetwork"] = true
 	if deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("unexpected hostNetwork must be reconciled")
@@ -509,15 +516,15 @@ func TestKubernetesApplyReplacesExtraServiceSelector(t *testing.T) {
 				t.Fatalf("selector patch retains extra field: %q", payload)
 			}
 		}
-		if strings.Contains(payload, `"path":"/spec/template/spec"`) {
+		if strings.Contains(payload, `"path":"/spec"`) {
 			patchedPod = true
 			if strings.Contains(payload, "hostNetwork") {
-				t.Fatalf("pod spec patch retains extra field: %q", payload)
+				t.Fatalf("Deployment spec patch retains extra field: %q", payload)
 			}
 		}
 	}
 	if !patchedSelector || !patchedPod {
-		t.Fatalf("expected selector and pod spec replacement; selector=%v pod=%v", patchedSelector, patchedPod)
+		t.Fatalf("expected selector and Deployment spec replacement; selector=%v deployment=%v", patchedSelector, patchedPod)
 	}
 }
 

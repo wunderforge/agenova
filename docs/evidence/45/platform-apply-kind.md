@@ -66,4 +66,6 @@ With a fresh local `--state-dir` and the already-ready kind target, the plan con
 
 ## Same-revision pod-spec drift recovery
 
-On the local kind target, a temporary JSON patch added `spec.template.spec.hostNetwork: true` to the managed Deployment without changing the Platform revision. The compiled CLI plan reported exactly `agenova-control-plane: reconcile`. Apply replaced the owned pod spec, waited for rollout, then re-read every managed resource before reporting `ready: true`. A subsequent plan returned `changes: []`, and `hostNetwork` was absent again. This test left the reference target at its original revision.
+On the local kind target, a temporary JSON patch added `spec.template.spec.hostNetwork: true` to the managed Deployment without changing the Platform revision. The compiled CLI plan reported exactly `agenova-control-plane: reconcile`. Apply replaced the owned Deployment spec, waited for rollout, then re-read every managed resource before reporting `ready: true`. A subsequent plan returned `changes: []`, and `hostNetwork` was absent again. This test left the reference target at its original revision.
+
+The same check was repeated with a temporary Deployment-level `spec.paused: true` patch. Plan again reported exactly one Deployment reconciliation; apply returned `ready: true`, removed `paused`, and the next plan returned `changes: []`.

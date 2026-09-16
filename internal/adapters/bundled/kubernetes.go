@@ -174,7 +174,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	mutationAttempted := false
 	for index, step := range steps {
 		replaceSelector := false
-		replacePodSpec := false
+		replaceDeploymentSpec := false
 		if step.name == controlPlaneName+"-service" {
 			replaceSelector, err = k.serviceSelectorDrift(ctx, contextName, namespace)
 			if err != nil {
@@ -182,7 +182,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			}
 		}
 		if step.name == controlPlaneName {
-			replacePodSpec, err = k.deploymentPodSpecDrift(ctx, contextName, namespace, step.object)
+			replaceDeploymentSpec, err = k.deploymentSpecDrift(ctx, contextName, namespace, step.object)
 			if err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
@@ -202,8 +202,8 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
-		if replacePodSpec {
-			if err := k.replaceDeploymentPodSpec(ctx, contextName, namespace, step.object); err != nil {
+		if replaceDeploymentSpec {
+			if err := k.replaceDeploymentSpec(ctx, contextName, namespace, step.object); err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
@@ -250,7 +250,7 @@ func (k *KubernetesDeployment) serviceSelectorDrift(ctx context.Context, context
 	return !reflect.DeepEqual(selector, desiredSpec["selector"]), nil
 }
 
-func (k *KubernetesDeployment) deploymentPodSpecDrift(ctx context.Context, contextName, namespace string, desired map[string]any) (bool, error) {
+func (k *KubernetesDeployment) deploymentSpecDrift(ctx context.Context, contextName, namespace string, desired map[string]any) (bool, error) {
 	object, err := k.getJSON(ctx, contextName, namespace, "deployment", controlPlaneName)
 	if isNotFound(err) {
 		return false, nil
@@ -258,17 +258,16 @@ func (k *KubernetesDeployment) deploymentPodSpecDrift(ctx context.Context, conte
 	if err != nil {
 		return false, err
 	}
-	return !managedPodSpecMatches(object, desired), nil
+	return !managedDeploymentSpecMatches(object, desired), nil
 }
 
-func (k *KubernetesDeployment) replaceDeploymentPodSpec(ctx context.Context, contextName, namespace string, desired map[string]any) error {
-	spec := desired["spec"].(map[string]any)["template"].(map[string]any)["spec"]
-	patch, err := json.Marshal([]map[string]any{{"op": "replace", "path": "/spec/template/spec", "value": spec}})
+func (k *KubernetesDeployment) replaceDeploymentSpec(ctx context.Context, contextName, namespace string, desired map[string]any) error {
+	patch, err := json.Marshal([]map[string]any{{"op": "replace", "path": "/spec", "value": desired["spec"]}})
 	if err != nil {
-		return fmt.Errorf("encode Deployment pod spec patch: %w", err)
+		return fmt.Errorf("encode Deployment spec patch: %w", err)
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "patch", "deployment", controlPlaneName, "--type=json", "-p", string(patch)); err != nil {
-		return fmt.Errorf("replace managed Deployment pod spec: %w", err)
+		return fmt.Errorf("replace managed Deployment spec: %w", err)
 	}
 	return nil
 }
@@ -556,12 +555,7 @@ func deploymentMatches(object, desired map[string]any, revision string) bool {
 	if objectAnnotation(object, "agenova.io/platform-revision") != revision {
 		return false
 	}
-	data, err := json.Marshal(desired["spec"])
-	if err != nil {
-		return false
-	}
-	var expectedSpec any
-	if json.Unmarshal(data, &expectedSpec) != nil || !expectedFieldsMatch(object["spec"], expectedSpec) || !managedPodSpecMatches(object, desired) {
+	if !managedDeploymentSpecMatches(object, desired) {
 		return false
 	}
 	metadata, _ := object["metadata"].(map[string]any)
@@ -574,22 +568,13 @@ func deploymentMatches(object, desired map[string]any, revision string) bool {
 	return generation > 0 && observed >= generation && replicas == 1 && updated == 1 && available == 1
 }
 
-func managedPodSpecMatches(object, desired map[string]any) bool {
-	actualSpec, _ := object["spec"].(map[string]any)
-	actualTemplate, _ := actualSpec["template"].(map[string]any)
-	actualPod, _ := actualTemplate["spec"].(map[string]any)
-	wantedSpec, _ := desired["spec"].(map[string]any)
-	wantedTemplate, _ := wantedSpec["template"].(map[string]any)
-	wantedPod, _ := wantedTemplate["spec"].(map[string]any)
-	if actualPod == nil || wantedPod == nil {
-		return false
-	}
-	data, err := json.Marshal(wantedPod)
+func managedDeploymentSpecMatches(object, desired map[string]any) bool {
+	data, err := json.Marshal(desired["spec"])
 	if err != nil {
 		return false
 	}
 	var normalized any
-	return json.Unmarshal(data, &normalized) == nil && managedFieldsMatch(actualPod, normalized, "pod")
+	return json.Unmarshal(data, &normalized) == nil && managedFieldsMatch(object["spec"], normalized, "deploymentSpec")
 }
 
 // The pod spec is Agenova-owned. Only known API-server defaults may appear
@@ -633,7 +618,12 @@ func managedFieldsMatch(actual, desired any, path string) bool {
 }
 
 func managedKubernetesDefaults(path string) map[string]any {
+	if strings.HasPrefix(path, "deploymentSpec/template/spec") {
+		path = "pod" + strings.TrimPrefix(path, "deploymentSpec/template/spec")
+	}
 	switch path {
+	case "deploymentSpec":
+		return map[string]any{"progressDeadlineSeconds": float64(600), "revisionHistoryLimit": float64(10), "strategy": map[string]any{"type": "RollingUpdate", "rollingUpdate": map[string]any{"maxSurge": "25%", "maxUnavailable": "25%"}}}
 	case "pod":
 		return map[string]any{"dnsPolicy": "ClusterFirst", "restartPolicy": "Always", "schedulerName": "default-scheduler", "securityContext": map[string]any{}, "terminationGracePeriodSeconds": float64(30)}
 	case "pod/containers[]":
