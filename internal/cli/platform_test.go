@@ -20,6 +20,8 @@ import (
 
 type cliDeployment struct{ applied bool }
 
+func (d *cliDeployment) Preflight(context.Context, platformapply.DeploymentRequest) error { return nil }
+
 func (d *cliDeployment) Plan(_ context.Context, _ platformapply.DeploymentRequest) (string, []platformapply.Change, []platformapply.ComponentStatus, error) {
 	if d.applied {
 		return "test/target", nil, []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "available"}}, nil

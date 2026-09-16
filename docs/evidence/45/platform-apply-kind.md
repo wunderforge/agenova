@@ -43,6 +43,7 @@ service/agenova-control-plane
 ```
 
 The internal ClusterIP status endpoint returned the same revision and policy with `state: available`.
+The seeded `policy.json` is the same canonical `reference-default-deny@1` baseline used by local admission: one explicit Team A engineer `claim.create` allow, all other assignments denied. A subsequent same-revision policy-content correction appeared as a plan change; after reconciliation, the next apply again reported `changes: []`.
 
 ## Denied RBAC
 
@@ -55,3 +56,4 @@ User "system:serviceaccount:default:agenova-platform-denied" cannot get resource
 ```
 
 The temporary kubeconfig and service account were removed after the check. Fake-runner tests separately prove `apply` performs all `auth can-i` checks before issuing its first mutation.
+The application service preflights the target before activating the local adapter lock, so a denied apply does not change local installation state either.

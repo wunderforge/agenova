@@ -164,14 +164,5 @@ func referenceAgentTemplate(templateRef string) (*v1alpha1.AgentTemplate, error)
 }
 
 func referencePolicyBundle() policy.PolicyBundle {
-	return policy.PolicyBundle{
-		ID:      "reference-default-deny",
-		Version: "1",
-		Rules: []policy.Rule{{
-			Team:        "team-a",
-			Action:      "claim.create",
-			Project:     "payments",
-			TemplateRef: "engineer",
-		}},
-	}
+	return policy.ReferenceBundle()
 }

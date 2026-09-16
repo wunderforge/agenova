@@ -63,6 +63,7 @@ type DeploymentRequest struct {
 // layer sees only a stable target label, plan changes, and safe status.
 type DeploymentAdapter interface {
 	Plan(context.Context, DeploymentRequest) (target string, changes []Change, status []ComponentStatus, err error)
+	Preflight(context.Context, DeploymentRequest) error
 	Apply(context.Context, DeploymentRequest) ([]ComponentStatus, error)
 }
 
@@ -145,14 +146,19 @@ func (s Service) Apply(ctx context.Context, resolved *platform.ResolvedPlatform,
 	if !plan.Changed() {
 		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), Components: plan.Components}, nil
 	}
+	request, adapter, err := s.deployment(resolved, lock)
+	if err != nil {
+		return ApplyResult{Plan: plan}, err
+	}
+	// Target authority is checked before even the local adapter lock changes.
+	// The deployment adapter still rechecks at mutation time to narrow TOCTOU.
+	if err := adapter.Preflight(ctx, request); err != nil {
+		return ApplyResult{Plan: plan}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
+	}
 	for _, requirement := range resolved.Adapters {
 		if _, err := s.Adapters.Install(requirement.ID + "@" + requirement.Version); err != nil {
 			return ApplyResult{Plan: plan}, fmt.Errorf("activate adapter %s@%s: %w", requirement.ID, requirement.Version, err)
 		}
-	}
-	request, adapter, err := s.deployment(resolved, lock)
-	if err != nil {
-		return ApplyResult{Plan: plan}, err
 	}
 	_, adapterStatuses, statusErr := s.activationPlan(resolved.Adapters)
 	if statusErr != nil {

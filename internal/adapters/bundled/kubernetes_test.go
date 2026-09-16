@@ -5,6 +5,7 @@ package bundled
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -38,7 +39,7 @@ func TestKubernetesPlanIsReadOnlyAndReportsMissingTarget(t *testing.T) {
 	}}
 	adapter := newKubernetesDeployment(runner)
 	target, changes, statuses, err := adapter.Plan(context.Background(), deploymentRequest())
-	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 4 || len(statuses) != 4 {
+	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 5 || len(statuses) != 5 {
 		t.Fatalf("Plan() = %q %#v %#v, %v", target, changes, statuses, err)
 	}
 	for _, call := range runner.calls {
@@ -74,7 +75,7 @@ func TestKubernetesApplyUsesOneSecretFreeManifestAndWaitsReady(t *testing.T) {
 		return commandResult{}, nil
 	}}
 	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
-	if err != nil || len(statuses) != 4 {
+	if err != nil || len(statuses) != 5 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
 	applyIndex, rollout := -1, false
@@ -97,6 +98,52 @@ func TestKubernetesApplyUsesOneSecretFreeManifestAndWaitsReady(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(manifest), "apikey") || strings.Contains(strings.ToLower(manifest), "password") {
 		t.Fatalf("manifest contains credential-shaped field: %s", manifest)
+	}
+	if !strings.Contains(manifest, "team-a") || !strings.Contains(manifest, "claim.create") {
+		t.Fatalf("initial policy omitted the actual reference allow rule: %s", manifest)
+	}
+}
+
+func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
+	request := deploymentRequest()
+	lockJSON, err := platformapply.EncodeLock(request.Lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyData, err := referencePolicyJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := func(args []string) string {
+		switch {
+		case contains(args, "namespace"):
+			return `{"metadata":{"name":"agenova-system"}}`
+		case contains(args, "configmap") && contains(args, platformRecord):
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			return string(data)
+		case contains(args, "configmap") && contains(args, policyRecord):
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
+			return string(data)
+		case contains(args, "deployment"):
+			return `{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
+		case contains(args, "service"):
+			return `{"metadata":{"name":"agenova-control-plane"},"spec":{"type":"ClusterIP","selector":{"app.kubernetes.io/name":"agenova-control-plane"},"ports":[{"port":8080,"targetPort":"http"}]}}`
+		default:
+			return `{}`
+		}
+	}
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "version") {
+			return commandResult{stdout: `{}`}, nil
+		}
+		return commandResult{stdout: object(args)}, nil
+	}}
+	_, changes, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].Component != controlPlaneName {
+		t.Fatalf("drift plan = %#v, want only deployment reconcile", changes)
 	}
 }
 

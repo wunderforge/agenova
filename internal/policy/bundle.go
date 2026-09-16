@@ -41,6 +41,15 @@ type bundleIdentity struct {
 	version string
 }
 
+// ReferenceBundle is the versioned MVP bootstrap baseline. Its one explicit
+// allow rule leaves every other trusted assignment denied by default.
+func ReferenceBundle() PolicyBundle {
+	return PolicyBundle{
+		ID: "reference-default-deny", Version: "1",
+		Rules: []Rule{{Team: "team-a", Action: "claim.create", Project: "payments", TemplateRef: "engineer"}},
+	}
+}
+
 // Loader owns the last successfully loaded policy bundle.
 type Loader struct {
 	mu      sync.RWMutex

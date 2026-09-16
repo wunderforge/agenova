@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/wunderforge/agenova/internal/platformapply"
+	"github.com/wunderforge/agenova/internal/policy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,6 +62,10 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); err != nil {
 		return target, nil, nil, fmt.Errorf("selected Kubernetes context %q is unavailable", contextName)
 	}
+	namespaceObject, namespaceErr := k.getJSON(ctx, contextName, "", "namespace", namespace)
+	if namespaceErr != nil && !isNotFound(namespaceErr) {
+		return target, nil, nil, namespaceErr
+	}
 
 	record, recordErr := k.getJSON(ctx, contextName, namespace, "configmap", platformRecord)
 	if recordErr != nil && !isNotFound(recordErr) {
@@ -70,7 +75,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if deploymentErr != nil && !isNotFound(deploymentErr) {
 		return target, nil, nil, deploymentErr
 	}
-	policy, policyErr := k.getJSON(ctx, contextName, namespace, "configmap", policyRecord)
+	policyObject, policyErr := k.getJSON(ctx, contextName, namespace, "configmap", policyRecord)
 	if policyErr != nil && !isNotFound(policyErr) {
 		return target, nil, nil, policyErr
 	}
@@ -79,30 +84,44 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return target, nil, nil, serviceErr
 	}
 
+	lockJSON, err := platformapply.EncodeLock(request.Lock)
+	if err != nil {
+		return target, nil, nil, err
+	}
+	policyData, err := referencePolicyJSON()
+	if err != nil {
+		return target, nil, nil, fmt.Errorf("encode reference policy: %w", err)
+	}
+	namespaceReady := objectName(namespaceObject) == namespace
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
-	policyRevision := objectAnnotation(policy, "agenova.io/platform-revision")
-	ready := availableReplicas(deployment) > 0
-	serviceReady := objectName(service) == controlPlaneName
+	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON
+	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
+	ready := deploymentMatches(deployment, request.Platform.Revision)
+	serviceReady := serviceMatches(service)
 	var changes []platformapply.Change
-	if revision != request.Platform.Revision {
+	if !namespaceReady {
+		changes = append(changes, platformapply.Change{Component: namespace, Action: "create", Detail: "create the selected Agenova namespace"})
+	}
+	if !recordReady {
 		action := "create"
 		if revision != "" {
 			action = "update"
 		}
 		changes = append(changes, platformapply.Change{Component: platformRecord, Action: action, Detail: "reconcile effective Platform revision and adapter lock"})
 	}
-	if !ready || revision != request.Platform.Revision {
+	if !ready {
 		changes = append(changes, platformapply.Change{Component: controlPlaneName, Action: "reconcile", Detail: "run the internal reference control plane at the effective revision"})
 	}
-	if policyRevision != request.Platform.Revision {
+	if !policyReady {
 		changes = append(changes, platformapply.Change{Component: policyRecord, Action: "reconcile", Detail: "seed the versioned reference default-deny policy"})
 	}
 	if !serviceReady {
 		changes = append(changes, platformapply.Change{Component: controlPlaneName + "-service", Action: "create", Detail: "expose the internal reference status endpoint inside the cluster"})
 	}
 	statuses := []platformapply.ComponentStatus{
-		{Name: platformRecord, Category: "deployment", State: state(revision == request.Platform.Revision, "configured", "unavailable"), Reference: request.Platform.Revision},
-		{Name: policyRecord, Category: "policy", State: state(policyRevision == request.Platform.Revision, "configured", "unavailable"), Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
+		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
+		{Name: platformRecord, Category: "deployment", State: state(recordReady, "configured", "unavailable"), Reference: request.Platform.Revision},
+		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
 		{Name: controlPlaneName, Category: "deployment", State: state(ready, "available", "unavailable")},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: state(serviceReady, "available", "unavailable")},
 	}
@@ -114,7 +133,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	if err != nil {
 		return nil, err
 	}
-	if err := k.preflight(ctx, contextName, namespace); err != nil {
+	if err := k.Preflight(ctx, request); err != nil {
 		return failedStatuses(request.Platform.Revision), err
 	}
 	manifest, err := referenceManifest(request, namespace)
@@ -128,11 +147,20 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return failedStatuses(request.Platform.Revision), fmt.Errorf("wait for reference control plane Ready: %w", err)
 	}
 	return []platformapply.ComponentStatus{
+		{Name: namespace, Category: "deployment", State: "available"},
 		{Name: platformRecord, Category: "deployment", State: "configured", Reference: request.Platform.Revision},
 		{Name: policyRecord, Category: "policy", State: "configured", Reference: platformapply.ReferencePolicyID + "@" + platformapply.ReferencePolicyVersion},
 		{Name: controlPlaneName, Category: "deployment", State: "available"},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: "available"},
 	}, nil
+}
+
+func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformapply.DeploymentRequest) error {
+	contextName, namespace, err := deploymentCoordinates(request.Config)
+	if err != nil {
+		return err
+	}
+	return k.preflight(ctx, contextName, namespace)
 }
 
 func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string) error {
@@ -199,7 +227,12 @@ func (k *KubernetesDeployment) resourceExists(ctx context.Context, contextName, 
 }
 
 func (k *KubernetesDeployment) getJSON(ctx context.Context, contextName, namespace, kind, name string) (map[string]any, error) {
-	result, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "get", kind, name, "-o", "json")
+	args := []string{"--context", contextName}
+	if namespace != "" {
+		args = append(args, "--namespace", namespace)
+	}
+	args = append(args, "get", kind, name, "-o", "json")
+	result, err := k.run(ctx, nil, args...)
 	if err != nil {
 		return nil, fmt.Errorf("read Kubernetes %s/%s: %s", kind, name, safeKubectlError(result.stderr))
 	}
@@ -240,11 +273,14 @@ func referenceManifest(request platformapply.DeploymentRequest, namespace string
 	if err != nil {
 		return nil, err
 	}
-	policyJSON := fmt.Sprintf(`{"id":%q,"version":%q,"rules":[]}`, platformapply.ReferencePolicyID, platformapply.ReferencePolicyVersion)
+	policyData, err := referencePolicyJSON()
+	if err != nil {
+		return nil, fmt.Errorf("encode reference policy: %w", err)
+	}
 	objects := []map[string]any{
 		{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": namespace, "labels": managedLabels()}},
 		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}},
-		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": policyJSON}},
+		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}},
 		deploymentObject(request, namespace),
 		serviceObject(namespace),
 	}
@@ -296,6 +332,15 @@ func managedLabels() map[string]any {
 	return map[string]any{"app.kubernetes.io/managed-by": "agenova", "app.kubernetes.io/part-of": "agenova"}
 }
 
+func referencePolicyJSON() ([]byte, error) {
+	bundle := policy.ReferenceBundle()
+	rules := make([]map[string]string, 0, len(bundle.Rules))
+	for _, rule := range bundle.Rules {
+		rules = append(rules, map[string]string{"team": rule.Team, "action": rule.Action, "project": rule.Project, "templateRef": rule.TemplateRef})
+	}
+	return json.Marshal(map[string]any{"id": bundle.ID, "version": bundle.Version, "rules": rules})
+}
+
 func objectAnnotation(object map[string]any, key string) string {
 	metadata, _ := object["metadata"].(map[string]any)
 	annotations, _ := metadata["annotations"].(map[string]any)
@@ -307,6 +352,44 @@ func objectName(object map[string]any) string {
 	metadata, _ := object["metadata"].(map[string]any)
 	value, _ := metadata["name"].(string)
 	return value
+}
+
+func objectData(object map[string]any, key string) string {
+	data, _ := object["data"].(map[string]any)
+	value, _ := data[key].(string)
+	return value
+}
+
+func deploymentMatches(object map[string]any, revision string) bool {
+	if objectAnnotation(object, "agenova.io/platform-revision") != revision || availableReplicas(object) < 1 {
+		return false
+	}
+	spec, _ := object["spec"].(map[string]any)
+	replicas, _ := spec["replicas"].(float64)
+	template, _ := spec["template"].(map[string]any)
+	templateMeta, _ := template["metadata"].(map[string]any)
+	annotations, _ := templateMeta["annotations"].(map[string]any)
+	podSpec, _ := template["spec"].(map[string]any)
+	containers, _ := podSpec["containers"].([]any)
+	if replicas != 1 || annotations["agenova.io/platform-revision"] != revision || len(containers) != 1 {
+		return false
+	}
+	container, _ := containers[0].(map[string]any)
+	return container["image"] == controlPlaneImage
+}
+
+func serviceMatches(object map[string]any) bool {
+	if objectName(object) != controlPlaneName {
+		return false
+	}
+	spec, _ := object["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	ports, _ := spec["ports"].([]any)
+	if spec["type"] != "ClusterIP" || selector["app.kubernetes.io/name"] != controlPlaneName || len(ports) != 1 {
+		return false
+	}
+	port, _ := ports[0].(map[string]any)
+	return port["port"] == float64(8080) && port["targetPort"] == "http"
 }
 
 func availableReplicas(object map[string]any) int {

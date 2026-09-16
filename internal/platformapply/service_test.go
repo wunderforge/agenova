@@ -17,7 +17,10 @@ import (
 type fakeDeployment struct {
 	applied bool
 	fail    error
+	denied  error
 }
+
+func (f *fakeDeployment) Preflight(context.Context, DeploymentRequest) error { return f.denied }
 
 func (f *fakeDeployment) Plan(_ context.Context, request DeploymentRequest) (string, []Change, []ComponentStatus, error) {
 	if f.applied {
@@ -75,6 +78,22 @@ func TestServiceReturnsBoundedPartialFailure(t *testing.T) {
 	}
 	if err == nil || !result.Applied || !failed {
 		t.Fatalf("Apply() = %#v, %v", result, err)
+	}
+}
+
+func TestServicePreflightsBeforeAdapterActivation(t *testing.T) {
+	service := newTestService(t, &fakeDeployment{denied: errors.New("RBAC denied")})
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Apply(context.Background(), resolved, lock)
+	if err == nil || !strings.Contains(err.Error(), "RBAC denied") || result.Applied {
+		t.Fatalf("Apply() = %#v, %v", result, err)
+	}
+	installed, err := service.Adapters.List()
+	if err != nil || len(installed.Adapters) != 0 {
+		t.Fatalf("preflight denial changed local adapter state: %#v, %v", installed, err)
 	}
 }
 
