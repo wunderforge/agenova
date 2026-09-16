@@ -46,7 +46,7 @@ Out of scope:
 - Every resolved model route preserves the Gateway trust boundary. Authenticated binding of a live caller to one issued claim is delivered by #121; #44 neither implements nor claims evidence for that authentication step.
 - After a caller is authoritatively attributed to an issued claim, the Gateway owns effective-profile enforcement, Allow/Deny/ApprovalRequired decision, invocation correlation and claim-scoped `ModelInvocation` evidence. Pre-attribution denial emits no fact beneath an unverified claim, denied calls make zero backend calls, and workers receive no direct backend endpoint or credential.
 - A pure validation/resolution path produces a secret-free canonical resolved form for #45 plus a stable inspectable lock/plan projection without mutating a target.
-- Unknown/duplicate references, version or capability mismatch, unsupported service kind, malformed adapter config, profile conflict and secret-bearing config return no resolved lock; the #44 resolver exposes no target-mutation dependency.
+- Unknown/duplicate references, version or capability mismatch, unsupported service kind, malformed adapter config, unusable backend/profile resource pairing, profile conflict and secret-bearing config return no resolved lock; the #44 resolver exposes no target-mutation dependency.
 
 ## Negative Case
 
@@ -70,7 +70,7 @@ Out of scope:
 
 ## Evidence Required
 
-- Canonical YAML and equivalent JSON parse to one Platform value, one actionable secret-free resolved form containing the required runtime allocation resources, and one stable revision digest computed without self-referential fields.
+- Canonical YAML and equivalent JSON parse to one Platform value, one actionable secret-free resolved form containing the required runtime allocation resources, and one exact `sha256:<lowercase-hex>` revision over the frozen canonical JSON payload without self-referential fields.
 - Table-driven negative fixtures prove all named validation failures return no partial lock; package/interface checks prove the resolver has no target-mutation dependency. #45 owns target mutation spies.
 - Deterministic plan fixture shows deployment, runtime and model instances remain independently selected and produces a secret-free lock.
 - Exact focused/full commands and output recorded in the PR and ticket.
