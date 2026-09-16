@@ -29,7 +29,7 @@ In scope:
 
 - Add the canonical `agenova.io/v1alpha1` `Platform` envelope, parser and fail-closed validation.
 - Separate versioned adapter requirements from named deployment, runtime and implemented-service instances.
-- Freeze explicit references for deployment, RuntimeBackend/profile mappings, model provider/profile mappings and the initial Policy seed.
+- Freeze explicit references for deployment, RuntimeBackend instances plus profile-to-backend mappings, model provider instances plus profile-to-provider mappings, and the initial Policy seed.
 - Define an inspectable, secret-free resolved lock and a deterministic plan projection used as contract evidence; actual reconciliation remains #45.
 - Add valid and invalid YAML/JSON fixtures plus reference-integrity and adapter-owned validation test doubles.
 
@@ -43,11 +43,11 @@ Out of scope:
 - Deployment, RuntimeBackend and model provider selections are independent named instances whose provider fields remain under adapter-owned `config`.
 - Runtime/model profile mappings reference configured instances but do not grant authority.
 - A pure validation/resolution path produces a stable, secret-free lock and plan projection without mutating a target.
-- Unknown/duplicate references, version or capability mismatch, unsupported service kind, malformed adapter config, profile conflict and secret-bearing config fail before any mutation callback.
+- Unknown/duplicate references, version or capability mismatch, unsupported service kind, malformed adapter config, profile conflict and secret-bearing config return no resolved lock; the #44 resolver exposes no target-mutation dependency.
 
 ## Negative Case
 
-- A manifest that selects Kubernetes deployment but omits a RuntimeBackend, references an unknown model instance, or includes a credential value is rejected; deployment selection must never infer worker/model adapters or trigger side effects.
+- A manifest that selects Kubernetes deployment but omits a RuntimeBackend, maps a model profile to an unknown provider instance, or includes a credential value is rejected; deployment selection must never infer worker/model adapters.
 
 ## Execution Todo
 
@@ -68,7 +68,7 @@ Out of scope:
 ## Evidence Required
 
 - Canonical YAML and equivalent JSON parse to one Platform value and stable revision digest.
-- Table-driven negative fixtures prove all named validation failures and zero calls to mutation spies.
+- Table-driven negative fixtures prove all named validation failures return no partial lock; package/interface checks prove the resolver has no target-mutation dependency. #45 owns target mutation spies.
 - Deterministic plan fixture shows deployment, runtime and model instances remain independently selected and produces a secret-free lock.
 - Exact focused/full commands and output recorded in the PR and ticket.
 

@@ -35,21 +35,28 @@ spec:
     runtimeBackends:
       - name: primary-runtime
         adapterRef: agent-sandbox-runtime
-        profiles: [standard-isolated]
         config:
           context: kind-agenova
           namespace: agenova-workers
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          template: reference-engineer-runtime
   services:
     modelProviders:
       - name: local-model
         adapterRef: openai-compatible-model
-        profiles: [coding-standard]
         config:
-          endpoint: http://host.docker.internal:11434/v1
+          endpoint: http://127.0.0.1:11434/v1
+    modelProfiles:
+      - name: coding-standard
+        providerRef: local-model
+        config:
           model: llama3.1:latest
   initialPolicyRef:
     id: reference-default-deny
-    version: v1
+    version: "1"
 ```
 
 Names are installation-local references. Adapter IDs are explicit qualified identities; #151 freezes their final grammar and resolution behavior before lifecycle implementation. `config` is an opaque map to generic Platform code and is parsed/validated only by the selected adapter.
@@ -58,14 +65,14 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 
 1. The parser accepts strict YAML or JSON for the same versioned contract and rejects unknown/system-managed fields.
 2. `metadata.name`, every adapter requirement name, adapter ID/version, instance name and referenced profile are non-empty, bounded and normalized by contract validation.
-3. Adapter requirement names are unique. Instance names are unique within their category. Profile names are unique across instances of the same capability.
+3. Adapter requirement names are unique. Instance names are unique within their category. Runtime/model profile names are unique and each profile explicitly references one named backend/provider instance.
 4. Every `adapterRef` resolves to one declared requirement whose descriptor advertises the required capability: deployment, runtime or model.
 5. Exactly one deployment instance, at least one RuntimeBackend instance and one initial Policy reference are required. Model providers may be absent for validation-only installations, but a referenced model profile must resolve before work can be admitted.
-6. Selecting deployment never selects or configures runtime/model instances implicitly. All mappings are explicit.
-7. Generic validation performs envelope, reference, supported-category and secret-field checks, then invokes adapter-owned validation without mutating the target.
+6. Selecting deployment never selects or configures runtime/model instances implicitly. `runtimeProfiles[].backendRef` and `modelProfiles[].providerRef` are the only profile-to-instance mappings.
+7. Generic validation performs envelope, reference, supported-category and secret-field checks, then invokes adapter-owned side-effect-free validation/canonicalization. #44 has no target-mutation dependency.
 8. Reserved credential fields and inline credential-bearing values recognized by the generic boundary or adapter schema are rejected. An adapter may define non-secret credential references, but neither the lock nor diagnostics expose resolved credentials.
 9. The initial Policy is a reference only. #46 owns its seed/verification semantics and the operator's existing identity/RBAC authorizes installation.
-10. A resolved projection is deterministic for semantically identical input and contains Platform revision, exact adapter identities/versions/capabilities, named instance paths and config digests—never raw config or secrets.
+10. Adapter validation returns a secret-free canonical config digest after applying adapter defaults. The resolved projection and Platform revision are deterministic for semantically equivalent input and contain exact adapter identities/versions/capabilities, named instance/profile paths and canonical config digests—never raw config or secrets.
 11. Platform/profile availability never grants an agent permission. AgentTemplate ceilings, policy and ClaimRequest resolution remain authoritative.
 12. Unsupported service categories fail explicitly. Tool, Memory and Observability remain absent until #150 defines and delivers their boundaries.
 
@@ -74,7 +81,7 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 - Unknown API version/kind, duplicate names, unknown `adapterRef`, version/capability mismatch or unsupported service category.
 - Missing deployment/runtime, duplicate runtime/model profile, unknown instance/profile reference or malformed adapter-owned config.
 - Kubernetes/provider fields outside `config`, provider SDK/CRD-shaped shared fields, inline tokens/passwords/secret values, or system-managed status/lock input.
-- A validation failure calls no installer, deployment, runtime, provider or mutation callback and produces no partial lock.
+- A validation failure produces no partial lock. The pure resolver has no installer, deployment, runtime, provider or target-mutation dependency; #45 proves fail-before-mutation when it adds reconciliation.
 
 ## Compatibility
 
