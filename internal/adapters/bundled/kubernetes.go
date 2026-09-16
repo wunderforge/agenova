@@ -127,7 +127,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	}
 	if !recordReady {
 		action := "create"
-		if revision != "" {
+		if record != nil {
 			action = "update"
 		}
 		changes = append(changes, platformapply.Change{Component: platformRecord, Action: action, Detail: "reconcile effective Platform revision and adapter lock"})
@@ -155,52 +155,56 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	return target, changes, statuses, nil
 }
 
-func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, error) {
+func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, bool, error) {
 	contextName, namespace, err := deploymentCoordinates(request.Config)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := k.Preflight(ctx, request); err != nil {
-		return failedStatuses(request.Platform.Revision), err
+		return failedStatuses(request.Platform.Revision), false, err
 	}
 	namespaceExists, err := k.resourceExists(ctx, contextName, "namespaces", namespace, "")
 	if err != nil {
-		return failedStatuses(request.Platform.Revision), err
+		return failedStatuses(request.Platform.Revision), false, err
 	}
 	steps, err := referenceSteps(request, namespace, !namespaceExists)
 	if err != nil {
-		return failedStatuses(request.Platform.Revision), err
+		return failedStatuses(request.Platform.Revision), false, err
 	}
+	mutationAttempted := false
 	for index, step := range steps {
 		replaceSelector := false
 		replacePodSpec := false
 		if step.name == controlPlaneName+"-service" {
 			replaceSelector, err = k.serviceSelectorDrift(ctx, contextName, namespace)
 			if err != nil {
-				return k.stepFailure(ctx, request, steps, index, err)
+				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
 		if step.name == controlPlaneName {
 			replacePodSpec, err = k.deploymentPodSpecDrift(ctx, contextName, namespace, step.object)
 			if err != nil {
-				return k.stepFailure(ctx, request, steps, index, err)
+				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
 		manifest, err := yaml.Marshal(step.object)
 		if err != nil {
-			return failedStatuses(request.Platform.Revision), fmt.Errorf("encode Kubernetes %s manifest: %w", step.name, err)
+			return failedStatuses(request.Platform.Revision), mutationAttempted, fmt.Errorf("encode Kubernetes %s manifest: %w", step.name, err)
 		}
+		// A mutating command can fail after the API server accepted a write.
+		// Conservatively mark it attempted before invoking kubectl.
+		mutationAttempted = true
 		if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
-			return k.stepFailure(ctx, request, steps, index, err)
+			return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 		}
 		if replaceSelector {
 			if err := k.replaceServiceSelector(ctx, contextName, namespace); err != nil {
-				return k.stepFailure(ctx, request, steps, index, err)
+				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
 		if replacePodSpec {
 			if err := k.replaceDeploymentPodSpec(ctx, contextName, namespace, step.object); err != nil {
-				return k.stepFailure(ctx, request, steps, index, err)
+				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
 	}
@@ -211,25 +215,25 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				statuses[index].State = "failed"
 			}
 		}
-		return statuses, fmt.Errorf("wait for reference control plane Ready: %w", err)
+		return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
 	}
 	_, remaining, statuses, err := k.Plan(ctx, request)
 	if err != nil {
-		return failedStatuses(request.Platform.Revision), fmt.Errorf("verify reference control plane after rollout: %w", err)
+		return failedStatuses(request.Platform.Revision), mutationAttempted, fmt.Errorf("verify reference control plane after rollout: %w", err)
 	}
 	if len(remaining) != 0 {
-		return statuses, fmt.Errorf("reference control plane is not reconciled after rollout; inspect the remaining plan")
+		return statuses, mutationAttempted, fmt.Errorf("reference control plane is not reconciled after rollout; inspect the remaining plan")
 	}
-	return statuses, nil
+	return statuses, mutationAttempted, nil
 }
 
-func (k *KubernetesDeployment) stepFailure(ctx context.Context, request platformapply.DeploymentRequest, steps []manifestStep, index int, cause error) ([]platformapply.ComponentStatus, error) {
+func (k *KubernetesDeployment) stepFailure(ctx context.Context, request platformapply.DeploymentRequest, steps []manifestStep, index int, mutationAttempted bool, cause error) ([]platformapply.ComponentStatus, bool, error) {
 	statuses := k.observedAfterFailure(ctx, request)
 	markStepStatus(statuses, steps[index], "failed")
 	for _, pending := range steps[index+1:] {
 		markStepStatus(statuses, pending, "pending")
 	}
-	return statuses, fmt.Errorf("reconcile Kubernetes %s: %w", steps[index].name, cause)
+	return statuses, mutationAttempted, fmt.Errorf("reconcile Kubernetes %s: %w", steps[index].name, cause)
 }
 
 func (k *KubernetesDeployment) serviceSelectorDrift(ctx context.Context, contextName, namespace string) (bool, error) {
@@ -580,40 +584,69 @@ func managedPodSpecMatches(object, desired map[string]any) bool {
 	if actualPod == nil || wantedPod == nil {
 		return false
 	}
-	podDefaults := map[string]any{"dnsPolicy": "ClusterFirst", "restartPolicy": "Always", "schedulerName": "default-scheduler", "securityContext": map[string]any{}, "terminationGracePeriodSeconds": float64(30)}
-	if !noUnexpectedFields(actualPod, wantedPod, podDefaults) {
+	data, err := json.Marshal(wantedPod)
+	if err != nil {
 		return false
 	}
-	actualContainers, _ := actualPod["containers"].([]any)
-	wantedContainers, _ := wantedPod["containers"].([]any)
-	if len(actualContainers) != len(wantedContainers) {
-		return false
-	}
-	containerDefaults := map[string]any{"resources": map[string]any{}, "terminationMessagePath": "/dev/termination-log", "terminationMessagePolicy": "File"}
-	for index, wanted := range wantedContainers {
-		actual, _ := actualContainers[index].(map[string]any)
-		want, _ := wanted.(map[string]any)
-		if !noUnexpectedFields(actual, want, containerDefaults) {
-			return false
-		}
-	}
-	return true
+	var normalized any
+	return json.Unmarshal(data, &normalized) == nil && managedFieldsMatch(actualPod, normalized, "pod")
 }
 
-func noUnexpectedFields(actual, desired, defaults map[string]any) bool {
-	if actual == nil || desired == nil {
-		return false
-	}
-	for key, value := range actual {
-		if _, owned := desired[key]; owned {
-			continue
-		}
-		defaultValue, known := defaults[key]
-		if !known || !reflect.DeepEqual(value, defaultValue) {
+// The pod spec is Agenova-owned. Only known API-server defaults may appear
+// outside the manifest, including inside nested container/probe maps.
+func managedFieldsMatch(actual, desired any, path string) bool {
+	switch wanted := desired.(type) {
+	case map[string]any:
+		got, ok := actual.(map[string]any)
+		if !ok {
 			return false
 		}
+		for key, value := range wanted {
+			if !managedFieldsMatch(got[key], value, path+"/"+key) {
+				return false
+			}
+		}
+		defaults := managedKubernetesDefaults(path)
+		for key, value := range got {
+			if _, owned := wanted[key]; owned {
+				continue
+			}
+			if defaultValue, known := defaults[key]; !known || !reflect.DeepEqual(value, defaultValue) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		got, ok := actual.([]any)
+		if !ok || len(got) != len(wanted) {
+			return false
+		}
+		for index := range wanted {
+			if !managedFieldsMatch(got[index], wanted[index], path+"[]") {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(actual, desired)
 	}
-	return true
+}
+
+func managedKubernetesDefaults(path string) map[string]any {
+	switch path {
+	case "pod":
+		return map[string]any{"dnsPolicy": "ClusterFirst", "restartPolicy": "Always", "schedulerName": "default-scheduler", "securityContext": map[string]any{}, "terminationGracePeriodSeconds": float64(30)}
+	case "pod/containers[]":
+		return map[string]any{"resources": map[string]any{}, "terminationMessagePath": "/dev/termination-log", "terminationMessagePolicy": "File"}
+	case "pod/containers[]/ports[]":
+		return map[string]any{"protocol": "TCP"}
+	case "pod/containers[]/readinessProbe":
+		return map[string]any{"failureThreshold": float64(3), "successThreshold": float64(1), "timeoutSeconds": float64(1)}
+	case "pod/containers[]/readinessProbe/httpGet":
+		return map[string]any{"scheme": "HTTP"}
+	default:
+		return nil
+	}
 }
 
 func expectedFieldsMatch(actual, expected any) bool {

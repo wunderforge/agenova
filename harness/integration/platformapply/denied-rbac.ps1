@@ -9,8 +9,9 @@ $role = 'agenova-platform-readonly-test'
 $user = 'agenova-platform-readonly-test'
 $realKubectl = (Get-Command kubectl -ErrorAction Stop).Source
 $scratch = Join-Path $repo '.tmp/platform-denied-rbac'
-$wrapper = Join-Path $scratch 'kubectl.exe'
-$cli = Join-Path $scratch 'agenova.exe'
+$executableSuffix = if ([Environment]::OSVersion.Platform -eq 'Win32NT') { '.exe' } else { '' }
+$wrapper = Join-Path $scratch "kubectl$executableSuffix"
+$cli = Join-Path $scratch "agenova$executableSuffix"
 $probe = Join-Path $scratch 'platform.probe.yaml'
 $oldPath = $env:PATH
 $oldReal = $env:AGENOVA_TEST_REAL_KUBECTL
@@ -54,6 +55,8 @@ try {
     $env:AGENOVA_TEST_REAL_KUBECTL = $realKubectl
     $env:AGENOVA_TEST_IMPERSONATE_USER = $user
     $env:PATH = "$scratch$([IO.Path]::PathSeparator)$oldPath"
+    $selectedKubectl = (Get-Command kubectl -ErrorAction Stop).Source
+    if ($selectedKubectl -ne $wrapper) { throw "test wrapper was not selected; refusing to run probe with $selectedKubectl" }
     & $cli platform apply -f $probe --state-dir (Join-Path $scratch 'state') --yes --json
     $applyExit = $LASTEXITCODE
     $env:PATH = $oldPath

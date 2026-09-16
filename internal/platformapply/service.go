@@ -66,7 +66,7 @@ type DeploymentRequest struct {
 type DeploymentAdapter interface {
 	Plan(context.Context, DeploymentRequest) (target string, changes []Change, status []ComponentStatus, err error)
 	Preflight(context.Context, DeploymentRequest) error
-	Apply(context.Context, DeploymentRequest) ([]ComponentStatus, error)
+	Apply(context.Context, DeploymentRequest) (status []ComponentStatus, mutationAttempted bool, err error)
 }
 
 type Service struct {
@@ -206,13 +206,13 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 		sortPlan(nil, statuses)
 		return ApplyResult{Plan: plan, Applied: activated, Ready: allReady(statuses), Components: statuses}, nil
 	}
-	statuses, err := adapter.Apply(ctx, request)
+	statuses, targetMutationAttempted, err := adapter.Apply(ctx, request)
 	statuses = append(adapterStatuses, statuses...)
 	sortPlan(nil, statuses)
 	if err != nil {
-		return ApplyResult{Plan: plan, Applied: true, Components: statuses}, fmt.Errorf("apply Platform revision %s: %w", resolved.Revision, err)
+		return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, Components: statuses}, fmt.Errorf("apply Platform revision %s: %w", resolved.Revision, err)
 	}
-	return ApplyResult{Plan: plan, Applied: true, Ready: allReady(statuses), Components: statuses}, nil
+	return ApplyResult{Plan: plan, Applied: activated || targetMutationAttempted, Ready: allReady(statuses), Components: statuses}, nil
 }
 
 func targetStatuses(components []ComponentStatus) []ComponentStatus {
@@ -275,6 +275,7 @@ func (s Service) activationPlan(requirements []platform.ResolvedAdapter) ([]Chan
 	}
 	var changes []Change
 	var statuses []ComponentStatus
+	plannedActivation := make(map[string]bool)
 	for _, requirement := range requirements {
 		if version, ok := versions[requirement.ID]; ok && version != requirement.Version {
 			return nil, nil, fmt.Errorf("adapter %s already active at version %s; requested version %s requires an explicit upgrade", requirement.ID, version, requirement.Version)
@@ -289,8 +290,9 @@ func (s Service) activationPlan(requirements []platform.ResolvedAdapter) ([]Chan
 			if hasCapability(requirement.Capabilities, platform.CapabilityDeployment) {
 				state = "used"
 			}
-		} else {
+		} else if !plannedActivation[ref] {
 			changes = append(changes, Change{Component: ref, Action: "activate", Detail: "activate exact bundled adapter version"})
+			plannedActivation[ref] = true
 		}
 		statuses = append(statuses, ComponentStatus{Name: requirement.Name, Category: "adapter", State: state, Reference: ref})
 	}

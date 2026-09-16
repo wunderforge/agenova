@@ -57,9 +57,12 @@ func TestKubernetesApplyDeniesBeforeMutationWhenRBACMissing(t *testing.T) {
 		}
 		return commandResult{}, nil
 	}}
-	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
+	statuses, attempted, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
 	if err == nil || !strings.Contains(err.Error(), "lacks required RBAC") || len(statuses) != 4 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
+	}
+	if attempted {
+		t.Fatal("denied preflight reported a target mutation")
 	}
 	for i, call := range runner.calls {
 		if contains(call, "apply") {
@@ -89,7 +92,7 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 		}
 		return commandResult{}, nil
 	}}
-	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
+	statuses, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
 	if err != nil || len(statuses) != 5 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
@@ -148,7 +151,7 @@ func TestKubernetesApplyRechecksTargetAfterRollout(t *testing.T) {
 		}
 		return commandResult{}, nil
 	}}
-	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
+	statuses, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
 	if err == nil || !strings.Contains(err.Error(), "not reconciled after rollout") {
 		t.Fatalf("Apply() = %#v, %v, want final drift detection", statuses, err)
 	}
@@ -186,7 +189,7 @@ func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
 		}
 		return commandResult{}, nil
 	}}
-	if _, err := newKubernetesDeployment(runner).Apply(context.Background(), request); err != nil {
+	if _, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
 	applyCount := 0
@@ -359,6 +362,16 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	if deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("unexpected container command must be reconciled")
 	}
+	delete(container, "command")
+	probe := container["readinessProbe"].(map[string]any)
+	probe["timeoutSeconds"] = float64(30)
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("unexpected nested probe timeout must be reconciled")
+	}
+	probe["timeoutSeconds"] = float64(1)
+	if !deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("normal Kubernetes probe default must be accepted")
+	}
 }
 
 func TestKubernetesPlanLabelsExistingServiceDriftAsReconcile(t *testing.T) {
@@ -387,6 +400,31 @@ func TestKubernetesPlanLabelsExistingServiceDriftAsReconcile(t *testing.T) {
 		}
 	}
 	t.Fatal("drifted existing Service missing from plan")
+}
+
+func TestKubernetesPlanExistingPlatformRecordWithoutRevisionIsUpdate(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "version") {
+			return commandResult{stdout: `{}`}, nil
+		}
+		if contains(args, "get") && contains(args, platformRecord) {
+			return commandResult{stdout: `{"metadata":{"name":"agenova-platform","labels":{"app.kubernetes.io/managed-by":"agenova"}},"data":{}}`}, nil
+		}
+		return commandResult{stderr: "NotFound"}, errors.New("exit 1")
+	}}
+	_, changes, _, err := newKubernetesDeployment(runner).Plan(context.Background(), deploymentRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range changes {
+		if change.Component == platformRecord {
+			if change.Action != "update" {
+				t.Fatalf("existing Platform record action = %q", change.Action)
+			}
+			return
+		}
+	}
+	t.Fatal("drifted existing Platform record missing from plan")
 }
 
 func TestServiceMatchesFullManagedSelector(t *testing.T) {
@@ -456,7 +494,7 @@ func TestKubernetesApplyReplacesExtraServiceSelector(t *testing.T) {
 		}
 		return commandResult{}, nil
 	}}
-	if _, err := newKubernetesDeployment(runner).Apply(context.Background(), request); err != nil {
+	if _, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
 	patchedSelector, patchedPod := false, false
@@ -508,9 +546,12 @@ func TestKubernetesPreflightRequiresRolloutWatchBeforeMutation(t *testing.T) {
 		}
 		return commandResult{stdout: "yes\n"}, nil
 	}}
-	_, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
+	_, attempted, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
 	if err == nil || !strings.Contains(err.Error(), "watch deployments.apps") {
 		t.Fatalf("Apply() error = %v, want missing rollout watch", err)
+	}
+	if attempted {
+		t.Fatal("denied rollout watch reported a target mutation")
 	}
 	for _, call := range runner.calls {
 		if contains(call, "apply") {
@@ -556,9 +597,12 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
 		}
 	}}
-	statuses, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
+	statuses, attempted, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
 	if err == nil || !partial {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
+	}
+	if !attempted {
+		t.Fatal("partial target mutation was not reported")
 	}
 	states := map[string]string{}
 	for _, status := range statuses {

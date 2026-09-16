@@ -34,13 +34,13 @@ func (f *fakeDeployment) Plan(_ context.Context, request DeploymentRequest) (str
 	return "fake/reference", []Change{{Component: "control-plane", Action: "create", Detail: "test"}}, []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "unavailable"}}, nil
 }
 
-func (f *fakeDeployment) Apply(_ context.Context, request DeploymentRequest) ([]ComponentStatus, error) {
+func (f *fakeDeployment) Apply(_ context.Context, request DeploymentRequest) ([]ComponentStatus, bool, error) {
 	f.applyRuns++
 	if f.fail != nil {
-		return []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "failed"}}, f.fail
+		return []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "failed"}}, false, f.fail
 	}
 	f.applied = true
-	return []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "available", Reference: request.Platform.Revision}}, nil
+	return []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "available", Reference: request.Platform.Revision}}, true, nil
 }
 
 func TestServicePlansActivatesAndAppliesIdempotently(t *testing.T) {
@@ -84,6 +84,24 @@ func TestServiceReturnsBoundedPartialFailure(t *testing.T) {
 	}
 	if err == nil || !result.Applied || !failed {
 		t.Fatalf("Apply() = %#v, %v", result, err)
+	}
+}
+
+func TestServiceKeepsAppliedFalseWhenTargetFailsBeforeMutation(t *testing.T) {
+	deployment := &fakeDeployment{applied: true}
+	service := newTestService(t, deployment)
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Apply(context.Background(), resolved, lock); err != nil {
+		t.Fatal(err)
+	}
+	deployment.applied = false
+	deployment.fail = errors.New("target denied before mutation")
+	result, err := service.Apply(context.Background(), resolved, lock)
+	if err == nil || result.Applied {
+		t.Fatalf("Apply() = %#v, %v, want no mutation reported", result, err)
 	}
 }
 
@@ -227,6 +245,34 @@ func TestAllReadyFailsClosed(t *testing.T) {
 		if !allReady([]ComponentStatus{{State: state}}) {
 			t.Fatalf("state %q did not report Ready", state)
 		}
+	}
+}
+
+func TestServiceDeduplicatesAdapterAliasActivation(t *testing.T) {
+	service := newTestService(t, &fakeDeployment{})
+	input := testPlatform()
+	input.Spec.Adapters = append(input.Spec.Adapters, v1alpha1.PlatformAdapterRequirement{Name: "model-alias", ID: "example.com/model/fake", Version: "1.0.0"})
+	resolved, lock, err := service.Validate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.Plan(context.Background(), resolved, lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activations, modelStatuses := 0, 0
+	for _, change := range plan.Changes {
+		if change.Component == "example.com/model/fake@1.0.0" {
+			activations++
+		}
+	}
+	for _, status := range plan.Components {
+		if status.Name == "model" || status.Name == "model-alias" {
+			modelStatuses++
+		}
+	}
+	if activations != 1 || modelStatuses != 2 {
+		t.Fatalf("alias plan = %#v, want one activation and two statuses", plan)
 	}
 }
 

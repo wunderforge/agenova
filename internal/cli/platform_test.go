@@ -34,12 +34,12 @@ func (d *cliDeployment) Plan(_ context.Context, _ platformapply.DeploymentReques
 	return "test/target", []platformapply.Change{{Component: "control", Action: "create", Detail: "test"}}, []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "unavailable"}}, nil
 }
 
-func (d *cliDeployment) Apply(_ context.Context, _ platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, error) {
+func (d *cliDeployment) Apply(_ context.Context, _ platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, bool, error) {
 	if d.fail != nil {
-		return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "failed"}}, d.fail
+		return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "failed"}}, false, d.fail
 	}
 	d.applied = true
-	return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "available"}}, nil
+	return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "available"}}, true, nil
 }
 
 func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
