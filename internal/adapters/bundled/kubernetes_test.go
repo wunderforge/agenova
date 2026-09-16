@@ -67,6 +67,8 @@ func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
 		switch {
 		case contains(args, "version"):
 			return commandResult{stdout: `{}`}, nil
+		case contains(args, "can-i") && contains(args, "watch"):
+			return commandResult{stdout: "no\n"}, nil
 		case contains(args, "can-i"):
 			return commandResult{stdout: "yes\n"}, nil
 		case contains(args, "apply"):
@@ -104,6 +106,9 @@ func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
 	}
 	applyCount := 0
 	for index, call := range runner.calls {
+		if contains(call, "rollout") || (contains(call, "can-i") && contains(call, "watch")) {
+			t.Fatalf("policy-only plan required Deployment rollout authority: %#v", call)
+		}
 		if contains(call, "apply") {
 			applyCount++
 			if !strings.Contains(string(runner.inputs[index]), "name: "+policyRecord) {

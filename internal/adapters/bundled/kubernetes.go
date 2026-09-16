@@ -232,14 +232,16 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			}
 		}
 	}
-	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
-		statuses := k.observedAfterFailure(ctx, request)
-		for index := range statuses {
-			if statuses[index].Name == controlPlaneName && statuses[index].Category == "deployment" {
-				statuses[index].State = "failed"
+	if plannedComponent(request.TargetChanges, controlPlaneName) {
+		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			for index := range statuses {
+				if statuses[index].Name == controlPlaneName && statuses[index].Category == "deployment" {
+					statuses[index].State = "failed"
+				}
 			}
+			return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
 		}
-		return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
 	}
 	_, remaining, statuses, err := k.Plan(ctx, request)
 	if err != nil {
@@ -360,10 +362,12 @@ func plannedComponent(changes []platformapply.Change, component string) bool {
 }
 
 func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
-	// rollout status watches the Deployment after apply; require that verb before
-	// any target mutation, not after the resources have already been created.
-	if err := k.requireRBAC(ctx, contextName, "watch", "deployments.apps", namespace); err != nil {
-		return err
+	// A changed Deployment needs a rollout watch after mutation. ConfigMap or
+	// Service-only plans are verified by read-only re-planning instead.
+	if plannedComponent(changes, controlPlaneName) {
+		if err := k.requireRBAC(ctx, contextName, "watch", "deployments.apps", namespace); err != nil {
+			return err
+		}
 	}
 	targets := []struct {
 		resource  string
