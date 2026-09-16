@@ -7,10 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
+	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/runtime"
+	"gopkg.in/yaml.v3"
 )
 
 // Version is the reported CLI version. Releases may override it with ldflags.
@@ -28,6 +32,14 @@ type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, re
 // Command behavior does not parse YAML or grant authority; the host does.
 // The hosted backend is supplied to the application composition boundary.
 type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, error)
+
+type AdapterLifecycleFactory func(stateDirectory string) (*adapterregistry.Lifecycle, error)
+
+type Services struct {
+	NewRuntime  RuntimeFactory
+	Run         RunHandler
+	NewAdapters AdapterLifecycleFactory
+}
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
 type RunReport struct {
@@ -49,13 +61,15 @@ Commands:
   help       Show this help
   version    Print version and the hosted runtime backend
   run        Submit one ClaimRequest file through application resolution
+  adapters   Inspect and activate bundled adapter implementations
 
 Flags:
-  --backend string   Runtime backend to host (default "memory")
-  --help             Show this help
-  --version          Print version and the hosted runtime backend
-  -f, --file string  ClaimRequest YAML for agenova run
-  --json            Print the shared evidence View for agenova run
+  --backend string    Runtime backend to host (default "memory")
+  --state-dir string  Local Agenova installation state for adapter commands
+  --help              Show this help
+  --version           Print version and the hosted runtime backend
+  -f, --file string   ClaimRequest YAML for agenova run
+  --json              Print JSON for run or adapter commands
 
 This composition root hosts the in-memory reference backend. Command behavior
 does not import Kubernetes or other provider types, and it does not accept
@@ -73,6 +87,18 @@ Submit exactly one ClaimRequest YAML document. Requested access is intent.
 The CLI does not accept --repo, --tools, or --model authority shortcuts.
 `
 
+const adaptersHelpText = `Usage:
+  agenova adapters catalog [--json]
+  agenova adapters list [--json]
+  agenova adapters inspect <id[@version]> [--json]
+  agenova adapters install <id[@version]> [--json]
+  agenova adapters init <id[@version]> [--name <local-name>] [--json]
+
+Catalog is the set of implementations shipped with this Agenova distribution.
+List is the exact set activated for the selected --state-dir installation.
+Init emits a reviewable Platform YAML fragment; it does not grant authority.
+`
+
 type parsedArgs struct {
 	help       bool
 	version    bool
@@ -82,10 +108,22 @@ type parsedArgs struct {
 	file       string
 	fileSet    bool
 	json       bool
+	stateDir   string
+	stateSet   bool
+	name       string
+	nameSet    bool
+	operands   []string
 }
 
-// Main is the CLI entrypoint. args[0] is the program name, matching os.Args.
+// Main preserves the reduced composition entrypoint used by existing tests.
 func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory, run RunHandler) int {
+	return MainWithServices(args, stdout, stderr, Services{NewRuntime: newRuntime, Run: run})
+}
+
+// MainWithServices is the full composition-aware entrypoint. The executable
+// injects registry/lifecycle construction; command behavior never switches on
+// provider identities.
+func MainWithServices(args []string, stdout, stderr io.Writer, services Services) int {
 	argv := []string{}
 	if len(args) > 0 {
 		argv = args[1:]
@@ -102,17 +140,23 @@ func Main(args []string, stdout, stderr io.Writer, newRuntime RuntimeFactory, ru
 		fmt.Fprint(stdout, runHelpText)
 		return 0
 	}
+	if parsed.help && parsed.command == "adapters" {
+		fmt.Fprint(stdout, adaptersHelpText)
+		return 0
+	}
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
 		fmt.Fprint(stdout, helpText)
 		return 0
 	}
 
 	if parsed.version || parsed.command == "version" {
-		return printVersion(stdout, stderr, parsed.backend, newRuntime)
+		return printVersion(stdout, stderr, parsed.backend, services.NewRuntime)
 	}
-
 	if parsed.command == "run" {
-		return printRun(stdout, stderr, parsed, newRuntime, run)
+		return printRun(stdout, stderr, parsed, services.NewRuntime, services.Run)
+	}
+	if parsed.command == "adapters" {
+		return printAdapters(stdout, stderr, parsed, services.NewAdapters)
 	}
 
 	fmt.Fprintf(stderr, "unknown command %q\n", parsed.command)
@@ -208,6 +252,142 @@ func printVersion(stdout, stderr io.Writer, backendName string, newRuntime Runti
 	return 0
 }
 
+func printAdapters(stdout, stderr io.Writer, parsed parsedArgs, factory AdapterLifecycleFactory) int {
+	if factory == nil {
+		fmt.Fprintln(stderr, "adapter lifecycle is not configured")
+		return 1
+	}
+	if len(parsed.operands) == 0 {
+		fmt.Fprint(stderr, adaptersHelpText)
+		return ExitUsage
+	}
+	subcommand := parsed.operands[0]
+	arguments := parsed.operands[1:]
+	if parsed.nameSet && subcommand != "init" {
+		return adapterUsageError(stderr, "--name is only valid with agenova adapters init")
+	}
+	lifecycle, err := factory(parsed.stateDir)
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 1
+	}
+
+	switch subcommand {
+	case "catalog":
+		if len(arguments) != 0 {
+			return adapterUsageError(stderr, "catalog accepts no arguments")
+		}
+		catalog := lifecycle.Catalog()
+		if parsed.json {
+			return printJSON(stdout, stderr, struct {
+				Adapters []adapterregistry.Manifest `json:"adapters"`
+			}{Adapters: catalog})
+		}
+		for _, manifest := range catalog {
+			fmt.Fprintf(stdout, "%s@%s\t%s\n", manifest.ID, manifest.Version, joinCapabilities(manifest.Capabilities))
+		}
+		return 0
+	case "list":
+		if len(arguments) != 0 {
+			return adapterUsageError(stderr, "list accepts no arguments")
+		}
+		lock, err := lifecycle.List()
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, lock)
+		}
+		if len(lock.Adapters) == 0 {
+			fmt.Fprintln(stdout, "No adapters are activated for this installation.")
+			return 0
+		}
+		for _, adapter := range lock.Adapters {
+			fmt.Fprintf(stdout, "%s@%s\t%s\n", adapter.ID, adapter.Version, joinCapabilities(adapter.Capabilities))
+		}
+		return 0
+	case "inspect":
+		if len(arguments) != 1 {
+			return adapterUsageError(stderr, "inspect requires <id[@version]>")
+		}
+		result, err := lifecycle.Inspect(arguments[0])
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return ExitUsage
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, result)
+		}
+		fmt.Fprintf(stdout, "adapter: %s@%s\nprotocol: %s\ncapabilities: %s\ninstalled: %t\n", result.Manifest.ID, result.Manifest.Version, result.Manifest.Protocol, joinCapabilities(result.Manifest.Capabilities), result.Installed)
+		return 0
+	case "install":
+		if len(arguments) != 1 {
+			return adapterUsageError(stderr, "install requires <id[@version]>")
+		}
+		result, err := lifecycle.Install(arguments[0])
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, result)
+		}
+		status := "already installed"
+		if result.Changed {
+			status = "installed"
+		}
+		fmt.Fprintf(stdout, "%s: %s@%s\n", status, result.Adapter.ID, result.Adapter.Version)
+		return 0
+	case "init":
+		if len(arguments) != 1 {
+			return adapterUsageError(stderr, "init requires <id[@version]>")
+		}
+		fragment, err := lifecycle.Init(arguments[0], parsed.name)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return ExitUsage
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, fragment)
+		}
+		data, err := yaml.Marshal(fragment)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		_, _ = stdout.Write(data)
+		return 0
+	default:
+		return adapterUsageError(stderr, fmt.Sprintf("unknown adapters command %q", subcommand))
+	}
+}
+
+func adapterUsageError(stderr io.Writer, message string) int {
+	fmt.Fprintln(stderr, message)
+	fmt.Fprintln(stderr, "Run 'agenova adapters --help' for usage.")
+	return ExitUsage
+}
+
+func printJSON(stdout, stderr io.Writer, value any) int {
+	encoder := json.NewEncoder(stdout)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 1
+	}
+	return 0
+}
+
+func joinCapabilities(values []platform.Capability) string {
+	items := make([]string, len(values))
+	for i, value := range values {
+		items[i] = string(value)
+	}
+	sort.Strings(items)
+	return strings.Join(items, ",")
+}
+
 func parseArgs(argv []string) (parsedArgs, error) {
 	var parsed parsedArgs
 	for i := 0; i < len(argv); i++ {
@@ -231,6 +411,30 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			if err := setBackend(&parsed, strings.TrimPrefix(arg, "--backend=")); err != nil {
 				return parsedArgs{}, err
 			}
+		case arg == "--state-dir":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("flag --state-dir requires a value")
+			}
+			i++
+			if err := setStateDir(&parsed, argv[i]); err != nil {
+				return parsedArgs{}, err
+			}
+		case strings.HasPrefix(arg, "--state-dir="):
+			if err := setStateDir(&parsed, strings.TrimPrefix(arg, "--state-dir=")); err != nil {
+				return parsedArgs{}, err
+			}
+		case arg == "--name":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("flag --name requires a value")
+			}
+			i++
+			if err := setName(&parsed, argv[i]); err != nil {
+				return parsedArgs{}, err
+			}
+		case strings.HasPrefix(arg, "--name="):
+			if err := setName(&parsed, strings.TrimPrefix(arg, "--name=")); err != nil {
+				return parsedArgs{}, err
+			}
 		case arg == "-f" || arg == "--file":
 			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("flag -f requires a value")
@@ -250,17 +454,30 @@ func parseArgs(argv []string) (parsedArgs, error) {
 		case strings.HasPrefix(arg, "-") && arg != "-":
 			return parsedArgs{}, fmt.Errorf("unknown flag %q", flagName(arg))
 		default:
-			if parsed.command != "" {
-				return parsedArgs{}, fmt.Errorf("unexpected argument %q", arg)
+			if parsed.command == "" {
+				parsed.command = arg
+			} else {
+				parsed.operands = append(parsed.operands, arg)
 			}
-			parsed.command = arg
 		}
 	}
 	if parsed.fileSet && parsed.command != "run" && !parsed.help {
-		return parsedArgs{}, fmt.Errorf("-f is only valid with agenova run")
+		return parsed, fmt.Errorf("-f is only valid with agenova run")
 	}
-	if parsed.json && parsed.command != "run" && !parsed.help {
-		return parsedArgs{}, fmt.Errorf("--json is only valid with agenova run")
+	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && !parsed.help {
+		return parsed, fmt.Errorf("--json is only valid with agenova run or agenova adapters")
+	}
+	if parsed.stateSet && parsed.command != "adapters" && !parsed.help {
+		return parsed, fmt.Errorf("--state-dir is only valid with agenova adapters")
+	}
+	if parsed.nameSet && parsed.command != "adapters" && !parsed.help {
+		return parsed, fmt.Errorf("--name is only valid with agenova adapters init")
+	}
+	if parsed.backendSet && parsed.command == "adapters" && !parsed.help {
+		return parsed, fmt.Errorf("--backend is not valid with agenova adapters")
+	}
+	if parsed.command != "adapters" && len(parsed.operands) > 0 && !parsed.help {
+		return parsed, fmt.Errorf("unexpected argument %q", parsed.operands[0])
 	}
 	return parsed, nil
 }
@@ -280,6 +497,24 @@ func setBackend(parsed *parsedArgs, value string) error {
 	}
 	parsed.backend = value
 	parsed.backendSet = true
+	return nil
+}
+
+func setStateDir(parsed *parsedArgs, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("flag --state-dir requires a value")
+	}
+	parsed.stateDir = value
+	parsed.stateSet = true
+	return nil
+}
+
+func setName(parsed *parsedArgs, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("flag --name requires a value")
+	}
+	parsed.name = value
+	parsed.nameSet = true
 	return nil
 }
 

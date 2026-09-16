@@ -1,6 +1,6 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-09-15
+Updated: 2026-09-16
 
 This file is the evidence-backed snapshot of what the merged repository currently proves. Product vision is not implementation status, and this file does not track ticket owners, readiness, sequence, or work-in-progress; those remain in GitHub Issues and the Delivery Project.
 
@@ -39,6 +39,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - Static check preventing known Agent Sandbox types from leaking outside its adapter package.
 - Backend-neutral `agenova` composition root: `--help`, `version`, and `run -f` work; invalid command/configuration (including a missing `--backend` value) exits non-zero; the process hosts the in-memory reference backend and accepts test doubles. Command behavior and shared contracts stay provider-neutral; the composition edge may import a concrete adapter constructor.
 - `agenova run -f` submits the canonical payment-timeout ClaimRequest through admission, authority resolution, issuance, and `RunService`. Team A reaches a terminal reference-backend outcome; Team B and invalid inputs stop before allocation. Authority flags are rejected.
+- The bundled adapter catalog explicitly registers Kubernetes deployment, Agent Sandbox runtime, and OpenAI-compatible model implementations by qualified ID/version, protocol, capability, schema, descriptor, and capability-owned factory. `agenova adapters catalog|list|inspect|install|init` shares one programmatic lifecycle with Platform resolution; identical activation is idempotent and initialization emits secret-free Platform fragments.
 
 ## Backend Spike
 
@@ -57,7 +58,7 @@ It is not production-ready. Allocation/release correlation is process-local, poo
 - No verified deny-by-default network path.
 - No Memory Interface implementation.
 - No OpenTelemetry integration.
-- No CRD generation, Helm chart, release image, or install flow.
+- No CRD generation, Helm chart, release image, or Platform apply/install flow. Adapter catalog and local activation state exist, but do not reconcile infrastructure.
 - No read-only evidence API or live React claim console. A fixture-backed React storyboard renders request intent, Allow/Running, pre-claim Deny and missing/unknown source diagnostics; contract, component and browser checks run in the shared baseline.
 
 ## Next Delivery Slice

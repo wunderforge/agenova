@@ -120,6 +120,37 @@ func TestRunSubmissionPrintsSharedEvidenceJSON(t *testing.T) {
 	}
 }
 
+func TestAdapterLifecycleSmoke(t *testing.T) {
+	bin := buildCLI(t)
+	state := t.TempDir()
+	reference := "agenova.io/runtime/agent-sandbox@0.1.0"
+
+	catalog := runCLI(t, bin, 0, "adapters", "catalog", "--json", "--state-dir", state)
+	if !strings.Contains(catalog, `"id":"agenova.io/deployment/kubernetes"`) || !strings.Contains(catalog, `"id":"agenova.io/model/openai-compatible"`) {
+		t.Fatalf("catalog output: %s", catalog)
+	}
+	first := runCLI(t, bin, 0, "adapters", "install", reference, "--json", "--state-dir", state)
+	if !strings.Contains(first, `"changed":true`) {
+		t.Fatalf("first install output: %s", first)
+	}
+	second := runCLI(t, bin, 0, "adapters", "install", reference, "--json", "--state-dir", state)
+	if !strings.Contains(second, `"changed":false`) {
+		t.Fatalf("idempotent install output: %s", second)
+	}
+	list := runCLI(t, bin, 0, "adapters", "list", "--json", "--state-dir", state)
+	if strings.Count(list, "agent-sandbox") != 1 {
+		t.Fatalf("list output: %s", list)
+	}
+	fragment := runCLI(t, bin, 0, "adapters", "init", reference, "--name", "primary-runtime", "--state-dir", state)
+	if !strings.Contains(fragment, "runtimeBackends:") || !strings.Contains(fragment, "mode: in-cluster") || strings.Contains(fragment, "credential") {
+		t.Fatalf("init output: %s", fragment)
+	}
+	unknown := runCLI(t, bin, 2, "adapters", "inspect", "agenova.io/runtime/missing@0.1.0", "--state-dir", state)
+	if !strings.Contains(unknown, "is not available") {
+		t.Fatalf("unknown adapter output: %s", unknown)
+	}
+}
+
 func buildCLI(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
