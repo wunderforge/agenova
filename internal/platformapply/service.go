@@ -119,6 +119,12 @@ func (s Service) Plan(ctx context.Context, resolved *platform.ResolvedPlatform, 
 	}
 	changes = append(changes, targetChanges...)
 	statuses = append(statuses, targetStatus...)
+	if changes == nil {
+		changes = []Change{}
+	}
+	if statuses == nil {
+		statuses = []ComponentStatus{}
+	}
 	sortPlan(changes, statuses)
 	return Plan{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: target, Changes: changes, Components: statuses}, nil
 }

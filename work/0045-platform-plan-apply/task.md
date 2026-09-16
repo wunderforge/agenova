@@ -51,11 +51,11 @@ Out of scope:
 
 - [x] Scout implementation, contracts, risks, and dependencies.
 - [x] Confirm scope with the Owner through the explicit instruction to continue #45 without another approval pause.
-- [ ] Expose capability construction through the shared lifecycle.
-- [ ] Implement pure validate/plan and target-neutral orchestration tests.
-- [ ] Implement Kubernetes reference reconciliation and internal Ready/status surface.
-- [ ] Add CLI commands, confirmation, and stable human/JSON output.
-- [ ] Add fake-target failures and real kind first/second apply plus denied-RBAC evidence.
+- [x] Expose capability construction through the shared lifecycle.
+- [x] Implement pure validate/plan and target-neutral orchestration tests.
+- [x] Implement Kubernetes reference reconciliation and internal Ready/status surface.
+- [x] Add CLI commands, confirmation, and stable human/JSON output.
+- [x] Add fake-target failures and real kind first/second apply plus denied-RBAC evidence.
 - [ ] Run focused gates and `.\scripts\check.ps1 -All`.
 - [ ] Review the diff and record exact evidence in PR and Ticket.
 
@@ -81,4 +81,5 @@ Out of scope:
 
 - Decision: implement the minimum reference packaging as one internal health/status binary, Deployment, Service, desired-state record, and initial policy record. This satisfies the approved install outcome without claiming a production control plane.
 - Decision: runtime and model adapters are validated/activated independently; this ticket does not deploy their external prerequisites.
+- Evidence: `docs/evidence/45/platform-apply-kind.md` records Ready first apply, zero-change second apply, stable resource count, internal status, and denied-RBAC behavior.
 - Blocker: #151 must merge before this stacked branch is rebased and published.

@@ -4,3 +4,8 @@ ui/node_modules
 ui/test-results
 ui/playwright-report
 docs/evidence
+.env
+.env.*
+secrets
+**/*.pem
+**/*.key

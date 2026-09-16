@@ -58,7 +58,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
-	if _, err := k.run(ctx, nil, "--context", contextName, "cluster-info"); err != nil {
+	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); err != nil {
 		return target, nil, nil, fmt.Errorf("selected Kubernetes context %q is unavailable", contextName)
 	}
 
@@ -136,19 +136,66 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 }
 
 func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string) error {
-	checks := [][]string{
-		{"create", "namespaces"}, {"get", "configmaps", "--namespace", namespace}, {"create", "configmaps", "--namespace", namespace}, {"patch", "configmaps", "--namespace", namespace},
-		{"get", "deployments.apps", "--namespace", namespace}, {"create", "deployments.apps", "--namespace", namespace}, {"patch", "deployments.apps", "--namespace", namespace},
-		{"get", "services", "--namespace", namespace}, {"create", "services", "--namespace", namespace}, {"patch", "services", "--namespace", namespace},
+	targets := []struct {
+		resource  string
+		name      string
+		namespace string
+	}{
+		{resource: "namespaces", name: namespace},
+		{resource: "configmaps", name: platformRecord, namespace: namespace},
+		{resource: "configmaps", name: policyRecord, namespace: namespace},
+		{resource: "deployments.apps", name: controlPlaneName, namespace: namespace},
+		{resource: "services", name: controlPlaneName, namespace: namespace},
 	}
-	for _, check := range checks {
-		args := append([]string{"--context", contextName, "auth", "can-i"}, check...)
-		result, err := k.run(ctx, nil, args...)
-		if err != nil || strings.TrimSpace(result.stdout) != "yes" {
-			return fmt.Errorf("current Kubernetes identity lacks required RBAC: %s", strings.Join(check, " "))
+	for _, target := range targets {
+		if err := k.requireRBAC(ctx, contextName, "get", target.resource, target.namespace); err != nil {
+			return err
+		}
+		exists, err := k.resourceExists(ctx, contextName, target.resource, target.name, target.namespace)
+		if err != nil {
+			return err
+		}
+		action := "create"
+		if exists {
+			action = "patch"
+		}
+		if err := k.requireRBAC(ctx, contextName, action, target.resource, target.namespace); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (k *KubernetesDeployment) requireRBAC(ctx context.Context, contextName, action, resource, namespace string) error {
+	args := []string{"--context", contextName, "auth", "can-i", action, resource}
+	if namespace != "" {
+		args = append(args, "--namespace", namespace)
+	}
+	result, err := k.run(ctx, nil, args...)
+	if err != nil || strings.TrimSpace(result.stdout) != "yes" {
+		detail := action + " " + resource
+		if namespace != "" {
+			detail += " --namespace " + namespace
+		}
+		return fmt.Errorf("current Kubernetes identity lacks required RBAC: %s", detail)
+	}
+	return nil
+}
+
+func (k *KubernetesDeployment) resourceExists(ctx context.Context, contextName, resource, name, namespace string) (bool, error) {
+	args := []string{"--context", contextName}
+	if namespace != "" {
+		args = append(args, "--namespace", namespace)
+	}
+	args = append(args, "get", resource, name, "-o", "name")
+	_, err := k.run(ctx, nil, args...)
+	if isNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect Kubernetes %s/%s before apply: %w", resource, name, err)
+	}
+	return true, nil
 }
 
 func (k *KubernetesDeployment) getJSON(ctx context.Context, contextName, namespace, kind, name string) (map[string]any, error) {

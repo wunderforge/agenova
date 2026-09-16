@@ -31,7 +31,7 @@ func (f *fakeKubectl) Run(_ context.Context, input []byte, args ...string) (comm
 
 func TestKubernetesPlanIsReadOnlyAndReportsMissingTarget(t *testing.T) {
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
-		if contains(args, "cluster-info") {
+		if contains(args, "version") {
 			return commandResult{stdout: "ok"}, nil
 		}
 		return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")

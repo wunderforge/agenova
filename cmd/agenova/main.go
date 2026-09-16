@@ -16,6 +16,8 @@ func main() {
 		NewRuntime:  app.NewRuntime,
 		Run:         submitClaimRequest,
 		NewAdapters: app.NewAdapterLifecycle,
+		NewPlatform: app.NewPlatformService,
+		Input:       os.Stdin,
 	}))
 }
 
