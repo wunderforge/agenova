@@ -30,7 +30,7 @@ In scope:
 - Add the canonical `agenova.io/v1alpha1` `Platform` envelope, parser and fail-closed validation.
 - Separate versioned adapter requirements from named deployment, runtime and implemented-service instances.
 - Freeze explicit references for deployment, RuntimeBackend instances plus profile-to-backend mappings, downstream ModelBackend instances plus profile-to-backend mappings, and the initial Policy seed.
-- Define an inspectable, secret-free resolved lock and a deterministic plan projection used as contract evidence; actual reconciliation remains #45.
+- Define an internal, secret-free actionable resolved form plus an inspectable digest-only lock and deterministic plan projection; actual reconciliation remains #45.
 - Add valid and invalid YAML/JSON fixtures plus reference-integrity and adapter-owned validation test doubles.
 
 Out of scope:
@@ -44,7 +44,7 @@ Out of scope:
 - Runtime/model profile mappings reference configured instances but do not grant authority.
 - Every resolved model path is `worker -> mandatory Agenova Model Gateway -> granted Model Profile -> ModelBackend`; a backend such as Ollama, OpenAI, Bedrock or LiteLLM never replaces the Gateway.
 - The Gateway owns verified claim context, effective-profile enforcement, Allow/Deny/ApprovalRequired decision, invocation correlation and `ModelInvocation` evidence. Denied calls make zero backend calls and workers receive no direct backend endpoint or credential.
-- A pure validation/resolution path produces a stable, secret-free lock and plan projection without mutating a target.
+- A pure validation/resolution path produces a secret-free canonical resolved form for #45 plus a stable inspectable lock/plan projection without mutating a target.
 - Unknown/duplicate references, version or capability mismatch, unsupported service kind, malformed adapter config, profile conflict and secret-bearing config return no resolved lock; the #44 resolver exposes no target-mutation dependency.
 
 ## Negative Case
@@ -69,7 +69,7 @@ Out of scope:
 
 ## Evidence Required
 
-- Canonical YAML and equivalent JSON parse to one Platform value and stable revision digest.
+- Canonical YAML and equivalent JSON parse to one Platform value, one actionable secret-free resolved form and one stable revision digest.
 - Table-driven negative fixtures prove all named validation failures return no partial lock; package/interface checks prove the resolver has no target-mutation dependency. #45 owns target mutation spies.
 - Deterministic plan fixture shows deployment, runtime and model instances remain independently selected and produces a secret-free lock.
 - Exact focused/full commands and output recorded in the PR and ticket.

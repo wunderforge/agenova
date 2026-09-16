@@ -57,9 +57,9 @@ spec:
       - name: local-ollama
         adapterRef: openai-compatible-backend
         config:
-          endpoint: http://127.0.0.1:11434/v1
+          endpoint: https://ollama.agenova-models.svc.cluster.local/v1
     modelProfiles:
-      - name: coding-standard
+      - name: approved-coding-model
         backendRef: local-ollama
         config:
           model: llama3.1:latest
@@ -76,12 +76,12 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 2. `metadata.name`, every adapter requirement name, adapter ID/version, instance name and referenced profile are non-empty, bounded and normalized by contract validation.
 3. Adapter requirement names are unique. Instance names are unique within their category. Runtime/model profile names are unique and each profile explicitly references one named backend instance.
 4. Every `adapterRef` resolves to one declared requirement whose descriptor advertises the required capability: deployment, runtime or model.
-5. Exactly one deployment instance, at least one RuntimeBackend instance and one initial Policy reference are required. ModelBackends may be absent for validation-only installations, but a referenced model profile must resolve before work can be admitted.
+5. Exactly one deployment instance, at least one RuntimeBackend instance, at least one runtime profile mapping and one initial Policy reference are required. ModelBackends may be absent for validation-only installations, but a referenced model profile must resolve before work can be admitted.
 6. Selecting deployment never selects or configures runtime/model instances implicitly. `runtimeProfiles[].backendRef` and `modelProfiles[].backendRef` are the only profile-to-instance mappings.
 7. Generic validation performs envelope, reference, supported-category and secret-field checks, then invokes adapter-owned side-effect-free validation/canonicalization. #44 has no target-mutation dependency.
 8. Reserved credential fields and inline credential-bearing values recognized by the generic boundary or adapter schema are rejected. An adapter may define non-secret credential references, but neither the lock nor diagnostics expose resolved credentials.
 9. The initial Policy is a reference only. #46 owns its seed/verification semantics and the operator's existing identity/RBAC authorizes installation.
-10. Adapter validation returns a secret-free canonical config digest after applying adapter defaults. The resolved projection and Platform revision are deterministic for semantically equivalent input and contain exact adapter identities/versions/capabilities, named instance/profile paths and canonical config digests—never raw config or secrets.
+10. Adapter validation returns secret-free canonical config after applying adapter defaults. Internal `ResolvedPlatform` retains that actionable canonical config for #45; the public/inspectable lock retains only exact identities, instance/profile paths and canonical digests. Both revision and lock are deterministic for semantically equivalent input and never contain resolved credentials.
 11. Platform/profile availability never grants an agent permission. AgentTemplate ceilings, policy and ClaimRequest resolution remain authoritative.
 12. Unsupported service categories fail explicitly. Tool, Memory and Observability remain absent until #150 defines and delivers their boundaries.
 13. All governed model calls use the installed lightweight Agenova Model Gateway. The Gateway verifies trusted claim context and effective Model Profile, records the decision and one correlated `ModelInvocation`, and only then calls the resolved ModelBackend.
@@ -100,6 +100,7 @@ Names are installation-local references. Adapter IDs are explicit qualified iden
 
 - `ClaimRequest`, `AgentTemplate`, `SandboxClaim`, `RuntimeBackend`, authority resolution and evidence contracts remain unchanged.
 - Existing kind/Ollama demo configuration becomes a future Platform fixture; #44 does not replace current startup paths.
+- The canonical Kubernetes example uses an in-cluster HTTPS ModelBackend endpoint. A concrete reference fixture must prove the selected endpoint is reachable from the deployed control plane; loopback host configuration cannot be copied into a pod deployment.
 - #151 may extend resolution sources without changing explicit adapter references; #45 consumes this contract to reconcile targets.
 - Existing `internal/modelgateway` remains the no-fee reference enforcement/evidence path. #44 configures its downstream ModelBackend; it does not make the core Gateway swappable.
 
