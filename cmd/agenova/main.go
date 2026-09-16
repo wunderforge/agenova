@@ -12,7 +12,11 @@ import (
 )
 
 func main() {
-	os.Exit(cli.Main(os.Args, os.Stdout, os.Stderr, app.NewRuntime, submitClaimRequest))
+	os.Exit(cli.MainWithServices(os.Args, os.Stdout, os.Stderr, cli.Services{
+		NewRuntime:  app.NewRuntime,
+		Run:         submitClaimRequest,
+		NewAdapters: app.NewAdapterLifecycle,
+	}))
 }
 
 func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunReport, error) {
