@@ -62,8 +62,12 @@ func (l *Lifecycle) Inspect(reference string) (InspectResult, error) {
 		return InspectResult{}, err
 	}
 	installed := false
+	expected := installedFromManifest(registration.Manifest)
 	for _, item := range lock.Adapters {
 		if item.ID == registration.Manifest.ID && item.Version == registration.Manifest.Version {
+			if !equalInstalled(item, expected) {
+				return InspectResult{}, fmt.Errorf("installed adapter %s@%s does not match the bundled manifest", item.ID, item.Version)
+			}
 			installed = true
 			break
 		}

@@ -189,6 +189,9 @@ func cloneJSONValue(value reflect.Value) (any, error) {
 	}
 	switch value.Kind() {
 	case reflect.Map:
+		if value.IsNil() {
+			return nil, nil
+		}
 		if value.Type().Key().Kind() != reflect.String {
 			return nil, fmt.Errorf("object key is not a string")
 		}
@@ -202,7 +205,12 @@ func cloneJSONValue(value reflect.Value) (any, error) {
 			result[iterator.Key().String()] = cloned
 		}
 		return result, nil
-	case reflect.Slice, reflect.Array:
+	case reflect.Slice:
+		if value.IsNil() {
+			return nil, nil
+		}
+		fallthrough
+	case reflect.Array:
 		result := make([]any, value.Len())
 		for i := 0; i < value.Len(); i++ {
 			cloned, err := cloneJSONValue(value.Index(i))

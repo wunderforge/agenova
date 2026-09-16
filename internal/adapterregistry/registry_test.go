@@ -73,6 +73,7 @@ func TestRegistryRejectsInvalidRegistrationWithoutPartialRegistry(t *testing.T) 
 		}, "forbidden field"},
 		{"bad default", func(r *Registration) { r.Manifest.InstanceSchema.Fields[0].Default = true }, "does not match"},
 		{"factory nil", func(r *Registration) { r.Factories[platform.CapabilityDeployment] = nil }, "no factory"},
+		{"ID capability mismatch", func(r *Registration) { r.Manifest.ID = "example.com/runtime/valid"; r.Descriptor.ID = r.Manifest.ID }, "ID category"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -87,6 +88,17 @@ func TestRegistryRejectsInvalidRegistrationWithoutPartialRegistry(t *testing.T) 
 	registry, err := New(valid, valid)
 	if registry != nil || err == nil || !strings.Contains(err.Error(), "duplicate adapter") {
 		t.Fatalf("duplicate New() = %#v, %v", registry, err)
+	}
+}
+
+func TestCloneJSONPreservesTypedNilSliceAsNull(t *testing.T) {
+	var input []string
+	cloned, err := cloneJSON(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cloned != nil {
+		t.Fatalf("cloneJSON(typed nil slice) = %#v, want nil", cloned)
 	}
 }
 

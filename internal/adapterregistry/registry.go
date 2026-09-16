@@ -148,6 +148,13 @@ func validateRegistration(input Registration) (Registration, error) {
 			return Registration{}, fmt.Errorf("adapter %s@%s has no factory for %q", manifest.ID, manifest.Version, capability)
 		}
 	}
+	category, categoryErr := identityCapability(manifest.ID)
+	if categoryErr != nil {
+		return Registration{}, categoryErr
+	}
+	if !containsCapability(manifest.Capabilities, category) {
+		return Registration{}, fmt.Errorf("adapter ID category %q is not among advertised capabilities", category)
+	}
 	if len(input.Factories) != len(manifest.Capabilities) {
 		return Registration{}, fmt.Errorf("adapter %s@%s has factories outside its advertised capabilities", manifest.ID, manifest.Version)
 	}
@@ -278,6 +285,18 @@ func validateIdentity(id, version string) error {
 		return fmt.Errorf("adapter version exceeds 64 characters")
 	}
 	return nil
+}
+
+func identityCapability(id string) (platform.Capability, error) {
+	parts := strings.Split(id, "/")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("invalid qualified adapter ID %q", id)
+	}
+	capability := platform.Capability(parts[1])
+	if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+		return "", fmt.Errorf("adapter ID category %q is not supported", parts[1])
+	}
+	return capability, nil
 }
 
 func isNilImplementation(value any) bool {

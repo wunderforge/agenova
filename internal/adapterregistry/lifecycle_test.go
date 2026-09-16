@@ -117,6 +117,21 @@ func TestLifecycleConstructUsesRegisteredCapabilityFactory(t *testing.T) {
 	}
 }
 
+func TestInspectRejectsLockEntryThatDoesNotMatchCatalog(t *testing.T) {
+	registration := testRegistration("example.com/deployment/reference", "1.0.0")
+	registry, err := New(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrupt := installedFromManifest(registration.Manifest)
+	corrupt.Capabilities = []platform.Capability{platform.CapabilityRuntime}
+	store := &MemoryStore{lock: InstallationLock{APIVersion: LockAPIVersion, Kind: LockKind, Adapters: []InstalledAdapter{corrupt}}}
+	lifecycle, _ := NewLifecycle(registry, store)
+	if result, err := lifecycle.Inspect(registration.Manifest.ID + "@" + registration.Manifest.Version); err == nil || !strings.Contains(err.Error(), "does not match") || !reflect.DeepEqual(result, InspectResult{}) {
+		t.Fatalf("Inspect() = %#v, %v", result, err)
+	}
+}
+
 func TestInitRejectsGeneratedNamesBeyondPlatformLimit(t *testing.T) {
 	registration := runtimeTestRegistration("example.com/runtime/names", "1.0.0")
 	registry, err := New(registration)
