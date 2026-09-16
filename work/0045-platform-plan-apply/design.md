@@ -11,7 +11,7 @@ The v1alpha1 Platform parser/resolver and bundled adapter lifecycle exist. They 
 
 Add a small `platformapply.Service` that owns parse, resolve, activation, planning, confirmation-independent apply orchestration, and safe status. It receives an adapter lifecycle plus a capability constructor; it does not branch on adapter IDs. A narrow `DeploymentAdapter` constructed by the registry owns target preflight, plan, apply, and readiness.
 
-The Kubernetes deployment implementation uses fixed-argument `kubectl` process execution (no shell), adapter-owned context/namespace, server-side declarative apply, and fixed Agenova resource names. It reconciles:
+The Kubernetes deployment implementation uses fixed-argument `kubectl` process execution (no shell), adapter-owned context/namespace, declarative `kubectl apply`, and fixed Agenova resource names. It reconciles:
 
 1. namespace;
 2. Platform revision/adapter-lock ConfigMap;

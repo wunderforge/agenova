@@ -24,7 +24,7 @@ In scope:
 - `platform validate`, `platform plan`, and `platform apply -f` with stable human and JSON output.
 - Automatic activation of exact adapter requirements through #151's lifecycle.
 - A narrow deployment-adapter interface and Kubernetes reference implementation using the caller's current credentials and adapter-owned context/namespace config.
-- Namespace, immutable desired-state/policy records, one minimal internal reference control-plane Deployment and ClusterIP Service.
+- Namespace, revisioned desired-state/policy records, one minimal internal reference control-plane Deployment and ClusterIP Service.
 - Recorded Platform revision, adapter lock, per-component configured/available/used/failed status, confirmation unless `--yes`, and idempotent second apply.
 - Focused fake-target tests plus real kind first/second apply and denied-RBAC evidence.
 
