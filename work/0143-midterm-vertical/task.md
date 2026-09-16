@@ -45,6 +45,11 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] PR #148 independent review follow-up: no effective read-tool/resource
+  scope selects finish-only output on the first turn; missing synthetic artifacts
+  retain a static, invocation-correlated failure reason. Service regressions cover
+  both no-tool variants, zero tool calls, and exact failure attribution.
+
 - [x] Owner follow-up (16 Sep): locate the waiting lamp on each active call,
   remove call-label underlines, and investigate the real failed ReAct run.
   Separate pure evidence projections and connection lifecycle from rendering.

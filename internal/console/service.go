@@ -264,7 +264,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if turn == workerprotocol.MaxTurns || len(readFiles) == 3 {
+			if scope == "" || turn == workerprotocol.MaxTurns || len(readFiles) == 3 {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})

@@ -39,9 +39,11 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 	}
 	reply := workerprotocol.Reply{Allowed: true, Text: artifacts[req.Parameters["file"]]}
 	status := "Succeeded"
+	code, reason := "mock-tool", ""
 	if reply.Text == "" {
 		status = "Failed"
 		reply.Error = "mock artifact not found; choose README.md, logs/timeout.log or src/retry.txt"
+		code, reason = "mock-artifact-not-found", reply.Error
 	}
 	if a.ctx.Err() != nil {
 		return a.ctx.Err()
@@ -49,7 +51,7 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 	if err := app.RequireRunningClaim(a.service.runner, a.claimID); err != nil {
 		return err
 	}
-	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "mock-tool", ProviderStatus: status}); err != nil {
+	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: code, Reason: reason, ProviderStatus: status}); err != nil {
 		return err
 	}
 	a.results[id] = reply
