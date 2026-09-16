@@ -52,6 +52,17 @@ test('new example request stays pending with no invented grant or worker', async
   await expect(page.getByRole('heading', { name: 'Granted' })).toBeVisible();
 });
 
+test('named demo work keeps full instructions behind a disclosure',async({page})=>{
+ await page.goto('/#/work/new');
+ await page.getByLabel('Work name (optional)').fill('Checkout tests');
+ const objective='Improve checkout tests. Cover the edge cases and explain the changes.';
+ await page.getByLabel('What should it do?').fill(objective);
+ await page.getByLabel('Repository').fill('acme/checkout');
+ await page.getByRole('button',{name:'Create example request'}).click();
+ await expect(page.getByRole('heading',{name:'Checkout tests',exact:true})).toBeVisible();
+ await page.getByText('Task instructions',{exact:true}).click();
+ await expect(page.locator('.portal-task-instructions pre')).toHaveText(objective);
+});
 test('research work uses a topic, not a repository field', async ({ page }) => {
   await page.goto('/#/work/new?agent=researcher');
   await expect(page.getByLabel('Topic')).toBeVisible();

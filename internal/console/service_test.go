@@ -188,10 +188,19 @@ func TestVerticalServiceSameClaimResultNarrowingAndFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err = s.Submit(verticalRequest(t, "test-one")); err != nil {
+	var namedRequest v0.ClaimRequest
+	if err := json.Unmarshal(verticalRequest(t, "test-one"), &namedRequest); err != nil {
+		t.Fatal(err)
+	}
+	namedRequest.Spec.Task.Input["workName"] = "Retry investigation"
+	namedBody, _ := json.Marshal(namedRequest)
+	if _, err = s.Submit(namedBody); err != nil {
 		t.Fatal(err)
 	}
 	v := awaitVertical(t, s, "test-one")
+	if v.Request.Spec.Task.Input["workName"] != "Retry investigation" {
+		t.Fatal("work name lost from canonical request evidence")
+	}
 	if v.State.Claim.Phase != v0.ClaimPhaseSucceeded || v.Outcome.Text != "Answer: Explain bounded retry" || v.Outcome.Model == nil || p.calls.Load() != 1 {
 		t.Fatalf("result: %+v", v)
 	}

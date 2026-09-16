@@ -28,6 +28,52 @@ const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
+test('work name is separate from full instructions and identity', async({page},info)=>{
+ let current=work();
+ const objective='Investigate payment retries. Read the artifacts, identify the cause, and recommend a specific fix.';
+ let submitted:ClaimRequest|undefined;
+ await api(page,()=>[current],request=>{
+   submitted=request;
+   current={...current,request,requestRef:request.metadata.name};
+ });
+ await page.goto('/?mode=connected#/work/new');
+ await page.getByLabel('Work name (optional)').fill('Payment retry investigation');
+ await page.getByLabel('What should it do?').fill(objective);
+ await page.getByRole('button',{name:'Start work',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Payment retry investigation',exact:true})).toBeVisible();
+ expect(submitted?.spec.task?.input?.objective).toBe(objective);
+ expect(submitted?.spec.task?.input?.workName).toBe('Payment retry investigation');
+ expect(submitted?.metadata.name).toMatch(/^work-[a-f0-9-]+$/);
+ const instructions=page.locator('.portal-task-instructions');
+ await expect(instructions).not.toHaveAttribute('open');
+ await instructions.getByText('Task instructions',{exact:true}).click();
+ await expect(instructions.locator('pre')).toHaveText(objective);
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+ await page.getByText('Execution details',{exact:true}).click();
+ await page.getByRole('button',{name:'Copy request ID',exact:true}).click();
+ await expect(page.locator('.portal-copy-reference')).toContainText('Copied');
+ expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(current.requestRef);
+ await page.goto('/?mode=connected#/work');
+ await expect(page.locator('.portal-work-title')).toHaveText('Payment retry investigation');
+ await page.getByLabel('Search work').fill('recommend a specific fix');
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ await page.screenshot({path:info.outputPath('named-work-list.png'),fullPage:true});
+});
+test('legacy task title uses its first sentence but retains complete instructions',async({page},info)=>{
+ const current=work();
+ const first='Investigate why synthetic payment retries exceed the deadline.';
+ const objective=first+' Read the available artifacts, identify the cause, and recommend a specific fix.';
+ current.request.spec.task!.input!.objective=objective;
+ await api(page,()=>[current]);
+ await page.goto('/?mode=connected#/work');
+ await expect(page.locator('.portal-work-title')).toHaveText(first);
+ await expect(page.locator('.portal-work-title')).toHaveCSS('-webkit-line-clamp','2');
+ await page.screenshot({path:info.outputPath('legacy-short-work-list.png'),fullPage:true});
+ await page.locator('.portal-work-title').click();
+ await expect(page.locator('.portal-head h1')).toHaveText(first);
+ await page.getByText('Task instructions',{exact:true}).click();
+ await expect(page.locator('.portal-task-instructions pre')).toHaveText(objective);
+});
 test('failed work shows a separate red outcome, reason and failed detail record without recoloring successful calls',async({page},info)=>{
  const current=work();
  current.state!.claim!.phase='Failed';

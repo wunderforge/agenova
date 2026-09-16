@@ -45,6 +45,15 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner-approved work names: optional compact name, full instructions in a
+  collapsed detail disclosure, legacy first-sentence fallback, two-line list titles,
+  search by instructions/ID and copyable request identity. Use existing task input;
+  do not change authority, worker objective, contracts or invoke an LLM for naming.
+  Full gate passed: 106 frontend unit tests and 47 browser tests, plus Go/contracts.
+  Read-only retained-session screenshots: `.tmp/work-names-list.png`,
+  `.tmp/work-names-detail.png`, `.tmp/work-names-form.png`. No backend restart,
+  live submission or inference; previous session evidence remains intact.
+
 - [x] Owner-requested failure visibility: mark failed lifecycle/outcome records in
   detail and activity views, expose a separate failed work outcome below successful
   calls, and record sanitized failure reasons without inventing missing historical

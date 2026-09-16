@@ -87,6 +87,10 @@ body:has(.portal-shell){background:#050914}
 .portal-button:not(:disabled):active{transform:translateY(1px)}
 @keyframes portal-worker-wait{0%,100%{opacity:1}50%{opacity:.35}}
 /* One reading path: compact status, result, turn history, then inspection. */
+.portal-table .portal-work-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;max-width:60ch}
+.portal-task-instructions{margin:0 0 24px;border-top:0}
+.portal-task-instructions pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;line-height:1.6}
+.portal-copy-reference{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12px}
 .portal-worker-current[data-negative=true]{color:var(--portal-danger)}
 .portal-worker-current[data-negative=true] .portal-worker-lamp{background:var(--portal-danger)}
 .portal-agent-failure{margin-top:16px;padding:16px 18px;border-left:3px solid var(--portal-danger);background:#ff8ca40c;border-radius:0 8px 8px 0}

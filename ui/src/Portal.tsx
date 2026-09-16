@@ -7,6 +7,8 @@ import { RunFlow } from './RunFlow';
 import { WorkerActivity, demoWorkerActions } from './WorkerActivity';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { usePortalMotion } from './portal-motion';
+import { displayWorkName, maxWorkName } from './work-name';
+import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import './portal.css';
 import './portal-motion.css';
 
@@ -44,11 +46,11 @@ function WorkList({ works }: { works: WorkItem[] }) {
   const [filter, setFilter] = useState<(typeof workFilters)[number]>('All');
   const [search, setSearch] = useState('');
   const shown = works.filter(work => (filter === 'All' || work.status === filter) &&
-    `${work.title} ${work.team} ${work.agent} ${work.context?.value ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+    `${work.title} ${work.instructions || ''} ${work.requestRef} ${work.team} ${work.agent} ${work.context?.value ?? ''}`.toLowerCase().includes(search.toLowerCase()));
   return <><Head title="Work" subtitle="Requests and agent runs you can inspect." action={<a className="portal-button primary" href={href('work/new')}>New work</a>}/>
     <div className="portal-toolbar"><div className="portal-filters" role="group" aria-label="Filter work">{workFilters.map(item => <button key={item} type="button" className={filter === item ? 'selected' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div>
       <input aria-label="Search work" placeholder="Search work" type="search" value={search} onChange={event => setSearch(event.target.value)}/></div>
-    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Task</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead><tbody>
+    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead><tbody>
       {shown.map(work => <tr key={work.id}><td><a className="portal-work-title" href={href(`work/${work.id}`)}>{work.title}</a><small>{work.team}{work.context && <> · {work.context.label}: {work.context.value}</>}</small></td>
         <td>{work.agent}</td><td>{work.updated}</td><td><Badge value={work.status}/></td></tr>)}
     </tbody></table>{!shown.length && <p className="portal-empty">No work matches this filter.</p>}</div>
@@ -63,6 +65,7 @@ function WorkDetail({ work }: { work: WorkItem }) {
   return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: 'Details' }]}/>
     <Head title={work.title} subtitle={`Submitted ${work.submitted}`} action={<Badge value={work.status}/>}/>
     <div className="portal-top-facts">{work.context && <Fact label={work.context.label} value={work.context.value}/>}<Fact label={work.branch ? 'Base branch' : 'Team'} value={work.branch || work.team}/><Fact label="Agent" value={work.agent}/><Fact label="Requested by" value={work.principal}/></div>
+    <TaskInstructions text={work.instructions || work.title}/>
     <WorkDetailLayout activityHref={href(`work/${work.id}/activity`)} status={<RunFlow summary={message[0] === 'Work completed' ? 'Task completed.' : message[1] || message[0]} activityHref={href(`work/${work.id}/activity`)} evidence={{
       status: work.status,
       received: work.events.some(event => event.kind === 'Request'),
@@ -80,6 +83,7 @@ function WorkDetail({ work }: { work: WorkItem }) {
       <ol className="portal-timeline">{work.events.filter(event => ['Request', 'Decision', 'Claim', 'Runtime'].includes(event.kind)).map(event =>
         <li key={event.id}><a href={href(`work/${work.id}/activity/${event.id}`)}>{event.title}</a><p>{event.description}</p></li>)}</ol>
       <div className="portal-fact-grid"><Fact label="Request ID" value={work.requestRef}/><Fact label="Claim ID" value={work.claimId}/><Fact label="Runtime backend" value={work.backend}/><Fact label="Worker ID" value={work.worker}/><Fact label="Policy version" value={work.policy}/><Fact label="Decision" value={work.decision}/></div>
+      <CopyRequestID value={work.requestRef}/>
     </>}/></>;
 }
 function FilterButtons<T extends string>({ values, selected, onSelect, label }: { values: readonly T[]; selected: T; onSelect: (value: T) => void; label: string }) {
@@ -175,7 +179,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
     const model = String(values.get('model') || '');
     const memory = String(values.get('memory') || '');
     const work: WorkItem = {
-      id, title: objective, status: 'Pending', agent: agentId, team: 'Team A', principal: demoIdentity.subject,
+      id, title: displayWorkName(values.get('workName'), objective, id), instructions: objective, status: 'Pending', agent: agentId, team: 'Team A', principal: demoIdentity.subject,
       context: { label: repositoryTask ? 'Repository' : 'Topic', value: contextValue }, branch: repositoryTask ? branch : undefined, submitted: 'Just now', updated: time, requestRef: id,
       decision: 'Pending', decisionReason: 'Authorization has not been evaluated.', requestedRuntime: `${runtime} · ${timeout} min`,
       requested: { resourceScopes: repositoryTask ? [`repo:${contextValue}`] : [], tools, model, memory: memory ? [memory] : [] },
@@ -186,6 +190,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
   }
   return <><Crumbs items={[{ label: 'Work', link: 'work' }, { label: 'New work' }]}/><Head title="New work"/>
     <form onSubmit={submit} className="portal-form"><div><section><h2>Task</h2><label>Agent<select name="agent" value={agentId} onChange={event => setAgentId(event.target.value)}>{agents.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
       <label>What should it do?<textarea name="objective" placeholder="For example: Fix the payment timeout bug"/><small>This becomes the task objective, not an access grant.</small></label>
       {repositoryTask ? <div className="portal-field-row"><label>Repository<input name="repository" placeholder="acme/payments"/></label><label>Base branch<input name="branch" defaultValue="main"/></label></div>
         : <label>Topic<input name="topic" placeholder="Customer authentication"/></label>}</section>

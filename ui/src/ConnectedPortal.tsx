@@ -6,6 +6,8 @@ import { connectedSource, isTerminal, workStatus, workTitle, type Setup, type Vi
 import { RunFlow } from './RunFlow';
 import { WorkerActivity, workerActions } from './WorkerActivity';
 import { WorkDetailLayout } from './WorkDetailLayout';
+import { TaskInstructions, CopyRequestID } from './TaskInstructions';
+import { maxWorkName } from './work-name';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -164,7 +166,7 @@ function WorkList({ works }: { works: View[] }) {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
-    `${workTitle(work)} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
+    `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
     <Heading title="Work" subtitle="Current-session requests and results."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
@@ -175,7 +177,7 @@ function WorkList({ works }: { works: View[] }) {
         onChange={event => setSearch(event.target.value)}/>
     </div>
     <div className="portal-table-wrap"><table className="portal-table">
-      <thead><tr><th>Task</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
+      <thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
       <tbody>{shown.map(work =>
         <tr key={work.requestRef}>
           <td><a className="portal-work-title" href={link(workLink(work))}>{workTitle(work)}</a>
@@ -212,6 +214,7 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
+    <TaskInstructions text={work.request.spec.task?.input?.objective}/>
     <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
@@ -262,6 +265,7 @@ function WorkDetail({ work }: { work: View }) {
         <Field label="Worker ID" value={state?.claim?.backendIdentity?.workerId}/>
         <Field label="Policy version" value={state ? `${state.policyRef.id} / ${state.policyRef.version}` : undefined}/>
       </div>
+      <CopyRequestID value={work.requestRef}/>
     </>}/>
   </>;
 }
@@ -394,6 +398,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const objective = String(form.get('objective') || '').trim();
+    const workName = String(form.get('workName') || '').trim();
     if (!objective) { setError('Describe the task.'); return; }
     const repository = String(form.get('repository') || '').trim();
     const scopes = (name: string) => String(form.get(name) || '')
@@ -408,6 +413,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
           type: 'repository-change',
           input: {
             objective,
+            ...(workName ? { workName } : {}),
             ...(repository ? { repository, baseBranch: String(form.get('branch') || 'main') } : {}),
           },
         },
@@ -436,6 +442,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
           <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
             <option>{setup.template.metadata.name}</option>
           </select></label>
+          <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
           <label>What should it do?<textarea name="objective" required/></label>
           <div className="portal-field-row">
             <label>Repository<input name="repository" defaultValue="acme/payments"/></label>

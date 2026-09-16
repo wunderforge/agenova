@@ -23,3 +23,20 @@ The host server has a trusted principal and backend context; neither comes from 
 ## Release gates
 
 First prove deterministic facts/API/provider and memory paths; then controlled kind; then separately authorized real inference; finally browser submission-to-kind-result and denied-before-allocation. Do not weaken or skip a failed gate to claim the checkpoint. Capture representative renderings without changing the accepted information hierarchy.
+
+## Work names (owner-approved UI follow-up, 16 September)
+
+Separate optional Work name from full Task instructions. The local demo uses the
+existing extensible `spec.task.input.workName` string as display metadata; the
+unchanged worker composition still reads `objective` only. No new top-level
+contract field, identity, policy selector, backend behavior or LLM summarizer.
+Request metadata.name remains the unique request reference, not a display title.
+
+Both sources show compact names in lists/detail headings and disclose the complete
+instructions on demand. Legacy requests use the first sentence/line, capped at
+80 characters. Lists clamp to two lines. Search retains full objective and request
+ID matching; Execution details offers Copy request ID with explicit failure feedback.
+Demo stories remain independent from Connected evidence. Existing facts/requests are
+not rewritten. Validate canonical round-trip and unchanged provider objective,
+unit naming cases, submission/list/detail/browser-copy flows and read-only rendering
+of the retained session; no live submission/inference is needed for this change.
