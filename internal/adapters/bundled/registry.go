@@ -22,7 +22,7 @@ const (
 
 // These types are capability-owned construction results. #45 can define the
 // narrow operational interfaces it needs without a universal adapter API.
-type KubernetesDeployment struct{}
+type KubernetesDeployment struct{ runner kubectlRunner }
 type AgentSandboxRuntime struct{}
 type OpenAICompatibleModel struct{}
 
@@ -50,7 +50,7 @@ func kubernetesDeploymentRegistration() adapterregistry.Registration {
 			CanonicalizeInstance: canonicalizeKubernetesDeployment,
 		},
 		Factories: map[platform.Capability]adapterregistry.Factory{
-			platform.CapabilityDeployment: func() (any, error) { return &KubernetesDeployment{}, nil },
+			platform.CapabilityDeployment: func() (any, error) { return newKubernetesDeployment(nil), nil },
 		},
 	}
 }

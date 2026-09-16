@@ -11,6 +11,7 @@ import (
 
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
+	"github.com/wunderforge/agenova/internal/platformapply"
 )
 
 // NewAdapterLifecycle composes the bundled catalog with the selected local
@@ -34,4 +35,14 @@ func NewAdapterLifecycle(stateDirectory string) (*adapterregistry.Lifecycle, err
 		return nil, err
 	}
 	return adapterregistry.NewLifecycle(registry, store)
+}
+
+// NewPlatformService composes Platform orchestration over the exact same
+// registry and installation state used by the lower-level adapter commands.
+func NewPlatformService(stateDirectory string) (platformapply.Service, error) {
+	lifecycle, err := NewAdapterLifecycle(stateDirectory)
+	if err != nil {
+		return platformapply.Service{}, err
+	}
+	return platformapply.Service{Adapters: lifecycle}, nil
 }

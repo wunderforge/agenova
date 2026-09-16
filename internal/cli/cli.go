@@ -4,6 +4,8 @@
 package cli
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,7 @@ import (
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/platform"
+	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/runtime"
 	"gopkg.in/yaml.v3"
 )
@@ -35,10 +38,14 @@ type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, er
 
 type AdapterLifecycleFactory func(stateDirectory string) (*adapterregistry.Lifecycle, error)
 
+type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, error)
+
 type Services struct {
 	NewRuntime  RuntimeFactory
 	Run         RunHandler
 	NewAdapters AdapterLifecycleFactory
+	NewPlatform PlatformServiceFactory
+	Input       io.Reader
 }
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
@@ -62,6 +69,7 @@ Commands:
   version    Print version and the hosted runtime backend
   run        Submit one ClaimRequest file through application resolution
   adapters   Inspect and activate bundled adapter implementations
+  platform   Validate, plan, and apply one declarative Platform
 
 Flags:
   --backend string    Runtime backend to host (default "memory")
@@ -70,6 +78,7 @@ Flags:
   --version           Print version and the hosted runtime backend
   -f, --file string   ClaimRequest YAML for agenova run
   --json              Print JSON for run or adapter commands
+  --yes               Confirm platform apply non-interactively
 
 This composition root hosts the in-memory reference backend. Command behavior
 does not import Kubernetes or other provider types, and it does not accept
@@ -99,6 +108,15 @@ List is the exact set activated for the selected --state-dir installation.
 Init emits a reviewable Platform YAML fragment; it does not grant authority.
 `
 
+const platformHelpText = `Usage:
+  agenova platform validate -f <platform.yaml> [--json]
+  agenova platform plan -f <platform.yaml> [--json]
+  agenova platform apply -f <platform.yaml> [--yes] [--json]
+
+Validate and plan never mutate the selected target. Apply uses the context and
+namespace from the deployment adapter config and the caller's current identity.
+`
+
 type parsedArgs struct {
 	help       bool
 	version    bool
@@ -112,6 +130,7 @@ type parsedArgs struct {
 	stateSet   bool
 	name       string
 	nameSet    bool
+	yes        bool
 	operands   []string
 }
 
@@ -144,6 +163,10 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		fmt.Fprint(stdout, adaptersHelpText)
 		return 0
 	}
+	if parsed.help && parsed.command == "platform" {
+		fmt.Fprint(stdout, platformHelpText)
+		return 0
+	}
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
 		fmt.Fprint(stdout, helpText)
 		return 0
@@ -158,9 +181,112 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 	if parsed.command == "adapters" {
 		return printAdapters(stdout, stderr, parsed, services.NewAdapters)
 	}
+	if parsed.command == "platform" {
+		return printPlatform(stdout, stderr, parsed, services)
+	}
 
 	fmt.Fprintf(stderr, "unknown command %q\n", parsed.command)
 	fmt.Fprintln(stderr, "Run 'agenova --help' for usage.")
+	return ExitUsage
+}
+
+func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Services) int {
+	if services.NewPlatform == nil {
+		fmt.Fprintln(stderr, "platform service is not configured")
+		return 1
+	}
+	if len(parsed.operands) != 1 {
+		fmt.Fprint(stderr, platformHelpText)
+		return ExitUsage
+	}
+	if !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
+		return platformUsageError(stderr, "platform command requires -f <platform.yaml>")
+	}
+	subcommand := parsed.operands[0]
+	if parsed.yes && subcommand != "apply" {
+		return platformUsageError(stderr, "--yes is only valid with platform apply")
+	}
+	service, err := services.NewPlatform(parsed.stateDir)
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 1
+	}
+	ctx := context.Background()
+	switch subcommand {
+	case "validate":
+		resolved, _, err := service.ValidateFile(parsed.file)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		result := struct {
+			Valid        bool   `json:"valid"`
+			PlatformName string `json:"platformName"`
+			Revision     string `json:"revision"`
+		}{true, resolved.PlatformName, resolved.Revision}
+		if parsed.json {
+			return printJSON(stdout, stderr, result)
+		}
+		fmt.Fprintf(stdout, "valid: %s\nrevision: %s\n", resolved.PlatformName, resolved.Revision)
+		return 0
+	case "plan":
+		plan, err := service.PlanFile(ctx, parsed.file)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		return printPlatformPlan(stdout, stderr, plan, parsed.json)
+	case "apply":
+		plan, err := service.PlanFile(ctx, parsed.file)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		if plan.Changed() && !parsed.yes {
+			fmt.Fprintf(stderr, "Apply %d planned change(s) to %s? [y/N] ", len(plan.Changes), plan.Target)
+			input := services.Input
+			if input == nil {
+				input = strings.NewReader("")
+			}
+			answer, _ := bufio.NewReader(input).ReadString('\n')
+			answer = strings.ToLower(strings.TrimSpace(answer))
+			if answer != "y" && answer != "yes" {
+				fmt.Fprintln(stderr, "apply cancelled")
+				return 1
+			}
+		}
+		result, err := service.ApplyFile(ctx, parsed.file)
+		if err != nil {
+			if parsed.json {
+				_ = json.NewEncoder(stdout).Encode(result)
+			}
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, result)
+		}
+		fmt.Fprintf(stdout, "platform: %s\nrevision: %s\ntarget: %s\nchanged: %t\nready: %t\n", result.Plan.PlatformName, result.Plan.Revision, result.Plan.Target, result.Applied, result.Ready)
+		return 0
+	default:
+		return platformUsageError(stderr, fmt.Sprintf("unknown platform command %q", subcommand))
+	}
+}
+
+func printPlatformPlan(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool) int {
+	if jsonOutput {
+		return printJSON(stdout, stderr, plan)
+	}
+	fmt.Fprintf(stdout, "platform: %s\nrevision: %s\ntarget: %s\nchanges: %d\n", plan.PlatformName, plan.Revision, plan.Target, len(plan.Changes))
+	for _, change := range plan.Changes {
+		fmt.Fprintf(stdout, "- %s %s: %s\n", change.Action, change.Component, change.Detail)
+	}
+	return 0
+}
+
+func platformUsageError(stderr io.Writer, message string) int {
+	fmt.Fprintln(stderr, message)
+	fmt.Fprintln(stderr, "Run 'agenova platform --help' for usage.")
 	return ExitUsage
 }
 
@@ -399,6 +525,8 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			parsed.version = true
 		case arg == "--json":
 			parsed.json = true
+		case arg == "--yes":
+			parsed.yes = true
 		case arg == "--backend":
 			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("flag --backend requires a value")
@@ -461,22 +589,25 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			}
 		}
 	}
-	if parsed.fileSet && parsed.command != "run" && !parsed.help {
-		return parsed, fmt.Errorf("-f is only valid with agenova run")
+	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && !parsed.help {
+		return parsed, fmt.Errorf("-f is only valid with agenova run or agenova platform")
 	}
-	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && !parsed.help {
-		return parsed, fmt.Errorf("--json is only valid with agenova run or agenova adapters")
+	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && parsed.command != "platform" && !parsed.help {
+		return parsed, fmt.Errorf("--json is only valid with agenova run, agenova adapters, or agenova platform")
 	}
-	if parsed.stateSet && parsed.command != "adapters" && !parsed.help {
-		return parsed, fmt.Errorf("--state-dir is only valid with agenova adapters")
+	if parsed.stateSet && parsed.command != "adapters" && parsed.command != "platform" && !parsed.help {
+		return parsed, fmt.Errorf("--state-dir is only valid with agenova adapters or agenova platform")
 	}
 	if parsed.nameSet && parsed.command != "adapters" && !parsed.help {
 		return parsed, fmt.Errorf("--name is only valid with agenova adapters init")
 	}
-	if parsed.backendSet && parsed.command == "adapters" && !parsed.help {
-		return parsed, fmt.Errorf("--backend is not valid with agenova adapters")
+	if parsed.backendSet && (parsed.command == "adapters" || parsed.command == "platform") && !parsed.help {
+		return parsed, fmt.Errorf("--backend is not valid with agenova %s", parsed.command)
 	}
-	if parsed.command != "adapters" && len(parsed.operands) > 0 && !parsed.help {
+	if parsed.yes && parsed.command != "platform" && !parsed.help {
+		return parsed, fmt.Errorf("--yes is only valid with agenova platform apply")
+	}
+	if parsed.command != "adapters" && parsed.command != "platform" && len(parsed.operands) > 0 && !parsed.help {
 		return parsed, fmt.Errorf("unexpected argument %q", parsed.operands[0])
 	}
 	return parsed, nil
