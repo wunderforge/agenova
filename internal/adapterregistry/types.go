@@ -6,8 +6,8 @@
 package adapterregistry
 
 import (
-	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -174,15 +174,50 @@ func sortedCapabilities(values []platform.Capability) []platform.Capability {
 }
 
 func cloneJSON(value any) (any, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
+	return cloneJSONValue(reflect.ValueOf(value))
+}
+
+func cloneJSONValue(value reflect.Value) (any, error) {
+	if !value.IsValid() {
+		return nil, nil
 	}
-	var cloned any
-	if err := json.Unmarshal(data, &cloned); err != nil {
-		return nil, err
+	if value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return nil, nil
+		}
+		return cloneJSONValue(value.Elem())
 	}
-	return cloned, nil
+	switch value.Kind() {
+	case reflect.Map:
+		if value.Type().Key().Kind() != reflect.String {
+			return nil, fmt.Errorf("object key is not a string")
+		}
+		result := make(map[string]any, value.Len())
+		iterator := value.MapRange()
+		for iterator.Next() {
+			cloned, err := cloneJSONValue(iterator.Value())
+			if err != nil {
+				return nil, err
+			}
+			result[iterator.Key().String()] = cloned
+		}
+		return result, nil
+	case reflect.Slice, reflect.Array:
+		result := make([]any, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			cloned, err := cloneJSONValue(value.Index(i))
+			if err != nil {
+				return nil, err
+			}
+			result[i] = cloned
+		}
+		return result, nil
+	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		return value.Interface(), nil
+	default:
+		return nil, fmt.Errorf("unsupported JSON value kind %s", value.Kind())
+	}
 }
 
 func setPath(target map[string]any, path string, value any) error {

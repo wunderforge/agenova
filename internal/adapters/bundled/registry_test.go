@@ -110,6 +110,7 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		{KubernetesDeploymentID, platform.CapabilityDeployment, map[string]any{"context": "kind-agenova", "namespace": "agenova-system", "extra": true}, "unknown-field"},
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "host-context", "namespace": "workers"}}, "unsupported-connection-mode"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://user:secret@example.invalid/v1"}, "invalid-endpoint"},
+		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://models.example/v1?api_key=hidden"}, "invalid-endpoint"},
 	}
 	for _, test := range tests {
 		descriptor, ok := registry.Lookup(test.id, ReferenceVersion)

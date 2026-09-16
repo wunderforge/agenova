@@ -95,14 +95,17 @@ func (l *Lifecycle) Init(reference, localName string) (PlatformFragment, error) 
 	if localName == "" {
 		localName = path.Base(registration.Manifest.ID)
 	}
-	if !namePattern.MatchString(localName) {
+	capability := registration.Manifest.Capabilities[0]
+	if !validPlatformLocalName(localName) {
 		return PlatformFragment{}, fmt.Errorf("invalid local adapter name %q", localName)
+	}
+	if (capability == platform.CapabilityRuntime || capability == platform.CapabilityModel) && !validPlatformLocalName(localName+"-profile") {
+		return PlatformFragment{}, fmt.Errorf("generated profile name %q exceeds the Platform name limit", localName+"-profile")
 	}
 	instanceConfig, err := defaultsFromSchema(registration.Manifest.InstanceSchema)
 	if err != nil {
 		return PlatformFragment{}, fmt.Errorf("initialize instance config: %w", err)
 	}
-	capability := registration.Manifest.Capabilities[0]
 	canonicalInstance, err := registration.Descriptor.CanonicalizeInstance(capability, instanceConfig)
 	if err != nil {
 		return PlatformFragment{}, fmt.Errorf("initialize adapter config: adapter rejected defaults")
@@ -148,7 +151,11 @@ func initializedProfile(registration Registration, capability platform.Capabilit
 	if err != nil {
 		return v1alpha1.PlatformProfile{}, fmt.Errorf("initialize profile config: %w", err)
 	}
-	canonical, err := registration.Descriptor.CanonicalizeProfile(capability, instance.Config, profileConfig)
+	backendConfig, err := cloneConfigMap(instance.Config)
+	if err != nil {
+		return v1alpha1.PlatformProfile{}, fmt.Errorf("initialize profile config: clone backend config: %w", err)
+	}
+	canonical, err := registration.Descriptor.CanonicalizeProfile(capability, backendConfig, profileConfig)
 	if err != nil {
 		return v1alpha1.PlatformProfile{}, fmt.Errorf("initialize profile config: adapter rejected defaults")
 	}
@@ -156,6 +163,22 @@ func initializedProfile(registration Registration, capability platform.Capabilit
 		return v1alpha1.PlatformProfile{}, fmt.Errorf("initialize profile config: adapter emitted forbidden configuration")
 	}
 	return v1alpha1.PlatformProfile{Name: name, BackendRef: instance.Name, Config: canonical}, nil
+}
+
+func validPlatformLocalName(value string) bool {
+	return len(value) <= 63 && namePattern.MatchString(value)
+}
+
+func cloneConfigMap(input map[string]any) (map[string]any, error) {
+	cloned, err := cloneJSON(input)
+	if err != nil {
+		return nil, err
+	}
+	result, ok := cloned.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("configuration is not an object")
+	}
+	return result, nil
 }
 
 func defaultsFromSchema(schema ConfigSchema) (map[string]any, error) {

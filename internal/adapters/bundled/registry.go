@@ -171,7 +171,7 @@ func canonicalizeOpenAIInstance(_ platform.Capability, input map[string]any) (ma
 		return nil, err
 	}
 	parsed, parseErr := url.Parse(endpoint)
-	if parseErr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+	if parseErr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
 	}
 	return map[string]any{"endpoint": strings.TrimRight(endpoint, "/")}, nil

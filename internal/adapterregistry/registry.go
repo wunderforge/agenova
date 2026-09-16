@@ -5,6 +5,7 @@ package adapterregistry
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -110,7 +111,7 @@ func (r *Registry) Construct(id, version string, capability platform.Capability)
 	if err != nil {
 		return nil, fmt.Errorf("construct %s adapter %s@%s: factory failed", capability, id, version)
 	}
-	if implementation == nil {
+	if implementation == nil || isNilImplementation(implementation) {
 		return nil, fmt.Errorf("construct %s adapter %s@%s: factory returned no implementation", capability, id, version)
 	}
 	return implementation, nil
@@ -170,6 +171,8 @@ func validateRegistration(input Registration) (Registration, error) {
 		if err := validateSchema(manifest.ProfileSchema, "profileSchema"); err != nil {
 			return Registration{}, err
 		}
+	} else if len(manifest.ProfileSchema.Fields) != 0 {
+		return Registration{}, fmt.Errorf("adapter %s@%s cannot declare a profile schema without runtime or model capability", manifest.ID, manifest.Version)
 	}
 	factories := make(map[platform.Capability]Factory, len(input.Factories))
 	for capability, factory := range input.Factories {
@@ -265,10 +268,26 @@ func validateIdentity(id, version string) error {
 	if !idPattern.MatchString(id) {
 		return fmt.Errorf("invalid qualified adapter ID %q", id)
 	}
+	if len(id) > 256 {
+		return fmt.Errorf("qualified adapter ID exceeds 256 characters")
+	}
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid adapter version %q", version)
 	}
+	if len(version) > 64 {
+		return fmt.Errorf("adapter version exceeds 64 characters")
+	}
 	return nil
+}
+
+func isNilImplementation(value any) bool {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 func splitReference(reference string) (string, string) {

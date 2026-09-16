@@ -13,6 +13,7 @@ import (
 )
 
 type testDeployment struct{ version string }
+type typedNilDeployment struct{}
 
 func TestRegistryCatalogLookupAndCapabilityFactory(t *testing.T) {
 	second := testRegistration("example.com/deployment/second", "0.1.0")
@@ -113,7 +114,9 @@ func TestRegistryFactoryFailureAndNilAreActionable(t *testing.T) {
 	failing.Factories[platform.CapabilityDeployment] = func() (any, error) { return nil, errors.New("unavailable") }
 	nilResult := testRegistration("example.com/deployment/nil", "0.1.0")
 	nilResult.Factories[platform.CapabilityDeployment] = func() (any, error) { return nil, nil }
-	registry, err := New(failing, nilResult)
+	typedNil := testRegistration("example.com/deployment/typed-nil", "0.1.0")
+	typedNil.Factories[platform.CapabilityDeployment] = func() (any, error) { return (*typedNilDeployment)(nil), nil }
+	registry, err := New(failing, nilResult, typedNil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,6 +125,27 @@ func TestRegistryFactoryFailureAndNilAreActionable(t *testing.T) {
 	}
 	if _, err := registry.Construct(nilResult.Manifest.ID, nilResult.Manifest.Version, platform.CapabilityDeployment); err == nil || !strings.Contains(err.Error(), "no implementation") {
 		t.Fatalf("nil factory error = %v", err)
+	}
+	if _, err := registry.Construct(typedNil.Manifest.ID, typedNil.Manifest.Version, platform.CapabilityDeployment); err == nil || !strings.Contains(err.Error(), "no implementation") {
+		t.Fatalf("typed nil factory error = %v", err)
+	}
+}
+
+func TestRegistryRejectsUnusableProfileSchemaAndOversizedIdentity(t *testing.T) {
+	withProfile := testRegistration("example.com/deployment/profile", "0.1.0")
+	withProfile.Manifest.ProfileSchema.Fields = []Field{{Path: "apiKey", Kind: ValueString, Default: "forbidden"}}
+	if registry, err := New(withProfile); registry != nil || err == nil || !strings.Contains(err.Error(), "cannot declare a profile schema") {
+		t.Fatalf("deployment profile schema = %#v, %v", registry, err)
+	}
+	tooLongID := "example.com/deployment/" + strings.Repeat("a", 240)
+	oversized := testRegistration(tooLongID, "0.1.0")
+	if registry, err := New(oversized); registry != nil || err == nil || !strings.Contains(err.Error(), "256") {
+		t.Fatalf("oversized ID = %#v, %v", registry, err)
+	}
+	longVersion := "1.0.0-" + strings.Repeat("a", 60)
+	oversized = testRegistration("example.com/deployment/version", longVersion)
+	if registry, err := New(oversized); registry != nil || err == nil || !strings.Contains(err.Error(), "64") {
+		t.Fatalf("oversized version = %#v, %v", registry, err)
 	}
 }
 

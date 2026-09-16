@@ -116,3 +116,48 @@ func TestLifecycleConstructUsesRegisteredCapabilityFactory(t *testing.T) {
 		t.Fatalf("Construct() = %#v, want registered implementation %#v", got, implementation)
 	}
 }
+
+func TestInitRejectsGeneratedNamesBeyondPlatformLimit(t *testing.T) {
+	registration := runtimeTestRegistration("example.com/runtime/names", "1.0.0")
+	registry, err := New(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, _ := NewLifecycle(registry, NewMemoryStore())
+	name := strings.Repeat("a", 57)
+	if fragment, err := lifecycle.Init(registration.Manifest.ID, name); err == nil || !strings.Contains(err.Error(), "profile name") || !reflect.DeepEqual(fragment, PlatformFragment{}) {
+		t.Fatalf("Init() = %#v, %v", fragment, err)
+	}
+}
+
+func TestInitPreservesIntegerDefaultsAndIsolatesBackendConfig(t *testing.T) {
+	registration := runtimeTestRegistration("example.com/runtime/safe", "1.0.0")
+	registration.Manifest.InstanceSchema.Fields = append(registration.Manifest.InstanceSchema.Fields, Field{Path: "workers", Kind: ValueInteger, Default: int64(9007199254740993)})
+	registration.Descriptor.CanonicalizeInstance = func(_ platform.Capability, config map[string]any) (map[string]any, error) {
+		if _, ok := config["workers"].(int64); !ok {
+			t.Fatalf("integer default type = %T, want int64", config["workers"])
+		}
+		return config, nil
+	}
+	registration.Descriptor.CanonicalizeProfile = func(_ platform.Capability, backend, profile map[string]any) (map[string]any, error) {
+		backend["apiKey"] = "must-not-leak"
+		return profile, nil
+	}
+	registry, err := New(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, _ := NewLifecycle(registry, NewMemoryStore())
+	fragment, err := lifecycle.Init(registration.Manifest.ID, "safe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := fragment.Spec.Infrastructure.RuntimeBackends[0].Config["apiKey"]; leaked {
+		t.Fatalf("profile canonicalizer mutated emitted backend config: %#v", fragment)
+	}
+}
+
+func runtimeTestRegistration(id, version string) Registration {
+	manifest := Manifest{ID: id, Version: version, Protocol: ProtocolVersion, Capabilities: []platform.Capability{platform.CapabilityRuntime}, InstanceSchema: ConfigSchema{Fields: []Field{{Path: "namespace", Kind: ValueString, Default: "workers"}}}, ProfileSchema: ConfigSchema{Fields: []Field{{Path: "isolation", Kind: ValueString, Default: "dedicated"}}}}
+	return Registration{Manifest: manifest, Descriptor: platform.Descriptor{ID: id, Version: version, Capabilities: manifest.Capabilities, CanonicalizeInstance: func(_ platform.Capability, config map[string]any) (map[string]any, error) { return config, nil }, CanonicalizeProfile: func(_ platform.Capability, _, config map[string]any) (map[string]any, error) { return config, nil }}, Factories: map[platform.Capability]Factory{platform.CapabilityRuntime: func() (any, error) { return &struct{}{}, nil }}}
+}

@@ -135,7 +135,31 @@ func (s *FileStore) Install(adapter InstalledAdapter) (bool, error) {
 	}
 	data = append(data, '\n')
 	filePath := filepath.Join(s.directory, adapterFileName(adapter))
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	temporary, err := os.CreateTemp(s.directory, ".adapter-*.tmp")
+	if err != nil {
+		return false, fmt.Errorf("create temporary adapter lock entry: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer func() { _ = os.Remove(temporaryPath) }()
+	if err := temporary.Chmod(0o600); err != nil {
+		_ = temporary.Close()
+		return false, fmt.Errorf("secure temporary adapter lock entry: %w", err)
+	}
+	if _, err := temporary.Write(data); err != nil {
+		_ = temporary.Close()
+		return false, fmt.Errorf("write temporary adapter lock entry: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		_ = temporary.Close()
+		return false, fmt.Errorf("sync temporary adapter lock entry: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return false, fmt.Errorf("close temporary adapter lock entry: %w", err)
+	}
+	// Linking a complete temporary file publishes the immutable entry in one
+	// atomic step and, unlike Rename on some platforms, never replaces an
+	// existing entry.
+	err = os.Link(temporaryPath, filePath)
 	if errors.Is(err, os.ErrExist) {
 		current, listErr := s.List()
 		if listErr != nil {
@@ -149,25 +173,8 @@ func (s *FileStore) Install(adapter InstalledAdapter) (bool, error) {
 		return false, fmt.Errorf("adapter lock entry already exists with different content")
 	}
 	if err != nil {
-		return false, fmt.Errorf("create adapter lock entry: %w", err)
+		return false, fmt.Errorf("publish adapter lock entry: %w", err)
 	}
-	success := false
-	defer func() {
-		_ = file.Close()
-		if !success {
-			_ = os.Remove(filePath)
-		}
-	}()
-	if _, err := file.Write(data); err != nil {
-		return false, fmt.Errorf("write adapter lock entry: %w", err)
-	}
-	if err := file.Sync(); err != nil {
-		return false, fmt.Errorf("sync adapter lock entry: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return false, fmt.Errorf("close adapter lock entry: %w", err)
-	}
-	success = true
 	return true, nil
 }
 
