@@ -132,7 +132,7 @@ func TestReActRecoversFromFailedObservationAndInvalidAction(t *testing.T) {
 	if err := run(&input, &output); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(output.String(), `"kind":"model"`) != 4 || strings.Count(output.String(), `"kind":"tool"`) != 2 || !strings.Contains(output.String(), "mock artifact not found") || !strings.Contains(output.String(), "invalid action") || !strings.Contains(output.String(), `"result":"Use remaining budget`) {
+	if strings.Count(output.String(), `"kind":"model"`) != 4 || strings.Count(output.String(), `"kind":"tool"`) != 2 || !strings.Contains(output.String(), "mock artifact not found") || !strings.Contains(output.String(), "required tool/finish JSON format") || !strings.Contains(output.String(), `"result":"Use remaining budget`) {
 		t.Fatal("recovery path did not feed observations and format feedback into later turns")
 	}
 }

@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
-import { connectedSource, isTerminal, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { connectedSource, workStatus, workTitle, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
-import { WorkerActivity, workerActions } from './WorkerActivity';
+import { WorkerActivity } from './WorkerActivity';
+import { workerActions } from './worker-activity-model';
+import { category, recordTitle, recordReason, recordStatus, outcomeReason } from './record-presentation';
+import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { maxWorkName } from './work-name';
@@ -13,41 +16,6 @@ const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
 const time = (value?: string) => value
   ? new Date(value).toLocaleTimeString('en-AU', { hour12: false }) : 'Not recorded';
-const categories: Record<string, string> = {
-  RequestReceived: 'Request', RequestResolution: 'Request resolution',
-  AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway',
-  ProviderAttempt: 'Model Gateway', ProviderOutcome: 'Model Gateway',
-  ToolDecision: 'Tool Gateway', RunOutcome: 'Outcome',
-  WorkerActivity: 'Worker',
-};
-const operationLabels: Record<string, string> = {
-  Pending: 'Request received', Bound: 'Worker assigned',
-  BackendReady: 'Environment ready', Running: 'Work started',
-  Succeeded: 'Work completed', Failed: 'Work failed', Cancelled: 'Work cancelled',
-  TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
-  TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
-};
-const category = (fact: Observation) => fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
-function recordTitle(fact: Observation): string {
-  if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
-  if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Mock tool call started' : 'Model request started';
-  if (fact.kind === 'ProviderOutcome') return fact.operation === 'tool.invoke' ? 'Mock tool call finished' : 'Model request finished';
-  if (fact.operation) return operationLabels[fact.operation] || fact.operation;
-  if (fact.kind === 'RequestReceived') return 'Request received';
-  if (fact.kind === 'AuthorityResolved') return 'Access resolved';
-  if (fact.kind === 'ProviderAttempt') return 'Model request started';
-  if (fact.kind === 'ProviderOutcome') return 'Model request finished';
-  return category(fact);
-}
-const recordReason = (fact: Observation) => fact.reason || fact.decision?.reason || '';
-const recordStatus = (fact: Observation) => fact.result || fact.providerStatus || fact.decision?.result
-  || (['Runtime', 'RunOutcome'].includes(fact.kind) && /Failed$/.test(fact.operation || '') ? 'Failed'
-    : fact.kind === 'RunOutcome' && ['Succeeded', 'Cancelled', 'Expired'].includes(fact.operation || '') ? fact.operation! : 'Recorded');
-const outcomeReason = (work: View) => {
-  const reason = [...work.facts].reverse().find(f => f.kind === 'RunOutcome')?.reason || work.outcome?.failure;
-  return reason && !/^Execution or cleanup failed;/.test(reason) ? reason
-    : 'No specific failure reason was recorded for this work.';
-};
 
 function Badge({ value }: { value: string }) {
   return <span className={`portal-badge ${value.toLowerCase().replace(/\s+/g, '-')}`}>{value}</span>;
@@ -78,67 +46,6 @@ function Access({ value, runtime }: {
   </div>;
 }
 
-// Polling stops after the final outcome, not merely the terminal claim phase:
-// cleanup can still be in progress after authority is revoked.
-function useConnection(parts: string[], revision: number) {
-  const [setup, setSetup] = useState<Setup>();
-  const [works, setWorks] = useState<View[]>([]);
-  const [current, setCurrent] = useState<View>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [paused, setPaused] = useState(false);
-  let ref = '';
-  let routeError = '';
-  try {
-    // Consume the decoded array: production optimizers can remove an unused
-    // decode call, including its validation side effect.
-    const decodedParts = parts.map(part => decodeURIComponent(part));
-    if (decodedParts[0] === 'work' && decodedParts[1] && decodedParts[1] !== 'new') ref = decodedParts[1];
-  } catch {
-    routeError = 'Invalid work reference.';
-  }
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let disposed = false;
-    const started = Date.now();
-    setLoading(true); setError(''); setCurrent(undefined); setPaused(false);
-    if (routeError) {
-      setLoading(false); setError(routeError);
-      return () => controller.abort();
-    }
-
-    async function load() {
-      try {
-        const [nextSetup, list, detail] = await Promise.all([
-          connectedSource.setup(controller.signal),
-          connectedSource.list(controller.signal),
-          ref ? connectedSource.request(ref, controller.signal) : Promise.resolve(undefined),
-        ]);
-        if (disposed) return;
-        setSetup(nextSetup); setWorks(list); setCurrent(detail);
-        setLoading(false); setError('');
-        if (detail && isTerminal(detail) && detail.outcome) return;
-        if (Date.now() - started >= 120_000) { setPaused(true); return; }
-        timer = setTimeout(load, 1000);
-      } catch (cause) {
-        if (disposed) return;
-        setLoading(false);
-        setError(cause instanceof Error ? cause.message : 'The connection is unavailable.');
-      }
-    }
-    void load();
-    return () => {
-      disposed = true; controller.abort();
-      if (timer) clearTimeout(timer);
-    };
-  }, [ref, routeError, revision]);
-
-  // Guard synchronously: hash navigation can render a new record route with
-  // the previous work's state before the effect has reset it.
-  return { setup, works, current, loading: routeError ? false : loading, error: routeError || error, paused };
-}
 function Records({ work, observations }: { work: View; observations: Observation[] }) {
   return <div className="portal-record-list">
     {observations.length ? observations.map(fact =>
@@ -226,7 +133,7 @@ function WorkDetail({ work }: { work: View }) {
         : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
         : ['Failed', 'Expired', 'Cancelled'].includes(status)
           ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
-    }}/>} failure={work.outcome?.failure && <div className="portal-state failed" role="alert">
+    }}/>} failure={work.outcome?.failure && status !== 'Failed' && <div className="portal-state failed" role="alert">
           <strong>{work.outcome.status === 'Succeeded'
             ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
           <p>{outcomeReason(work)}</p>

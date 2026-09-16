@@ -99,6 +99,40 @@ func TestUnknownProfileAndInvalidPromptMakeZeroRequests(t *testing.T) {
 	}
 }
 
+func TestPerCallFormatDoesNotMutateProviderDefault(t *testing.T) {
+	var schemas []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Format struct {
+				Schema struct {
+					Value json.RawMessage `json:"schema"`
+				} `json:"json_schema"`
+			} `json:"response_format"`
+		}
+		json.NewDecoder(r.Body).Decode(&payload)
+		schemas = append(schemas, string(payload.Format.Schema.Value))
+		io.WriteString(w, completion)
+	}))
+	defer server.Close()
+	a := newTestAdapter(t, Config{Endpoint: server.URL + "/v1", OutputSchema: []byte(`{"type":"object"}`)})
+	for _, schema := range []json.RawMessage{[]byte(`{"type":"string"}`), nil} {
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "Synthetic data", OutputSchema: schema}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(schemas) != 2 || schemas[0] != `{"type":"string"}` || schemas[1] != `{"type":"object"}` {
+		t.Fatalf("formats leaked across calls: %v", schemas)
+	}
+	for _, schema := range []json.RawMessage{[]byte("{"), []byte(strings.Repeat("x", 8193))} {
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "Synthetic data", OutputSchema: schema}); err == nil {
+			t.Fatal("invalid format accepted")
+		}
+	}
+	if len(schemas) != 2 {
+		t.Fatal("invalid format reached provider")
+	}
+}
+
 func TestStructuredOutputIsPrivateAndOptIn(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		t.Run(fmt.Sprint(enabled), func(t *testing.T) {

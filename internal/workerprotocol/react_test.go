@@ -7,6 +7,22 @@ import (
 	"testing"
 )
 
+func TestActionIssuesNeverIncludeModelContent(t *testing.T) {
+	for _, text := range []string{
+		`{"action":"finish","tool":"git.read","input":"README.md","answer":"private answer"}`,
+		`{"action":"tool","tool":"git.read","input":"README.md","answer":"private answer"}`,
+		"private invalid JSON",
+	} {
+		code, reason := ActionIssue(text)
+		if code != "agent-action-invalid" || reason == "" || strings.Contains(reason, "private") {
+			t.Fatalf("unsafe/missing issue: %s", reason)
+		}
+	}
+	if code, reason := ActionIssue(`{"action":"finish","answer":"ok"}`); code != "" || reason != "" {
+		t.Fatal("valid action marked invalid")
+	}
+}
+
 func TestActionBoundary(t *testing.T) {
 	for _, text := range []string{`{}`, `{"action":"tool","tool":"shell.exec","input":"ls"}`, `{"action":"finish","answer":""}`, `{"action":"finish","answer":"ok","thought":"private"}`, `{"action":"finish","answer":"ok"} {}`, `{"action":"tool","tool":"git.read","input":"README.md","answer":"fake"}`} {
 		if _, err := ParseAction(text); err == nil {

@@ -45,6 +45,19 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Execution Todo
 
+- [x] Owner follow-up (16 Sep): locate the waiting lamp on each active call,
+  remove call-label underlines, and investigate the real failed ReAct run.
+  Separate pure evidence projections and connection lifecycle from rendering.
+  Validate safe, specific failure facts and UI drill-down, then rebuild/restart
+  the local console and verify actual kind/Ollama behavior. Export retained
+  evidence before restart; never present that export as a connected response.
+  [Investigation, design and evidence](failure-diagnostics.md).
+  Final full gate passed: Go/vet/contracts/build, 109 frontend unit tests and
+  48 browser tests. Real failed-run reason/drill-down passed before restart;
+  repaired kind/Ollama journey passed with 4 model turns, 3 mock observations,
+  48 correlated facts and confirmed cleanup. Current retained request:
+  `work-a17f5827-ec51-4c76-b978-446f8f549059`.
+
 - [x] Owner-approved work names: optional compact name, full instructions in a
   collapsed detail disclosure, legacy first-sentence fallback, two-line list titles,
   search by instructions/ID and copyable request identity. Use existing task input;

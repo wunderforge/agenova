@@ -81,7 +81,8 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		action, err := workerprotocol.ParseAction(reply.Text)
 		if err != nil {
-			transcript += "\nObservation: invalid action. A tool action must have an empty answer. A finish action must have action=finish, an empty tool and input, and a nonempty answer. Return only the allowed JSON schema."
+			_, issue := workerprotocol.ActionIssue(reply.Text)
+			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
 			continue
 		}
 		if action.Action == "finish" {
@@ -118,7 +119,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}{action.Tool, action.Input, observation})
 		transcript += "\n" + string(data)
 	}
-	return errors.New("agent turn limit reached without final answer")
+	return workerprotocol.ErrTurnLimit
 }
 
 func readLine(scanner *bufio.Scanner, value any) error {

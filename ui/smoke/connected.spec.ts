@@ -101,6 +101,33 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  await page.getByRole('link',{name:'Activity',exact:true}).click();
  await expect(page.locator('.portal-record-row').filter({hasText:'Work failed'}).locator('.portal-badge.failed')).toHaveCount(2);
 });
+test('format retry explains the failing turn without counting checks as calls',async({page},info)=>{
+ const current=work();current.state!.claim!.phase='Failed';
+ const reason='The agent exhausted its model-turn limit while retrying an invalid tool/finish response format.';
+ const issue='The final-answer action contained tool or input fields; both must be empty. The agent must retry.';
+ current.outcome={status:'Failed',failure:reason};
+ current.facts.push(
+  {id:'turn',sequence:4,timestamp:'2026-09-16T02:00:00Z',kind:'WorkerActivity',requestRef:current.requestRef,operation:'TurnStarted',target:'Turn 6'},
+  {id:'attempt',sequence:5,timestamp:'2026-09-16T02:00:01Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'m',operation:'model.invoke'},
+  {id:'succeeded',sequence:6,timestamp:'2026-09-16T02:00:02Z',kind:'ProviderOutcome',requestRef:current.requestRef,invocationId:'m',operation:'model.invoke',providerStatus:'Succeeded'},
+  {id:'retry',sequence:7,timestamp:'2026-09-16T02:00:03Z',kind:'WorkerActivity',requestRef:current.requestRef,invocationId:'m',operation:'ActionValidated',target:'Turn 6',reasonCode:'agent-action-invalid',reason:issue},
+  {id:'failed',sequence:8,timestamp:'2026-09-16T02:00:04Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed',reason,reasonCode:'agent-invalid-action-limit'},
+ );
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.getByRole('alert')).toHaveCount(1);
+ await expect(page.locator('.portal-turn summary')).toContainText('1 call');
+ await expect(page.locator('.portal-turn summary')).toContainText('Format retry');
+ await expect(page.locator('li[data-retry=true]')).toContainText(issue);
+ await expect(page.locator('li[data-retry=true] .portal-worker-lamp')).toHaveCSS('animation-name','none');
+ await expect(page.locator('.portal-worker-state.positive')).toHaveText('Succeeded');
+ await page.screenshot({path:info.outputPath('action-format-retry.png'),fullPage:true});
+ await page.getByRole('link',{name:'Action check',exact:true}).click();
+ await expect(page.locator('.portal-head')).toContainText('Action format checked');
+ await expect(page.locator('.portal-head .portal-badge')).toHaveText('Retry required');
+ await expect(page.locator('.portal-panel > p')).toContainText(issue);
+});
+
 test('historical missing failure reason is explicit, not inferred from successful model calls',async({page})=>{
  const current=work();current.state!.claim!.phase='Failed';
  current.outcome={status:'Failed',failure:'Execution or cleanup failed; inspect the recorded activity.'};
@@ -120,7 +147,7 @@ test('connected motion follows provider and cleanup evidence without resetting D
  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(1);
  await page.screenshot({path:info.outputPath('connected-worker-waiting.png'),fullPage:true});
  await page.emulateMedia({reducedMotion:'reduce'});
- expect(await page.locator('.portal-worker-lamp').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+ expect(await page.locator('.portal-worker-actions li[data-active=true] .portal-worker-lamp').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.evaluate(()=>{
    (window as unknown as {savedFlow:Element|null}).savedFlow=document.querySelector('.portal-flow');
@@ -156,6 +183,9 @@ test('cobalt light locates real pending calls and separates success from failure
  await expect(page.locator('.portal-head .portal-badge')).toHaveCSS('color','rgb(168, 206, 255)');
  const row=page.locator('.portal-worker-actions li[data-active=true]');
  await expect(row).toHaveAttribute('data-kind','model');
+ await expect(row.locator('.portal-worker-lamp')).toHaveCount(1);
+ await expect(page.locator('.portal-worker-current .portal-worker-lamp')).toHaveCount(0);
+ await expect(row.locator('a')).toHaveCSS('text-decoration-line','none');
  expect(await row.evaluate(el=>getComputedStyle(el,'::before').boxShadow)).not.toBe('none');
  await page.locator('.portal-turn > summary').hover();
  await expect.poll(()=>page.locator('.portal-turn > summary').evaluate(el=>getComputedStyle(el,'::after').opacity)).toBe('1');

@@ -256,6 +256,9 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		return "", errors.New("worker output malformed or exceeds limit")
 	}
 	if result == "" {
+		if task.Mode == workerprotocol.ReAct && modelTurns >= workerprotocol.MaxTurns {
+			return "", workerprotocol.ErrTurnLimit
+		}
 		return "", workerprotocol.ErrNoFinalResult
 	}
 	return result, nil

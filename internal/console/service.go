@@ -7,6 +7,7 @@ package console
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -219,6 +220,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			}
 		}
 		turn := 0
+		readFiles := map[string]bool{}
 		step := func(operation string) error {
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
@@ -244,7 +246,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 				if err := step("ObservationReceived"); err != nil {
 					return workerprotocol.Reply{}, err
 				}
-				return mock.results[d.InvocationID], nil
+				reply := mock.results[d.InvocationID]
+				if reply.Allowed && reply.Error == "" && reply.Text != "" {
+					readFiles[op.Input] = true
+				}
+				return reply, nil
 			}
 			if op.Kind != "model" {
 				return workerprotocol.Reply{}, errors.New("unsupported operation")
@@ -255,6 +261,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			}
 			if err := step("TurnStarted"); err != nil {
 				return workerprotocol.Reply{}, err
+			}
+			// Trusted demo-edge state chooses the output format. The gateway and
+			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
+			if turn == workerprotocol.MaxTurns || len(readFiles) == 3 {
+				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})
 			if err != nil {
@@ -269,6 +280,17 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 			}
 			observed = &evidence.ModelResult{InvocationID: d.InvocationID, Model: result.Model, ResponseID: result.ResponseID, InputTokens: result.InputTokens, OutputTokens: result.OutputTokens}
 			if err := step("ActionReceived"); err != nil {
+				return workerprotocol.Reply{}, err
+			}
+			// Public action shape, not model reasoning or raw model output.
+			action, parseErr := workerprotocol.ParseAction(result.Text)
+			code, reason := "agent-action-valid", "The model selected a valid final-answer action."
+			if parseErr != nil {
+				code, reason = workerprotocol.ActionIssue(result.Text)
+			} else if action.Action == "tool" {
+				code, reason = "agent-action-tool", "The model selected a tool-read action."
+			}
+			if _, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason}); err != nil {
 				return workerprotocol.Reply{}, err
 			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
@@ -319,6 +341,20 @@ func runFailure(err error, recorded []facts.Fact) (string, string) {
 	case errors.Is(err, app.ErrRunDeadline), errors.Is(err, context.DeadlineExceeded):
 		return "run-deadline", "The work exceeded its execution time limit."
 	case errors.Is(err, workerprotocol.ErrTurnLimit):
+		turns := 0
+		for _, f := range recorded {
+			if f.Kind == "WorkerActivity" && f.Operation == "TurnStarted" {
+				turns++
+			}
+		}
+		for i := len(recorded) - 1; i >= 0; i-- {
+			if recorded[i].Operation == "ActionValidated" {
+				if turns >= workerprotocol.MaxTurns && recorded[i].ReasonCode == "agent-action-invalid" {
+					return "agent-invalid-action-limit", "The agent exhausted its model-turn limit while retrying an invalid tool/finish response format."
+				}
+				break
+			}
+		}
 		return "agent-turn-limit", "The agent reached its model-turn limit without a final answer."
 	case errors.Is(err, workerprotocol.ErrNoFinalResult):
 		return "agent-no-final-result", "The agent exited without returning a final answer."
@@ -361,6 +397,7 @@ type completionAdapter struct {
 	policy       v0.PolicyReference
 	mu           sync.Mutex
 	results      map[string]modelprovider.Result
+	outputSchema json.RawMessage
 }
 
 func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
@@ -373,7 +410,7 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: "Attempted"}); err != nil {
 		return err
 	}
-	result, providerErr := a.service.provider.Complete(a.ctx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"]})
+	result, providerErr := a.service.provider.Complete(a.ctx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
 	status := "Succeeded"
 	if providerErr != nil {
 		status = "Failed"

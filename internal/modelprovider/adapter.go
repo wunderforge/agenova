@@ -29,6 +29,8 @@ const (
 type Request struct {
 	Profile string
 	Prompt  string
+	// Optional trusted composition-edge format, not worker authority or policy.
+	OutputSchema json.RawMessage
 }
 
 type Result struct {
@@ -140,6 +142,13 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 	if strings.TrimSpace(req.Prompt) == "" || len(req.Prompt) > maxPromptBytes {
 		return Result{}, errors.New("model provider prompt is empty or oversized")
 	}
+	schema := a.outputSchema
+	if len(req.OutputSchema) > 0 {
+		if len(req.OutputSchema) > 8192 || !json.Valid(req.OutputSchema) {
+			return Result{}, errors.New("model output schema is invalid or oversized")
+		}
+		schema = req.OutputSchema
+	}
 	payload := struct {
 		Model          string         `json:"model"`
 		Messages       []message      `json:"messages"`
@@ -147,8 +156,8 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 		Stream         bool           `json:"stream"`
 		ResponseFormat map[string]any `json:"response_format,omitempty"`
 	}{Model: model, Messages: []message{{Role: "user", Content: req.Prompt}}, MaxTokens: a.maxTokens, Stream: false}
-	if len(a.outputSchema) > 0 {
-		payload.ResponseFormat = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "agent_action", "strict": true, "schema": a.outputSchema}}
+	if len(schema) > 0 {
+		payload.ResponseFormat = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "agent_action", "strict": true, "schema": schema}}
 	}
 	body, err := json.Marshal(payload)
 	if err != nil || len(body) > maxRequestBytes {

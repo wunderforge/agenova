@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from 'vitest';
 import type { Fact } from './contracts.generated';
-import { workerActions, demoWorkerActions, groupWorkerTurns } from './WorkerActivity';
+import { workerActions, demoWorkerActions, groupWorkerTurns } from './worker-activity-model';
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
+  it('retains format-retry evidence without marking successful inference as failed',()=>{
+    const facts:Fact[]=[
+      {...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 4'},
+      fact('attempt',2,'ProviderAttempt','m'),
+      fact('outcome',3,'ProviderOutcome','m','Succeeded'),
+      {...fact('invalid',4,'WorkerActivity'),operation:'ActionValidated',target:'Turn 4',reasonCode:'agent-action-invalid',reason:'Final-answer tool/input must be empty.'},
+    ];
+    const group=groupWorkerTurns(workerActions(facts,'Failed','#/activity'))[0];
+    expect(group.calls.map(a=>a.state)).toEqual(['Succeeded','Retry required']);
+    expect(group.calls[1]).toMatchObject({active:false,target:'Final-answer tool/input must be empty.',href:'#/activity/invalid'});
+  });
   it('groups actual turns, retains failed observations and excludes permission checks from execution',()=>{
     const facts:Fact[]=[
       {...fact('turn1',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 1'},

@@ -25,6 +25,24 @@ var ErrInvalidFinalResult = errors.New("agent final result did not match governe
 // are enforced by ParseAction and the host, not entrusted to model generation.
 const ActionSchema = `{"type":"object","properties":{"action":{"type":"string","enum":["tool","finish"]},"tool":{"type":"string","enum":["","git.read"]},"input":{"type":"string"},"answer":{"type":"string"}},"required":["action","tool","input","answer"],"additionalProperties":false}`
 
+// The finishing phase must not advertise stale tool choices in the grammar.
+const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"tool":{"type":"string","enum":[""]},"input":{"type":"string","enum":[""]},"answer":{"type":"string"}},"required":["action","tool","input","answer"],"additionalProperties":false}`
+
+// ActionIssue describes only shape constraints; it never includes model text.
+func ActionIssue(text string) (string, string) {
+	a, err := ParseAction(text)
+	if err == nil {
+		return "", ""
+	}
+	if a.Action == "finish" && (a.Tool != "" || a.Input != "") {
+		return "agent-action-invalid", "The final-answer action contained tool or input fields; both must be empty. The agent must retry."
+	}
+	if a.Action == "tool" && a.Answer != "" {
+		return "agent-action-invalid", "The tool action contained a final answer; its answer field must be empty. The agent must retry."
+	}
+	return "agent-action-invalid", "The model response did not match the required tool/finish JSON format. The agent must retry."
+}
+
 // Action intentionally excludes private reasoning. Agent semantics live at this demo edge.
 type Action struct {
 	Action string `json:"action"`

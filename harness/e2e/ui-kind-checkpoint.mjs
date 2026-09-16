@@ -36,7 +36,7 @@ try{
   assert.equal(posted.spec.requestedAccess.resourceScopes[0],'repo:acme/payments');
   assert.equal(JSON.stringify(posted).includes('principal'),false);
   const initial=await response.json();
-  await expect(page.getByRole('heading',{name:objective,exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Investigate why synthetic payment retries exceed the deadline.',exact:true})).toBeVisible();
   await expect.poll(async()=>page.evaluate(async ref=>{
     const response=await fetch(`/api/requests/${encodeURIComponent(ref)}/evidence`);
     if(!response.ok)throw new Error('Evidence query failed.');
@@ -58,6 +58,7 @@ try{
   assert.ok(final.facts.some(f=>f.kind==='Runtime'&&f.operation==='CleanupSucceeded'));
   assert.ok(final.facts.filter(f=>f.kind==='WorkerActivity'&&f.operation==='TurnStarted').length>=2);
   assert.ok(final.facts.some(f=>f.kind==='WorkerActivity'&&f.operation==='ObservationReceived'));
+  assert.ok(final.facts.some(f=>f.kind==='WorkerActivity'&&f.operation==='ActionValidated'),'Running console is missing current action diagnostics; rebuild/restart it.');
   assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='tool.invoke'&&f.reasonCode==='mock-tool'&&f.providerStatus==='Succeeded'));
   assert.ok(final.facts.some(f=>f.kind==='ProviderOutcome'&&f.providerStatus==='Succeeded'&&f.invocationId===final.outcome.model.invocationId));
   await page.screenshot({path:`${output}/real-result.png`,fullPage:true});

@@ -118,6 +118,23 @@ func TestRunFailureReasonsAreRecordedAndSanitized(t *testing.T) {
 	}
 }
 
+func TestActionRetryLimitRetainsSpecificFailureProvenance(t *testing.T) {
+	var recorded []facts.Fact
+	for i := 0; i < workerprotocol.MaxTurns; i++ {
+		recorded = append(recorded, facts.Fact{Kind: "WorkerActivity", Operation: "TurnStarted"})
+	}
+	recorded = append(recorded, facts.Fact{Kind: "WorkerActivity", Operation: "ActionValidated", ReasonCode: "agent-action-invalid"})
+	code, reason := runFailure(workerprotocol.ErrTurnLimit, recorded)
+	if code != "agent-invalid-action-limit" || !strings.Contains(reason, "invalid tool/finish") {
+		t.Fatalf("missing diagnostic: %s / %s", code, reason)
+	}
+	recorded = append(recorded, facts.Fact{Kind: "WorkerActivity", Operation: "ActionValidated", ReasonCode: "agent-action-tool"})
+	code, _ = runFailure(workerprotocol.ErrTurnLimit, recorded)
+	if code != "agent-turn-limit" {
+		t.Fatal("blamed an earlier recovered format failure")
+	}
+}
+
 func TestRunFailureDoesNotBlameRecoveredCalls(t *testing.T) {
 	code, _ := runFailure(errors.New("private execution details"), []facts.Fact{
 		{Kind: "ProviderOutcome", ProviderStatus: "Failed"},

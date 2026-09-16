@@ -78,7 +78,7 @@ body:has(.portal-shell){background:#050914}
 .portal-worker .portal-section-head{margin-bottom:12px}.portal-worker-current{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--portal-muted);margin:0 0 12px}
 .portal-worker-lamp{width:8px;height:8px;flex:none;border-radius:50%;background:#7e91ae}
 .portal-page .portal-worker.has-active-call{border-left:3px solid #629dff}
-.has-active-call .portal-worker-lamp{background:#8cc6ff;box-shadow:0 0 12px #629dff88;animation:portal-worker-wait 2.4s ease-in-out infinite}
+.portal-worker-actions li[data-active=true] .portal-worker-lamp{background:var(--call-light);box-shadow:0 0 12px var(--call-light);animation:portal-worker-wait 2.4s ease-in-out infinite}
 .portal-worker-actions{list-style:none;padding:0;margin:0}.portal-worker-actions li{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-top:1px solid var(--portal-line);font-size:12px}
 .portal-worker-actions small{display:block;margin-top:4px;color:var(--portal-muted);overflow-wrap:anywhere}.portal-worker-actions li>div{min-width:0}
 .portal-worker-state{color:var(--portal-muted);text-align:right}.portal-worker-state.positive{color:var(--portal-success)}.portal-worker-state.negative{color:var(--portal-danger)}
@@ -151,6 +151,14 @@ body:has(.portal-shell){background:#050914}
 .portal-worker-actions li[data-active=true] a{color:#c7e1ff}
 .portal-worker-actions li[data-active=true][data-kind=tool] a{color:#bef1fc}
 .portal-worker-actions li[data-negative=true] a{color:#ffb7c7}
+.portal-worker-actions li>div{flex:1}
+.portal-worker-actions a{text-decoration:none}
+.portal-worker-actions a:hover{color:var(--portal-cyan)}
+.portal-worker-actions li[data-negative=true] .portal-worker-lamp{background:var(--portal-danger)}
+.portal-worker-actions li[data-retry=true] .portal-worker-lamp{background:#e9bd78}
+.portal-worker-actions li[data-retry=true] .portal-worker-state,.portal-badge.retry-required{color:#e9bd78}
+.portal-turn-retry{color:#e9bd78}
+.portal-worker-actions li .positive{color:var(--portal-success)}
 @keyframes portal-turn-arrive{from{opacity:.55;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:650px){.portal-work-reading{gap:20px}.portal-work-inspect summary{flex-wrap:wrap;gap:8px}.portal-work-inspect summary small{flex-basis:100%;text-align:left;margin-left:26px}.portal-turn>summary{flex-wrap:wrap}.portal-disclosure-body .portal-access-fields{grid-template-columns:1fr}.portal-work-reading .portal-flow-track{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.portal-work-reading .portal-flow-node:nth-child(3):after{display:block!important}.portal-work-reading .portal-flow-node a{font-size:10px}.portal-work-reading .portal-flow-node small{font-size:9px}.portal-work-reading .portal-result{padding:18px}}
 @media(max-width:900px){.portal-sidebar{height:100vh}.portal-flow-node a{font-size:11px}}

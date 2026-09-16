@@ -37,6 +37,23 @@ func modelMessage(task workerprotocol.Task) workerprotocol.Message {
 	return workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}
 }
 
+func TestReActExhaustionWithoutFinalRecordIsTurnLimit(t *testing.T) {
+	task := executionTask()
+	task.Mode = workerprotocol.ReAct
+	op := modelMessage(task)
+	op.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
+	var messages []any
+	for i := 0; i < workerprotocol.MaxTurns; i++ {
+		messages = append(messages, op)
+	}
+	_, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(messages...)), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+		return workerprotocol.Reply{Allowed: true, Text: "{}"}, nil
+	})
+	if !errors.Is(err, workerprotocol.ErrTurnLimit) {
+		t.Fatalf("lost exhaustion category: %v", err)
+	}
+}
+
 func TestExecutionFailureCategoriesSurviveTransport(t *testing.T) {
 	task := executionTask()
 	for _, tc := range []struct {
