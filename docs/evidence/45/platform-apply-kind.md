@@ -57,3 +57,5 @@ managed_before=4 managed_after=4
 ```
 
 The existing Platform revision stayed `sha256:5bbc6195ef78669bf189b2d210718ee922ff1eb136f5af4ff4875d77b4577fcc`. The temporary ClusterRole and ClusterRoleBinding named `agenova-platform-readonly-test` were deleted after the check. The probe manifest and wrapper are test harnesses only; they do not enter the installed Platform. Fake-runner tests also prove that denied `watch` stops before the first mutation.
+
+The adapter now applies resources one at a time. A fake-target failure injected at the Deployment step records the completed namespace and ConfigMaps as available/configured, that Deployment as failed, and the unattempted Service as pending. A current kind plan after these changes still reports `changes: []` for the original revision.

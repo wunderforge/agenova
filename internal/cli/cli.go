@@ -260,10 +260,12 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 				return 1
 			}
 		}
-		result, err := service.Apply(ctx, resolved, lock)
+		result, err := service.ApplyPlanned(ctx, resolved, lock, plan)
 		if err != nil {
 			if parsed.json {
 				_ = json.NewEncoder(stdout).Encode(result)
+			} else if result.Plan.PlatformName != "" {
+				printPlatformApplyHuman(stdout, result)
 			}
 			fmt.Fprintln(stderr, err.Error())
 			return 1
@@ -271,10 +273,17 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 		if parsed.json {
 			return printJSON(stdout, stderr, result)
 		}
-		fmt.Fprintf(stdout, "platform: %s\nrevision: %s\ntarget: %s\nchanged: %t\nready: %t\n", result.Plan.PlatformName, result.Plan.Revision, result.Plan.Target, result.Applied, result.Ready)
+		printPlatformApplyHuman(stdout, result)
 		return 0
 	default:
 		return platformUsageError(stderr, fmt.Sprintf("unknown platform command %q", subcommand))
+	}
+}
+
+func printPlatformApplyHuman(output io.Writer, result platformapply.ApplyResult) {
+	fmt.Fprintf(output, "platform: %s\nrevision: %s\ntarget: %s\nchanged: %t\nready: %t\n", result.Plan.PlatformName, result.Plan.Revision, result.Plan.Target, result.Applied, result.Ready)
+	for _, component := range result.Components {
+		fmt.Fprintf(output, "- %s/%s: %s\n", component.Category, component.Name, component.State)
 	}
 }
 

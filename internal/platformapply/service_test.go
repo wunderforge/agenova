@@ -143,6 +143,24 @@ func TestServiceReportsAdaptersActivatedBeforeLaterFailure(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsApplyWhenConfirmedPlanChanges(t *testing.T) {
+	deployment := &fakeDeployment{applied: true}
+	service := newTestService(t, deployment)
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmed, err := service.Plan(context.Background(), resolved, lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deployment.applied = false
+	result, err := service.ApplyPlanned(context.Background(), resolved, lock, confirmed)
+	if err == nil || !strings.Contains(err.Error(), "plan changed") || result.Applied || deployment.applied {
+		t.Fatalf("ApplyPlanned() = %#v, %v, want new confirmation before mutation", result, err)
+	}
+}
+
 func newTestService(t *testing.T, deployment DeploymentAdapter) Service {
 	return newTestServiceWithStore(t, deployment, adapterregistry.NewMemoryStore())
 }

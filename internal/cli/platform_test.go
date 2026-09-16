@@ -6,6 +6,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,7 +20,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type cliDeployment struct{ applied bool }
+type cliDeployment struct {
+	applied bool
+	fail    error
+}
 
 func (d *cliDeployment) Preflight(context.Context, platformapply.DeploymentRequest) error { return nil }
 
@@ -31,6 +35,9 @@ func (d *cliDeployment) Plan(_ context.Context, _ platformapply.DeploymentReques
 }
 
 func (d *cliDeployment) Apply(_ context.Context, _ platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, error) {
+	if d.fail != nil {
+		return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "failed"}}, d.fail
+	}
 	d.applied = true
 	return []platformapply.ComponentStatus{{Name: "control", Category: "deployment", State: "available"}}, nil
 }
@@ -88,6 +95,15 @@ func TestPlatformCLIApplyUsesConfirmedSnapshot(t *testing.T) {
 	})
 	if code != 0 || !deployment.applied || !strings.Contains(stdout.String(), `"platformName":"reference"`) {
 		t.Fatalf("apply after confirmed file replacement = %d %q %q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestPlatformCLIHumanOutputIncludesPartialFailure(t *testing.T) {
+	path := writePlatformFile(t)
+	deployment := &cliDeployment{fail: errors.New("injected target failure")}
+	stdout, stderr, code := runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes"}, "", cliPlatformFactory(t, deployment))
+	if code != 1 || !strings.Contains(stdout, "deployment/control: failed") || !strings.Contains(stderr, "injected target failure") {
+		t.Fatalf("human failure = %d %q %q", code, stdout, stderr)
 	}
 }
 

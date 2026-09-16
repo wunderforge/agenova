@@ -68,7 +68,7 @@ func TestKubernetesApplyDeniesBeforeMutationWhenRBACMissing(t *testing.T) {
 	}
 }
 
-func TestKubernetesApplyUsesOneSecretFreeManifestAndWaitsReady(t *testing.T) {
+func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 		if contains(args, "can-i") {
 			return commandResult{stdout: "yes\n"}, nil
@@ -82,29 +82,64 @@ func TestKubernetesApplyUsesOneSecretFreeManifestAndWaitsReady(t *testing.T) {
 	if err != nil || len(statuses) != 5 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
-	applyIndex, rollout := -1, false
+	applyCount, rollout := 0, false
+	var manifest strings.Builder
 	for index, call := range runner.calls {
 		if contains(call, "apply") {
-			applyIndex = index
+			applyCount++
+			manifest.Write(runner.inputs[index])
 		}
 		if contains(call, "rollout") {
 			rollout = true
 		}
 	}
-	if applyIndex < 0 || !rollout {
-		t.Fatalf("calls = %#v, want apply then rollout", runner.calls)
+	if applyCount != 5 || !rollout {
+		t.Fatalf("calls = %#v, want five resource applies then rollout", runner.calls)
 	}
-	manifest := string(runner.inputs[applyIndex])
+	manifestText := manifest.String()
 	for _, required := range []string{"kind: Namespace", "kind: ConfigMap", "kind: Deployment", "kind: Service", "reference-default-deny"} {
-		if !strings.Contains(manifest, required) {
-			t.Fatalf("manifest missing %q\n%s", required, manifest)
+		if !strings.Contains(manifestText, required) {
+			t.Fatalf("manifest missing %q\n%s", required, manifestText)
 		}
 	}
-	if strings.Contains(strings.ToLower(manifest), "apikey") || strings.Contains(strings.ToLower(manifest), "password") {
-		t.Fatalf("manifest contains credential-shaped field: %s", manifest)
+	if strings.Contains(strings.ToLower(manifestText), "apikey") || strings.Contains(strings.ToLower(manifestText), "password") {
+		t.Fatalf("manifest contains credential-shaped field: %s", manifestText)
 	}
-	if !strings.Contains(manifest, "team-a") || !strings.Contains(manifest, "claim.create") {
-		t.Fatalf("initial policy omitted the actual reference allow rule: %s", manifest)
+	if !strings.Contains(manifestText, "team-a") || !strings.Contains(manifestText, "claim.create") {
+		t.Fatalf("initial policy omitted the actual reference allow rule: %s", manifestText)
+	}
+}
+
+func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "can-i") {
+			return commandResult{stdout: "yes\n"}, nil
+		}
+		if contains(args, "get") && contains(args, "namespaces") {
+			return commandResult{stdout: "namespace/agenova-system\n"}, nil
+		}
+		if contains(args, "get") {
+			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+		}
+		return commandResult{}, nil
+	}}
+	if _, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest()); err != nil {
+		t.Fatal(err)
+	}
+	applyCount := 0
+	for index, call := range runner.calls {
+		if contains(call, "can-i") && contains(call, "patch") && contains(call, "namespaces") {
+			t.Fatalf("existing namespace patch permission was requested: %#v", call)
+		}
+		if contains(call, "apply") {
+			applyCount++
+			if strings.Contains(string(runner.inputs[index]), "kind: Namespace") {
+				t.Fatal("existing namespace was silently relabeled")
+			}
+		}
+	}
+	if applyCount != 4 {
+		t.Fatalf("got %d resource applies, want four namespaced resources", applyCount)
 	}
 }
 
@@ -131,7 +166,7 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 		case contains(args, "deployment"):
 			return `{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"},"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
 		case contains(args, "service"):
-			return `{"metadata":{"name":"agenova-control-plane","labels":{"app.kubernetes.io/managed-by":"agenova"}},"spec":{"type":"ClusterIP","selector":{"app.kubernetes.io/name":"agenova-control-plane"},"ports":[{"port":8080,"targetPort":"http"}]}}`
+			return `{"metadata":{"name":"agenova-control-plane","labels":{"app.kubernetes.io/managed-by":"agenova"}},"spec":{"type":"ClusterIP","selector":{"app.kubernetes.io/name":"agenova-control-plane","app.kubernetes.io/managed-by":"agenova"},"ports":[{"name":"http","port":8080,"targetPort":"http"}]}}`
 		default:
 			return `{}`
 		}
@@ -220,6 +255,31 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	}
 }
 
+func TestServiceMatchesFullManagedSelector(t *testing.T) {
+	desired := serviceObject("agenova-system")
+	data, err := json.Marshal(desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual map[string]any
+	if err := json.Unmarshal(data, &actual); err != nil {
+		t.Fatal(err)
+	}
+	if !serviceMatches(actual, desired) {
+		t.Fatal("matching Service should be ready")
+	}
+	selector := actual["spec"].(map[string]any)["selector"].(map[string]any)
+	selector["app.kubernetes.io/managed-by"] = "someone-else"
+	if serviceMatches(actual, desired) {
+		t.Fatal("changed managed selector must be reconciled")
+	}
+	selector["app.kubernetes.io/managed-by"] = "agenova"
+	selector["unexpected"] = "extra"
+	if serviceMatches(actual, desired) {
+		t.Fatal("extra selector must be reconciled")
+	}
+}
+
 func TestKubernetesErrorsAreActionableWithoutForwardingStderr(t *testing.T) {
 	missing := &fakeKubectl{run: func([]string) (commandResult, error) {
 		return commandResult{}, exec.ErrNotFound
@@ -262,7 +322,12 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	policyData, err := referencePolicyJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
 	partial := false
+	applyCount := 0
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 		switch {
 		case contains(args, "can-i"):
@@ -270,12 +335,19 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 		case contains(args, "version"):
 			return commandResult{stdout: `{}`}, nil
 		case contains(args, "apply"):
-			partial = true
-			return commandResult{stderr: "deployment rejected"}, errors.New("exit 1")
+			applyCount++
+			if applyCount == 4 {
+				partial = true
+				return commandResult{stderr: "deployment rejected"}, errors.New("exit 1")
+			}
+			return commandResult{}, nil
 		case contains(args, "get") && partial && contains(args, "namespace"):
 			return commandResult{stdout: `{"metadata":{"name":"agenova-system"}}`}, nil
 		case contains(args, "get") && partial && contains(args, platformRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			return commandResult{stdout: string(data)}, nil
+		case contains(args, "get") && partial && contains(args, policyRecord):
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
 			return commandResult{stdout: string(data)}, nil
 		default:
 			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
@@ -289,7 +361,7 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 	for _, status := range statuses {
 		states[status.Name] = status.State
 	}
-	if states["agenova-system"] != "available" || states[platformRecord] != "configured" || states["reconciliation"] != "failed" || states[controlPlaneName] != "unavailable" {
+	if states["agenova-system"] != "available" || states[platformRecord] != "configured" || states[policyRecord] != "configured" || states[controlPlaneName] != "failed" || states[controlPlaneName+"-service"] != "pending" {
 		t.Fatalf("partial state = %#v", statuses)
 	}
 }

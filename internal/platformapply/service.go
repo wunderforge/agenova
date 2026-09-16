@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -143,6 +144,23 @@ func (s Service) Apply(ctx context.Context, resolved *platform.ResolvedPlatform,
 	if err != nil {
 		return ApplyResult{}, err
 	}
+	return s.applyWithPlan(ctx, resolved, lock, plan)
+}
+
+// ApplyPlanned applies only the exact target plan previously shown to the
+// operator. A concurrent target change requires a fresh plan and confirmation.
+func (s Service) ApplyPlanned(ctx context.Context, resolved *platform.ResolvedPlatform, lock *platform.PlatformLock, confirmed Plan) (ApplyResult, error) {
+	current, err := s.Plan(ctx, resolved, lock)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	if !reflect.DeepEqual(current, confirmed) {
+		return ApplyResult{Plan: current, Components: current.Components}, fmt.Errorf("Platform plan changed before apply; review the new plan and retry")
+	}
+	return s.applyWithPlan(ctx, resolved, lock, current)
+}
+
+func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedPlatform, lock *platform.PlatformLock, plan Plan) (ApplyResult, error) {
 	if !plan.Changed() {
 		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), Components: plan.Components}, nil
 	}

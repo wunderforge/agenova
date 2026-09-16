@@ -117,7 +117,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
 	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
-	serviceReady := serviceMatches(service)
+	serviceReady := serviceMatches(service, serviceObject(namespace))
 	var changes []platformapply.Change
 	if !namespaceReady {
 		changes = append(changes, platformapply.Change{Component: namespace, Action: "create", Detail: "create the selected Agenova namespace"})
@@ -156,14 +156,27 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	if err := k.Preflight(ctx, request); err != nil {
 		return failedStatuses(request.Platform.Revision), err
 	}
-	manifest, err := referenceManifest(request, namespace)
+	namespaceExists, err := k.resourceExists(ctx, contextName, "namespaces", namespace, "")
 	if err != nil {
 		return failedStatuses(request.Platform.Revision), err
 	}
-	if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
-		statuses := k.observedAfterFailure(ctx, request)
-		statuses = append(statuses, platformapply.ComponentStatus{Name: "reconciliation", Category: "deployment", State: "failed"})
-		return statuses, fmt.Errorf("reconcile Kubernetes resources: %w", err)
+	steps, err := referenceSteps(request, namespace, !namespaceExists)
+	if err != nil {
+		return failedStatuses(request.Platform.Revision), err
+	}
+	for index, step := range steps {
+		manifest, err := yaml.Marshal(step.object)
+		if err != nil {
+			return failedStatuses(request.Platform.Revision), fmt.Errorf("encode Kubernetes %s manifest: %w", step.name, err)
+		}
+		if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			markStepStatus(statuses, step, "failed")
+			for _, pending := range steps[index+1:] {
+				markStepStatus(statuses, pending, "pending")
+			}
+			return statuses, fmt.Errorf("reconcile Kubernetes %s: %w", step.name, err)
+		}
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
 		statuses := k.observedAfterFailure(ctx, request)
@@ -181,6 +194,21 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		{Name: controlPlaneName, Category: "deployment", State: "available"},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: "available"},
 	}, nil
+}
+
+type manifestStep struct {
+	name     string
+	category string
+	object   map[string]any
+}
+
+func markStepStatus(statuses []platformapply.ComponentStatus, step manifestStep, state string) {
+	for index := range statuses {
+		if statuses[index].Name == step.name && statuses[index].Category == step.category {
+			statuses[index].State = state
+			return
+		}
+	}
 }
 
 func (k *KubernetesDeployment) observedAfterFailure(ctx context.Context, request platformapply.DeploymentRequest) []platformapply.ComponentStatus {
@@ -232,6 +260,11 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 			if err := requireManaged(object, target.resource, target.name); err != nil {
 				return err
 			}
+		}
+		// The selected namespace may predate Agenova. Once it exists, do not
+		// mutate its metadata just to install namespaced Agenova resources.
+		if exists && target.resource == "namespaces" {
+			continue
 		}
 		action := "create"
 		if exists {
@@ -317,7 +350,7 @@ func deploymentCoordinates(config map[string]any) (string, string, error) {
 	return contextName, namespace, nil
 }
 
-func referenceManifest(request platformapply.DeploymentRequest, namespace string) ([]byte, error) {
+func referenceSteps(request platformapply.DeploymentRequest, namespace string, createNamespace bool) ([]manifestStep, error) {
 	lockJSON, err := platformapply.EncodeLock(request.Lock)
 	if err != nil {
 		return nil, err
@@ -326,25 +359,16 @@ func referenceManifest(request platformapply.DeploymentRequest, namespace string
 	if err != nil {
 		return nil, fmt.Errorf("encode reference policy: %w", err)
 	}
-	objects := []map[string]any{
-		{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": namespace, "labels": managedLabels()}},
-		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}},
-		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}},
-		deploymentObject(request, namespace),
-		serviceObject(namespace),
+	steps := []manifestStep{
+		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}}},
+		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
+		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
+		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},
 	}
-	var output bytes.Buffer
-	for i, object := range objects {
-		if i > 0 {
-			output.WriteString("---\n")
-		}
-		data, err := yaml.Marshal(object)
-		if err != nil {
-			return nil, fmt.Errorf("encode Kubernetes reference manifest: %w", err)
-		}
-		output.Write(data)
+	if createNamespace {
+		steps = append([]manifestStep{{name: namespace, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": namespace, "labels": managedLabels()}}}}, steps...)
 	}
-	return output.Bytes(), nil
+	return steps, nil
 }
 
 func deploymentObject(request platformapply.DeploymentRequest, namespace string) map[string]any {
@@ -472,18 +496,23 @@ func expectedFieldsMatch(actual, expected any) bool {
 	}
 }
 
-func serviceMatches(object map[string]any) bool {
+func serviceMatches(object, desired map[string]any) bool {
 	if objectName(object) != controlPlaneName {
 		return false
 	}
 	spec, _ := object["spec"].(map[string]any)
+	expected, _ := desired["spec"].(map[string]any)
 	selector, _ := spec["selector"].(map[string]any)
-	ports, _ := spec["ports"].([]any)
-	if spec["type"] != "ClusterIP" || selector["app.kubernetes.io/name"] != controlPlaneName || len(ports) != 1 {
+	expectedSelector, _ := expected["selector"].(map[string]any)
+	if !reflect.DeepEqual(selector, expectedSelector) {
 		return false
 	}
-	port, _ := ports[0].(map[string]any)
-	return port["port"] == float64(8080) && port["targetPort"] == "http"
+	data, err := json.Marshal(expected)
+	if err != nil {
+		return false
+	}
+	var normalized any
+	return json.Unmarshal(data, &normalized) == nil && expectedFieldsMatch(spec, normalized)
 }
 
 func isNotFound(err error) bool {
