@@ -15,12 +15,17 @@ import (
 )
 
 type fakeDeployment struct {
-	applied bool
-	fail    error
-	denied  error
+	applied       bool
+	fail          error
+	denied        error
+	preflightRuns int
+	applyRuns     int
 }
 
-func (f *fakeDeployment) Preflight(context.Context, DeploymentRequest) error { return f.denied }
+func (f *fakeDeployment) Preflight(context.Context, DeploymentRequest) error {
+	f.preflightRuns++
+	return f.denied
+}
 
 func (f *fakeDeployment) Plan(_ context.Context, request DeploymentRequest) (string, []Change, []ComponentStatus, error) {
 	if f.applied {
@@ -30,6 +35,7 @@ func (f *fakeDeployment) Plan(_ context.Context, request DeploymentRequest) (str
 }
 
 func (f *fakeDeployment) Apply(_ context.Context, request DeploymentRequest) ([]ComponentStatus, error) {
+	f.applyRuns++
 	if f.fail != nil {
 		return []ComponentStatus{{Name: "control-plane", Category: "deployment", State: "failed"}}, f.fail
 	}
@@ -158,6 +164,23 @@ func TestServiceRejectsApplyWhenConfirmedPlanChanges(t *testing.T) {
 	result, err := service.ApplyPlanned(context.Background(), resolved, lock, confirmed)
 	if err == nil || !strings.Contains(err.Error(), "plan changed") || result.Applied || deployment.applied {
 		t.Fatalf("ApplyPlanned() = %#v, %v, want new confirmation before mutation", result, err)
+	}
+}
+
+func TestServiceActivatesAdaptersWithoutTouchingReadyTarget(t *testing.T) {
+	deployment := &fakeDeployment{applied: true, denied: errors.New("no target mutation permission")}
+	service := newTestService(t, deployment)
+	resolved, lock, err := service.Validate(testPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.Plan(context.Background(), resolved, lock)
+	if err != nil || !plan.Changed() || plan.targetChanged {
+		t.Fatalf("adapter-only plan = %#v, %v", plan, err)
+	}
+	result, err := service.ApplyPlanned(context.Background(), resolved, lock, plan)
+	if err != nil || !result.Applied || !result.Ready || deployment.preflightRuns != 0 || deployment.applyRuns != 0 {
+		t.Fatalf("adapter-only apply = %#v, %v; preflight=%d apply=%d", result, err, deployment.preflightRuns, deployment.applyRuns)
 	}
 }
 

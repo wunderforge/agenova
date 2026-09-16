@@ -116,6 +116,9 @@ func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
 			return commandResult{stdout: "yes\n"}, nil
 		}
 		if contains(args, "get") && contains(args, "namespaces") {
+			if contains(args, "json") {
+				return commandResult{stdout: `{"metadata":{"name":"agenova-system"},"status":{"phase":"Active"}}`}, nil
+			}
 			return commandResult{stdout: "namespace/agenova-system\n"}, nil
 		}
 		if contains(args, "get") {
@@ -140,6 +143,32 @@ func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
 	}
 	if applyCount != 4 {
 		t.Fatalf("got %d resource applies, want four namespaced resources", applyCount)
+	}
+}
+
+func TestKubernetesRejectsTerminatingNamespace(t *testing.T) {
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "version") {
+			return commandResult{stdout: `{}`}, nil
+		}
+		if contains(args, "can-i") {
+			return commandResult{stdout: "yes\n"}, nil
+		}
+		if contains(args, "get") && (contains(args, "namespace") || contains(args, "namespaces")) {
+			if contains(args, "json") {
+				return commandResult{stdout: `{"metadata":{"name":"agenova-system","deletionTimestamp":"2026-09-16T00:00:00Z"},"status":{"phase":"Terminating"}}`}, nil
+			}
+			return commandResult{stdout: "namespace/agenova-system\n"}, nil
+		}
+		return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+	}}
+	adapter := newKubernetesDeployment(runner)
+	_, _, _, err := adapter.Plan(context.Background(), deploymentRequest())
+	if err == nil || !strings.Contains(err.Error(), "is terminating") {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if err := adapter.Preflight(context.Background(), deploymentRequest()); err == nil || !strings.Contains(err.Error(), "is terminating") {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 }
 
@@ -277,6 +306,50 @@ func TestServiceMatchesFullManagedSelector(t *testing.T) {
 	selector["unexpected"] = "extra"
 	if serviceMatches(actual, desired) {
 		t.Fatal("extra selector must be reconciled")
+	}
+}
+
+func TestKubernetesApplyReplacesExtraServiceSelector(t *testing.T) {
+	service := serviceObject("agenova-system")
+	service["spec"].(map[string]any)["selector"].(map[string]any)["unexpected"] = "extra"
+	serviceData, err := json.Marshal(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		if contains(args, "can-i") {
+			return commandResult{stdout: "yes\n"}, nil
+		}
+		if contains(args, "get") && contains(args, "services") {
+			if contains(args, "json") {
+				return commandResult{stdout: string(serviceData)}, nil
+			}
+			return commandResult{stdout: "service/agenova-control-plane\n"}, nil
+		}
+		if contains(args, "get") && contains(args, "service") {
+			return commandResult{stdout: string(serviceData)}, nil
+		}
+		if contains(args, "get") {
+			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+		}
+		return commandResult{}, nil
+	}}
+	if _, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest()); err != nil {
+		t.Fatal(err)
+	}
+	patched := false
+	for _, args := range runner.calls {
+		if !contains(args, "patch") || !contains(args, "-p") {
+			continue
+		}
+		patched = true
+		payload := args[len(args)-1]
+		if !strings.Contains(payload, `"path":"/spec/selector"`) || strings.Contains(payload, "unexpected") {
+			t.Fatalf("selector patch = %q", payload)
+		}
+	}
+	if !patched {
+		t.Fatal("extra Service selector was not explicitly replaced")
 	}
 }
 

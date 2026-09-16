@@ -295,6 +295,13 @@ func printPlatformPlan(stdout, stderr io.Writer, plan platformapply.Plan, jsonOu
 	for _, change := range plan.Changes {
 		fmt.Fprintf(stdout, "- %s %s: %s\n", change.Action, change.Component, change.Detail)
 	}
+	for _, component := range plan.Components {
+		if component.Reference == "" {
+			fmt.Fprintf(stdout, "- %s/%s: %s\n", component.Category, component.Name, component.State)
+		} else {
+			fmt.Fprintf(stdout, "- %s/%s: %s (%s)\n", component.Category, component.Name, component.State, component.Reference)
+		}
+	}
 	return 0
 }
 

@@ -38,11 +38,12 @@ type ComponentStatus struct {
 }
 
 type Plan struct {
-	PlatformName string            `json:"platformName"`
-	Revision     string            `json:"revision"`
-	Target       string            `json:"target"`
-	Changes      []Change          `json:"changes"`
-	Components   []ComponentStatus `json:"components"`
+	PlatformName  string            `json:"platformName"`
+	Revision      string            `json:"revision"`
+	Target        string            `json:"target"`
+	Changes       []Change          `json:"changes"`
+	Components    []ComponentStatus `json:"components"`
+	targetChanged bool
 }
 
 func (p Plan) Changed() bool { return len(p.Changes) > 0 }
@@ -128,7 +129,7 @@ func (s Service) Plan(ctx context.Context, resolved *platform.ResolvedPlatform, 
 		statuses = []ComponentStatus{}
 	}
 	sortPlan(changes, statuses)
-	return Plan{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: target, Changes: changes, Components: statuses}, nil
+	return Plan{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: target, Changes: changes, Components: statuses, targetChanged: len(targetChanges) > 0}, nil
 }
 
 func (s Service) ApplyFile(ctx context.Context, path string) (ApplyResult, error) {
@@ -164,14 +165,19 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 	if !plan.Changed() {
 		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), Components: plan.Components}, nil
 	}
-	request, adapter, err := s.deployment(resolved, lock)
-	if err != nil {
-		return ApplyResult{Plan: plan}, err
-	}
-	// Target authority is checked before even the local adapter lock changes.
-	// The deployment adapter still rechecks at mutation time to narrow TOCTOU.
-	if err := adapter.Preflight(ctx, request); err != nil {
-		return ApplyResult{Plan: plan}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
+	var request DeploymentRequest
+	var adapter DeploymentAdapter
+	var err error
+	if plan.targetChanged {
+		request, adapter, err = s.deployment(resolved, lock)
+		if err != nil {
+			return ApplyResult{Plan: plan}, err
+		}
+		// Target authority is checked before even the local adapter lock changes.
+		// The deployment adapter still rechecks at mutation time to narrow TOCTOU.
+		if err := adapter.Preflight(ctx, request); err != nil {
+			return ApplyResult{Plan: plan}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
+		}
 	}
 	activated := false
 	for _, requirement := range resolved.Adapters {
@@ -195,6 +201,11 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 	if statusErr != nil {
 		return ApplyResult{Plan: plan, Applied: true}, statusErr
 	}
+	if !plan.targetChanged {
+		statuses := append(adapterStatuses, targetStatuses(plan.Components)...)
+		sortPlan(nil, statuses)
+		return ApplyResult{Plan: plan, Applied: activated, Ready: allReady(statuses), Components: statuses}, nil
+	}
 	statuses, err := adapter.Apply(ctx, request)
 	statuses = append(adapterStatuses, statuses...)
 	sortPlan(nil, statuses)
@@ -202,6 +213,16 @@ func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedP
 		return ApplyResult{Plan: plan, Applied: true, Components: statuses}, fmt.Errorf("apply Platform revision %s: %w", resolved.Revision, err)
 	}
 	return ApplyResult{Plan: plan, Applied: true, Ready: allReady(statuses), Components: statuses}, nil
+}
+
+func targetStatuses(components []ComponentStatus) []ComponentStatus {
+	statuses := make([]ComponentStatus, 0, len(components))
+	for _, component := range components {
+		if component.Category != "adapter" {
+			statuses = append(statuses, component)
+		}
+	}
+	return statuses
 }
 
 func (s Service) deployment(resolved *platform.ResolvedPlatform, lock *platform.PlatformLock) (DeploymentRequest, DeploymentAdapter, error) {

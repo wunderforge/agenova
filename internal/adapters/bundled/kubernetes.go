@@ -72,6 +72,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if namespaceErr != nil && !isNotFound(namespaceErr) {
 		return target, nil, nil, namespaceErr
 	}
+	if namespaceTerminating(namespaceObject) {
+		return target, nil, nil, fmt.Errorf("selected Kubernetes namespace %q is terminating; wait for deletion or choose another namespace", namespace)
+	}
 
 	record, recordErr := k.getJSON(ctx, contextName, namespace, "configmap", platformRecord)
 	if recordErr != nil && !isNotFound(recordErr) {
@@ -165,17 +168,24 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return failedStatuses(request.Platform.Revision), err
 	}
 	for index, step := range steps {
+		replaceSelector := false
+		if step.name == controlPlaneName+"-service" {
+			replaceSelector, err = k.serviceSelectorDrift(ctx, contextName, namespace)
+			if err != nil {
+				return k.stepFailure(ctx, request, steps, index, err)
+			}
+		}
 		manifest, err := yaml.Marshal(step.object)
 		if err != nil {
 			return failedStatuses(request.Platform.Revision), fmt.Errorf("encode Kubernetes %s manifest: %w", step.name, err)
 		}
 		if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
-			statuses := k.observedAfterFailure(ctx, request)
-			markStepStatus(statuses, step, "failed")
-			for _, pending := range steps[index+1:] {
-				markStepStatus(statuses, pending, "pending")
+			return k.stepFailure(ctx, request, steps, index, err)
+		}
+		if replaceSelector {
+			if err := k.replaceServiceSelector(ctx, contextName, namespace); err != nil {
+				return k.stepFailure(ctx, request, steps, index, err)
 			}
-			return statuses, fmt.Errorf("reconcile Kubernetes %s: %w", step.name, err)
 		}
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
@@ -194,6 +204,41 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		{Name: controlPlaneName, Category: "deployment", State: "available"},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: "available"},
 	}, nil
+}
+
+func (k *KubernetesDeployment) stepFailure(ctx context.Context, request platformapply.DeploymentRequest, steps []manifestStep, index int, cause error) ([]platformapply.ComponentStatus, error) {
+	statuses := k.observedAfterFailure(ctx, request)
+	markStepStatus(statuses, steps[index], "failed")
+	for _, pending := range steps[index+1:] {
+		markStepStatus(statuses, pending, "pending")
+	}
+	return statuses, fmt.Errorf("reconcile Kubernetes %s: %w", steps[index].name, cause)
+}
+
+func (k *KubernetesDeployment) serviceSelectorDrift(ctx context.Context, contextName, namespace string) (bool, error) {
+	object, err := k.getJSON(ctx, contextName, namespace, "service", controlPlaneName)
+	if isNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	spec, _ := object["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	desiredSpec := serviceObject(namespace)["spec"].(map[string]any)
+	return !reflect.DeepEqual(selector, desiredSpec["selector"]), nil
+}
+
+func (k *KubernetesDeployment) replaceServiceSelector(ctx context.Context, contextName, namespace string) error {
+	desiredSpec := serviceObject(namespace)["spec"].(map[string]any)
+	patch, err := json.Marshal([]map[string]any{{"op": "replace", "path": "/spec/selector", "value": desiredSpec["selector"]}})
+	if err != nil {
+		return fmt.Errorf("encode Service selector patch: %w", err)
+	}
+	if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "patch", "service", controlPlaneName, "--type=json", "-p", string(patch)); err != nil {
+		return fmt.Errorf("replace managed Service selector: %w", err)
+	}
+	return nil
 }
 
 type manifestStep struct {
@@ -259,6 +304,15 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 			}
 			if err := requireManaged(object, target.resource, target.name); err != nil {
 				return err
+			}
+		}
+		if exists && target.resource == "namespaces" {
+			object, err := k.getJSON(ctx, contextName, "", target.resource, target.name)
+			if err != nil {
+				return err
+			}
+			if namespaceTerminating(object) {
+				return fmt.Errorf("selected Kubernetes namespace %q is terminating; wait for deletion or choose another namespace", target.name)
 			}
 		}
 		// The selected namespace may predate Agenova. Once it exists, do not
@@ -425,6 +479,15 @@ func objectName(object map[string]any) string {
 	metadata, _ := object["metadata"].(map[string]any)
 	value, _ := metadata["name"].(string)
 	return value
+}
+
+func namespaceTerminating(object map[string]any) bool {
+	metadata, _ := object["metadata"].(map[string]any)
+	if timestamp, _ := metadata["deletionTimestamp"].(string); timestamp != "" {
+		return true
+	}
+	status, _ := object["status"].(map[string]any)
+	return status["phase"] == "Terminating"
 }
 
 func objectData(object map[string]any, key string) string {

@@ -55,6 +55,10 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 	if code != 0 || stderr != "" || !strings.Contains(stdout, `"target":"test/target"`) || !strings.Contains(stdout, `"action":"activate"`) {
 		t.Fatalf("plan = %d %q %q", code, stdout, stderr)
 	}
+	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "plan", "-f", path}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "adapter/deployment: available (example.com/deployment/test@1.0.0)") || !strings.Contains(stdout, "deployment/control: unavailable") {
+		t.Fatalf("human plan = %d %q %q", code, stdout, stderr)
+	}
 	_, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path}, "no\n", factory)
 	if code != 1 || !strings.Contains(stderr, "apply cancelled") || deployment.applied {
 		t.Fatalf("cancel = %d %q applied=%t", code, stderr, deployment.applied)
@@ -66,6 +70,10 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--json"}, "", factory)
 	if code != 0 || stderr != "" || !strings.Contains(stdout, `"applied":false`) || !strings.Contains(stdout, `"changes":[]`) {
 		t.Fatalf("no-op apply = %d %q %q", code, stdout, stderr)
+	}
+	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "plan", "-f", path}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "changes: 0") || !strings.Contains(stdout, "adapter/deployment: used (example.com/deployment/test@1.0.0)") || !strings.Contains(stdout, "deployment/control: available") {
+		t.Fatalf("no-op human plan = %d %q %q", code, stdout, stderr)
 	}
 }
 
