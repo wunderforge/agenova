@@ -84,6 +84,39 @@ func TestInstalledAPIErrorUsesOnlyStableDiagnostics(t *testing.T) {
 	}
 }
 
+func TestShowAndListUseInstalledLoopbackAPI(t *testing.T) {
+	const ref = "work?one#two"
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Method != http.MethodGet {
+			t.Errorf("query method = %s", r.Method)
+		}
+		view := fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q}},"facts":[],"outcome":{"status":"Succeeded"}}`, ref, ref)
+		switch r.URL.EscapedPath() {
+		case "/api/requests":
+			_, _ = w.Write([]byte("[" + view + "]"))
+		case "/api/requests/work%3Fone%23two/evidence":
+			_, _ = w.Write([]byte(view))
+		default:
+			t.Errorf("query path = %s", r.URL.EscapedPath())
+		}
+	}))
+	defer server.Close()
+	closed := 0
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() { closed++ }, nil
+	}}
+	shown, err := client.Show(ref)
+	if err != nil || shown.RequestRef != ref {
+		t.Fatalf("Show = %#v, %v", shown, err)
+	}
+	listed, err := client.List()
+	if err != nil || len(listed) != 1 || listed[0].RequestRef != ref || requests != 2 || closed != 2 {
+		t.Fatalf("List = %#v, %v, requests %d, closed %d", listed, err, requests, closed)
+	}
+}
+
 func TestRunFilePollsEscapedReference(t *testing.T) {
 	const ref = "demo?ref#one"
 	path := workFile(t, ref)

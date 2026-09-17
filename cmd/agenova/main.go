@@ -71,7 +71,7 @@ func connectAPI(stateDirectory string, port int, stdout, stderr io.Writer) error
 	cmd := exec.Command(path, "--context", client.Context, "--namespace", client.Namespace,
 		"port-forward", "deployment/agenova-control-plane", fmt.Sprintf("%d:8081", port), "--address", "127.0.0.1")
 	cmd.Stdout, cmd.Stderr = stdout, stderr
-	fmt.Fprintf(stdout, "Private Agenova API at http://127.0.0.1:%d while this command is running. Start npm dev in another terminal.\n", port)
+	fmt.Fprintf(stdout, "Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then start npm dev in another terminal.\n", port)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("local API connection stopped; check port availability, Platform status and Kubernetes access")
 	}
