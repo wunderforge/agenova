@@ -151,10 +151,18 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	}
 	launch, err := s.configure(prepared.Template)
 	if err != nil {
+		// A failed template installation is a terminal, queryable Work result.
+		// The request has already been registered in the journal, so deleting
+		// only its record would permanently poison this reference until restart.
+		reason := fmt.Sprintf("runtime template configuration failed: %v", err)
+		view.State.Claim.Phase = v0.ClaimPhaseFailed
+		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
+		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
 		s.mu.Lock()
-		delete(s.records, request.Metadata.Name)
+		s.records[ref] = &record{view: evidence.Clone(view)}
+		s.order = append(s.order, ref)
 		s.mu.Unlock()
-		return evidence.View{}, fmt.Errorf("configure registered runtime template: %w", err)
+		return s.QueryRequest(ref)
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
 	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {

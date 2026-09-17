@@ -34,4 +34,4 @@ Focused registration/CLI/service tests with fake runtime/provider, then publishe
 
 ## Risks and Compatibility
 
-Agent Sandbox and worker protocol are reference-only with known non-production limits. A Platform revision change must not mutate an active claim's authority/routing. The dirty bootstrap worktree is not part of this branch and must not be overwritten.
+Agent Sandbox and worker protocol are reference-only with known non-production limits. This reference service holds active Work and evidence in one Pod, so applying a new Platform revision while Work is active is unsupported: the rollout can interrupt the run and its cleanup/evidence. A production upgrade must provide draining and revision-stable routing or durable handoff before making that guarantee. The dirty bootstrap worktree is not part of this branch and must not be overwritten.

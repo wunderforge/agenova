@@ -732,7 +732,7 @@ func parseArgs(argv []string) (parsedArgs, error) {
 	if parsed.nameSet && parsed.command != "adapters" && !parsed.help {
 		return parsed, fmt.Errorf("--name is only valid with agenova adapters init")
 	}
-	if parsed.backendSet && (parsed.command == "adapters" || parsed.command == "platform") && !parsed.help {
+	if parsed.backendSet && (parsed.command == "adapters" || parsed.command == "platform" || parsed.command == "policy" || parsed.command == "agent-template") && !parsed.help {
 		return parsed, fmt.Errorf("--backend is not valid with agenova %s", parsed.command)
 	}
 	if parsed.yes && parsed.command != "platform" && !parsed.help {

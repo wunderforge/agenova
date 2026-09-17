@@ -40,7 +40,7 @@ Unknown template/profile, unavailable Ollama, conflicting registration, invalid 
 - [x] Connect CLI run/evidence to shared service; retain explicit reference mode.
 - [x] Add tests and real kind/Ollama E2E evidence.
 - [x] Run focused and full gates.
-- [ ] Independently review and fix findings.
+- [x] Independently review: fix three in-scope findings; disclose the remaining mid-run rollout/durability limitation as future scope.
 - [ ] Hand to owner for manual test before merge.
 - [ ] After acceptance, merge and reconcile related tickets/dependencies.
 
@@ -65,3 +65,4 @@ Capture CLI inputs/outputs, Platform revision, registrations, Team A allow and o
 
 - Owner direction prioritizes this integration ahead of stale ticket dependencies; reconcile #146/#147/#47 only after verification.
 - Reference identity and transport limitations must remain visible and not be described as production authentication.
+- The independent review found that an active Work can be interrupted by a Platform rollout because the reference service is single-Pod and process-local. The seven-command idle-install path is verified, but mid-run upgrades are explicitly unsupported and need a later draining/revision-stable routing or durable handoff ticket. Do not describe this as production-safe.

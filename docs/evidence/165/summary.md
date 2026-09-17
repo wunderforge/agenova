@@ -12,7 +12,7 @@ Date: 2026-09-17. Target: existing `kind-agenova-k8s-lab/agenova-system`; Agent 
 | `agenova platform status` | same revision and target, zero remaining changes |
 | `agenova policy apply -f deploy/reference/demo/policy.yaml` | `reference-default-deny@1` active; identical reapply: already registered |
 | `agenova agent-template apply -f deploy/reference/demo/engineer.yaml` | `engineer` registered; identical reapply: already registered |
-| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; final-image rerun used 362 input and 75 output tokens |
+| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; post-review final-image rerun used 362 input and 71 output tokens |
 
 The positive request's evidence had `Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded`, four allowed/succeeded model invocations, three allowed mock `git.read` invocations, and worker ID `agenova-pool-pool-engineer-9bk5d`. A subsequent namespace query found no remaining SandboxClaim. The model's answer identified a synthetic retry loop resetting a fresh 5-second deadline instead of using the remaining request time.
 
@@ -22,4 +22,4 @@ Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into k
 
 ## Scope and caveats
 
-The tool observations are mock fixtures; the model call and Sandbox worker were real. The reference identity is fixed Team A, not production authentication. Work/evidence are in-memory and lost on service restart, while registered Policy and AgentTemplate ConfigMaps persist. `platform status` assesses installation drift, not provider health or an E2E run. The first attempt failed immediately after Running because the in-pod execution seam required an external kube context; it was fixed to accept an explicit in-cluster kubeconfig, then the next run succeeded. This is recorded to prevent presenting a first-pass-only narrative.
+The tool observations are mock fixtures; the model call and Sandbox worker were real. The reference identity is fixed Team A, not production authentication. Work/evidence are in-memory and lost on service restart, while registered Policy and AgentTemplate ConfigMaps persist. Do not roll out a new Platform revision while Work is active; drain and revision-stable routing/durable handoff are not implemented in this reference slice. `platform status` assesses installation drift, not provider health or an E2E run. The first attempt failed immediately after Running because the in-pod execution seam required an external kube context; it was fixed to accept an explicit in-cluster kubeconfig, then the next run succeeded. This is recorded to prevent presenting a first-pass-only narrative.

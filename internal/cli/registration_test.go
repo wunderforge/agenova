@@ -39,4 +39,11 @@ spec:
 	if code := MainWithServices([]string{"agenova", "agent-template", "apply", "-f", policyPath}, &out, &errs, services); code == 0 || errs.Len() == 0 {
 		t.Fatalf("wrong-kind document accepted: %d %s", code, errs.String())
 	}
+	for _, command := range []string{"policy", "agent-template"} {
+		out.Reset()
+		errs.Reset()
+		if code := MainWithServices([]string{"agenova", command, "apply", "-f", policyPath, "--backend", "memory"}, &out, &errs, services); code == 0 || !strings.Contains(errs.String(), "--backend is not valid") {
+			t.Fatalf("%s silently ignored --backend: %d %s", command, code, errs.String())
+		}
+	}
 }
