@@ -68,6 +68,14 @@ go run ./cmd/agenova run -f harness/fixtures/contract/v0/inputs/claim-request/va
 
 Unknown commands, unknown `--backend` values, authority flags, and invalid ClaimRequest documents exit non-zero. On the reference memory backend, an allowed `run -f` request resolves authority, issues one claim, runs it to a terminal outcome, and reports its claim ID and phase.
 
+Adversarial denial demo (fixture mode — no backend, no credentials):
+
+```powershell
+go run ./examples/adversarial --task examples/adversarial/testdata/team-b-unauthorized.yaml
+```
+
+The unauthorized Team B principal is composed out-of-band and the request is evaluated through the merged authorization path against the reference default-deny bundle. It prints `[DENIED]` with the real `Decision` evidence — principal subject, `policy=<id>@<version>`, decision ID, and denial reason — before any claim is created, and exits non-zero. Supplying a malformed ClaimRequest exits non-zero with an actionable error and no panic. No `SandboxClaim` is ever created on a denial.
+
 ## Repository Map
 
 - `api/v1alpha1/`: current product-type sketches.

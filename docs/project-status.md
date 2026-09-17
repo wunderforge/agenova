@@ -39,6 +39,7 @@ Update this snapshot only when merged behavior, accepted evidence, or a known im
 - Static check preventing known Agent Sandbox types from leaking outside its adapter package.
 - Backend-neutral `agenova` composition root: `--help`, `version`, and `run -f` work; invalid command/configuration (including a missing `--backend` value) exits non-zero; the process hosts the in-memory reference backend and accepts test doubles. Command behavior and shared contracts stay provider-neutral; the composition edge may import a concrete adapter constructor.
 - `agenova run -f` submits the canonical payment-timeout ClaimRequest through admission, authority resolution, issuance, and `RunService`. Team A reaches a terminal reference-backend outcome; Team B and invalid inputs stop before allocation. Authority flags are rejected.
+- `examples/adversarial` denial demo (fixture mode): an unauthorized Team B principal composed out-of-band is evaluated through the merged authorization path against the reference default-deny bundle. It prints `[DENIED]` with real `Decision` evidence (principal, policy ID/version, decision ID, reason) before any claim is created and exits non-zero; malformed input exits non-zero without panic. Focused tests assert the claim store stays empty on denial.
 - The bundled adapter catalog explicitly registers Kubernetes deployment, Agent Sandbox runtime, and OpenAI-compatible model implementations by qualified ID/version, protocol, capability, schema, descriptor, and capability-owned factory. `agenova adapters catalog|list|inspect|install|init` shares one programmatic lifecycle with Platform resolution; identical activation is idempotent and initialization emits secret-free Platform fragments.
 
 ## Backend Spike
@@ -82,6 +83,6 @@ The next slice should make the reference governance path usable before adding mo
 - CLI `-f` issuance once the run service exists.
 - Denial facts and evidence query shape.
 - Agent Sandbox restart/durability spike.
-- Example engineer Agent Artifact and bounded adversarial denial scenario.
+- Example engineer Agent Artifact (the bounded adversarial denial scenario is delivered in `examples/adversarial`).
 - Single-claim timeline and authority UI using stable JSON fixtures.
 - Quickstart and adapter guide.

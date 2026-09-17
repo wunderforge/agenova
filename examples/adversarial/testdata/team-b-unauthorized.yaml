@@ -1,0 +1,32 @@
+# Demo-local fixture for the E9-T3 adversarial denial scenario.
+#
+# This is a schema-valid engineer ClaimRequest — identical in shape to a request
+# Team A is authorized to run. It carries no principal (identity is supplied
+# out-of-band). The adversarial demo binds the unauthorized Team B principal to
+# this request, so the reference default-deny policy denies it before any claim
+# is created. The denial comes from the principal, not from this document.
+#
+# It lives here (not in harness/fixtures/contract/v0) because the shared E1-T1
+# contract manifest models schema validity, not authorization outcome: every
+# valid claim-request fixture there must be the canonical Team A request.
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: team-b-payment-timeout
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: repository-change
+    input:
+      repository: acme/payments
+      objective: Fix the payment timeout bug
+      baseBranch: main
+  requestedAccess:
+    tools: [git.read, git.write, github.pull-request]
+    resourceScopes: [repo:acme/payments]
+    modelProfile: approved-coding-model
+    memoryScopes: [team-docs]
+  runtime:
+    profileRef: standard-isolated
+    timeout: 20m
