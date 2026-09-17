@@ -38,4 +38,10 @@ repository gate (50 browser smoke tests), and installed Playwright **2/2**
 passed again against the same retained live service records. No fixture or
 prose-only substitute was used for the installed suite.
 
+The next review pass also required the CLI to validate non-nil issued state
+and its request correlation, map Bound to the Portal's Starting label, print
+the executable `npm --prefix ui run dev` command, and require `Deny` as the
+installed negative's terminal outcome. Focused Go/type checks and the real
+installed Playwright **2/2** passed again after those changes.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.

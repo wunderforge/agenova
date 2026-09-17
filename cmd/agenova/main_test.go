@@ -27,8 +27,8 @@ func TestSubmitClaimRequestPreservesTerminalReportOnBackendFailure(t *testing.T)
 
 func TestCustomAPIConnectPortAdvertisesMatchingViteTarget(t *testing.T) {
 	defaultMessage := apiConnectInstruction(8088)
-	if strings.Contains(defaultMessage, "AGENOVA_API_URL") {
-		t.Fatalf("default port should not require extra Vite configuration: %q", defaultMessage)
+	if strings.Contains(defaultMessage, "AGENOVA_API_URL") || !strings.Contains(defaultMessage, "npm --prefix ui run dev") || strings.Contains(defaultMessage, "start npm dev") {
+		t.Fatalf("default port must advertise the valid UI command without extra configuration: %q", defaultMessage)
 	}
 	custom := apiConnectInstruction(18081)
 	if !strings.Contains(custom, "$env:AGENOVA_API_URL = 'http://127.0.0.1:18081'") ||
