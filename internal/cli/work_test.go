@@ -5,6 +5,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/platformapply"
 )
 
 func TestConnectedWorkQueryAndLocalAPI(t *testing.T) {
@@ -49,6 +51,43 @@ func TestConnectedWorkQueryAndLocalAPI(t *testing.T) {
 		var out, errs bytes.Buffer
 		if code := MainWithServices(test.args, &out, &errs, services); code != 0 || !strings.Contains(out.String(), test.want) {
 			t.Fatalf("%v: exit %d, out %q, err %q", test.args, code, out.String(), errs.String())
+		}
+	}
+}
+
+func TestDeniedWorkHumanStatusAgreesWithPortal(t *testing.T) {
+	denied := evidence.View{Version: "agenova.evidence/v0", RequestRef: "denied-work", Request: &v0.ClaimRequest{}, Outcome: &evidence.Outcome{Status: "Deny"}}
+	services := Services{
+		ShowConnected: func(string, string) (evidence.View, error) { return denied, nil },
+		ListConnected: func(string) ([]evidence.View, error) { return []evidence.View{denied}, nil },
+	}
+	for _, args := range [][]string{{"agenova", "work", "list"}, {"agenova", "work", "show", "denied-work"}} {
+		var out, errs bytes.Buffer
+		if code := MainWithServices(args, &out, &errs, services); code != 0 || !strings.Contains(out.String(), "Denied") || strings.Contains(out.String(), "\tDeny\n") || strings.Contains(out.String(), "phase: Deny") {
+			t.Fatalf("%v: exit %d, out %q, err %q", args, code, out.String(), errs.String())
+		}
+	}
+}
+
+func TestPlatformStatusAdvertisesSelectedStateDirectory(t *testing.T) {
+	const stateDir = `C:\Agenova's state`
+	const command = `agenova api connect --state-dir 'C:\Agenova''s state'`
+	for _, jsonOutput := range []bool{false, true} {
+		var out, errs bytes.Buffer
+		if code := printPlatformStatus(&out, &errs, platformapply.Plan{PlatformName: "reference"}, jsonOutput, stateDir); code != 0 {
+			t.Fatalf("status exit %d: %s", code, errs.String())
+		}
+		if jsonOutput {
+			var status struct {
+				API struct {
+					ConnectCommand string `json:"connectCommand"`
+				} `json:"api"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &status); err != nil || status.API.ConnectCommand != command {
+				t.Fatalf("JSON command = %q, error = %v", status.API.ConnectCommand, err)
+			}
+		} else if !strings.Contains(out.String(), command) {
+			t.Fatalf("human status omitted selected state directory: %s", out.String())
 		}
 	}
 }

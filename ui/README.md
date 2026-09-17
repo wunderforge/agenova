@@ -49,6 +49,21 @@ installed service currently retains Work/evidence in one Pod's
 memory, so restarting it loses that history. Durable authorized history is a
 separate product capability.
 
+The opt-in installed browser test compares the real API, a separate CLI
+process, and the Portal against the same allowed and denied Work records. Run
+it only after preparing kind/Ollama and those request references:
+
+```powershell
+$env:AGENOVA_CLI_PATH = (Resolve-Path .tmp/agenova.exe).Path
+$env:AGENOVA_LIVE_REQUEST_REF = 'investigate-payment-retries'
+$env:AGENOVA_LIVE_DENIED_REF = 'investigate-unapproved-project'
+npm --prefix ui run test:installed
+```
+
+The test asserts the Agent Sandbox worker identity, real model/provider facts,
+cleanup, denial without a Claim, and exact CLI/API record parity. It is not
+part of fixture-only smoke tests because it requires an installed live service.
+
 | Surface | Current source | What remains |
 | --- | --- | --- |
 | `/fixtures` | Canonical Go-parsed and shape-checked fixtures | No live API |

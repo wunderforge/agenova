@@ -69,6 +69,17 @@ npm --prefix ui run dev
 
 打开 Vite 打印的本机地址，切到 Connected，或访问 `/?mode=connected#/work`。Work 列表和详情应出现 CLI 查询的同一个 request ID、decision、claim ID 和结果。UI 未由 `platform apply` 安装；`npm dev` 只是本地客户端。若 8088 被其他进程占用，连接命令会失败；Connected 模式还会核对已安装 Platform 的身份和 revision，不会把旧 demo 服务误认为本次安装。断开连接后，页面显示不可用，不会自动回退到 mock。
 
+需要自动核对 CLI、API、UI 三者是同一份真实记录时，保持上述两个终端运行，在仓库根目录再执行（先运行上面的允许任务及下方的拒绝任务）：
+
+```powershell
+$env:AGENOVA_CLI_PATH = (Resolve-Path .tmp/agenova.exe).Path
+$env:AGENOVA_LIVE_REQUEST_REF = 'investigate-payment-retries'
+$env:AGENOVA_LIVE_DENIED_REF = 'investigate-unapproved-project'
+npm --prefix ui run test:installed
+```
+
+这项测试需要已安装服务中的这些 request ID；服务重启会清空进程内 Work 记录，需重新运行任务后再测。
+
 ## 治理测试
 
 ```powershell

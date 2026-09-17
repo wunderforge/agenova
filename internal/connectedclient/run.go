@@ -60,7 +60,7 @@ func (c Client) Show(ref string) (evidence.View, error) {
 		return evidence.View{}, err
 	}
 	var view evidence.View
-	if err := json.Unmarshal(response, &view); err != nil || view.Version != "agenova.evidence/v0" || view.RequestRef != ref {
+	if err := json.Unmarshal(response, &view); err != nil || !validEvidenceView(view, ref) {
 		return evidence.View{}, fmt.Errorf("installed Work service returned invalid evidence")
 	}
 	return view, nil
@@ -84,7 +84,7 @@ func (c Client) List() ([]evidence.View, error) {
 		return nil, fmt.Errorf("installed Work service returned invalid list")
 	}
 	for _, view := range views {
-		if view.Version != "agenova.evidence/v0" || !validRequestRef(view.RequestRef) || view.Request == nil {
+		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
 			return nil, fmt.Errorf("installed Work service returned invalid list")
 		}
 	}
@@ -168,10 +168,15 @@ func decodeView(data []byte, expectedRef string) (evidence.View, error) {
 	if err := json.Unmarshal(data, &view); err != nil {
 		return evidence.View{}, fmt.Errorf("decode installed Work evidence: %w", err)
 	}
-	if view.Version != "agenova.evidence/v0" || view.RequestRef != expectedRef {
-		return evidence.View{}, errors.New("installed Work service returned mismatched evidence")
+	if !validEvidenceView(view, expectedRef) {
+		return evidence.View{}, errors.New("installed Work service returned incomplete or mismatched evidence")
 	}
 	return view, nil
+}
+
+func validEvidenceView(view evidence.View, ref string) bool {
+	return view.Version == "agenova.evidence/v0" && view.RequestRef == ref &&
+		view.Request != nil && view.Request.Metadata.Name == ref && view.Facts != nil
 }
 
 func validRequestRef(ref string) bool {
