@@ -341,6 +341,9 @@ func workPhase(view evidence.View) string {
 	}
 	if view.State != nil {
 		if view.State.Claim != nil {
+			if view.State.Claim.Phase == v0.ClaimPhaseBound {
+				return "Starting"
+			}
 			if view.State.Claim.Phase == v0.ClaimPhaseSucceeded {
 				return "Finishing"
 			}

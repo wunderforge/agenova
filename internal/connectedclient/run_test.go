@@ -167,6 +167,8 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`,
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"demo"}}}`,
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":"demo"}},"facts":[]}`,
+		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"state":{"requestRef":"demo"},"facts":[]`, 1),
+		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"state":{"requestRef":"other"},"facts":[]`, 1),
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"other"}},"facts":[]}`,
 	} {
 		response = incomplete

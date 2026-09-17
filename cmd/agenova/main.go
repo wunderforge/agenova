@@ -79,7 +79,7 @@ func connectAPI(stateDirectory string, port int, stdout, stderr io.Writer) error
 }
 
 func apiConnectInstruction(port int) string {
-	message := fmt.Sprintf("Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then start npm dev in another terminal.\n", port)
+	message := fmt.Sprintf("Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then run npm --prefix ui run dev in another terminal.\n", port)
 	if port != 8088 {
 		message += fmt.Sprintf("In the Vite terminal, set $env:AGENOVA_API_URL = 'http://127.0.0.1:%d' (PowerShell) or run AGENOVA_API_URL=http://127.0.0.1:%d npm --prefix ui run dev (POSIX shell).\n", port, port)
 	}

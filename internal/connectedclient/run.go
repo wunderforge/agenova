@@ -175,9 +175,11 @@ func decodeView(data []byte, expectedRef string) (evidence.View, error) {
 }
 
 func validEvidenceView(view evidence.View, ref string) bool {
-	return view.Version == "agenova.evidence/v0" && view.RequestRef == ref &&
-		view.Request != nil && view.Request.Metadata.Name == ref &&
-		v0.ValidateClaimRequest(view.Request) == nil && view.Facts != nil
+	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil ||
+		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
+		return false
+	}
+	return view.State == nil || (view.State.RequestRef == ref && v0.ValidateIssuedState(view.State) == nil)
 }
 
 func validRequestRef(ref string) bool {

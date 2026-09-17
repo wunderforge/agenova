@@ -80,6 +80,13 @@ func TestSucceededClaimWithoutOutcomeIsStillFinishing(t *testing.T) {
 	}
 }
 
+func TestBoundClaimIsStartingInHumanStatus(t *testing.T) {
+	view := evidence.View{State: &v0.IssuedState{Claim: &v0.SandboxClaim{Phase: v0.ClaimPhaseBound}}}
+	if got := workPhase(view); got != "Starting" {
+		t.Fatalf("work phase = %q, want Starting", got)
+	}
+}
+
 func TestPlatformStatusAdvertisesSelectedStateDirectory(t *testing.T) {
 	const stateDir = `C:\Agenova's state`
 	const command = `agenova api connect --state-dir 'C:\Agenova''s state'`
