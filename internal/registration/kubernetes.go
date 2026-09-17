@@ -197,7 +197,8 @@ func (s KubernetesStore) Template(name string) (*v0.AgentTemplate, error) {
 
 func (s KubernetesStore) Lookup(name string) (*v0.AgentTemplate, error) { return s.Template(name) }
 
-// Templates returns only validated, Agenova-managed template records.
+// Templates returns only Agenova-managed, validated AgentTemplate records.
+// It is a read path for reference setup, not a registration or grant path.
 func (s KubernetesStore) Templates() ([]*v0.AgentTemplate, error) {
 	output, err := s.run(nil, "get", "configmap", "-l", "app.kubernetes.io/managed-by=agenova,app.kubernetes.io/part-of=agenova", "-o", "json")
 	if err != nil {

@@ -23,7 +23,7 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 5. [AIDLC workflow](docs/development/AIDLC.md) — source-of-truth ownership and the ten-person AI-assisted delivery loop.
 6. [Architecture contract](docs/product/architecture-contract.md) — stable rules that changes must preserve.
 
-To reproduce the current reference installation and a real kind + Ollama Work from the CLI, follow the [seven-command guide](docs/reference-cli-kind-ollama.md). It separates substrate preparation from Agenova configuration, registration, and execution, and states the reference-only limits.
+To reproduce the current reference installation and a real kind + Ollama Work from the CLI, then inspect the same record in a local React Portal, follow the [kind + Ollama guide](docs/reference-cli-kind-ollama.md). It separates substrate preparation from Agenova configuration, registration, execution and optional UI connection, and states the reference-only limits.
 
 Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
 
@@ -40,7 +40,7 @@ The repository contains a working Go reference implementation for:
 - a declarative CLI path for Platform validate/plan/apply/status, narrow Policy and AgentTemplate registration, and Work submission against an installed reference service;
 - a real kind + Agent Sandbox worker and Ollama model path for the documented reference configuration.
 
-It does **not** yet contain durable Work/evidence, production identity or controllers, Helm packaging, a Memory Interface, or OpenTelemetry integration. The React console exists, but the installed-service CLI and local UI are not yet configured to query the same API; do not treat their results as one shared live view. See [Current status](docs/project-status.md) for the exact boundary.
+It does **not** yet contain durable Work/evidence, production identity or controllers, Helm packaging, a Memory Interface, or OpenTelemetry integration. The CLI can query current-session Work after submission; a separately started local React Portal can use an explicit loopback connection to the same installed private API. The UI is not installed by `platform apply`, and the local tunnel is not production authentication. See [Current status](docs/project-status.md) for the exact boundary.
 
 ## Validate
 

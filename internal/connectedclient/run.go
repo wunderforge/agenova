@@ -42,6 +42,55 @@ const maxEvidenceBytes = 1 << 20
 
 var forwardedPort = regexp.MustCompile(`^Forwarding from 127\.0\.0\.1:([0-9]+) -> 8081$`)
 
+// Show fetches one canonical evidence view from the installed Work API after
+// the process that submitted it has exited. History is still process-local.
+func (c Client) Show(ref string) (evidence.View, error) {
+	if !validRequestRef(ref) {
+		return evidence.View{}, fmt.Errorf("provide one bounded request reference")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	endpoint, closeTunnel, err := c.openTunnel(ctx)
+	if err != nil {
+		return evidence.View{}, err
+	}
+	defer closeTunnel()
+	response, err := c.call(ctx, endpoint, nil, ref)
+	if err != nil {
+		return evidence.View{}, err
+	}
+	var view evidence.View
+	if err := json.Unmarshal(response, &view); err != nil || view.Version != "agenova.evidence/v0" || view.RequestRef != ref {
+		return evidence.View{}, fmt.Errorf("installed Work service returned invalid evidence")
+	}
+	return view, nil
+}
+
+// List reads only the installed service's bounded current-session records.
+func (c Client) List() ([]evidence.View, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	endpoint, closeTunnel, err := c.openTunnel(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer closeTunnel()
+	response, err := c.call(ctx, endpoint, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	var views []evidence.View
+	if err := json.Unmarshal(response, &views); err != nil || views == nil || len(views) > 32 {
+		return nil, fmt.Errorf("installed Work service returned invalid list")
+	}
+	for _, view := range views {
+		if view.Version != "agenova.evidence/v0" || !validRequestRef(view.RequestRef) || view.Request == nil {
+			return nil, fmt.Errorf("installed Work service returned invalid list")
+		}
+	}
+	return views, nil
+}
+
 func (c Client) RunFile(path string) (evidence.View, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -140,10 +189,13 @@ func validRequestRef(ref string) bool {
 func (c Client) call(ctx context.Context, endpoint string, input []byte, ref string) ([]byte, error) {
 	method, path := http.MethodPost, "/api/requests"
 	if input == nil {
-		if !validRequestRef(ref) {
-			return nil, errors.New("Work reference is invalid")
+		method = http.MethodGet
+		if ref != "" {
+			if !validRequestRef(ref) {
+				return nil, errors.New("Work reference is invalid")
+			}
+			path = "/api/requests/" + url.PathEscape(ref) + "/evidence"
 		}
-		method, path = http.MethodGet, "/api/requests/"+url.PathEscape(ref)+"/evidence"
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint+path, bytes.NewReader(input))
 	if err != nil {
