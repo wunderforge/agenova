@@ -40,12 +40,12 @@ Out of scope: UI installation by Platform apply, production authentication, mult
 
 - [x] Scout existing installed/private API, CLI exec transport, Portal connection and ticket overlaps.
 - [x] Owner's 17 September instruction explicitly authorizes this E2E slice and direct merge after review/gates, superseding the normal packet pause.
-- [ ] Add CLI query and honest Platform/API connection discovery.
-- [ ] Connect local Portal to the private installed API with real setup data.
-- [ ] Verify one real kind/Ollama request through CLI, API and browser.
-- [ ] Add or update focused behavioral evidence.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Add CLI query and honest Platform/API connection discovery.
+- [x] Connect local Portal to the private installed API with real setup data.
+- [x] Verify one real kind/Ollama request through CLI, API and browser.
+- [x] Add or update focused behavioral evidence.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
@@ -66,4 +66,4 @@ Out of scope: UI installation by Platform apply, production authentication, mult
 ## Decisions and Blockers
 
 - #146 overlaps; this ticket owns its remaining shared-API query/display slice, not a parallel service. #130 durability and #147 multi-template Portal selection are deferred and must not be marked complete by this work.
-
+- Real kind/Ollama Allow and pre-claim Deny, CLI list/show parity, and two opt-in installed Playwright checks passed on 17 September 2026. The checked-in screenshots are synthetic-task evidence from the dedicated test cluster, not production data. Merge/board reconciliation remain gated by PR review and remote publication.
