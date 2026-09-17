@@ -451,7 +451,9 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 	request := deploymentRequest()
 	drifted := true
+	reloadPending := false
 	restarted := false
+	failRestart := true
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 		switch {
 		case contains(args, "version"):
@@ -460,9 +462,19 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 			return commandResult{stdout: "yes\n"}, nil
 		case contains(args, "apply"):
 			drifted = false
+			reloadPending = true
 			return commandResult{}, nil
 		case contains(args, "rollout") && contains(args, "restart"):
+			if failRestart {
+				return commandResult{}, errors.New("restart rejected")
+			}
 			restarted = true
+			return commandResult{}, nil
+		case contains(args, "patch") && contains(args, platformRecord):
+			if !restarted {
+				return commandResult{}, errors.New("marker cleared before restart")
+			}
+			reloadPending = false
 			return commandResult{}, nil
 		case contains(args, "rollout") && contains(args, "status"):
 			if !restarted {
@@ -471,7 +483,7 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 			return commandResult{}, nil
 		case contains(args, "get") && !contains(args, "json"):
 			return commandResult{stdout: "existing\n"}, nil
-		case contains(args, "get") && contains(args, "json") && contains(args, platformRecord) && drifted:
+		case contains(args, "get") && contains(args, "json") && contains(args, platformRecord) && (drifted || reloadPending):
 			result, ok := readyResourceResult(args, request)
 			if !ok {
 				return commandResult{}, errors.New("missing Platform record")
@@ -480,7 +492,12 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 			if err := json.Unmarshal([]byte(result.stdout), &object); err != nil {
 				return commandResult{}, err
 			}
-			object["data"].(map[string]any)["effective-platform.json"] = `{"tampered":true}`
+			if drifted {
+				object["data"].(map[string]any)["effective-platform.json"] = `{"tampered":true}`
+			}
+			if reloadPending {
+				object["metadata"].(map[string]any)["annotations"].(map[string]any)[reloadPendingAnnotation] = "true"
+			}
 			encoded, _ := json.Marshal(object)
 			return commandResult{stdout: string(encoded)}, nil
 		default:
@@ -511,8 +528,21 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 	}
 	request.TargetChanges = changes
 	statuses, attempted, err := adapter.Apply(context.Background(), request)
+	if err == nil || !attempted || restarted || !reloadPending {
+		t.Fatalf("failed restart = %#v, attempted %v, restarted %v, marker %v, err %v", statuses, attempted, restarted, reloadPending, err)
+	}
+	_, changes, statuses, err = adapter.Plan(context.Background(), request)
+	if err != nil || len(changes) != 2 || changes[0].Component != platformRecord || changes[1].Component != controlPlaneName {
+		t.Fatalf("restart retry plan = %#v, statuses %#v, err %v", changes, statuses, err)
+	}
+	failRestart = false
+	request.TargetChanges = changes
+	statuses, attempted, err = adapter.Apply(context.Background(), request)
 	if err != nil || !attempted || !restarted {
 		t.Fatalf("Apply() = %#v, attempted %v, restarted %v, err %v", statuses, attempted, restarted, err)
+	}
+	if reloadPending {
+		t.Fatal("successful restart left a pending marker")
 	}
 }
 

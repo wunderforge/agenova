@@ -131,6 +131,17 @@ func TestRunDenyExitsOne(t *testing.T) {
 	}
 }
 
+func TestConnectedRunCancelledExitsOne(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr strings.Builder
+	code := printConnectedRun(&stdout, &stderr, parsedArgs{fileSet: true, file: "request.yaml"}, func(string, string) (RunReport, error) {
+		return RunReport{RequestRef: "fix-payment-timeout", Decision: "Allow", ClaimID: "claim-1", Phase: "Cancelled"}, nil
+	})
+	if code != 1 {
+		t.Fatalf("cancelled connected run exit = %d, want 1", code)
+	}
+}
+
 func TestRunReportsApplicationAllocation(t *testing.T) {
 	t.Parallel()
 	handler := func(string, runtime.RuntimeBackend) (RunReport, error) {

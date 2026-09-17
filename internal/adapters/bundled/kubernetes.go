@@ -27,11 +27,12 @@ import (
 )
 
 const (
-	controlPlaneName   = "agenova-control-plane"
-	platformRecord     = "agenova-platform"
-	activePolicyRecord = "agenova-active-policy"
-	controlPlaneRole   = "agenova-control-plane-runtime"
-	controlPlaneImage  = "agenova-control-plane:0.1.0"
+	controlPlaneName        = "agenova-control-plane"
+	platformRecord          = "agenova-platform"
+	reloadPendingAnnotation = "agenova.io/reload-pending"
+	activePolicyRecord      = "agenova-active-policy"
+	controlPlaneRole        = "agenova-control-plane-runtime"
+	controlPlaneImage       = "agenova-control-plane:0.1.0"
 )
 
 // The reference install writes the same immutable record name as the
@@ -272,7 +273,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	}
 	namespaceReady := objectName(namespaceObject) == namespace
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
-	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON && objectData(record, "effective-platform.json") == string(effectiveJSON)
+	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON && objectData(record, "effective-platform.json") == string(effectiveJSON) && objectAnnotation(record, reloadPendingAnnotation) == ""
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
 	activePolicyReady, activePolicyRef, err := k.activePolicyReady(ctx, contextName, namespace, activePolicyObject, registration.PolicyReference{ID: request.Platform.InitialPolicyRef.ID, Version: request.Platform.InitialPolicyRef.Version})
 	if err != nil {
@@ -370,6 +371,13 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return failedStatuses(request.Platform.Revision), false, err
 	}
 	mutationAttempted := false
+	recordUpdate := false
+	for _, change := range request.TargetChanges {
+		if change.Component == platformRecord && change.Action == "update" {
+			recordUpdate = true
+			break
+		}
+	}
 	for index, step := range steps {
 		if !plannedComponent(request.TargetChanges, step.name) {
 			continue
@@ -387,6 +395,12 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			if err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
+		}
+		if step.name == platformRecord && recordUpdate {
+			// Persist the reload debt in the same write as the repaired bytes.
+			// A failed restart must leave the next plan non-ready and retryable.
+			metadata := step.object["metadata"].(map[string]any)
+			metadata["annotations"].(map[string]any)[reloadPendingAnnotation] = "true"
 		}
 		manifest, err := yaml.Marshal(step.object)
 		if err != nil {
@@ -412,13 +426,10 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	// A previously installed ConfigMap repair must reload the process that may
 	// have started from drifted bytes. The plan includes the Deployment so its
 	// patch/watch authority was checked before any mutation.
-	for _, change := range request.TargetChanges {
-		if change.Component == platformRecord && change.Action == "update" {
-			if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
-				statuses := k.observedAfterFailure(ctx, request)
-				return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
-			}
-			break
+	if recordUpdate {
+		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
 		}
 	}
 	if plannedComponent(request.TargetChanges, controlPlaneName) {
@@ -430,6 +441,15 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				}
 			}
 			return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
+		}
+	}
+	if recordUpdate {
+		// Only clear the debt after the new Pod is observed Ready. A failed
+		// cleanup stays visible to status and is safe for a later apply retry.
+		patch := `{"metadata":{"annotations":{"` + reloadPendingAnnotation + `":null}}}`
+		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "patch", "configmap", platformRecord, "--type", "merge", "-p", patch); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			return statuses, mutationAttempted, fmt.Errorf("clear Platform reload marker after Ready: %w", err)
 		}
 	}
 	_, remaining, statuses, err := k.Plan(ctx, request)

@@ -225,7 +225,7 @@ func printConnectedRun(stdout, stderr io.Writer, parsed parsedArgs, run Connecte
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	if strings.EqualFold(report.Decision, "Deny") || strings.EqualFold(report.Phase, "Failed") || strings.EqualFold(report.Phase, "Expired") {
+	if strings.EqualFold(report.Decision, "Deny") || strings.EqualFold(report.Phase, "Failed") || strings.EqualFold(report.Phase, "Expired") || strings.EqualFold(report.Phase, "Cancelled") {
 		return 1
 	}
 	return 0
