@@ -32,12 +32,12 @@ import (
 )
 
 type status struct {
-	Platform       string `json:"platform"`
-	Revision       string `json:"revision"`
-	Policy         string `json:"policy"`
-	State          string `json:"state"`
-	ReadinessScope string `json:"readinessScope"`
-	ProviderHealth string `json:"providerHealth"`
+	Platform         string `json:"platform"`
+	Revision         string `json:"revision"`
+	InitialPolicyRef string `json:"initialPolicyRef"`
+	State            string `json:"state"`
+	ReadinessScope   string `json:"readinessScope"`
+	ProviderHealth   string `json:"providerHealth"`
 }
 
 func main() {
@@ -329,7 +329,7 @@ func handler() http.Handler {
 	})
 	mux.HandleFunc("GET /v1/status", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), Policy: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
+		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
 }

@@ -4,6 +4,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -14,10 +15,21 @@ import (
 func TestReferenceTemplateCompatibilityBeforeRegistration(t *testing.T) {
 	installed := &platform.ResolvedPlatform{Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Config: map[string]any{"compatible-worker-image": "trusted-worker:v1"}}}}
 	allowed := v0.Duration(5 * time.Minute)
-	template := &v0.AgentTemplate{Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "trusted-worker:v1"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agenova-workerctl", "serve"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{MaxTimeout: &allowed}}}
+	template := &v0.AgentTemplate{Metadata: v0.ObjectMeta{Name: "engineer"}, Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "trusted-worker:v1"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agenova-workerctl", "serve"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{MaxTimeout: &allowed}}}
 	if err := validateReferenceTemplate(template, installed); err != nil {
 		t.Fatal(err)
 	}
+	for _, name := range []string{strings.Repeat("a", 59), "Invalid-Name", "bad.name"} {
+		template.Metadata.Name = name
+		if err := validateReferenceTemplate(template, installed); err == nil {
+			t.Fatalf("unusable template name %q accepted", name)
+		}
+	}
+	template.Metadata.Name = strings.Repeat("a", 58)
+	if err := validateReferenceTemplate(template, installed); err != nil {
+		t.Fatalf("maximum supported template name rejected: %v", err)
+	}
+	template.Metadata.Name = "engineer"
 	template.Spec.Artifact.Image = "unverified-worker:v1"
 	if err := validateReferenceTemplate(template, installed); err == nil {
 		t.Fatal("unverified worker image accepted")

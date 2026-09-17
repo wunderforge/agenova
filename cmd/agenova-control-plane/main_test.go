@@ -24,7 +24,7 @@ func TestReferenceEndpointsExposeOnlySafeStatus(t *testing.T) {
 	}
 	result := httptest.NewRecorder()
 	handler().ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
-	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"revision":"sha256:test"`) || !strings.Contains(result.Body.String(), `"state":"installation-ready"`) || !strings.Contains(result.Body.String(), `"readinessScope":"installation-components"`) || !strings.Contains(result.Body.String(), `"providerHealth":"not-checked"`) || strings.Contains(strings.ToLower(result.Body.String()), "credential") {
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"revision":"sha256:test"`) || !strings.Contains(result.Body.String(), `"initialPolicyRef":"reference-default-deny@1"`) || strings.Contains(result.Body.String(), `"policy":`) || !strings.Contains(result.Body.String(), `"state":"installation-ready"`) || !strings.Contains(result.Body.String(), `"readinessScope":"installation-components"`) || !strings.Contains(result.Body.String(), `"providerHealth":"not-checked"`) || strings.Contains(strings.ToLower(result.Body.String()), "credential") {
 		t.Fatalf("status = %d %q", result.Code, result.Body.String())
 	}
 }

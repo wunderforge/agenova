@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -56,6 +57,13 @@ func validateReferenceTemplate(template *v0.AgentTemplate, resolved *platform.Re
 	if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil || resolved == nil {
 		return fmt.Errorf("registered AgentTemplate or installed Platform is incomplete")
 	}
+	// The name is also used as an Agent Sandbox template and in a "pool-"
+	// resource name. Reject unusable names before create-only registration
+	// reserves the singleton and before Work submission's bounded HTTP body.
+	name := template.Metadata.Name
+	if len(name) == 0 || len(name) > 58 || !referenceTemplateName.MatchString(name) {
+		return fmt.Errorf("reference runtime requires an AgentTemplate name of at most 58 lowercase DNS-label characters")
+	}
 	workerImage := ""
 	runtimes := 0
 	for _, instance := range resolved.Instances {
@@ -76,6 +84,8 @@ func validateReferenceTemplate(template *v0.AgentTemplate, resolved *platform.Re
 	}
 	return nil
 }
+
+var referenceTemplateName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 func DeploymentCoordinates(resolved *platform.ResolvedPlatform) (string, string, error) {
 	if resolved == nil {
