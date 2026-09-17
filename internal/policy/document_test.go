@@ -5,6 +5,13 @@ package policy
 
 import "testing"
 
+func TestParseEmptyDefaultDenyRulesAsCollection(t *testing.T) {
+	bundle, err := ParseDocumentYAML([]byte("apiVersion: agenova.io/v1alpha1\nkind: PolicyBundle\nmetadata:\n  name: empty\n  version: '1'\nspec:\n  rules: []\n"))
+	if err != nil || bundle.Rules == nil || len(bundle.Rules) != 0 {
+		t.Fatalf("empty default-deny bundle = %#v, %v", bundle, err)
+	}
+}
+
 func TestParseDocumentYAMLStrictAndDefaultDeny(t *testing.T) {
 	input := []byte(`apiVersion: agenova.io/v1alpha1
 kind: PolicyBundle

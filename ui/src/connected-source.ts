@@ -19,6 +19,13 @@ export interface Setup {
   };
   capabilities: Record<string, string>;
 }
+// Suggestions only: the installed service remains the authority for admission.
+export function suggestedProjects(setup: Setup): string[] {
+  return [...new Set(setup.policy.Rules
+    .filter(rule => rule.team === setup.principal.team && rule.action === 'claim.create' &&
+      rule.templateRef === setup.template.metadata.name)
+    .map(rule => rule.project))];
+}
 export class SourceError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);

@@ -1,7 +1,7 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectedSource } from './connected-source';
+import { connectedSource, suggestedProjects, type Setup } from './connected-source';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -17,6 +17,19 @@ it('accepts the installed API policy rule field names', async () => {
   };
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(setup), { status: 200 })));
   expect((await connectedSource.setup()).policy.Rules[0].team).toBe('team-a');
+});
+
+it('suggests only projects for the current principal and registered template', () => {
+  const setup = {
+    principal: { team: 'team-a' }, template: { metadata: { name: 'engineer' } },
+    policy: { Rules: [
+      { team: 'team-a', action: 'claim.create', project: 'billing', templateRef: 'engineer' },
+      { team: 'team-a', action: 'claim.create', project: 'billing', templateRef: 'engineer' },
+      { team: 'team-b', action: 'claim.create', project: 'identity', templateRef: 'engineer' },
+      { team: 'team-a', action: 'claim.delete', project: 'ops', templateRef: 'engineer' },
+    ] },
+  } as Setup;
+  expect(suggestedProjects(setup)).toEqual(['billing']);
 });
 
 it('reserves the installed setup window for submission without extending reads', async () => {

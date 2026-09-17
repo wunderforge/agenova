@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
-import { connectedSource, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { connectedSource, suggestedProjects, workStatus, workTitle, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions } from './worker-activity-model';
@@ -298,6 +298,9 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
 function NewWork({ setup, created }: { setup: Setup; created: (work: View) => void }) {
   const ceiling = setup.template.spec.capabilityCeiling;
   const defaults = setup.template.spec.defaults;
+  const projects = suggestedProjects(setup);
+  const defaultScope = ceiling?.resourceScopes?.find(scope => scope.startsWith('repo:'));
+  const defaultRepository = defaultScope?.slice('repo:'.length) || '';
   const [tools, setTools] = useState<string[]>(ceiling?.tools || []);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -307,6 +310,8 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
     const objective = String(form.get('objective') || '').trim();
     const workName = String(form.get('workName') || '').trim();
     if (!objective) { setError('Describe the task.'); return; }
+    const project = String(form.get('project') || '').trim();
+    if (!project) { setError('Choose a project.'); return; }
     const repository = String(form.get('repository') || '').trim();
     const scopes = (name: string) => String(form.get(name) || '')
       .split(',').map(value => value.trim()).filter(Boolean);
@@ -315,7 +320,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       metadata: { name: `work-${crypto.randomUUID()}` },
       spec: {
         templateRef: setup.template.metadata.name,
-        projectRef: 'payments',
+        projectRef: project,
         task: {
           type: 'repository-change',
           input: {
@@ -349,10 +354,13 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
           <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
             <option>{setup.template.metadata.name}</option>
           </select></label>
+          <label>Project<input name="project" list="policy-projects" defaultValue={projects[0] || ''} required/>
+            <datalist id="policy-projects">{projects.map(project => <option key={project} value={project}/>)}</datalist>
+          </label>
           <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
           <label>What should it do?<textarea name="objective" required/></label>
           <div className="portal-field-row">
-            <label>Repository<input name="repository" defaultValue="acme/payments"/></label>
+            <label>Repository<input name="repository" defaultValue={defaultRepository}/></label>
             <label>Base branch<input name="branch" defaultValue="main"/></label>
           </div>
         </section>
@@ -365,7 +373,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
                   ? [...current, tool] : current.filter(value => value !== tool))}/>{tool}
             </label>
           )}</fieldset>
-          <label>Resource scopes<input name="scopes" defaultValue="repo:acme/payments"/></label>
+          <label>Resource scopes<input name="scopes" defaultValue={(ceiling?.resourceScopes || []).join(', ')}/></label>
           <div className="portal-field-row">
             <label>Model profile<select name="model"
               defaultValue={defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>

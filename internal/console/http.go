@@ -63,6 +63,11 @@ func Handler(service *Service) http.Handler {
 				writeError(w, 503, "setup_unavailable", "Registered platform setup is unavailable.")
 				return
 			}
+			// An empty default-deny policy is valid. Keep the HTTP collection
+			// shape stable even for older records persisted with a nil Go slice.
+			if setup.Policy.Rules == nil {
+				setup.Policy.Rules = []policy.Rule{}
+			}
 			writeJSON(w, 200, setup)
 		case "/api/requests":
 			switch r.Method {

@@ -44,7 +44,7 @@ func ParseDocumentYAML(data []byte) (PolicyBundle, error) {
 	if document.APIVersion != DocumentAPIVersion || document.Kind != DocumentKind {
 		return PolicyBundle{}, fmt.Errorf("PolicyBundle requires apiVersion %s and kind %s", DocumentAPIVersion, DocumentKind)
 	}
-	bundle := PolicyBundle{ID: document.Metadata.Name, Version: document.Metadata.Version, Rules: append([]Rule(nil), document.Spec.Rules...)}
+	bundle := PolicyBundle{ID: document.Metadata.Name, Version: document.Metadata.Version, Rules: append([]Rule{}, document.Spec.Rules...)}
 	if err := ValidateBundle(bundle); err != nil {
 		return PolicyBundle{}, err
 	}

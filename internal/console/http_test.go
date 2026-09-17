@@ -222,6 +222,20 @@ func TestHTTPSetupProviderFailsClosed(t *testing.T) {
 	}
 }
 
+func TestHTTPSetupSerializesEmptyDefaultDenyRulesAsArray(t *testing.T) {
+	service, _, handler := httpService(t, app.ReferencePrincipalTeamA, &httpProvider{})
+	original := service.setup
+	service.setup = func() (Setup, error) {
+		setup, err := original()
+		setup.Policy.Rules = nil
+		return setup, err
+	}
+	w := httpCall(handler, "GET", "/api/setup", nil, nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Rules":[]`) {
+		t.Fatalf("empty policy setup = %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHTTPBoundaryFailuresDoNotLeakOrExecute(t *testing.T) {
 	p := &httpProvider{}
 	_, b, h := httpService(t, app.ReferencePrincipalTeamA, p)
