@@ -102,3 +102,24 @@ spec:
 		t.Fatalf("conflicting template = %v", err)
 	}
 }
+
+func TestTemplateCompatibilityIsCheckedBeforeImmutableRegistration(t *testing.T) {
+	store := NewMemoryStore()
+	svc := Service{Store: store, ValidateTemplate: func(*v0.AgentTemplate) error {
+		return errors.New("worker artifact is incompatible")
+	}}
+	_, err := svc.ApplyTemplate([]byte(`apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata: {name: engineer}
+spec:
+  artifact: {image: unverified-worker:v1}
+  entrypoint: {command: [/agenova-workerctl, serve]}
+  capabilityCeiling: {}
+`))
+	if err == nil {
+		t.Fatal("incompatible template was registered")
+	}
+	if _, err := store.Template("engineer"); err == nil {
+		t.Fatal("incompatible template occupied the registry")
+	}
+}

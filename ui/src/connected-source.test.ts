@@ -18,3 +18,13 @@ it('accepts the installed API policy rule field names', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(setup), { status: 200 })));
   expect((await connectedSource.setup()).policy.Rules[0].team).toBe('team-a');
 });
+
+it('reserves the installed setup window for submission without extending reads', async () => {
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+  await expect(connectedSource.submit({} as Parameters<typeof connectedSource.submit>[0])).rejects.toThrow();
+  expect(timeout).toHaveBeenCalledWith(240_000);
+  await expect(connectedSource.setup()).rejects.toThrow();
+  expect(timeout).toHaveBeenLastCalledWith(8_000);
+  timeout.mockRestore();
+});

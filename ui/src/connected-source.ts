@@ -26,7 +26,10 @@ export class SourceError extends Error {
 }
 
 async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Promise<unknown> {
-  const timeout = AbortSignal.timeout(8000);
+  // The installed service can synchronously configure the runtime before
+  // acknowledging submission. Reads remain short; writes share the server's
+  // bounded setup window so a Work is not launched after the UI reports fail.
+  const timeout = AbortSignal.timeout(body ? 240_000 : 8_000);
   const response = await fetch(path, {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     cache: 'no-store',

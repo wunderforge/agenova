@@ -43,7 +43,12 @@ type Store interface {
 	Template(name string) (*v0.AgentTemplate, error)
 }
 
-type Service struct{ Store Store }
+type Service struct {
+	Store Store
+	// ValidateTemplate is the installed runtime's compatibility check. Run it
+	// before reserving an immutable registry identity.
+	ValidateTemplate func(*v0.AgentTemplate) error
+}
 
 func (s Service) ApplyPolicyFile(path string) (Result, error) {
 	data, err := readDocument(path)
@@ -108,6 +113,11 @@ func (s Service) ApplyTemplate(data []byte) (Result, error) {
 	template, validationErr := v0.ParseAgentTemplateYAML(data)
 	if validationErr != nil {
 		return Result{}, validationErr
+	}
+	if s.ValidateTemplate != nil {
+		if err := s.ValidateTemplate(template); err != nil {
+			return Result{}, err
+		}
 	}
 	changed, err := s.Store.PutTemplate(template)
 	if err != nil {
