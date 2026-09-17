@@ -7,6 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it('accepts the installed API policy rule field names', async () => {
   const setup = {
+    installation: { kind: 'installed', platform: 'reference-kind', revision: 'sha256:' + 'a'.repeat(64) },
     principal: { subject: 'operator', team: 'team-a', authenticationContext: 'local-reference' },
     template: {
       apiVersion: 'agenova.io/v1alpha1', kind: 'AgentTemplate', metadata: { name: 'engineer' },
