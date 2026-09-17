@@ -62,4 +62,4 @@ agenova policy apply -f deploy/reference/demo/policy-conflict.yaml
 - CLI 用当前 Kubernetes 身份/RBAC 注册配置和连接已安装服务；容器内 Work 入口仅监听 loopback。loopback 是传输隔离，不是认证。
 - 不要在 Work 运行中执行新的 `platform apply` 或重启 Control Plane；当前参考服务的 Work/evidence 位于单个 Pod 内存中，滚动更新尚无 drain/持久化交接，可能中断执行及清理。这是后续生产升级能力，不属于本次七条命令的完成声明。
 - 只验证了这组 Kubernetes/Agent Sandbox/OpenAI-compatible 配置。Memory、Observability、其他 gateway/adapter 和任意 agent 镜像不是此演示的已上线能力。
-- 此文档是 #165 分支验收手册；在用户亲测并接受前，不把该分支描述为已合入 main。
+- 本流程是已验证的参考演示路径，不代表生产身份、多副本历史或通用 adapter 已完成。

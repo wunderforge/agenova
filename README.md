@@ -23,6 +23,8 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 5. [AIDLC workflow](docs/development/AIDLC.md) — source-of-truth ownership and the ten-person AI-assisted delivery loop.
 6. [Architecture contract](docs/product/architecture-contract.md) — stable rules that changes must preserve.
 
+To reproduce the current reference installation and a real kind + Ollama Work from the CLI, follow the [seven-command guide](docs/reference-cli-kind-ollama.md). It separates substrate preparation from Agenova configuration, registration, and execution, and states the reference-only limits.
+
 Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
 
 ## Current Baseline
@@ -35,9 +37,10 @@ The repository contains a working Go reference implementation for:
 - append-only in-memory runtime, tool, and model facts;
 - experimental parent/child claim governance and a multi-agent reference scenario retained outside the committed MVP;
 - a Kubernetes Agent Sandbox adapter spike with documented semantic gaps;
-- a backend-neutral `agenova` composition root (`--help`, `version`, `run -f`, invalid command/configuration).
+- a declarative CLI path for Platform validate/plan/apply/status, narrow Policy and AgentTemplate registration, and Work submission against an installed reference service;
+- a real kind + Agent Sandbox worker and Ollama model path for the documented reference configuration.
 
-It does **not** yet contain networked gateways, durable facts or claims, production controllers, Helm packaging, a Memory Interface, OpenTelemetry integration, or a live React console. See [Current status](docs/project-status.md) for the exact boundary.
+It does **not** yet contain durable Work/evidence, production identity or controllers, Helm packaging, a Memory Interface, or OpenTelemetry integration. The React console exists, but the installed-service CLI and local UI are not yet configured to query the same API; do not treat their results as one shared live view. See [Current status](docs/project-status.md) for the exact boundary.
 
 ## Validate
 
@@ -63,10 +66,10 @@ CLI composition-root smoke:
 ```powershell
 go run ./cmd/agenova --help
 go run ./cmd/agenova version
-go run ./cmd/agenova run -f harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.yaml
+go run ./cmd/agenova run --backend memory -f harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.yaml
 ```
 
-Unknown commands, unknown `--backend` values, authority flags, and invalid ClaimRequest documents exit non-zero. On the reference memory backend, an allowed `run -f` request resolves authority, issues one claim, runs it to a terminal outcome, and reports its claim ID and phase.
+Unknown commands, authority flags, and invalid ClaimRequest documents exit non-zero. `--backend memory` explicitly selects the in-memory reference path; the default connected `run -f` uses the installed service. The [kind + Ollama guide](docs/reference-cli-kind-ollama.md) contains the reproducible connected flow and governance checks.
 
 ## Repository Map
 

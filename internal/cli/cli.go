@@ -79,7 +79,7 @@ Commands:
   agent-template Register an immutable AgentTemplate
 
 Flags:
-  --backend string    Runtime backend to host (default "memory")
+  --backend string    Explicit reference runtime backend ("memory"); default run uses the installed service
   --state-dir string  Local Agenova installation state for adapter commands
   --help              Show this help
   --version           Print version and the hosted runtime backend
@@ -87,9 +87,10 @@ Flags:
   --json              Print JSON for run or adapter commands
   --yes               Confirm platform apply non-interactively
 
-This composition root hosts the in-memory reference backend. Command behavior
-does not import Kubernetes or other provider types, and it does not accept
-authority flags such as --repo, --tools, or --model.
+The default run command submits to the installed reference service. Use
+--backend memory to opt into the isolated in-memory reference path. Command
+behavior stays provider-neutral and does not accept authority flags such as
+--repo, --tools, or --model.
 
 agenova run -f <file> submits the canonical ClaimRequest schema. Identity
 comes from the local principal boundary, not from the file or CLI flags.

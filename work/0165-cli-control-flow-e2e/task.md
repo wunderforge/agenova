@@ -41,8 +41,8 @@ Unknown template/profile, unavailable Ollama, conflicting registration, invalid 
 - [x] Add tests and real kind/Ollama E2E evidence.
 - [x] Run focused and full gates.
 - [x] Independently review: fix three in-scope findings; disclose the remaining mid-run rollout/durability limitation as future scope.
-- [ ] Hand to owner for manual test before merge.
-- [ ] After acceptance, merge and reconcile related tickets/dependencies.
+- [x] Owner superseded the manual-test hold on 17 September 2026 and authorized independent review plus direct merge when the gates pass.
+- [ ] Merge, then reconcile related tickets/dependencies in the API/console follow-up.
 
 ## Quality Gates
 
