@@ -6,11 +6,29 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/adapters/bundled"
+	"github.com/wunderforge/agenova/internal/app"
+	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/modelprovider"
+	"github.com/wunderforge/agenova/internal/platform"
+	"github.com/wunderforge/agenova/internal/policy"
+	"github.com/wunderforge/agenova/internal/registration"
+	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 type status struct {
@@ -22,9 +40,216 @@ type status struct {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		if err := localCommand(os.Args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if err := serve(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func serve() error {
+	configured, err := configuredService("/etc/agenova/effective-platform.json")
+	if err != nil {
+		return err
+	}
+	defer configured.Close()
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 90 * time.Second}
+	privateListener, err := net.Listen("tcp", private.Addr)
+	if err != nil {
+		return fmt.Errorf("start private Work service: %w", err)
+	}
+	go func() {
+		if err := private.Serve(privateListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("private work service stopped: %v", err)
+		}
+	}()
 	server := &http.Server{Addr: ":8080", Handler: handler(), ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("agenova reference control plane listening on %s", server.Addr)
-	log.Fatal(server.ListenAndServe())
+	return server.ListenAndServe()
+}
+
+func configuredService(path string) (*console.Service, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read installed Platform: %w", err)
+	}
+	var resolved platform.ResolvedPlatform
+	if err := json.Unmarshal(data, &resolved); err != nil {
+		return nil, fmt.Errorf("decode installed Platform: %w", err)
+	}
+	if resolved.Revision == "" {
+		return nil, fmt.Errorf("installed Platform revision is missing")
+	}
+	if err := setInClusterKubeconfig(); err != nil {
+		return nil, err
+	}
+	_, namespace, err := app.DeploymentCoordinates(&resolved)
+	if err != nil {
+		return nil, err
+	}
+	store := registration.KubernetesStore{Namespace: namespace}
+	runtimeNamespace := ""
+	adapterIDs := map[string]string{}
+	for _, adapter := range resolved.Adapters {
+		adapterIDs[adapter.Name] = adapter.ID
+	}
+	runtimeCount := 0
+	for _, instance := range resolved.Instances {
+		if instance.Category != platform.CapabilityRuntime {
+			continue
+		}
+		runtimeCount++
+		if adapterIDs[instance.AdapterRef] != bundled.AgentSandboxRuntimeID {
+			return nil, fmt.Errorf("reference Control Plane does not support the selected runtime adapter")
+		}
+		connection, _ := instance.Config["connection"].(map[string]any)
+		if connection["mode"] != "in-cluster" {
+			return nil, fmt.Errorf("unsupported runtime connection")
+		}
+		runtimeNamespace, _ = connection["namespace"].(string)
+	}
+	if runtimeCount != 1 || runtimeNamespace == "" || runtimeNamespace == "default" {
+		return nil, fmt.Errorf("installed runtime namespace is invalid")
+	}
+	if runtimeNamespace != namespace {
+		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
+	}
+	adapter := agentsandbox.NewControlled("", runtimeNamespace)
+	modelConfig := modelprovider.Config{Models: map[string]string{}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute}
+	backends := map[string]string{}
+	for _, instance := range resolved.Instances {
+		if instance.Category != platform.CapabilityModel {
+			continue
+		}
+		if adapterIDs[instance.AdapterRef] != bundled.OpenAICompatibleModelID {
+			return nil, fmt.Errorf("reference Control Plane does not support the selected model adapter")
+		}
+		endpoint, _ := instance.Config["endpoint"].(string)
+		backends[instance.Name] = endpoint
+	}
+	for _, profile := range resolved.Profiles {
+		if profile.Capability != platform.CapabilityModel {
+			continue
+		}
+		model, _ := profile.Config["model"].(string)
+		if modelConfig.Endpoint == "" {
+			modelConfig.Endpoint = backends[profile.BackendRef]
+		}
+		if modelConfig.Endpoint != backends[profile.BackendRef] {
+			return nil, fmt.Errorf("reference model composition supports one endpoint")
+		}
+		modelConfig.Models[profile.Name] = model
+	}
+	runtimeProfiles := map[string]bool{}
+	for _, profile := range resolved.Profiles {
+		if profile.Capability == platform.CapabilityRuntime {
+			runtimeProfiles[profile.Name] = true
+		}
+	}
+	modelConfig.AllowDockerHostHTTP = strings.HasPrefix(modelConfig.Endpoint, "http://host.docker.internal:")
+	provider, err := modelprovider.New(modelConfig)
+	if err != nil {
+		return nil, err
+	}
+	preset := app.ReferencePrincipalTeamA // Fixed local reference identity, never request/CLI supplied.
+	principal, err := app.NewReferencePrincipalSource(preset)
+	if err != nil {
+		return nil, err
+	}
+	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+		Prepare: func(data []byte) (app.PreparedAssignment, error) {
+			bundle, err := store.ActivePolicy()
+			if err != nil {
+				return app.PreparedAssignment{}, fmt.Errorf("active PolicyBundle is unavailable: %w", err)
+			}
+			loader := &policy.Loader{}
+			if err := loader.Load(bundle); err != nil {
+				return app.PreparedAssignment{}, err
+			}
+			prepared, err := app.PrepareAssignment(data, principal, loader, store)
+			if err != nil {
+				return prepared, err
+			}
+			if prepared.Issued != nil && prepared.Issued.Claim != nil {
+				if _, ok := modelConfig.Models[prepared.Issued.EffectiveAuthority.ModelProfile]; !ok {
+					return app.PreparedAssignment{}, fmt.Errorf("granted model profile is not installed")
+				}
+				if !runtimeProfiles[prepared.Issued.EffectiveAuthority.Runtime.ProfileRef] {
+					return app.PreparedAssignment{}, fmt.Errorf("granted runtime profile is not installed")
+				}
+			}
+			return prepared, nil
+		},
+		Configure: func(template *v0.AgentTemplate) (app.ResolvedLaunch, error) {
+			if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil {
+				return app.ResolvedLaunch{}, fmt.Errorf("registered template is incomplete")
+			}
+			if len(template.Spec.Entrypoint.Command) != 2 || template.Spec.Entrypoint.Command[0] != "/agenova-workerctl" || template.Spec.Entrypoint.Command[1] != "serve" {
+				return app.ResolvedLaunch{}, fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
+			}
+			name := template.Metadata.Name
+			if err := adapter.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
+				return app.ResolvedLaunch{}, err
+			}
+			if err := adapter.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: "pool-" + name}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: name, Replicas: 1}}); err != nil {
+				return app.ResolvedLaunch{}, err
+			}
+			return app.ResolvedLaunch{TemplateRef: name}, nil
+		},
+	})
+}
+
+func localCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing private command")
+	}
+	client := &http.Client{Timeout: 90 * time.Second}
+	var method, path string
+	var body io.Reader
+	switch args[0] {
+	case "submit":
+		if len(args) != 1 {
+			return fmt.Errorf("submit accepts no arguments")
+		}
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, (128<<10)+1))
+		if err != nil || len(data) > 128<<10 {
+			return fmt.Errorf("submission is too large")
+		}
+		method, path, body = http.MethodPost, "/api/requests", bytes.NewReader(data)
+	case "evidence":
+		if len(args) != 2 || args[1] == "" || strings.ContainsAny(args[1], "/\\?&#") {
+			return fmt.Errorf("provide one bounded request reference")
+		}
+		method, path = http.MethodGet, "/api/requests/"+args[1]+"/evidence"
+	default:
+		return fmt.Errorf("unknown private command")
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, "http://127.0.0.1:8081"+path, body)
+	if err != nil {
+		return err
+	}
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("installed Work service is unavailable")
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("Work service rejected the request (%d): %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	_, err = os.Stdout.Write(data)
+	return err
 }
 
 func handler() http.Handler {

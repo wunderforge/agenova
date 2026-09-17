@@ -50,10 +50,13 @@ type Client interface {
 // default to 256 tokens and 60 seconds; the hard caps are 2048 tokens and 2 minutes.
 // HTTPClient is copied and redirects are always disabled, including same-host ones.
 type Config struct {
-	Endpoint  string
-	Models    map[string]string
-	APIKey    string
-	MaxTokens int
+	Endpoint string
+	// AllowDockerHostHTTP is only for an operator-selected, local kind/Ollama
+	// reference install. It never accepts an arbitrary plaintext hostname.
+	AllowDockerHostHTTP bool
+	Models              map[string]string
+	APIKey              string
+	MaxTokens           int
 	// OutputSchema is trusted, private provider configuration, never worker authority.
 	OutputSchema json.RawMessage
 	Timeout      time.Duration
@@ -77,7 +80,8 @@ func New(cfg Config) (*Adapter, error) {
 	if err != nil || u == nil || u.Opaque != "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(cfg.Endpoint, "#") {
 		return nil, errors.New("model provider endpoint is invalid")
 	}
-	if u.Scheme != "https" && (u.Scheme != "http" || !loopback(u.Hostname())) {
+	trustedDockerHost := cfg.AllowDockerHostHTTP && u.Hostname() == "host.docker.internal"
+	if u.Scheme != "https" && (u.Scheme != "http" || (!loopback(u.Hostname()) && !trustedDockerHost)) {
 		return nil, errors.New("model provider requires HTTPS or explicit loopback HTTP")
 	}
 	if strings.ContainsAny(cfg.APIKey, "\r\n") {

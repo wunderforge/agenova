@@ -94,7 +94,7 @@ func TestAdapterCommandNegativeCases(t *testing.T) {
 		{[]string{"agenova", "adapters", "inspect", "not-qualified"}, ExitUsage, "qualified adapter ID"},
 		{[]string{"agenova", "adapters", "install"}, ExitUsage, "install requires"},
 		{[]string{"agenova", "adapters", "inspect", bundled.AgentSandboxRuntimeID, "--name", "wrong"}, ExitUsage, "--name is only valid"},
-		{[]string{"agenova", "run", "--state-dir", "somewhere"}, ExitUsage, "--state-dir is only valid"},
+		{[]string{"agenova", "run", "--state-dir", "somewhere"}, ExitUsage, "run requires -f"},
 	}
 	for _, test := range tests {
 		stdout, stderr, code := runAdapterCLI(test.args, factory)

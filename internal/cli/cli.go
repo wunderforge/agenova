@@ -16,6 +16,7 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
+	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime"
 	"gopkg.in/yaml.v3"
 )
@@ -35,17 +36,21 @@ type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, re
 // Command behavior does not parse YAML or grant authority; the host does.
 // The hosted backend is supplied to the application composition boundary.
 type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, error)
+type ConnectedRunHandler func(path, stateDirectory string) (RunReport, error)
 
 type AdapterLifecycleFactory func(stateDirectory string) (*adapterregistry.Lifecycle, error)
 
 type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, error)
+type RegistrationServiceFactory func(stateDirectory string) (registration.Service, error)
 
 type Services struct {
-	NewRuntime  RuntimeFactory
-	Run         RunHandler
-	NewAdapters AdapterLifecycleFactory
-	NewPlatform PlatformServiceFactory
-	Input       io.Reader
+	NewRuntime      RuntimeFactory
+	Run             RunHandler
+	RunConnected    ConnectedRunHandler
+	NewAdapters     AdapterLifecycleFactory
+	NewPlatform     PlatformServiceFactory
+	NewRegistration RegistrationServiceFactory
+	Input           io.Reader
 }
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
@@ -70,6 +75,8 @@ Commands:
   run        Submit one ClaimRequest file through application resolution
   adapters   Inspect and activate bundled adapter implementations
   platform   Validate, plan, apply, and inspect one declarative Platform
+  policy     Register and activate an immutable PolicyBundle
+  agent-template Register an immutable AgentTemplate
 
 Flags:
   --backend string    Runtime backend to host (default "memory")
@@ -168,6 +175,10 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		fmt.Fprint(stdout, platformHelpText)
 		return 0
 	}
+	if parsed.help && (parsed.command == "policy" || parsed.command == "agent-template") {
+		fmt.Fprintf(stdout, "Usage: agenova %s apply -f <document.yaml> [--json]\n", parsed.command)
+		return 0
+	}
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
 		fmt.Fprint(stdout, helpText)
 		return 0
@@ -177,6 +188,9 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		return printVersion(stdout, stderr, parsed.backend, services.NewRuntime)
 	}
 	if parsed.command == "run" {
+		if services.RunConnected != nil && !parsed.backendSet {
+			return printConnectedRun(stdout, stderr, parsed, services.RunConnected)
+		}
 		return printRun(stdout, stderr, parsed, services.NewRuntime, services.Run)
 	}
 	if parsed.command == "adapters" {
@@ -185,10 +199,77 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 	if parsed.command == "platform" {
 		return printPlatform(stdout, stderr, parsed, services)
 	}
+	if parsed.command == "policy" || parsed.command == "agent-template" {
+		return printRegistration(stdout, stderr, parsed, services.NewRegistration)
+	}
 
 	fmt.Fprintf(stderr, "unknown command %q\n", parsed.command)
 	fmt.Fprintln(stderr, "Run 'agenova --help' for usage.")
 	return ExitUsage
+}
+
+func printConnectedRun(stdout, stderr io.Writer, parsed parsedArgs, run ConnectedRunHandler) int {
+	if !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
+		fmt.Fprintln(stderr, "run requires -f <claim-request.yaml>")
+		return ExitUsage
+	}
+	report, err := run(parsed.file, parsed.stateDir)
+	if report.Evidence != nil {
+		if outputErr := printRunReport(stdout, report, parsed.json); outputErr != nil {
+			fmt.Fprintln(stderr, outputErr)
+			return 1
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if strings.EqualFold(report.Decision, "Deny") || strings.EqualFold(report.Phase, "Failed") || strings.EqualFold(report.Phase, "Expired") {
+		return 1
+	}
+	return 0
+}
+
+func printRegistration(stdout, stderr io.Writer, parsed parsedArgs, factory RegistrationServiceFactory) int {
+	if len(parsed.operands) != 1 || parsed.operands[0] != "apply" || !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
+		fmt.Fprintf(stderr, "Usage: agenova %s apply -f <document.yaml> [--json]\n", parsed.command)
+		return ExitUsage
+	}
+	if factory == nil {
+		fmt.Fprintln(stderr, "registration service is not configured")
+		return 1
+	}
+	service, err := factory(parsed.stateDir)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	var result registration.Result
+	if parsed.command == "policy" {
+		result, err = service.ApplyPolicyFile(parsed.file)
+	} else {
+		result, err = service.ApplyTemplateFile(parsed.file)
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if parsed.json {
+		return printJSON(stdout, stderr, result)
+	}
+	status := "already registered"
+	if result.Changed {
+		status = "registered"
+	}
+	fmt.Fprintf(stdout, "%s: %s %s", status, result.Kind, result.Name)
+	if result.Version != "" {
+		fmt.Fprintf(stdout, "@%s", result.Version)
+	}
+	if result.Active {
+		fmt.Fprint(stdout, " (active)")
+	}
+	fmt.Fprintln(stdout)
+	return 0
 }
 
 func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Services) int {
@@ -393,6 +474,17 @@ func printRunReport(stdout io.Writer, report RunReport, jsonOutput bool) error {
 	}
 	if report.Phase != "" {
 		fmt.Fprintf(stdout, "phase: %s\n", report.Phase)
+	}
+	if report.Evidence != nil && report.Evidence.Outcome != nil {
+		if report.Evidence.Outcome.Failure != "" {
+			fmt.Fprintf(stdout, "failure: %s\n", report.Evidence.Outcome.Failure)
+		}
+		if report.Evidence.Outcome.Text != "" {
+			fmt.Fprintf(stdout, "result: %s\n", report.Evidence.Outcome.Text)
+		}
+		if report.Evidence.Outcome.Model != nil {
+			fmt.Fprintf(stdout, "model tokens: %d in / %d out\n", report.Evidence.Outcome.Model.InputTokens, report.Evidence.Outcome.Model.OutputTokens)
+		}
 	}
 	return nil
 }
@@ -628,14 +720,14 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			}
 		}
 	}
-	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && !parsed.help {
-		return parsed, fmt.Errorf("-f is only valid with agenova run or agenova platform")
+	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
+		return parsed, fmt.Errorf("-f is only valid with agenova run, platform, policy or agent-template")
 	}
-	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && parsed.command != "platform" && !parsed.help {
-		return parsed, fmt.Errorf("--json is only valid with agenova run, agenova adapters, or agenova platform")
+	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
+		return parsed, fmt.Errorf("--json is not valid with agenova %s", parsed.command)
 	}
-	if parsed.stateSet && parsed.command != "adapters" && parsed.command != "platform" && !parsed.help {
-		return parsed, fmt.Errorf("--state-dir is only valid with agenova adapters or agenova platform")
+	if parsed.stateSet && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && parsed.command != "run" && !parsed.help {
+		return parsed, fmt.Errorf("--state-dir is not valid with agenova %s", parsed.command)
 	}
 	if parsed.nameSet && parsed.command != "adapters" && !parsed.help {
 		return parsed, fmt.Errorf("--name is only valid with agenova adapters init")
@@ -646,7 +738,7 @@ func parseArgs(argv []string) (parsedArgs, error) {
 	if parsed.yes && parsed.command != "platform" && !parsed.help {
 		return parsed, fmt.Errorf("--yes is only valid with agenova platform apply")
 	}
-	if parsed.command != "adapters" && parsed.command != "platform" && len(parsed.operands) > 0 && !parsed.help {
+	if parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && len(parsed.operands) > 0 && !parsed.help {
 		return parsed, fmt.Errorf("unexpected argument %q", parsed.operands[0])
 	}
 	return parsed, nil

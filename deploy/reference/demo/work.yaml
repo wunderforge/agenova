@@ -1,0 +1,18 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: investigate-payment-retries
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Investigate why the synthetic payment retries exceed the deadline. Read the available artifacts, identify the cause, and recommend a specific fix.
+  requestedAccess:
+    tools: [git.read]
+    resourceScopes: [repo:acme/payments]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

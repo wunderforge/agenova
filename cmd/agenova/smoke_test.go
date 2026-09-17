@@ -50,27 +50,27 @@ func TestRunSubmissionSmoke(t *testing.T) {
 	bin := buildCLI(t)
 	fixture := claimRequestFixture(t, "valid-team-a-engineer.yaml")
 
-	allow := runCLI(t, bin, 0, "run", "-f", fixture)
+	allow := runCLI(t, bin, 0, "--backend", "memory", "run", "-f", fixture)
 	if !strings.Contains(allow, "request: fix-payment-timeout") || !strings.Contains(allow, "decision: Allow") || !strings.Contains(allow, "allocated: true") || !strings.Contains(allow, "phase: Succeeded") {
 		t.Fatalf("allow output: %q", allow)
 	}
 
-	deny := runCLIEnv(t, bin, 1, []string{"AGENOVA_LOCAL_PRINCIPAL=team-b"}, "run", "-f", fixture)
+	deny := runCLIEnv(t, bin, 1, []string{"AGENOVA_LOCAL_PRINCIPAL=team-b"}, "--backend", "memory", "run", "-f", fixture)
 	if !strings.Contains(deny, "decision: Deny") || !strings.Contains(deny, "allocated: false") {
 		t.Fatalf("deny output: %q", deny)
 	}
 
-	secret := runCLI(t, bin, 2, "run", "-f", claimRequestFixture(t, "invalid-secret-value.json"))
+	secret := runCLI(t, bin, 2, "--backend", "memory", "run", "-f", claimRequestFixture(t, "invalid-secret-value.json"))
 	if !strings.Contains(secret, "secret-value") && !strings.Contains(secret, "secrets") {
 		t.Fatalf("secret rejection: %q", secret)
 	}
 
-	authority := runCLI(t, bin, 2, "run", "-f", fixture, "--repo=acme/payments")
+	authority := runCLI(t, bin, 2, "--backend", "memory", "run", "-f", fixture, "--repo=acme/payments")
 	if !strings.Contains(authority, "does not grant authority through CLI flags") {
 		t.Fatalf("authority flag: %q", authority)
 	}
 
-	missing := runCLI(t, bin, 2, "run")
+	missing := runCLI(t, bin, 2, "--backend", "memory", "run")
 	if !strings.Contains(missing, "run requires -f") {
 		t.Fatalf("missing file: %q", missing)
 	}
@@ -86,7 +86,7 @@ func TestRunSubmissionPrintsSharedEvidenceJSON(t *testing.T) {
 	}{
 		{"team-a", 0, v0.DecisionResultAllow}, {"team-b", 1, v0.DecisionResultDeny},
 	} {
-		out := runCLIEnv(t, bin, tc.exit, []string{"AGENOVA_LOCAL_PRINCIPAL=" + tc.preset}, "run", "-f", fixture, "--json")
+		out := runCLIEnv(t, bin, tc.exit, []string{"AGENOVA_LOCAL_PRINCIPAL=" + tc.preset}, "--backend", "memory", "run", "-f", fixture, "--json")
 		var view evidence.View
 		if err := json.Unmarshal([]byte(out), &view); err != nil {
 			t.Fatal(err)

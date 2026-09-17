@@ -14,8 +14,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/policy"
+	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,6 +25,7 @@ const (
 	controlPlaneName  = "agenova-control-plane"
 	platformRecord    = "agenova-platform"
 	policyRecord      = "agenova-policy-reference-default-deny-v1"
+	controlPlaneRole  = "agenova-control-plane-runtime"
 	controlPlaneImage = "agenova-control-plane:0.1.0"
 )
 
@@ -63,6 +66,18 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
+	if request.Platform != nil {
+		for _, instance := range request.Platform.Instances {
+			if instance.Category != platform.CapabilityRuntime {
+				continue
+			}
+			connection, _ := instance.Config["connection"].(map[string]any)
+			workerNamespace, _ := connection["namespace"].(string)
+			if workerNamespace != namespace {
+				return target, nil, nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
+			}
+		}
+	}
 	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
 		return target, nil, nil, fmt.Errorf("initial policy: %w", err)
 	}
@@ -95,6 +110,18 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if serviceErr != nil && !isNotFound(serviceErr) {
 		return target, nil, nil, serviceErr
 	}
+	serviceAccount, serviceAccountErr := k.getJSON(ctx, contextName, namespace, "serviceaccount", controlPlaneName)
+	if serviceAccountErr != nil && !isNotFound(serviceAccountErr) {
+		return target, nil, nil, serviceAccountErr
+	}
+	role, roleErr := k.getJSON(ctx, contextName, namespace, "role", controlPlaneRole)
+	if roleErr != nil && !isNotFound(roleErr) {
+		return target, nil, nil, roleErr
+	}
+	roleBinding, roleBindingErr := k.getJSON(ctx, contextName, namespace, "rolebinding", controlPlaneRole)
+	if roleBindingErr != nil && !isNotFound(roleBindingErr) {
+		return target, nil, nil, roleBindingErr
+	}
 	for _, existing := range []struct {
 		kind   string
 		name   string
@@ -104,6 +131,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		{"configmap", policyRecord, policyObject},
 		{"deployment", controlPlaneName, deployment},
 		{"service", controlPlaneName, service},
+		{"serviceaccount", controlPlaneName, serviceAccount},
+		{"role", controlPlaneRole, role},
+		{"rolebinding", controlPlaneRole, roleBinding},
 	} {
 		if err := requireManaged(existing.object, existing.kind, existing.name); err != nil {
 			return target, nil, nil, err
@@ -128,6 +158,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
 	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
+	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
+	roleReady := managedObjectMatches(role, roleObject(namespace))
+	bindingReady := managedObjectMatches(roleBinding, roleBindingObject(namespace))
 	var changes []platformapply.Change
 	if !namespaceReady {
 		changes = append(changes, platformapply.Change{Component: namespace, Action: "create", Detail: "create the selected Agenova namespace"})
@@ -152,12 +185,23 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		}
 		changes = append(changes, platformapply.Change{Component: controlPlaneName + "-service", Action: action, Detail: "expose the internal reference status endpoint inside the cluster"})
 	}
+	for _, component := range []struct {
+		name  string
+		ready bool
+	}{{controlPlaneName + "-account", saReady}, {controlPlaneRole, roleReady}, {controlPlaneRole + "-binding", bindingReady}} {
+		if !component.ready {
+			changes = append(changes, platformapply.Change{Component: component.name, Action: "reconcile", Detail: "install reference control-plane namespace permissions"})
+		}
+	}
 	statuses := []platformapply.ComponentStatus{
 		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
 		{Name: platformRecord, Category: "deployment", State: state(recordReady, "configured", "unavailable"), Reference: request.Platform.Revision},
 		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
 		{Name: controlPlaneName, Category: "deployment", State: state(ready, "available", "unavailable")},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: state(serviceReady, "available", "unavailable")},
+		{Name: controlPlaneName + "-account", Category: "deployment", State: state(saReady, "configured", "unavailable")},
+		{Name: controlPlaneRole, Category: "deployment", State: state(roleReady, "configured", "unavailable")},
+		{Name: controlPlaneRole + "-binding", Category: "deployment", State: state(bindingReady, "configured", "unavailable")},
 	}
 	return target, changes, statuses, nil
 }
@@ -351,6 +395,7 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 			{Component: namespace}, {Component: platformRecord},
 			{Component: policyRecord}, {Component: controlPlaneName},
 			{Component: controlPlaneName + "-service"},
+			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
 	}
 	return k.preflight(ctx, contextName, namespace, request.TargetChanges)
@@ -383,11 +428,20 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		{resource: "configmaps", name: policyRecord, namespace: namespace},
 		{resource: "deployments.apps", name: controlPlaneName, namespace: namespace},
 		{resource: "services", name: controlPlaneName, namespace: namespace},
+		{resource: "serviceaccounts", name: controlPlaneName, namespace: namespace},
+		{resource: "roles.rbac.authorization.k8s.io", name: controlPlaneRole, namespace: namespace},
+		{resource: "rolebindings.rbac.authorization.k8s.io", name: controlPlaneRole, namespace: namespace},
 	}
 	for _, target := range targets {
 		component := target.name
 		if target.resource == "services" {
 			component += "-service"
+		}
+		if target.resource == "serviceaccounts" {
+			component += "-account"
+		}
+		if target.resource == "rolebindings.rbac.authorization.k8s.io" {
+			component += "-binding"
 		}
 		if !plannedComponent(changes, component) {
 			continue
@@ -522,6 +576,9 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	steps := []manifestStep{
 		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": string(effectiveJSON)}}},
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
+		{name: controlPlaneName + "-account", category: "deployment", object: serviceAccountObject(namespace)},
+		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace)},
+		{name: controlPlaneRole + "-binding", category: "deployment", object: roleBindingObject(namespace)},
 		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
 		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},
 	}
@@ -547,13 +604,49 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 	}
 	template := map[string]any{
 		"metadata": map[string]any{"labels": labels, "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
-		"spec":     map[string]any{"containers": []any{container}},
+		"spec":     map[string]any{"serviceAccount": controlPlaneName, "serviceAccountName": controlPlaneName, "automountServiceAccountToken": false, "containers": []any{container}},
+	}
+	container["volumeMounts"] = []any{map[string]any{"name": "platform", "mountPath": "/etc/agenova", "readOnly": true}, map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true}}
+	template["spec"].(map[string]any)["volumes"] = []any{
+		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
+		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
 	}
 	return map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment",
 		"metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec":     map[string]any{"replicas": 1, "selector": map[string]any{"matchLabels": labels}, "template": template},
 	}
+}
+
+func serviceAccountObject(namespace string) map[string]any {
+	return map[string]any{"apiVersion": "v1", "kind": "ServiceAccount", "metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels()}}
+}
+
+func roleObject(namespace string) map[string]any {
+	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get"}}}
+	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
+	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "rules": rules}
+}
+
+func roleBindingObject(namespace string) map[string]any {
+	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "RoleBinding", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "roleRef": map[string]any{"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": controlPlaneRole}, "subjects": []any{map[string]any{"kind": "ServiceAccount", "name": controlPlaneName, "namespace": namespace}}}
+}
+
+func managedObjectMatches(actual, desired map[string]any) bool {
+	if actual == nil || objectName(actual) != objectName(desired) {
+		return false
+	}
+	metadata, _ := actual["metadata"].(map[string]any)
+	labels, _ := metadata["labels"].(map[string]any)
+	if labels["app.kubernetes.io/managed-by"] != "agenova" {
+		return false
+	}
+	for _, key := range []string{"rules", "roleRef", "subjects"} {
+		if value, ok := desired[key]; ok && !expectedFieldsMatch(actual[key], value) {
+			return false
+		}
+	}
+	return true
 }
 
 func serviceObject(namespace string) map[string]any {
@@ -697,6 +790,8 @@ func managedKubernetesDefaults(path string) map[string]any {
 		return map[string]any{"failureThreshold": float64(3), "successThreshold": float64(1), "timeoutSeconds": float64(1)}
 	case "pod/containers[]/readinessProbe/httpGet":
 		return map[string]any{"scheme": "HTTP"}
+	case "pod/volumes[]/configMap", "pod/volumes[]/projected":
+		return map[string]any{"defaultMode": float64(420)}
 	default:
 		return nil
 	}

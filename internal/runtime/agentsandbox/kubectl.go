@@ -152,6 +152,10 @@ func (r *kubectlRunner) runWithStdin(stdin []byte, args ...string) ([]byte, erro
 }
 
 func (r *kubectlRunner) baseArgs(args ...string) []string {
-	base := []string{"--context", r.context, "--namespace", r.namespace}
+	base := []string{}
+	if r.context != "" {
+		base = append(base, "--context", r.context)
+	}
+	base = append(base, "--namespace", r.namespace)
 	return append(base, args...)
 }

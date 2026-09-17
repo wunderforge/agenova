@@ -42,6 +42,8 @@ type Service struct {
 	mu        sync.RWMutex
 	executeMu chan struct{}
 	preset    app.ReferencePrincipalPreset
+	prepare   func([]byte) (app.PreparedAssignment, error)
+	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
 	runner    *app.RunService
 	executor  Executor
 	provider  modelprovider.Client
@@ -53,14 +55,31 @@ type Service struct {
 	wg        sync.WaitGroup
 }
 
+type Options struct {
+	Prepare   func([]byte) (app.PreparedAssignment, error)
+	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+}
+
 func NewService(backend runtime.RuntimeBackend, executor Executor, provider modelprovider.Client, preset app.ReferencePrincipalPreset) (*Service, error) {
+	return NewServiceWithOptions(backend, executor, provider, preset, Options{})
+}
+
+func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, provider modelprovider.Client, preset app.ReferencePrincipalPreset, options Options) (*Service, error) {
 	if backend == nil || executor == nil || provider == nil {
 		return nil, errors.New("runtime, executor and provider are required")
 	}
 	if _, err := app.NewReferencePrincipalSource(preset); err != nil {
 		return nil, err
 	}
-	s := &Service{preset: preset, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	if options.Prepare == nil {
+		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return app.PrepareReferenceAssignment(data, preset) }
+	}
+	if options.Configure == nil {
+		options.Configure = func(*v0.AgentTemplate) (app.ResolvedLaunch, error) {
+			return app.ResolvedLaunch{TemplateRef: app.ReferenceRuntimeTemplateRef}, nil
+		}
+	}
+	s := &Service{preset: preset, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -103,7 +122,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 			s.wg.Done()
 		}
 	}()
-	prepared, err := app.PrepareReferenceAssignment(data, s.preset)
+	prepared, err := s.prepare(data)
 	if err != nil {
 		s.mu.Lock()
 		delete(s.records, request.Metadata.Name)
@@ -130,6 +149,14 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
 	}
+	launch, err := s.configure(prepared.Template)
+	if err != nil {
+		s.mu.Lock()
+		delete(s.records, request.Metadata.Name)
+		s.mu.Unlock()
+		return evidence.View{}, fmt.Errorf("configure registered runtime template: %w", err)
+	}
+	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
 	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
 		return evidence.View{}, err
 	}
@@ -153,7 +180,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	}
 	s.mu.Unlock()
 	runOwned = true
-	go func() { defer s.wg.Done(); defer cancel(); s.run(ctx, prepared, objective) }()
+	go func() { defer s.wg.Done(); defer cancel(); s.run(ctx, prepared, launch, objective) }()
 	return s.QueryRequest(ref)
 }
 
@@ -177,7 +204,7 @@ func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
 	return nil
 }
 
-func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective string) {
+func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.ResolvedLaunch, objective string) {
 	ref, claimID := p.Request.Metadata.Name, p.Issued.Claim.ID
 	select {
 	case s.executeMu <- struct{}{}:
@@ -188,7 +215,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, objective s
 	}
 	var observed *evidence.ModelResult
 	var modelText string
-	final, runErr := s.runner.RunContext(ctx, p.Issued, app.ResolvedLaunch{ProfileRef: p.Issued.EffectiveAuthority.Runtime.ProfileRef, TemplateRef: app.ReferenceRuntimeTemplateRef}, func(ctx context.Context) error {
+	final, runErr := s.runner.RunContext(ctx, p.Issued, launch, func(ctx context.Context) error {
 		snapshot, ok := s.runner.ClaimAuthority(claimID)
 		if !ok || snapshot.Claim.BackendIdentity == nil {
 			return errors.New("running worker binding is missing")

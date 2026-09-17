@@ -1,0 +1,12 @@
+# Negative test only: the same immutable identity must not change content.
+apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: reference-default-deny
+  version: "1"
+spec:
+  rules:
+    - team: team-b
+      action: claim.create
+      project: payments
+      templateRef: engineer

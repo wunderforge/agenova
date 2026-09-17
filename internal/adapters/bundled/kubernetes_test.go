@@ -40,7 +40,7 @@ func TestKubernetesPlanIsReadOnlyAndReportsMissingTarget(t *testing.T) {
 	}}
 	adapter := newKubernetesDeployment(runner)
 	target, changes, statuses, err := adapter.Plan(context.Background(), deploymentRequest())
-	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 5 || len(statuses) != 5 {
+	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 8 || len(statuses) != 8 {
 		t.Fatalf("Plan() = %q %#v %#v, %v", target, changes, statuses, err)
 	}
 	for _, call := range runner.calls {
@@ -57,6 +57,16 @@ func TestKubernetesPlanRejectsPolicyOutsideReferenceCatalog(t *testing.T) {
 	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
 	if err == nil || !strings.Contains(err.Error(), "reference install provides") || len(runner.calls) != 0 {
 		t.Fatalf("Plan() = %v, calls %#v; want policy rejection before target access", err, runner.calls)
+	}
+}
+
+func TestKubernetesPlanRejectsUnsupportedCrossNamespaceRuntimeBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "worker", Config: map[string]any{"connection": map[string]any{"namespace": "other-workers"}}}}
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "runtime namespace must match") || len(runner.calls) != 0 {
+		t.Fatalf("unsupported target = %v, calls %#v", err, runner.calls)
 	}
 }
 
@@ -101,7 +111,7 @@ func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
 	}
 	request.TargetChanges = changes
 	statuses, attempted, err := adapter.Apply(context.Background(), request)
-	if err != nil || !attempted || len(statuses) != 5 {
+	if err != nil || !attempted || len(statuses) != 8 {
 		t.Fatalf("Apply() = %#v, %t, %v", statuses, attempted, err)
 	}
 	applyCount := 0
@@ -190,7 +200,7 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 		return commandResult{}, nil
 	}}
 	statuses, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
-	if err != nil || len(statuses) != 5 {
+	if err != nil || len(statuses) != 8 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
 	applyCount, rollout := 0, false
@@ -204,8 +214,8 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 			rollout = true
 		}
 	}
-	if applyCount != 5 || !rollout {
-		t.Fatalf("calls = %#v, want five resource applies then rollout", runner.calls)
+	if applyCount != 8 || !rollout {
+		t.Fatalf("calls = %#v, want eight resource applies then rollout", runner.calls)
 	}
 	manifestText := manifest.String()
 	for _, required := range []string{"kind: Namespace", "kind: ConfigMap", "kind: Deployment", "kind: Service", "reference-default-deny"} {
@@ -301,8 +311,8 @@ func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
 			}
 		}
 	}
-	if applyCount != 4 {
-		t.Fatalf("got %d resource applies, want four namespaced resources", applyCount)
+	if applyCount != 7 {
+		t.Fatalf("got %d resource applies, want seven namespaced resources", applyCount)
 	}
 }
 
@@ -351,6 +361,15 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 			return string(data)
 		case contains(args, "configmap") && contains(args, policyRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
+			return string(data)
+		case contains(args, "serviceaccount"):
+			data, _ := json.Marshal(serviceAccountObject("agenova-system"))
+			return string(data)
+		case contains(args, "rolebinding"):
+			data, _ := json.Marshal(roleBindingObject("agenova-system"))
+			return string(data)
+		case contains(args, "role"):
+			data, _ := json.Marshal(roleObject("agenova-system"))
 			return string(data)
 		case contains(args, "deployment"):
 			return `{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"},"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
@@ -684,7 +703,7 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 			return commandResult{stdout: `{}`}, nil
 		case contains(args, "apply"):
 			applyCount++
-			if applyCount == 4 {
+			if applyCount == 7 {
 				partial = true
 				return commandResult{stderr: "deployment rejected"}, errors.New("exit 1")
 			}
@@ -731,6 +750,12 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 	case contains(args, policyRecord):
 		policyJSON, _ := referencePolicyJSON()
 		object = map[string]any{"metadata": map[string]any{"name": policyRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyJSON)}}
+	case contains(args, "serviceaccount"):
+		object = serviceAccountObject("agenova-system")
+	case contains(args, "rolebinding"):
+		object = roleBindingObject("agenova-system")
+	case contains(args, "role"):
+		object = roleObject("agenova-system")
 	case contains(args, "deployment"):
 		object = deploymentObject(request, "agenova-system")
 		object["metadata"].(map[string]any)["generation"] = 1
