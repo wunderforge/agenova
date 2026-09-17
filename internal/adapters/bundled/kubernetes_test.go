@@ -603,6 +603,44 @@ func TestKubernetesPreflightRejectsUnmanagedNameCollision(t *testing.T) {
 	}
 }
 
+func TestKubernetesPreflightChecksRoleGrantAuthorityBeforeMutation(t *testing.T) {
+	for _, test := range []struct {
+		name              string
+		missingPermission bool
+		wantError         bool
+	}{
+		{name: "contained permissions suffice"},
+		{name: "missing contained permission rejects", missingPermission: true, wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+				if contains(args, "can-i") {
+					if contains(args, "escalate") || contains(args, "bind") || (test.missingPermission && contains(args, "pods") && contains(args, "get")) {
+						return commandResult{stdout: "no\n"}, nil
+					}
+					return commandResult{stdout: "yes\n"}, nil
+				}
+				return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+			}}
+			err := newKubernetesDeployment(runner).Preflight(context.Background(), deploymentRequest())
+			if test.wantError && (err == nil || !strings.Contains(err.Error(), "cannot grant reference Role permission")) {
+				t.Fatalf("Preflight() error = %v, want contained-permission failure", err)
+			}
+			if !test.wantError && err != nil {
+				t.Fatal(err)
+			}
+			for _, call := range runner.calls {
+				if contains(call, "auth") {
+					continue
+				}
+				if contains(call, "apply") || contains(call, "patch") || contains(call, "create") {
+					t.Fatalf("Preflight mutated the cluster: %#v", call)
+				}
+			}
+		})
+	}
+}
+
 func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	request := deploymentRequest()
 	desired := deploymentObject(request, "agenova-system")

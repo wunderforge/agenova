@@ -662,6 +662,56 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 			return err
 		}
 	}
+	if plannedComponent(changes, controlPlaneRole) || plannedComponent(changes, controlPlaneRole+"-binding") {
+		if err := k.preflightRoleAuthority(ctx, contextName, namespace, changes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Kubernetes checks contained permissions in addition to create/patch on
+// Roles and RoleBindings. Check both authorization routes before any manifest
+// is written, so a restricted installer cannot partially install the stack.
+func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
+	roleResource := "roles.rbac.authorization.k8s.io/" + controlPlaneRole
+	needRole := plannedComponent(changes, controlPlaneRole)
+	needBinding := plannedComponent(changes, controlPlaneRole+"-binding")
+	checkSpecial := func(verb string) bool {
+		result, err := k.run(ctx, nil, "--context", contextName, "auth", "can-i", verb, roleResource, "--namespace", namespace)
+		return err == nil && strings.TrimSpace(result.stdout) == "yes"
+	}
+	if (!needRole || checkSpecial("escalate")) && (!needBinding || checkSpecial("bind")) {
+		return nil
+	}
+	for _, entry := range roleObject(namespace)["rules"].([]any) {
+		rule := entry.(map[string]any)
+		for _, groupValue := range rule["apiGroups"].([]any) {
+			group := groupValue.(string)
+			for _, resourceValue := range rule["resources"].([]any) {
+				resource := resourceValue.(string)
+				subresource := ""
+				if base, sub, ok := strings.Cut(resource, "/"); ok {
+					resource, subresource = base, sub
+				}
+				if group != "" {
+					resource += "." + group
+				}
+				for _, verbValue := range rule["verbs"].([]any) {
+					verb := verbValue.(string)
+					args := []string{"--context", contextName, "auth", "can-i", verb, resource}
+					if subresource != "" {
+						args = append(args, "--subresource="+subresource)
+					}
+					args = append(args, "--namespace", namespace)
+					result, err := k.run(ctx, nil, args...)
+					if err != nil || strings.TrimSpace(result.stdout) != "yes" {
+						return fmt.Errorf("current Kubernetes identity cannot grant reference Role permission %s %s in namespace %s; grant that permission or explicit escalate/bind authority before apply", verb, resource, namespace)
+					}
+				}
+			}
+		}
+	}
 	return nil
 }
 
