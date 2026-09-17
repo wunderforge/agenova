@@ -6,19 +6,19 @@ Date: 2026-09-17. Target: existing `kind-agenova-k8s-lab/agenova-system`; Agent 
 
 | Command | Observed |
 | --- | --- |
-| `agenova platform validate -f deploy/reference/platform.kind.yaml` | valid, revision `sha256:4d2e0047c254463818db3623a1d47576211ee30a6116f78d38decd72b456a4df` |
+| `agenova platform validate -f deploy/reference/platform.kind.yaml` | valid, post-review revision `sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f` |
 | `agenova platform plan -f deploy/reference/platform.kind.yaml` | selected `kind-agenova-k8s-lab/agenova-system`, declared adapter and installation changes |
 | `agenova platform apply -f deploy/reference/platform.kind.yaml` | ready after reconciliation; installation-components scope; repeat was unchanged |
 | `agenova platform status` | same revision and target, zero remaining changes |
 | `agenova policy apply -f deploy/reference/demo/policy.yaml` | `reference-default-deny@1` active; identical reapply: already registered |
 | `agenova agent-template apply -f deploy/reference/demo/engineer.yaml` | `engineer` registered; identical reapply: already registered |
-| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; post-review final-image rerun used 362 input and 71 output tokens |
+| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; final post-review rerun used 380 input and 71 output tokens |
 
-The positive request's evidence had `Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded`, four allowed/succeeded model invocations, three allowed mock `git.read` invocations, and worker ID `agenova-pool-pool-engineer-9bk5d`. A subsequent namespace query found no remaining SandboxClaim. The model's answer identified a synthetic retry loop resetting a fresh 5-second deadline instead of using the remaining request time.
+The positive request's evidence had `Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded`, model and mock `git.read` invocations across six ReAct turns, and worker ID `agenova-pool-pool-engineer-78dgj`. The final model answer identified a synthetic 2-second retry backoff combined with two attempts exceeding the 5-second deadline.
 
 Negative checks: `denied-work.yaml` received Deny before Claim/worker/model/tool facts; `policy-conflict.yaml` was rejected as same identity with different content. Both registrations were idempotent on identical reapply.
 
-Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into kind, reconciled the Deployment, and observed a newly created ready Pod. `platform status` then reported zero drift. The subsequent Work completed through the installed service and local Ollama; the denied Work had no Claim or runtime/model/tool invocations; querying SandboxClaims again returned none. The full `scripts/check.ps1 -All` gate passed, including Go checks and 48 Playwright browser smoke tests.
+Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into kind, and reconciled the Deployment. `platform status` then reported zero drift, `installationReady: true`, and `providerHealth: not-checked`. The subsequent Work completed through the installed service and local Ollama using the loopback-only API tunnel instead of `pods/exec`; the denied Work had no Claim or runtime/model/tool invocations. The full `scripts/check.ps1 -All` gate passed, including Go checks and 48 Playwright browser smoke tests.
 
 ## Scope and caveats
 

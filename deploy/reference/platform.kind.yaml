@@ -27,6 +27,7 @@ spec:
           connection:
             mode: in-cluster
             namespace: agenova-system
+          compatible-worker-image: agenova-testworker:kind
     runtimeProfiles:
       - name: standard-isolated
         backendRef: primary-runtime

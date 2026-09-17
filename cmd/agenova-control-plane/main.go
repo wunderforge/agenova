@@ -37,6 +37,7 @@ type status struct {
 	Policy         string `json:"policy"`
 	State          string `json:"state"`
 	ReadinessScope string `json:"readinessScope"`
+	ProviderHealth string `json:"providerHealth"`
 }
 
 func main() {
@@ -84,6 +85,10 @@ func configuredService(path string) (*console.Service, error) {
 	}
 	if resolved.Revision == "" {
 		return nil, fmt.Errorf("installed Platform revision is missing")
+	}
+	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
+	if compatibleWorkerImage == "" {
+		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
 	}
 	if err := setInClusterKubeconfig(); err != nil {
 		return nil, err
@@ -189,6 +194,9 @@ func configuredService(path string) (*console.Service, error) {
 			if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil {
 				return app.ResolvedLaunch{}, fmt.Errorf("registered template is incomplete")
 			}
+			if err := requireCompatibleWorkerImage(template.Spec.Artifact.Image, compatibleWorkerImage); err != nil {
+				return app.ResolvedLaunch{}, err
+			}
 			if len(template.Spec.Entrypoint.Command) != 2 || template.Spec.Entrypoint.Command[0] != "/agenova-workerctl" || template.Spec.Entrypoint.Command[1] != "serve" {
 				return app.ResolvedLaunch{}, fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
 			}
@@ -202,6 +210,19 @@ func configuredService(path string) (*console.Service, error) {
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
 	})
+}
+
+// The installed runtime declares one worker artifact implementing the
+// controlled-worker protocol. A template cannot redirect that protocol to an
+// arbitrary image merely by declaring the expected entrypoint command.
+func requireCompatibleWorkerImage(image, allowed string) error {
+	if allowed == "" {
+		return fmt.Errorf("installed runtime compatible worker image is missing")
+	}
+	if image != allowed {
+		return fmt.Errorf("registered template image does not match the installed runtime compatible worker image")
+	}
+	return nil
 }
 
 func localCommand(args []string) error {
@@ -261,7 +282,7 @@ func handler() http.Handler {
 	})
 	mux.HandleFunc("GET /v1/status", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), Policy: os.Getenv("AGENOVA_POLICY_REF"), State: "available", ReadinessScope: "installation-components"})
+		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), Policy: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
 }

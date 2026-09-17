@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/wunderforge/agenova/internal/adapterregistry"
+	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 )
 
@@ -61,7 +62,8 @@ func agentSandboxRuntimeRegistration() adapterregistry.Registration {
 		Capabilities: []platform.Capability{platform.CapabilityRuntime},
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "connection.mode", Kind: adapterregistry.ValueString, Required: true, Description: "Control-plane-to-runtime connection mode", Default: "in-cluster"},
-			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-workers"},
+			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-system"},
+			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Required: true, Description: "Reference worker image allowed for this runtime", Default: "agenova-testworker:kind"},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "isolation", Kind: adapterregistry.ValueString, Required: true, Description: "Requested supported isolation shape", Default: "dedicated"},
@@ -85,7 +87,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 		ID: OpenAICompatibleModelID, Version: ReferenceVersion, Protocol: adapterregistry.ProtocolVersion,
 		Capabilities: []platform.Capability{platform.CapabilityModel},
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
-			{Path: "endpoint", Kind: adapterregistry.ValueString, Required: true, Description: "OpenAI-compatible backend endpoint behind Agenova Model Gateway", Default: "http://ollama.agenova-models.svc.cluster.local:11434/v1"},
+			{Path: "endpoint", Kind: adapterregistry.ValueString, Required: true, Description: "OpenAI-compatible backend endpoint behind Agenova Model Gateway", Default: "http://host.docker.internal:11434/v1"},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "model", Kind: adapterregistry.ValueString, Required: true, Description: "Backend model selected by this logical profile", Default: "qwen2.5:0.5b"},
@@ -120,7 +122,7 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 }
 
 func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "connection"); err != nil {
+	if err := onlyKeys(input, "connection", "compatible-worker-image"); err != nil {
 		return nil, err
 	}
 	connection, ok := input["connection"].(map[string]any)
@@ -141,7 +143,11 @@ func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]an
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}}, nil
+	image, err := requiredString(input, "compatible-worker-image")
+	if err != nil || len(image) > 256 || strings.ContainsAny(image, " \t\r\n") {
+		return nil, platform.NewAdapterConfigError("invalid-worker-image", "compatible-worker-image")
+	}
+	return map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}, "compatible-worker-image": image}, nil
 }
 
 func canonicalizeAgentSandboxProfile(_ platform.Capability, backend, input map[string]any) (map[string]any, error) {
@@ -173,6 +179,12 @@ func canonicalizeOpenAIInstance(_ platform.Capability, input map[string]any) (ma
 	parsed, parseErr := url.Parse(endpoint)
 	if parseErr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
+	}
+	// Match the installed provider's transport boundary during validation,
+	// before any Kubernetes mutation. The local kind exception is exact-host.
+	_, providerErr := modelprovider.New(modelprovider.Config{Endpoint: endpoint, AllowDockerHostHTTP: parsed.Hostname() == "host.docker.internal", Models: map[string]string{"validation": "validation"}})
+	if providerErr != nil {
+		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}
 	return map[string]any{"endpoint": strings.TrimRight(endpoint, "/")}, nil
 }

@@ -99,12 +99,16 @@ func TestPlatformCLIStatusReobservesLastAppliedRevision(t *testing.T) {
 		t.Fatalf("apply = %d %q", code, stderr)
 	}
 	stdout, stderr, code := runPlatformCLI([]string{"agenova", "platform", "status", "--json"}, "", factory)
-	if code != 0 || stderr != "" || !strings.Contains(stdout, `"changes":[]`) || !strings.Contains(stdout, `"revision":`) {
+	if code != 0 || stderr != "" || !strings.Contains(stdout, `"changes":[]`) || !strings.Contains(stdout, `"revision":`) || !strings.Contains(stdout, `"installationReady":true`) || !strings.Contains(stdout, `"readinessScope":"installation-components"`) || !strings.Contains(stdout, `"providerHealth":"not-checked"`) {
 		t.Fatalf("status = %d %q %q", code, stdout, stderr)
+	}
+	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "status"}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "installation ready: true") || !strings.Contains(stdout, "provider health: not checked") {
+		t.Fatalf("human status = %d %q %q", code, stdout, stderr)
 	}
 	deployment.applied = false
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "status", "--json"}, "", factory)
-	if code != 0 || stderr != "" || !strings.Contains(stdout, `"action":"create"`) {
+	if code != 0 || stderr != "" || !strings.Contains(stdout, `"action":"create"`) || !strings.Contains(stdout, `"installationReady":false`) || !strings.Contains(stdout, `"providerHealth":"not-checked"`) {
 		t.Fatalf("drift status = %d %q %q", code, stdout, stderr)
 	}
 }

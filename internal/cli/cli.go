@@ -306,7 +306,7 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
-		return printPlatformPlan(stdout, stderr, plan, parsed.json)
+		return printPlatformStatus(stdout, stderr, plan, parsed.json)
 	case "validate":
 		resolved, _, err := service.ValidateFile(parsed.file)
 		if err != nil {
@@ -385,6 +385,32 @@ func printPlatformApplyHuman(output io.Writer, result platformapply.ApplyResult)
 	for _, component := range result.Components {
 		fmt.Fprintf(output, "- %s/%s: %s\n", component.Category, component.Name, component.State)
 	}
+}
+
+// Status is an observation of installed components. It does not probe model
+// providers or establish that a Work can run end to end.
+func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool) int {
+	installationReady := !plan.Changed()
+	for _, component := range plan.Components {
+		switch component.State {
+		case "available", "configured", "used":
+		default:
+			installationReady = false
+		}
+	}
+	if jsonOutput {
+		return printJSON(stdout, stderr, struct {
+			platformapply.Plan
+			InstallationReady bool   `json:"installationReady"`
+			ReadinessScope    string `json:"readinessScope"`
+			ProviderHealth    string `json:"providerHealth"`
+		}{plan, installationReady, platformapply.ReadinessScopeInstallation, "not-checked"})
+	}
+	if code := printPlatformPlan(stdout, stderr, plan, false); code != 0 {
+		return code
+	}
+	fmt.Fprintf(stdout, "installation ready: %t\nreadiness scope: %s\nprovider health: not checked\n", installationReady, platformapply.ReadinessScopeInstallation)
+	return 0
 }
 
 func printPlatformPlan(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool) int {

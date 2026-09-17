@@ -6,6 +6,8 @@ package bundled
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,17 +19,83 @@ import (
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/policy"
+	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	controlPlaneName  = "agenova-control-plane"
-	platformRecord    = "agenova-platform"
-	policyRecord      = "agenova-policy-reference-default-deny-v1"
-	controlPlaneRole  = "agenova-control-plane-runtime"
-	controlPlaneImage = "agenova-control-plane:0.1.0"
+	controlPlaneName   = "agenova-control-plane"
+	platformRecord     = "agenova-platform"
+	activePolicyRecord = "agenova-active-policy"
+	controlPlaneRole   = "agenova-control-plane-runtime"
+	controlPlaneImage  = "agenova-control-plane:0.1.0"
 )
+
+// The reference install writes the same immutable record name as the
+// operator registration store; otherwise ActivePolicy cannot read the seed.
+var policyRecord = policyRegistrationRecord(policy.ReferenceBundle().ID, policy.ReferenceBundle().Version)
+
+func policyRegistrationRecord(id, version string) string {
+	sum := sha256.Sum256([]byte(id + "@" + version))
+	return "agenova-policy-" + hex.EncodeToString(sum[:12])
+}
+
+func referenceWorkerImage(resolved *platform.ResolvedPlatform) string {
+	if resolved == nil {
+		return ""
+	}
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityRuntime {
+			image, _ := instance.Config["compatible-worker-image"].(string)
+			return image
+		}
+	}
+	return ""
+}
+
+func validateReferenceWorkerImage(resolved *platform.ResolvedPlatform) error {
+	image := referenceWorkerImage(resolved)
+	if image == "" || len(image) > 256 || strings.ContainsAny(image, " \t\r\n") {
+		return fmt.Errorf("reference runtime requires a compatible-worker-image")
+	}
+	return nil
+}
+
+// A later policy registration may legitimately activate a different version.
+// The initial reference is only used when no valid active registry pointer
+// exists; platform reconciliation must not silently undo policy apply.
+func (k *KubernetesDeployment) activePolicyReady(ctx context.Context, contextName, namespace string, pointer map[string]any, initial registration.PolicyReference) (bool, string, error) {
+	if pointer == nil {
+		return false, initial.ID + "@" + initial.Version, nil
+	}
+	var ref registration.PolicyReference
+	if err := json.Unmarshal([]byte(objectData(pointer, "reference.json")), &ref); err != nil || ref.ID == "" || ref.Version == "" {
+		return false, initial.ID + "@" + initial.Version, nil
+	}
+	identity := ref.ID + "@" + ref.Version
+	// The initial record is checked independently as policyRecord/policyReady.
+	// Reconcile a drifted record without rewriting an already-correct pointer.
+	if ref.ID == initial.ID && ref.Version == initial.Version {
+		return true, identity, nil
+	}
+	recordName := policyRegistrationRecord(ref.ID, ref.Version)
+	record, err := k.getJSON(ctx, contextName, namespace, "configmap", recordName)
+	if isNotFound(err) {
+		return false, identity, nil
+	}
+	if err != nil {
+		return false, identity, err
+	}
+	if err := requireManaged(record, "configmap", recordName); err != nil {
+		return false, identity, err
+	}
+	var bundle policy.PolicyBundle
+	if err := json.Unmarshal([]byte(objectData(record, "policy.json")), &bundle); err != nil || policy.ValidateBundle(bundle) != nil || bundle.ID != ref.ID || bundle.Version != ref.Version {
+		return false, identity, nil
+	}
+	return true, identity, nil
+}
 
 var errKubectlUnavailable = errors.New("kubectl executable is unavailable; install kubectl and add it to PATH")
 
@@ -81,6 +149,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
 		return target, nil, nil, fmt.Errorf("initial policy: %w", err)
 	}
+	if err := validateReferenceWorkerImage(request.Platform); err != nil {
+		return target, nil, nil, err
+	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); errors.Is(err, errKubectlUnavailable) {
 		return target, nil, nil, err
 	} else if err != nil {
@@ -106,6 +177,10 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if policyErr != nil && !isNotFound(policyErr) {
 		return target, nil, nil, policyErr
 	}
+	activePolicyObject, activePolicyErr := k.getJSON(ctx, contextName, namespace, "configmap", activePolicyRecord)
+	if activePolicyErr != nil && !isNotFound(activePolicyErr) {
+		return target, nil, nil, activePolicyErr
+	}
 	service, serviceErr := k.getJSON(ctx, contextName, namespace, "service", controlPlaneName)
 	if serviceErr != nil && !isNotFound(serviceErr) {
 		return target, nil, nil, serviceErr
@@ -129,6 +204,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	}{
 		{"configmap", platformRecord, record},
 		{"configmap", policyRecord, policyObject},
+		{"configmap", activePolicyRecord, activePolicyObject},
 		{"deployment", controlPlaneName, deployment},
 		{"service", controlPlaneName, service},
 		{"serviceaccount", controlPlaneName, serviceAccount},
@@ -156,6 +232,10 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
 	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON && objectData(record, "effective-platform.json") == string(effectiveJSON)
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
+	activePolicyReady, activePolicyRef, err := k.activePolicyReady(ctx, contextName, namespace, activePolicyObject, registration.PolicyReference{ID: request.Platform.InitialPolicyRef.ID, Version: request.Platform.InitialPolicyRef.Version})
+	if err != nil {
+		return target, nil, nil, err
+	}
 	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
 	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
@@ -178,6 +258,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if !policyReady {
 		changes = append(changes, platformapply.Change{Component: policyRecord, Action: "reconcile", Detail: "seed the versioned reference default-deny policy"})
 	}
+	if !activePolicyReady {
+		changes = append(changes, platformapply.Change{Component: activePolicyRecord, Action: "reconcile", Detail: "activate the initial policy in the operator registry"})
+	}
 	if !serviceReady {
 		action := "create"
 		if service != nil {
@@ -197,6 +280,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
 		{Name: platformRecord, Category: "deployment", State: state(recordReady, "configured", "unavailable"), Reference: request.Platform.Revision},
 		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
+		{Name: activePolicyRecord, Category: "policy", State: state(activePolicyReady, "configured", "unavailable"), Reference: activePolicyRef},
 		{Name: controlPlaneName, Category: "deployment", State: state(ready, "available", "unavailable")},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: state(serviceReady, "available", "unavailable")},
 		{Name: controlPlaneName + "-account", Category: "deployment", State: state(saReady, "configured", "unavailable")},
@@ -393,7 +477,7 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 		// authority for every managed reference resource.
 		request.TargetChanges = []platformapply.Change{
 			{Component: namespace}, {Component: platformRecord},
-			{Component: policyRecord}, {Component: controlPlaneName},
+			{Component: policyRecord}, {Component: activePolicyRecord}, {Component: controlPlaneName},
 			{Component: controlPlaneName + "-service"},
 			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
@@ -426,6 +510,7 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		{resource: "namespaces", name: namespace},
 		{resource: "configmaps", name: platformRecord, namespace: namespace},
 		{resource: "configmaps", name: policyRecord, namespace: namespace},
+		{resource: "configmaps", name: activePolicyRecord, namespace: namespace},
 		{resource: "deployments.apps", name: controlPlaneName, namespace: namespace},
 		{resource: "services", name: controlPlaneName, namespace: namespace},
 		{resource: "serviceaccounts", name: controlPlaneName, namespace: namespace},
@@ -573,9 +658,14 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	if err != nil {
 		return nil, fmt.Errorf("encode reference policy: %w", err)
 	}
+	activeRef, err := json.Marshal(registration.PolicyReference{ID: request.Platform.InitialPolicyRef.ID, Version: request.Platform.InitialPolicyRef.Version})
+	if err != nil {
+		return nil, fmt.Errorf("encode active reference policy: %w", err)
+	}
 	steps := []manifestStep{
 		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": string(effectiveJSON)}}},
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
+		{name: activePolicyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": activePolicyRecord, "namespace": namespace, "labels": managedLabels()}, "data": map[string]any{"reference.json": string(activeRef)}}},
 		{name: controlPlaneName + "-account", category: "deployment", object: serviceAccountObject(namespace)},
 		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace)},
 		{name: controlPlaneRole + "-binding", category: "deployment", object: roleBindingObject(namespace)},
@@ -599,6 +689,7 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
 			map[string]any{"name": "AGENOVA_PLATFORM_REVISION", "value": request.Platform.Revision},
 			map[string]any{"name": "AGENOVA_POLICY_REF", "value": request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
+			map[string]any{"name": "AGENOVA_ALLOWED_WORKER_IMAGE", "value": referenceWorkerImage(request.Platform)},
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 	}
@@ -659,12 +750,7 @@ func managedLabels() map[string]any {
 }
 
 func referencePolicyJSON() ([]byte, error) {
-	bundle := policy.ReferenceBundle()
-	rules := make([]map[string]string, 0, len(bundle.Rules))
-	for _, rule := range bundle.Rules {
-		rules = append(rules, map[string]string{"team": rule.Team, "action": rule.Action, "project": rule.Project, "templateRef": rule.TemplateRef})
-	}
-	return json.Marshal(map[string]any{"id": bundle.ID, "version": bundle.Version, "rules": rules})
+	return json.Marshal(policy.ReferenceBundle())
 }
 
 func objectAnnotation(object map[string]any, key string) string {
@@ -871,7 +957,7 @@ func state(ok bool, yes, no string) string {
 }
 
 func failedStatuses(revision string) []platformapply.ComponentStatus {
-	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}}
+	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}, {Name: activePolicyRecord, Category: "policy", State: "failed"}}
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
 	return statuses
 }
