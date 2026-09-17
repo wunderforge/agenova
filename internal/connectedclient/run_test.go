@@ -40,7 +40,7 @@ func installedEvidenceJSON(ref, outcome string) string {
 	if outcome != "" {
 		suffix = fmt.Sprintf(`,"outcome":{"status":%q}`, outcome)
 	}
-	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q}},"facts":[]%s}`, ref, ref, suffix)
+	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":[]%s}`, ref, ref, suffix)
 }
 
 func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
@@ -166,6 +166,7 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 	for _, incomplete := range []string{
 		`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`,
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"demo"}}}`,
+		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":"demo"}},"facts":[]}`,
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"other"}},"facts":[]}`,
 	} {
 		response = incomplete

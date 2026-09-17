@@ -30,4 +30,12 @@ After rebasing onto the later #166 integrity/timeout fixes (`aa373f9`), we repea
 
 Post-review parity rerun (18 September, on #167 rebased onto #166 `1641cb8`): rebuilt and loaded the service image, restarted the dedicated Deployment, and observed original Platform revision `sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f` with `installationReady: true` and `changes: []`. Fresh allowed Work returned `Succeeded`, model `llama3.1:latest`, and 48 facts; fresh denied Work returned `Deny`, no Claim, and two request facts. The strengthened opt-in Playwright suite passed **2/2** with actual `AGENOVA_CLI_PATH` child processes comparing CLI JSON against API JSON, asserting backend/model/cleanup evidence and visible Portal details. The full repository gate also passed (Go, frontend contracts/types/build, **50** browser smoke tests); `kubectl get sandboxclaims.extensions.agents.x-k8s.io` returned `No resources found in agenova-system namespace`. Tunnel and Vite were stopped after the test.
 
+The following review pass tightened those checks: the CLI now invokes canonical
+ClaimRequest validation on queried evidence, reports `Finishing` while a
+Succeeded Claim lacks its final Work outcome, and the real installed denial
+asserts zero Runtime, Model, or Tool activity. Focused Go/type checks, the full
+repository gate (50 browser smoke tests), and installed Playwright **2/2**
+passed again against the same retained live service records. No fixture or
+prose-only substitute was used for the installed suite.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.

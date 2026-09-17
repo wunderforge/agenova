@@ -69,6 +69,17 @@ func TestDeniedWorkHumanStatusAgreesWithPortal(t *testing.T) {
 	}
 }
 
+func TestSucceededClaimWithoutOutcomeIsStillFinishing(t *testing.T) {
+	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: "finishing-work", Request: &v0.ClaimRequest{}, State: &v0.IssuedState{Claim: &v0.SandboxClaim{Phase: v0.ClaimPhaseSucceeded}}}
+	if got := workPhase(view); got != "Finishing" {
+		t.Fatalf("work phase = %q, want Finishing until the outcome is recorded", got)
+	}
+	view.Outcome = &evidence.Outcome{Status: "Succeeded"}
+	if got := workPhase(view); got != "Succeeded" {
+		t.Fatalf("work phase = %q, want final outcome", got)
+	}
+}
+
 func TestPlatformStatusAdvertisesSelectedStateDirectory(t *testing.T) {
 	const stateDir = `C:\Agenova's state`
 	const command = `agenova api connect --state-dir 'C:\Agenova''s state'`

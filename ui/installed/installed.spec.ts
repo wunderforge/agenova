@@ -64,7 +64,7 @@ test('installed API and Portal show denial without an invented claim', async ({ 
   expect(cli).toEqual(detail);
   expect(detail.state?.decision.result).toBe('Deny');
   expect(detail.state?.claim).toBeFalsy();
-  expect(detail.facts.some(fact => ['ModelDecision', 'ProviderAttempt', 'ProviderOutcome'].includes(fact.kind))).toBe(false);
+  expect(detail.facts.some(fact => ['Runtime', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision', 'ToolAttempt', 'ToolOutcome'].includes(fact.kind))).toBe(false);
   await page.goto(`/?mode=connected#/work/${encodeURIComponent(deniedRef!)}`);
   await page.locator('summary').filter({ hasText: 'Execution details' }).click();
   await expect(page.getByText('Denied', { exact: true }).first()).toBeVisible();

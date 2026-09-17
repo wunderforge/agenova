@@ -176,7 +176,8 @@ func decodeView(data []byte, expectedRef string) (evidence.View, error) {
 
 func validEvidenceView(view evidence.View, ref string) bool {
 	return view.Version == "agenova.evidence/v0" && view.RequestRef == ref &&
-		view.Request != nil && view.Request.Metadata.Name == ref && view.Facts != nil
+		view.Request != nil && view.Request.Metadata.Name == ref &&
+		v0.ValidateClaimRequest(view.Request) == nil && view.Facts != nil
 }
 
 func validRequestRef(ref string) bool {
