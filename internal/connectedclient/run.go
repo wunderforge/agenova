@@ -179,7 +179,50 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
 		return false
 	}
-	return view.State == nil || (view.State.RequestRef == ref && v0.ValidateIssuedState(view.State) == nil)
+	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
+		return false
+	}
+	for _, fact := range view.Facts {
+		if fact.ID == "" || fact.Sequence == 0 || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
+			return false
+		}
+		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
+			return false
+		}
+		if fact.Decision != nil && !validDecisionResult(fact.Decision.Result) {
+			return false
+		}
+		if fact.Result != "" && !validDecisionResult(fact.Result) {
+			return false
+		}
+		if fact.PolicyRef != nil && (fact.PolicyRef.ID == "" || fact.PolicyRef.Version == "") {
+			return false
+		}
+		if fact.Authority != nil && (fact.Authority.ID == "" || fact.Authority.Runtime.ProfileRef == "" || time.Duration(fact.Authority.Runtime.Timeout) <= 0) {
+			return false
+		}
+		if fact.BackendIdentity != nil && (fact.BackendIdentity.Backend == "" || fact.BackendIdentity.WorkerID == "") {
+			return false
+		}
+	}
+	if view.Outcome != nil {
+		if strings.TrimSpace(view.Outcome.Status) == "" {
+			return false
+		}
+		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDecisionResult(result v0.DecisionResult) bool {
+	switch result {
+	case v0.DecisionResultAllow, v0.DecisionResultDeny, v0.DecisionResultApprovalRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 func validRequestRef(ref string) bool {

@@ -44,4 +44,10 @@ the executable `npm --prefix ui run dev` command, and require `Deny` as the
 installed negative's terminal outcome. Focused Go/type checks and the real
 installed Playwright **2/2** passed again after those changes.
 
+The final queried-evidence validation pass rejects malformed or foreign
+Fact records and empty terminal Outcome objects before a CLI result is
+accepted. Unit negatives cover those shapes, and the real installed
+CLI/API/React Playwright suite again passed **2/2** against the allowed and
+denied kind/Ollama records with this validation enabled.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
