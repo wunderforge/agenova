@@ -220,8 +220,13 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 		return nil, errors.New("installed Work API is unavailable; check Platform status and local tunnel")
 	}
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxEvidenceBytes+1))
-	if err != nil || len(data) > maxEvidenceBytes {
+	limit := maxEvidenceBytes
+	if input == nil && ref == "" {
+		// A bounded current-session list may contain up to 32 individual views.
+		limit = 8 << 20
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, int64(limit)+1))
+	if err != nil || len(data) > limit {
 		return nil, errors.New("installed Work API response is unavailable or too large")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
