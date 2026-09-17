@@ -329,13 +329,16 @@ func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) i
 }
 
 func workPhase(view evidence.View) string {
+	if view.State != nil && view.State.Decision.Result == "Deny" {
+		return "Denied"
+	}
 	if view.Outcome != nil {
+		if view.Outcome.Status == "Deny" {
+			return "Denied"
+		}
 		return view.Outcome.Status
 	}
 	if view.State != nil {
-		if view.State.Decision.Result == "Deny" {
-			return "Denied"
-		}
 		if view.State.Claim != nil {
 			return string(view.State.Claim.Phase)
 		}
@@ -418,7 +421,7 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
-		return printPlatformStatus(stdout, stderr, plan, parsed.json)
+		return printPlatformStatus(stdout, stderr, plan, parsed.json, parsed.stateDir)
 	case "validate":
 		resolved, _, err := service.ValidateFile(parsed.file)
 		if err != nil {
@@ -501,8 +504,14 @@ func printPlatformApplyHuman(output io.Writer, result platformapply.ApplyResult)
 
 // Status is an observation of installed components. It does not probe model
 // providers or establish that a Work can run end to end.
-func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool) int {
+func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool, stateDir string) int {
 	installationReady := !plan.Changed()
+	connectCommand := "agenova api connect"
+	if stateDir != "" {
+		// PowerShell is the reference install shell. Escape embedded quotes so
+		// the displayed command continues to select this exact local state.
+		connectCommand += " --state-dir '" + strings.ReplaceAll(stateDir, "'", "''") + "'"
+	}
 	for _, component := range plan.Components {
 		switch component.State {
 		case "available", "configured", "used":
@@ -525,14 +534,14 @@ func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, json
 			LocalEndpointAfterConnect string `json:"localEndpointAfterConnect"`
 			ConnectCommand            string `json:"connectCommand"`
 			ConnectionState           string `json:"connectionState"`
-		}{"http://127.0.0.1:8088", "agenova api connect", "not-checked"}})
+		}{"http://127.0.0.1:8088", connectCommand, "not-checked"}})
 	}
 	if code := printPlatformPlan(stdout, stderr, plan, false); code != 0 {
 		return code
 	}
 	fmt.Fprintf(stdout, "installation ready: %t\nreadiness scope: %s\nprovider health: not checked\n", installationReady, platformapply.ReadinessScopeInstallation)
 	fmt.Fprintln(stdout, "api after local connect: http://127.0.0.1:8088")
-	fmt.Fprintln(stdout, "connect: agenova api connect (separate terminal; connection not checked)")
+	fmt.Fprintf(stdout, "connect: %s (separate terminal; connection not checked)\n", connectCommand)
 	return 0
 }
 

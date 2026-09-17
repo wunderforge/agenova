@@ -71,11 +71,19 @@ func connectAPI(stateDirectory string, port int, stdout, stderr io.Writer) error
 	cmd := exec.Command(path, "--context", client.Context, "--namespace", client.Namespace,
 		"port-forward", "deployment/agenova-control-plane", fmt.Sprintf("%d:8081", port), "--address", "127.0.0.1")
 	cmd.Stdout, cmd.Stderr = stdout, stderr
-	fmt.Fprintf(stdout, "Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then start npm dev in another terminal.\n", port)
+	fmt.Fprint(stdout, apiConnectInstruction(port))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("local API connection stopped; check port availability, Platform status and Kubernetes access")
 	}
 	return nil
+}
+
+func apiConnectInstruction(port int) string {
+	message := fmt.Sprintf("Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then start npm dev in another terminal.\n", port)
+	if port != 8088 {
+		message += fmt.Sprintf("In the Vite terminal, set $env:AGENOVA_API_URL = 'http://127.0.0.1:%d' (PowerShell) or run AGENOVA_API_URL=http://127.0.0.1:%d npm --prefix ui run dev (POSIX shell).\n", port, port)
+	}
+	return message
 }
 
 func submitConnected(path, stateDirectory string) (cli.RunReport, error) {

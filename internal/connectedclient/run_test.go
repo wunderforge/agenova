@@ -35,6 +35,14 @@ spec:
 	return path
 }
 
+func installedEvidenceJSON(ref, outcome string) string {
+	suffix := ""
+	if outcome != "" {
+		suffix = fmt.Sprintf(`,"outcome":{"status":%q}`, outcome)
+	}
+	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q}},"facts":[]%s}`, ref, ref, suffix)
+}
+
 func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
 	path := workFile(t, "demo")
 	calls := 0
@@ -53,7 +61,7 @@ func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
 		if runtime["timeout"] != "1m" {
 			t.Errorf("duration changed: %#v", runtime)
 		}
-		_, _ = w.Write([]byte(`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[],"outcome":{"status":"Deny"}}`))
+		_, _ = w.Write([]byte(installedEvidenceJSON("demo", "Deny")))
 	}))
 	defer server.Close()
 	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
@@ -92,7 +100,7 @@ func TestShowAndListUseInstalledLoopbackAPI(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("query method = %s", r.Method)
 		}
-		view := fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q}},"facts":[],"outcome":{"status":"Succeeded"}}`, ref, ref)
+		view := installedEvidenceJSON(ref, "Succeeded")
 		switch r.URL.EscapedPath() {
 		case "/api/requests":
 			_, _ = w.Write([]byte("[" + view + "]"))
@@ -123,14 +131,14 @@ func TestRunFilePollsEscapedReference(t *testing.T) {
 	reads := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"facts":[]}`, ref)))
+			_, _ = w.Write([]byte(installedEvidenceJSON(ref, "")))
 			return
 		}
 		reads++
 		if r.URL.EscapedPath() != "/api/requests/demo%3Fref%23one/evidence" {
 			t.Errorf("evidence path was not escaped: %s", r.URL.EscapedPath())
 		}
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"facts":[],"outcome":{"status":"Succeeded"}}`, ref)))
+		_, _ = w.Write([]byte(installedEvidenceJSON(ref, "Succeeded")))
 	}))
 	defer server.Close()
 	client := Client{Context: "kind-agenova", Namespace: "agenova-system", PollInterval: time.Millisecond, OpenTunnel: func(context.Context) (string, func(), error) {
@@ -139,6 +147,34 @@ func TestRunFilePollsEscapedReference(t *testing.T) {
 	view, err := client.RunFile(path)
 	if err != nil || view.Outcome == nil || view.Outcome.Status != "Succeeded" || reads != 1 {
 		t.Fatalf("RunFile = %#v, %v, reads %d", view, err, reads)
+	}
+}
+
+func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
+	response := `{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/requests" {
+			_, _ = w.Write([]byte("[" + response + "]"))
+			return
+		}
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() {}, nil
+	}}
+	for _, incomplete := range []string{
+		`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`,
+		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"demo"}}}`,
+		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"other"}},"facts":[]}`,
+	} {
+		response = incomplete
+		if _, err := client.Show("demo"); err == nil {
+			t.Fatalf("Show accepted %s", incomplete)
+		}
+		if _, err := client.List(); err == nil {
+			t.Fatalf("List accepted %s", incomplete)
+		}
 	}
 }
 
