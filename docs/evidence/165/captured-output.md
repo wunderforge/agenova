@@ -142,7 +142,45 @@ $exitCode = $LASTEXITCODE
 
 This verifies that authorization success is distinct from provider execution
 success and that the installed path did not silently fall back to a fixture or
-another model. We immediately ran
+another model. To verify that failure still tore down the allocated worker, we
+repeated this tracked fixture on the #165 image and captured the **same failed
+request's** full lifecycle:
+
+```powershell
+$v = .\.tmp\agenova.exe run -f docs/evidence/165/unavailable-model.work.yaml --json | ConvertFrom-Json
+$exitCode = $LASTEXITCODE
+[pscustomobject]@{exitCode=$exitCode;requestRef=$v.requestRef;claimId=$v.state.claim.id;workerId=$v.state.claim.backendIdentity.workerId;phase=$v.state.claim.phase;outcome=$v.outcome.status;runtimeFacts=@($v.facts | Where-Object kind -EQ 'Runtime' | ForEach-Object operation);runtimeEvents=@($v.state.evidence.runtimeEvents | ForEach-Object kind);providerOutcomes=@($v.facts | Where-Object kind -EQ 'ProviderOutcome' | Select-Object operation,reasonCode);runOutcomes=@($v.facts | Where-Object kind -EQ 'RunOutcome' | Select-Object operation,reasonCode)} | ConvertTo-Json -Depth 7
+```
+
+```json
+{
+  "exitCode": 1,
+  "requestRef": "investigate-payment-retries-unavailable-model",
+  "claimId": "claim:investigate-payment-retries-unavailable-model:issuance:79deda31251f6b13506e302e9db00865",
+  "workerId": "agenova-pool-pool-engineer-g45bx",
+  "phase": "Failed",
+  "outcome": "Failed",
+  "runtimeFacts": ["Pending", "Bound", "BackendReady", "Running", "Failed", "TerminateSucceeded", "CleanupSucceeded"],
+  "runtimeEvents": ["Bound", "BackendReady", "Running", "Failed", "TerminateSucceeded", "CleanupSucceeded"],
+  "providerOutcomes": [{"operation": "model.invoke", "reasonCode": "model-provider-failed"}],
+  "runOutcomes": [{"operation": "Failed", "reasonCode": "provider-failed"}]
+}
+```
+
+Immediately after that CLI response, before restoring the Platform, the
+cluster check returned:
+
+```powershell
+kubectl --context kind-agenova-k8s-lab -n agenova-system get sandboxclaims.extensions.agents.x-k8s.io
+```
+
+```text
+No resources found in agenova-system namespace.
+```
+
+Thus the failed model call produced a failed outcome and the bound worker's
+terminate/cleanup evidence, with no SandboxClaim remaining in this dedicated
+test namespace. We immediately ran
 `agenova platform apply -f deploy/reference/platform.kind.yaml --yes --json`
 to restore the original endpoint; `platform status --json` then reported
 the original revision
