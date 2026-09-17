@@ -74,6 +74,9 @@ func (s KubernetesStore) ActivatePolicy(ref PolicyReference) error {
 		return fmt.Errorf("active PolicyBundle pointer is not Agenova-managed")
 	}
 	if object.Data["reference.json"] == string(data) {
+		if err := s.requireConfigMapMutation("patch"); err != nil {
+			return err
+		}
 		return nil
 	}
 	patch, err := json.Marshal([]map[string]any{
@@ -146,6 +149,9 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 		if !jsonEqual(previous, data) {
 			return false, ErrConflict
 		}
+		if err := s.requireConfigMapMutation("patch"); err != nil {
+			return false, err
+		}
 		return false, nil
 	} else if !errors.Is(err, errMissingRecord) {
 		return false, err
@@ -159,6 +165,9 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 		// A concurrent creator may have won. Compare rather than replacing it.
 		if previous, readErr := s.get(name, key); readErr == nil {
 			if jsonEqual(previous, data) {
+				if authErr := s.requireConfigMapMutation("patch"); authErr != nil {
+					return false, authErr
+				}
 				return false, nil
 			}
 			return false, ErrConflict
@@ -166,6 +175,21 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// requireConfigMapMutation makes idempotent management actions prove the
+// operator has the corresponding write authority. A read-only identity must
+// not be able to reapply an identical record merely because no patch is
+// needed after comparison.
+func (s KubernetesStore) requireConfigMapMutation(verb string) error {
+	output, err := s.run(nil, "auth", "can-i", verb, "configmaps")
+	if err != nil {
+		return fmt.Errorf("verify ConfigMap %s authority: %w", verb, err)
+	}
+	if strings.TrimSpace(strings.ToLower(string(output))) != "yes" {
+		return fmt.Errorf("operator lacks ConfigMap %s authority", verb)
+	}
+	return nil
 }
 
 var errMissingRecord = errors.New("registration record not found")

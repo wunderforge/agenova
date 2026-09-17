@@ -99,6 +99,26 @@ func TestKubernetesPlanRejectsUnsupportedCrossNamespaceRuntimeBeforeAccess(t *te
 	}
 }
 
+func TestKubernetesPlanRejectsUnsupportedRuntimeCardinalityBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = append(request.Platform.Instances, request.Platform.Instances[0])
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "exactly one runtime backend") || len(runner.calls) != 0 {
+		t.Fatalf("multiple runtimes = %v, target calls %#v", err, runner.calls)
+	}
+}
+
+func TestKubernetesPlanRejectsUnverifiedWorkerImageBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances[0].Config["compatible-worker-image"] = "busybox:latest"
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "bundled controlled worker image") || len(runner.calls) != 0 {
+		t.Fatalf("unsupported worker image = %v, target calls %#v", err, runner.calls)
+	}
+}
+
 func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
 	request := deploymentRequest()
 	policyApplied := false

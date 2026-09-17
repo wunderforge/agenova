@@ -18,8 +18,15 @@ type fakeDeployment struct {
 	applied       bool
 	fail          error
 	denied        error
+	validateErr   error
+	validateRuns  int
 	preflightRuns int
 	applyRuns     int
+}
+
+func (f *fakeDeployment) ValidateComposition(DeploymentRequest) error {
+	f.validateRuns++
+	return f.validateErr
 }
 
 type testPolicyCatalog struct{}
@@ -142,6 +149,17 @@ func TestServiceRejectsUnavailableInitialPolicy(t *testing.T) {
 	input.Spec.InitialPolicyRef.Version = "2"
 	if _, _, err := service.Validate(input); err == nil || !strings.Contains(err.Error(), "is not available") {
 		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestServiceValidatesTargetCompositionBeforePlanning(t *testing.T) {
+	deployment := &fakeDeployment{validateErr: errors.New("unsupported runtime composition")}
+	service := newTestService(t, deployment)
+	if _, _, err := service.Validate(testPlatform()); err == nil || !strings.Contains(err.Error(), "unsupported runtime composition") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if deployment.validateRuns != 1 || deployment.preflightRuns != 0 || deployment.applyRuns != 0 {
+		t.Fatalf("validation called target preflight/apply: %#v", deployment)
 	}
 }
 

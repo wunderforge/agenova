@@ -79,6 +79,13 @@ type DeploymentAdapter interface {
 	Apply(context.Context, DeploymentRequest) (status []ComponentStatus, mutationAttempted bool, err error)
 }
 
+// CompositionValidator is an optional, read-only deployment-adapter hook for
+// constraints spanning multiple Platform instances. It must not inspect or
+// mutate the target; ValidateFile invokes it before Plan/Apply touch the target.
+type CompositionValidator interface {
+	ValidateComposition(DeploymentRequest) error
+}
+
 type Service struct {
 	Adapters *adapterregistry.Lifecycle
 	Policies PolicyAvailability
@@ -130,6 +137,15 @@ func (s Service) Validate(input *v1alpha1.Platform) (*platform.ResolvedPlatform,
 	}
 	if err := s.Policies.Require(resolved.InitialPolicyRef); err != nil {
 		return nil, nil, fmt.Errorf("initial policy: %w", err)
+	}
+	request, adapter, err := s.deployment(resolved, lock)
+	if err != nil {
+		return nil, nil, err
+	}
+	if validator, ok := adapter.(CompositionValidator); ok {
+		if err := validator.ValidateComposition(request); err != nil {
+			return nil, nil, fmt.Errorf("validate deployment composition: %w", err)
+		}
 	}
 	return resolved, lock, nil
 }

@@ -132,13 +132,16 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
 	}
 	view, err := service.Submit(data)
 	if err != nil {
+		var submission *SubmissionError
 		switch {
 		case errors.Is(err, ErrConflict):
 			writeError(w, 409, "request_conflict", "This request reference already exists.")
 		case errors.Is(err, ErrCapacity):
 			writeError(w, 429, "capacity_reached", "The local console has reached its record limit.")
+		case errors.As(err, &submission):
+			writeError(w, 422, submission.Code, submission.Message)
 		default:
-			writeError(w, 500, "submission_failed", "The request could not be submitted.")
+			writeError(w, 500, "submission_failed", "Submission failed. Check the active policy, registered AgentTemplate, installed profiles and gateway capabilities.")
 		}
 		return
 	}

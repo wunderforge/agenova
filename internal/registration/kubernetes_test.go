@@ -10,18 +10,25 @@ import (
 	"fmt"
 	"testing"
 
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
 func TestKubernetesStoreReferenceRegistrationAndActivation(t *testing.T) {
 	objects := map[string]map[string]any{}
 	mutations := 0
+	allowMutation := true
 	store := KubernetesStore{Context: "kind-test", Namespace: "agenova-system", Invoke: func(_ context.Context, input []byte, args ...string) ([]byte, error) {
 		if len(args) < 5 || args[0] != "--context" || args[2] != "--namespace" || args[3] != "agenova-system" {
 			t.Fatalf("unpinned target: %v", args)
 		}
 		command := args[4:]
 		switch command[0] {
+		case "auth":
+			if !allowMutation {
+				return []byte("no\n"), nil
+			}
+			return []byte("yes\n"), nil
 		case "get":
 			object, ok := objects[command[2]]
 			if !ok {
@@ -75,6 +82,60 @@ spec:
 	}
 	if mutations != 2 {
 		t.Fatal("conflicting reference policy mutated Kubernetes")
+	}
+}
+
+func TestKubernetesStoreRejectsIdenticalReapplyWithoutMutationAuthority(t *testing.T) {
+	objects := map[string]map[string]any{}
+	allowMutation := true
+	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, input []byte, args ...string) ([]byte, error) {
+		command := args[2:]
+		switch command[0] {
+		case "auth":
+			if !allowMutation {
+				return []byte("no\n"), nil
+			}
+			return []byte("yes\n"), nil
+		case "get":
+			object, ok := objects[command[2]]
+			if !ok {
+				return nil, errMissingRecord
+			}
+			return json.Marshal(object)
+		case "create":
+			var object map[string]any
+			if err := json.Unmarshal(input, &object); err != nil {
+				t.Fatal(err)
+			}
+			metadata := object["metadata"].(map[string]any)
+			metadata["resourceVersion"] = "1"
+			objects[metadata["name"].(string)] = object
+			return nil, nil
+		default:
+			t.Fatalf("unexpected command: %v", command)
+			return nil, nil
+		}
+	}}
+	template := &v0.AgentTemplate{APIVersion: "agenova.io/v1alpha1", Kind: v0.AgentTemplateKind, Metadata: v0.ObjectMeta{Name: "engineer"}, Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "example/agent:test"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agent"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{}}}
+	if _, err := store.PutTemplate(template); err != nil {
+		t.Fatalf("initial template: %v", err)
+	}
+	allowMutation = false
+	if _, err := store.PutTemplate(template); err == nil {
+		t.Fatal("identical template reapply succeeded without patch authority")
+	}
+	seed := policy.ReferenceBundle()
+	if _, err := store.PutPolicy(seed); err != nil {
+		t.Fatalf("initial policy: %v", err)
+	}
+	ref := PolicyReference{ID: seed.ID, Version: seed.Version}
+	allowMutation = true
+	if err := store.ActivatePolicy(ref); err != nil {
+		t.Fatalf("initial activation: %v", err)
+	}
+	allowMutation = false
+	if err := store.ActivatePolicy(ref); err == nil {
+		t.Fatal("identical policy activation succeeded without patch authority")
 	}
 }
 

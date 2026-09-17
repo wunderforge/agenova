@@ -19,6 +19,9 @@ const (
 	AgentSandboxRuntimeID   = "agenova.io/runtime/agent-sandbox"
 	OpenAICompatibleModelID = "agenova.io/model/openai-compatible"
 	ReferenceVersion        = "0.1.0"
+	// This reference distribution includes only the controlled demo worker.
+	// Other images need their own reviewed compatibility contract/adapter.
+	referenceControlledWorkerImage = "agenova-testworker:kind"
 )
 
 // These types are capability-owned construction results. #45 can define the
@@ -63,7 +66,7 @@ func agentSandboxRuntimeRegistration() adapterregistry.Registration {
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "connection.mode", Kind: adapterregistry.ValueString, Required: true, Description: "Control-plane-to-runtime connection mode", Default: "in-cluster"},
 			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-system"},
-			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Required: true, Description: "Reference worker image allowed for this runtime", Default: "agenova-testworker:kind"},
+			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Required: true, Description: "Reference worker image allowed for this runtime", Default: referenceControlledWorkerImage},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "isolation", Kind: adapterregistry.ValueString, Required: true, Description: "Requested supported isolation shape", Default: "dedicated"},
@@ -144,8 +147,8 @@ func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]an
 		return nil, err
 	}
 	image, err := requiredString(input, "compatible-worker-image")
-	if err != nil || len(image) > 256 || strings.ContainsAny(image, " \t\r\n") {
-		return nil, platform.NewAdapterConfigError("invalid-worker-image", "compatible-worker-image")
+	if err != nil || image != referenceControlledWorkerImage {
+		return nil, platform.NewAdapterConfigError("unsupported-worker-image", "compatible-worker-image")
 	}
 	return map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}, "compatible-worker-image": image}, nil
 }

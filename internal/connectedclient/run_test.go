@@ -65,6 +65,25 @@ func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
 	}
 }
 
+func TestInstalledAPIErrorUsesOnlyStableDiagnostics(t *testing.T) {
+	response := `{"code":"agent_template_unavailable","message":"raw internal detail must not leak"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	client := Client{}
+	_, err := client.call(context.Background(), server.URL, []byte(`{}`), "")
+	if err == nil || !strings.Contains(err.Error(), "register the requested template") || strings.Contains(err.Error(), "raw internal detail") {
+		t.Fatalf("unsafe or missing diagnostic: %v", err)
+	}
+	response = `{"code":"unexpected","message":"provider token=secret"}`
+	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
+	if err == nil || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "HTTP 422") {
+		t.Fatalf("unknown diagnostic leaked body: %v", err)
+	}
+}
+
 func TestRunFilePollsEscapedReference(t *testing.T) {
 	const ref = "demo?ref#one"
 	path := workFile(t, ref)

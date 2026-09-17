@@ -18,6 +18,8 @@ The positive request's evidence had `Bound, BackendReady, Running, Succeeded, Te
 
 Negative checks: `denied-work.yaml` received Deny before Claim/worker/model/tool facts; `policy-conflict.yaml` was rejected as same identity with different content. Both registrations were idempotent on identical reapply.
 
+The final review pass also tested rejection of unverified worker images and multiple runtime backends before rollout, unsupported tool/Memory grants before worker allocation, read-only identities attempting identical registration reapply, and bounded operator diagnostics that do not echo raw provider or Kubernetes errors. The final-image kind rerun again completed the allowed Work through Ollama and denied the out-of-policy Work before allocation; no SandboxClaims remained afterward.
+
 Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into kind, and reconciled the Deployment. `platform status` then reported zero drift, `installationReady: true`, and `providerHealth: not-checked`. The subsequent Work completed through the installed service and local Ollama using the loopback-only API tunnel instead of `pods/exec`; the denied Work had no Claim or runtime/model/tool invocations. The full `scripts/check.ps1 -All` gate passed, including Go checks and 48 Playwright browser smoke tests.
 
 ## Scope and caveats

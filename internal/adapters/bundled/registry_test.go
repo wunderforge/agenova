@@ -113,6 +113,7 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://models.example/v1?api_key=hidden"}, "invalid-endpoint"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "http://ollama.agenova-models.svc.cluster.local:11434/v1"}, "unsupported-endpoint"},
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}}, "compatible-worker-image"},
+		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}, "compatible-worker-image": "busybox:latest"}, "unsupported-worker-image"},
 	}
 	for _, test := range tests {
 		descriptor, ok := registry.Lookup(test.id, ReferenceVersion)

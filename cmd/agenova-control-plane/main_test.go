@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 )
 
 func TestReferenceEndpointsExposeOnlySafeStatus(t *testing.T) {
@@ -41,5 +43,34 @@ func TestCompatibleWorkerImageMustMatchInstalledRuntime(t *testing.T) {
 		if (err != nil) != test.wantErr {
 			t.Fatalf("image=%q allowed=%q: err=%v, wantErr=%t", test.image, test.allowed, err, test.wantErr)
 		}
+	}
+}
+
+func TestInstalledGatewayAuthorityRejectsUnimplementedGrantsBeforeWorkerSetup(t *testing.T) {
+	models := map[string]string{"coding-standard": "llama3.1:latest"}
+	runtimes := map[string]bool{"standard-isolated": true}
+	for _, test := range []struct {
+		name      string
+		modify    func(*v0.EffectiveAuthority)
+		wantError string
+	}{
+		{"supported", func(*v0.EffectiveAuthority) {}, ""},
+		{"unsupported tool", func(a *v0.EffectiveAuthority) { a.Tools = []string{"git.write"} }, "granted tool is not supported"},
+		{"mixed tools", func(a *v0.EffectiveAuthority) { a.Tools = []string{"git.read", "github.pull-request"} }, "granted tool is not supported"},
+		{"memory", func(a *v0.EffectiveAuthority) { a.MemoryScopes = []string{"team-docs"} }, "granted memory scope is not supported"},
+		{"missing model", func(a *v0.EffectiveAuthority) { a.ModelProfile = "other" }, "granted model profile is not installed"},
+		{"missing runtime", func(a *v0.EffectiveAuthority) { a.Runtime.ProfileRef = "other" }, "granted runtime profile is not installed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			authority := &v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated"}}
+			test.modify(authority)
+			err := validateInstalledAuthority(authority, models, runtimes)
+			if test.wantError == "" && err != nil || test.wantError != "" && (err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantError)) {
+				t.Fatalf("validateInstalledAuthority() = %v, want %q", err, test.wantError)
+			}
+		})
+	}
+	if err := validateInstalledAuthority(nil, models, runtimes); err == nil {
+		t.Fatal("missing issued authority was accepted")
 	}
 }

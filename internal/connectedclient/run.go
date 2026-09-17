@@ -170,10 +170,34 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 		return nil, errors.New("installed Work API response is unavailable or too large")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		// Never print raw API, provider or kubectl output in a CLI error.
+		// Only stable, locally defined diagnostics may reach the operator. Never
+		// echo arbitrary API/provider/kubectl error bodies into the CLI.
+		var problem struct {
+			Code string `json:"code"`
+		}
+		if json.Unmarshal(data, &problem) == nil {
+			if message, ok := safeAPIDiagnostic[problem.Code]; ok {
+				return nil, fmt.Errorf("%s (HTTP %d)", message, response.StatusCode)
+			}
+		}
 		return nil, fmt.Errorf("installed Work API rejected request (HTTP %d)", response.StatusCode)
 	}
 	return data, nil
+}
+
+var safeAPIDiagnostic = map[string]string{
+	"active_policy_unavailable":   "Active PolicyBundle is unavailable; register or repair the active policy.",
+	"active_policy_invalid":       "Active PolicyBundle is invalid; register a valid policy version.",
+	"agent_template_unavailable":  "AgentTemplate is unavailable; register the requested template.",
+	"assignment_unavailable":      "Assignment could not be resolved; check the registered template and active policy.",
+	"authority_missing":           "Issued effective authority is missing; inspect policy and template configuration.",
+	"model_profile_unavailable":   "Granted model profile is not installed; update the Platform model configuration.",
+	"runtime_profile_unavailable": "Granted runtime profile is not installed; update the Platform runtime configuration.",
+	"tool_unsupported":            "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway.",
+	"memory_unsupported":          "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface.",
+	"request_conflict":            "This Work reference already exists; choose a new request name.",
+	"capacity_reached":            "The installed service has reached its current-session Work limit.",
+	"not_found":                   "Work was not found in the installed service.",
 }
 
 func (c Client) openTunnel(ctx context.Context) (string, func(), error) {

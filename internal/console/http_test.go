@@ -107,6 +107,22 @@ func httpCall(h http.Handler, method, path string, body []byte, headers map[stri
 	h.ServeHTTP(w, r)
 	return w
 }
+
+func TestHTTPSubmissionReturnsStableOperatorDiagnostic(t *testing.T) {
+	service, err := NewServiceWithOptions(&httpBackend{}, httpExecutor{}, &httpProvider{}, app.ReferencePrincipalTeamA, Options{
+		Prepare: func([]byte) (app.PreparedAssignment, error) {
+			return app.PreparedAssignment{}, &SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: errors.New("private kube detail")}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	response := httpCall(Handler(service), "POST", "/api/requests", httpInput("unknown-template"), nil)
+	if response.Code != 422 || !strings.Contains(response.Body.String(), `"code":"agent_template_unavailable"`) || strings.Contains(response.Body.String(), "private kube detail") {
+		t.Fatalf("unsafe diagnostic: %d %s", response.Code, response.Body.String())
+	}
+}
 func httpView(t *testing.T, w *httptest.ResponseRecorder) evidence.View {
 	t.Helper()
 	var v evidence.View

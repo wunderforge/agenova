@@ -60,6 +60,17 @@ type Options struct {
 	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
 }
 
+// SubmissionError exposes an operator-actionable, bounded diagnosis without
+// returning raw Kubernetes, provider, or policy-loader error text to callers.
+type SubmissionError struct {
+	Code    string
+	Message string
+	Cause   error
+}
+
+func (e *SubmissionError) Error() string { return e.Message }
+func (e *SubmissionError) Unwrap() error { return e.Cause }
+
 func NewService(backend runtime.RuntimeBackend, executor Executor, provider modelprovider.Client, preset app.ReferencePrincipalPreset) (*Service, error) {
 	return NewServiceWithOptions(backend, executor, provider, preset, Options{})
 }

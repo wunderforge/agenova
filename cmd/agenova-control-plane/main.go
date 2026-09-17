@@ -170,22 +170,25 @@ func configuredService(path string) (*console.Service, error) {
 		Prepare: func(data []byte) (app.PreparedAssignment, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
-				return app.PreparedAssignment{}, fmt.Errorf("active PolicyBundle is unavailable: %w", err)
+				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
 			}
 			loader := &policy.Loader{}
 			if err := loader.Load(bundle); err != nil {
-				return app.PreparedAssignment{}, err
+				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
 			}
 			prepared, err := app.PrepareAssignment(data, principal, loader, store)
 			if err != nil {
-				return prepared, err
+				request, parseErr := v0.ParseClaimRequestJSON(data)
+				if parseErr == nil {
+					if _, lookupErr := store.Template(request.Spec.TemplateRef); lookupErr != nil {
+						return prepared, &console.SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: err}
+					}
+				}
+				return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
 			}
 			if prepared.Issued != nil && prepared.Issued.Claim != nil {
-				if _, ok := modelConfig.Models[prepared.Issued.EffectiveAuthority.ModelProfile]; !ok {
-					return app.PreparedAssignment{}, fmt.Errorf("granted model profile is not installed")
-				}
-				if !runtimeProfiles[prepared.Issued.EffectiveAuthority.Runtime.ProfileRef] {
-					return app.PreparedAssignment{}, fmt.Errorf("granted runtime profile is not installed")
+				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles); err != nil {
+					return app.PreparedAssignment{}, err
 				}
 			}
 			return prepared, nil
@@ -210,6 +213,31 @@ func configuredService(path string) (*console.Service, error) {
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
 	})
+}
+
+// This reference composition currently provides only a synthetic git.read
+// adapter and no Memory Interface. Check the issued effective grant before
+// the console journals a claim or configures a worker: a broader template
+// ceiling must never be mistaken for an implemented gateway capability.
+func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[string]string, runtimeProfiles map[string]bool) error {
+	if authority == nil {
+		return &console.SubmissionError{Code: "authority_missing", Message: "Issued effective authority is missing; inspect policy and template configuration."}
+	}
+	if _, ok := models[authority.ModelProfile]; !ok {
+		return &console.SubmissionError{Code: "model_profile_unavailable", Message: "Granted model profile is not installed; update the Platform model configuration."}
+	}
+	if !runtimeProfiles[authority.Runtime.ProfileRef] {
+		return &console.SubmissionError{Code: "runtime_profile_unavailable", Message: "Granted runtime profile is not installed; update the Platform runtime configuration."}
+	}
+	for _, tool := range authority.Tools {
+		if tool != "git.read" {
+			return &console.SubmissionError{Code: "tool_unsupported", Message: "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway."}
+		}
+	}
+	if len(authority.MemoryScopes) != 0 {
+		return &console.SubmissionError{Code: "memory_unsupported", Message: "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface."}
+	}
+	return nil
 }
 
 // The installed runtime declares one worker artifact implementing the

@@ -54,12 +54,39 @@ func referenceWorkerImage(resolved *platform.ResolvedPlatform) string {
 	return ""
 }
 
-func validateReferenceWorkerImage(resolved *platform.ResolvedPlatform) error {
-	image := referenceWorkerImage(resolved)
-	if image == "" || len(image) > 256 || strings.ContainsAny(image, " \t\r\n") {
-		return fmt.Errorf("reference runtime requires a compatible-worker-image")
+func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
+	if request.Platform == nil {
+		return fmt.Errorf("resolved Platform is required")
+	}
+	_, namespace, err := deploymentCoordinates(request.Config)
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, instance := range request.Platform.Instances {
+		if instance.Category != platform.CapabilityRuntime {
+			continue
+		}
+		count++
+		connection, _ := instance.Config["connection"].(map[string]any)
+		workerNamespace, _ := connection["namespace"].(string)
+		if workerNamespace != namespace {
+			return fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
+		}
+		if instance.Config["compatible-worker-image"] != referenceControlledWorkerImage {
+			return fmt.Errorf("reference runtime requires the bundled controlled worker image")
+		}
+	}
+	if count != 1 {
+		return fmt.Errorf("reference Control Plane requires exactly one runtime backend")
 	}
 	return nil
+}
+
+// ValidateComposition is target-specific but read-only: generic Platform
+// validation calls it before planning or applying cluster resources.
+func (*KubernetesDeployment) ValidateComposition(request platformapply.DeploymentRequest) error {
+	return validateReferenceRuntime(request)
 }
 
 // A later policy registration may legitimately activate a different version.
@@ -134,23 +161,11 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
-	if request.Platform != nil {
-		for _, instance := range request.Platform.Instances {
-			if instance.Category != platform.CapabilityRuntime {
-				continue
-			}
-			connection, _ := instance.Config["connection"].(map[string]any)
-			workerNamespace, _ := connection["namespace"].(string)
-			if workerNamespace != namespace {
-				return target, nil, nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
-			}
-		}
+	if err := k.ValidateComposition(request); err != nil {
+		return target, nil, nil, err
 	}
 	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
 		return target, nil, nil, fmt.Errorf("initial policy: %w", err)
-	}
-	if err := validateReferenceWorkerImage(request.Platform); err != nil {
-		return target, nil, nil, err
 	}
 	if _, err := k.run(ctx, nil, "--context", contextName, "version", "--request-timeout=5s", "-o", "json"); errors.Is(err, errKubectlUnavailable) {
 		return target, nil, nil, err
