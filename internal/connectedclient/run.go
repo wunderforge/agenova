@@ -69,7 +69,10 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 	if waitBudget > 28*time.Minute {
 		waitBudget = 28 * time.Minute
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), waitBudget+2*time.Minute)
+	// Submission may spend nearly three minutes in tunnel startup and the
+	// installed service's synchronous registration/runtime setup before the
+	// worker's runtime budget starts. Keep a separate margin for that phase.
+	ctx, cancel := context.WithTimeout(context.Background(), waitBudget+4*time.Minute)
 	defer cancel()
 	endpoint, closeTunnel, err := c.openTunnel(ctx)
 	if err != nil {

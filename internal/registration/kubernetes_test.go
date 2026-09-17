@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -193,11 +194,11 @@ func TestKubernetesStoreRejectsIdenticalReapplyWithoutMutationAuthority(t *testi
 	}
 	ref := PolicyReference{ID: seed.ID, Version: seed.Version}
 	allowMutation = true
-	if err := store.ActivatePolicy(ref); err != nil {
-		t.Fatalf("initial activation: %v", err)
+	if changed, err := store.ActivatePolicy(ref); err != nil || !changed {
+		t.Fatalf("initial activation: changed=%t err=%v", changed, err)
 	}
 	allowMutation = false
-	if err := store.ActivatePolicy(ref); err == nil {
+	if _, err := store.ActivatePolicy(ref); err == nil {
 		t.Fatal("identical policy activation succeeded without patch authority")
 	}
 }
@@ -223,6 +224,63 @@ func TestKubernetesReferenceRegistryRejectsSecondTemplateBeforeWrite(t *testing.
 	other.Metadata.Name = "reviewer"
 	if _, err := store.PutTemplate(&other); err == nil || mutations != 0 {
 		t.Fatalf("second template changed registry: err=%v mutations=%d", err, mutations)
+	}
+}
+
+func TestKubernetesReferenceTemplateSlotIsAtomicAcrossNames(t *testing.T) {
+	var mu sync.Mutex
+	var stored map[string]any
+	listed := 0
+	listBarrier := make(chan struct{})
+	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, input []byte, args ...string) ([]byte, error) {
+		command := args[2:]
+		switch command[0] {
+		case "get":
+			if command[2] == "-l" {
+				mu.Lock()
+				listed++
+				if listed == 2 {
+					close(listBarrier)
+				}
+				mu.Unlock()
+				<-listBarrier
+				return []byte(`{"items":[]}`), nil
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if stored == nil {
+				return nil, errors.New("NotFound")
+			}
+			return json.Marshal(stored)
+		case "create":
+			var candidate map[string]any
+			if err := json.Unmarshal(input, &candidate); err != nil {
+				t.Fatal(err)
+			}
+			if candidate["metadata"].(map[string]any)["name"] != templateSlot {
+				t.Fatalf("template was not written to atomic slot: %v", candidate)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if stored != nil {
+				return nil, errors.New("AlreadyExists")
+			}
+			stored = candidate
+			return nil, nil
+		}
+		return nil, fmt.Errorf("unexpected command: %v", command)
+	}}
+	result := make(chan error, 2)
+	for _, name := range []string{"engineer", "reviewer"} {
+		go func(name string) {
+			template := &v0.AgentTemplate{APIVersion: "agenova.io/v1alpha1", Kind: v0.AgentTemplateKind, Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "example/agent:test"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agent"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{}}}
+			_, err := store.PutTemplate(template)
+			result <- err
+		}(name)
+	}
+	first, second := <-result, <-result
+	if !((first == nil && errors.Is(second, ErrConflict)) || (second == nil && errors.Is(first, ErrConflict))) {
+		t.Fatalf("concurrent slot results = %v, %v", first, second)
 	}
 }
 
@@ -262,7 +320,7 @@ func TestKubernetesStoreRejectsUnmanagedActivePointer(t *testing.T) {
 		}
 		return []byte(`{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"}},"data":{"policy.json":"{}"}}`), nil
 	}}
-	if err := store.ActivatePolicy(PolicyReference{ID: "any", Version: "1"}); err == nil {
+	if _, err := store.ActivatePolicy(PolicyReference{ID: "any", Version: "1"}); err == nil {
 		t.Fatal("unmanaged pointer was overwritten")
 	}
 }

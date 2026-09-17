@@ -29,6 +29,11 @@ type KubernetesStore struct {
 	Invoke    func(context.Context, []byte, ...string) ([]byte, error)
 }
 
+// New reference installs reserve one immutable slot atomically. Older
+// reference installs used a name-hashed record; reads and idempotent reapply
+// continue to recognize that record without creating a second slot.
+const templateSlot = "agenova-template-slot"
+
 func (s KubernetesStore) PutPolicy(bundle policy.PolicyBundle) (bool, error) {
 	if err := policy.ValidateBundle(bundle); err != nil {
 		return false, err
@@ -63,26 +68,26 @@ func (s KubernetesStore) CanActivatePolicy(PolicyReference) error {
 	return s.requireConfigMapMutation("patch", "agenova-active-policy")
 }
 
-func (s KubernetesStore) ActivatePolicy(ref PolicyReference) error {
+func (s KubernetesStore) ActivatePolicy(ref PolicyReference) (bool, error) {
 	if _, err := s.get(recordName("policy", ref.ID+"@"+ref.Version), "policy.json"); err != nil {
-		return err
+		return false, err
 	}
 	data, err := json.Marshal(ref)
 	if err != nil {
-		return err
+		return false, err
 	}
 	manifest := map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": "agenova-active-policy", "namespace": s.Namespace, "labels": managedLabels()}, "data": map[string]string{"reference.json": string(data)}}
 	encoded, err := json.Marshal(manifest)
 	if err != nil {
-		return err
+		return false, err
 	}
 	current, err := s.run(nil, "get", "configmap", "agenova-active-policy", "-o", "json")
 	if err != nil {
 		if !errors.Is(err, errMissingRecord) {
-			return err
+			return false, err
 		}
 		_, err = s.run(encoded, "create", "-f", "-")
-		return err
+		return err == nil, err
 	}
 	var object struct {
 		Metadata struct {
@@ -92,26 +97,26 @@ func (s KubernetesStore) ActivatePolicy(ref PolicyReference) error {
 		Data map[string]string `json:"data"`
 	}
 	if err := json.Unmarshal(current, &object); err != nil {
-		return fmt.Errorf("decode active PolicyBundle pointer: %w", err)
+		return false, fmt.Errorf("decode active PolicyBundle pointer: %w", err)
 	}
 	if object.Metadata.Labels["app.kubernetes.io/managed-by"] != "agenova" || object.Metadata.ResourceVersion == "" {
-		return fmt.Errorf("active PolicyBundle pointer is not Agenova-managed")
+		return false, fmt.Errorf("active PolicyBundle pointer is not Agenova-managed")
 	}
 	if object.Data["reference.json"] == string(data) {
 		if err := s.requireConfigMapMutation("patch", "agenova-active-policy"); err != nil {
-			return err
+			return false, err
 		}
-		return nil
+		return false, nil
 	}
 	patch, err := json.Marshal([]map[string]any{
 		{"op": "test", "path": "/metadata/resourceVersion", "value": object.Metadata.ResourceVersion},
 		{"op": "replace", "path": "/data/reference.json", "value": string(data)},
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, err = s.run(nil, "patch", "configmap", "agenova-active-policy", "--type=json", "-p", string(patch))
-	return err
+	return err == nil, err
 }
 
 func (s KubernetesStore) ActivePolicy() (policy.PolicyBundle, error) {
@@ -156,11 +161,24 @@ func (s KubernetesStore) PutTemplate(template *v0.AgentTemplate) (bool, error) {
 			return false, fmt.Errorf("reference installation supports one AgentTemplate; %s is already registered", existing.Metadata.Name)
 		}
 	}
+	if len(templates) == 0 {
+		// Two concurrent first registrations race on this one Kubernetes name;
+		// create-or-equal admits at most one identity.
+		return s.put(templateSlot, "template.json", template)
+	}
+	if _, err := s.get(templateSlot, "template.json"); err == nil {
+		return s.put(templateSlot, "template.json", template)
+	} else if !errors.Is(err, errMissingRecord) {
+		return false, err
+	}
 	return s.put(recordName("template", template.Metadata.Name), "template.json", template)
 }
 
 func (s KubernetesStore) Template(name string) (*v0.AgentTemplate, error) {
-	data, err := s.get(recordName("template", name), "template.json")
+	data, err := s.get(templateSlot, "template.json")
+	if errors.Is(err, errMissingRecord) {
+		data, err = s.get(recordName("template", name), "template.json")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +230,7 @@ func (s KubernetesStore) Templates() ([]*v0.AgentTemplate, error) {
 		if err := v0.ValidateAgentTemplate(&template); err != nil {
 			return nil, err
 		}
-		if item.Metadata.Name != recordName("template", template.Metadata.Name) {
+		if item.Metadata.Name != templateSlot && item.Metadata.Name != recordName("template", template.Metadata.Name) {
 			return nil, fmt.Errorf("registered AgentTemplate identity mismatch")
 		}
 		templates = append(templates, &template)

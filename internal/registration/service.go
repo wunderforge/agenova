@@ -37,7 +37,7 @@ type Result struct {
 type Store interface {
 	CanActivatePolicy(PolicyReference) error
 	PutPolicy(policy.PolicyBundle) (changed bool, err error)
-	ActivatePolicy(PolicyReference) error
+	ActivatePolicy(PolicyReference) (changed bool, err error)
 	ActivePolicy() (policy.PolicyBundle, error)
 	PutTemplate(*v0.AgentTemplate) (changed bool, err error)
 	Template(name string) (*v0.AgentTemplate, error)
@@ -69,10 +69,11 @@ func (s Service) ApplyPolicy(data []byte) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := s.Store.ActivatePolicy(ref); err != nil {
+	activated, err := s.Store.ActivatePolicy(ref)
+	if err != nil {
 		return Result{}, fmt.Errorf("PolicyBundle registered but not activated: %w", err)
 	}
-	return Result{Kind: policy.DocumentKind, Name: bundle.ID, Version: bundle.Version, Changed: changed, Active: true}, nil
+	return Result{Kind: policy.DocumentKind, Name: bundle.ID, Version: bundle.Version, Changed: changed || activated, Active: true}, nil
 }
 
 func (s Service) ApplyTemplateFile(path string) (Result, error) {

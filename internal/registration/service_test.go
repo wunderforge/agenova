@@ -5,6 +5,7 @@ package registration
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -32,6 +33,16 @@ spec:
 	second, err := svc.ApplyPolicy(policyYAML)
 	if err != nil || second.Changed {
 		t.Fatalf("repeat policy apply = %#v, %v", second, err)
+	}
+	versionTwo := []byte(strings.Replace(string(policyYAML), "version: \"1\"", "version: \"2\"", 1))
+	if result, err := svc.ApplyPolicy(versionTwo); err != nil || !result.Changed {
+		t.Fatalf("activate second policy version = %#v, %v", result, err)
+	}
+	if result, err := svc.ApplyPolicy(policyYAML); err != nil || !result.Changed {
+		t.Fatalf("reactivation was not reported as a change: %#v, %v", result, err)
+	}
+	if result, err := svc.ApplyPolicy(policyYAML); err != nil || result.Changed {
+		t.Fatalf("identical reactivation was reported as a change: %#v, %v", result, err)
 	}
 	bundle, err := store.ActivePolicy()
 	if err != nil || len(bundle.Rules) != 1 {

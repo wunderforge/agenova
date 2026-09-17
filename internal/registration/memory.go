@@ -43,14 +43,15 @@ func (s *MemoryStore) PutPolicy(bundle policy.PolicyBundle) (bool, error) {
 	return true, nil
 }
 
-func (s *MemoryStore) ActivatePolicy(ref PolicyReference) error {
+func (s *MemoryStore) ActivatePolicy(ref PolicyReference) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.policies[ref]; !ok {
-		return fmt.Errorf("PolicyBundle %s@%s is not registered", ref.ID, ref.Version)
+		return false, fmt.Errorf("PolicyBundle %s@%s is not registered", ref.ID, ref.Version)
 	}
+	changed := s.active != ref
 	s.active = ref
-	return nil
+	return changed, nil
 }
 
 func (s *MemoryStore) ActivePolicy() (policy.PolicyBundle, error) {
