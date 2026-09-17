@@ -77,6 +77,38 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 	}
 }
 
+func TestPlatformCLIStatusReobservesLastAppliedRevision(t *testing.T) {
+	path := writePlatformFile(t)
+	deployment := &cliDeployment{}
+	base := cliPlatformFactory(t, deployment)
+	state, err := platformapply.NewFileState(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	factory := func(path string) (platformapply.Service, error) {
+		service, err := base(path)
+		service.State = state
+		return service, err
+	}
+	_, stderr, code := runPlatformCLI([]string{"agenova", "platform", "status", "--json"}, "", factory)
+	if code != 1 || !strings.Contains(stderr, "read applied Platform pointer") {
+		t.Fatalf("status before apply = %d %q", code, stderr)
+	}
+	_, stderr, code = runPlatformCLI([]string{"agenova", "platform", "apply", "-f", path, "--yes"}, "", factory)
+	if code != 0 || stderr != "" {
+		t.Fatalf("apply = %d %q", code, stderr)
+	}
+	stdout, stderr, code := runPlatformCLI([]string{"agenova", "platform", "status", "--json"}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, `"changes":[]`) || !strings.Contains(stdout, `"revision":`) {
+		t.Fatalf("status = %d %q %q", code, stdout, stderr)
+	}
+	deployment.applied = false
+	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "status", "--json"}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, `"action":"create"`) {
+		t.Fatalf("drift status = %d %q %q", code, stdout, stderr)
+	}
+}
+
 type platformMutationInput struct {
 	path    string
 	reader  io.Reader

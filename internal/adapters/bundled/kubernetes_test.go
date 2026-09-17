@@ -347,7 +347,7 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 		case contains(args, "namespace"):
 			return `{"metadata":{"name":"agenova-system"}}`
 		case contains(args, "configmap") && contains(args, platformRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}})
 			return string(data)
 		case contains(args, "configmap") && contains(args, policyRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
@@ -692,7 +692,7 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 		case contains(args, "get") && partial && contains(args, "namespace"):
 			return commandResult{stdout: `{"metadata":{"name":"agenova-system"}}`}, nil
 		case contains(args, "get") && partial && contains(args, platformRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}})
 			return commandResult{stdout: string(data)}, nil
 		case contains(args, "get") && partial && contains(args, policyRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
@@ -727,7 +727,7 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 		object = map[string]any{"metadata": map[string]any{"name": "agenova-system"}}
 	case contains(args, platformRecord):
 		lockJSON, _ := platformapply.EncodeLock(request.Lock)
-		object = map[string]any{"metadata": map[string]any{"name": platformRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}}
+		object = map[string]any{"metadata": map[string]any{"name": platformRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}}
 	case contains(args, policyRecord):
 		policyJSON, _ := referencePolicyJSON()
 		object = map[string]any{"metadata": map[string]any{"name": policyRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyJSON)}}
@@ -748,6 +748,11 @@ func deploymentRequest() platformapply.DeploymentRequest {
 	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}}
 	lock := &platform.PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, InitialPolicyRef: resolved.InitialPolicyRef}
 	return platformapply.DeploymentRequest{Platform: resolved, Lock: lock, Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}}
+}
+
+func effectivePlatformJSON(request platformapply.DeploymentRequest) string {
+	data, _ := json.Marshal(request.Platform)
+	return string(data)
 }
 
 func contains(values []string, target string) bool {

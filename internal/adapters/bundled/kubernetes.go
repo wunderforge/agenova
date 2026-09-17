@@ -114,13 +114,17 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if err != nil {
 		return target, nil, nil, err
 	}
+	effectiveJSON, err := json.Marshal(request.Platform)
+	if err != nil {
+		return target, nil, nil, fmt.Errorf("encode effective Platform: %w", err)
+	}
 	policyData, err := referencePolicyJSON()
 	if err != nil {
 		return target, nil, nil, fmt.Errorf("encode reference policy: %w", err)
 	}
 	namespaceReady := objectName(namespaceObject) == namespace
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
-	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON
+	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON && objectData(record, "effective-platform.json") == string(effectiveJSON)
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
 	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
@@ -507,12 +511,16 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	if err != nil {
 		return nil, err
 	}
+	effectiveJSON, err := json.Marshal(request.Platform)
+	if err != nil {
+		return nil, fmt.Errorf("encode effective Platform: %w", err)
+	}
 	policyData, err := referencePolicyJSON()
 	if err != nil {
 		return nil, fmt.Errorf("encode reference policy: %w", err)
 	}
 	steps := []manifestStep{
-		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}}},
+		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": string(effectiveJSON)}}},
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
 		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
 		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},

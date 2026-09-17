@@ -23,8 +23,14 @@ type ReferenceAdmissionResult struct {
 // ReferenceAssignmentService composes the local principal boundary with the
 // existing assignment Gate. It is intentionally local/demo-only.
 type ReferenceAssignmentService struct {
-	principals ReferencePrincipalSource
+	principals PrincipalSource
 	gate       authorization.Gate
+}
+
+// PrincipalSource is a trusted composition boundary, never a field parsed
+// from ClaimRequest or supplied as a CLI authority shortcut.
+type PrincipalSource interface {
+	Principal() v1alpha1.Principal
 }
 
 // NewReferenceAssignmentService binds one out-of-band local principal to the
@@ -33,6 +39,15 @@ func NewReferenceAssignmentService(preset ReferencePrincipalPreset, evaluator au
 	principals, err := NewReferencePrincipalSource(preset)
 	if err != nil {
 		return nil, err
+	}
+	return NewAssignmentService(principals, evaluator)
+}
+
+// NewAssignmentService applies the same admission gate to any trusted
+// principal source selected by the hosting application.
+func NewAssignmentService(principals PrincipalSource, evaluator authorization.Evaluator) (*ReferenceAssignmentService, error) {
+	if principals == nil {
+		return nil, fmt.Errorf("trusted principal source is required")
 	}
 	if evaluator == nil {
 		return nil, fmt.Errorf("authorization evaluator is required")

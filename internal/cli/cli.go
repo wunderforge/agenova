@@ -69,7 +69,7 @@ Commands:
   version    Print version and the hosted runtime backend
   run        Submit one ClaimRequest file through application resolution
   adapters   Inspect and activate bundled adapter implementations
-  platform   Validate, plan, and apply one declarative Platform
+  platform   Validate, plan, apply, and inspect one declarative Platform
 
 Flags:
   --backend string    Runtime backend to host (default "memory")
@@ -112,6 +112,7 @@ const platformHelpText = `Usage:
   agenova platform validate -f <platform.yaml> [--json]
   agenova platform plan -f <platform.yaml> [--json]
   agenova platform apply -f <platform.yaml> [--yes] [--json]
+  agenova platform status [--json]
 
 Validate and plan never mutate the selected target. Apply uses the context and
 namespace from the deployment adapter config and the caller's current identity.
@@ -199,10 +200,14 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 		fmt.Fprint(stderr, platformHelpText)
 		return ExitUsage
 	}
-	if !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
+	subcommand := parsed.operands[0]
+	if subcommand == "status" {
+		if parsed.fileSet {
+			return platformUsageError(stderr, "platform status reads the last applied revision; do not pass -f")
+		}
+	} else if !parsed.fileSet || strings.TrimSpace(parsed.file) == "" {
 		return platformUsageError(stderr, "platform command requires -f <platform.yaml>")
 	}
-	subcommand := parsed.operands[0]
 	if parsed.yes && subcommand != "apply" {
 		return platformUsageError(stderr, "--yes is only valid with platform apply")
 	}
@@ -213,6 +218,13 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 	}
 	ctx := context.Background()
 	switch subcommand {
+	case "status":
+		plan, err := service.Status(ctx)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		return printPlatformPlan(stdout, stderr, plan, parsed.json)
 	case "validate":
 		resolved, _, err := service.ValidateFile(parsed.file)
 		if err != nil {
@@ -269,6 +281,12 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 			}
 			fmt.Fprintln(stderr, err.Error())
 			return 1
+		}
+		if result.Ready {
+			if err := service.Remember(resolved, lock); err != nil {
+				fmt.Fprintf(stderr, "Platform applied but local discovery state could not be saved: %v\n", err)
+				return 1
+			}
 		}
 		if parsed.json {
 			return printJSON(stdout, stderr, result)

@@ -82,6 +82,27 @@ type DeploymentAdapter interface {
 type Service struct {
 	Adapters *adapterregistry.Lifecycle
 	Policies PolicyAvailability
+	State    *FileState
+}
+
+// Remember records the exact revision after successful reconciliation. Local
+// state is only a discovery pointer; Status always re-observes the target.
+func (s Service) Remember(resolved *platform.ResolvedPlatform, lock *platform.PlatformLock) error {
+	if s.State == nil {
+		return nil // injected reference tests may be deliberately ephemeral
+	}
+	return s.State.Save(resolved, lock)
+}
+
+func (s Service) Status(ctx context.Context) (Plan, error) {
+	if s.State == nil {
+		return Plan{}, fmt.Errorf("applied Platform state is not configured")
+	}
+	state, err := s.State.Load()
+	if err != nil {
+		return Plan{}, err
+	}
+	return s.Plan(ctx, &state.Platform, &state.Lock)
 }
 
 func (s Service) ValidateFile(path string) (*platform.ResolvedPlatform, *platform.PlatformLock, error) {
