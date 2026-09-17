@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
@@ -277,7 +278,10 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if err != nil {
 		return target, nil, nil, err
 	}
-	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
+	// The process reads the effective ConfigMap only at startup. Repairing a
+	// revision-preserving ConfigMap drift also requires a new Pod, even when
+	// the Deployment spec itself is already Ready at that same revision.
+	ready := recordReady && deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
 	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
 	roleReady := managedObjectMatches(role, roleObject(namespace))
@@ -403,6 +407,18 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			if err := k.replaceDeploymentSpec(ctx, contextName, namespace, step.object); err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
+		}
+	}
+	// A previously installed ConfigMap repair must reload the process that may
+	// have started from drifted bytes. The plan includes the Deployment so its
+	// patch/watch authority was checked before any mutation.
+	for _, change := range request.TargetChanges {
+		if change.Component == platformRecord && change.Action == "update" {
+			if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
+				statuses := k.observedAfterFailure(ctx, request)
+				return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
+			}
+			break
 		}
 	}
 	if plannedComponent(request.TargetChanges, controlPlaneName) {
@@ -880,6 +896,14 @@ func managedFieldsMatch(actual, desired any, path string) bool {
 		for key, value := range got {
 			if _, owned := wanted[key]; owned {
 				continue
+			}
+			if path == "deploymentSpec/template/metadata/annotations" && key == "kubectl.kubernetes.io/restartedAt" {
+				stamp, ok := value.(string)
+				if ok {
+					if _, err := time.Parse(time.RFC3339, stamp); err == nil {
+						continue
+					}
+				}
 			}
 			if defaultValue, known := defaults[key]; !known || !reflect.DeepEqual(value, defaultValue) {
 				return false

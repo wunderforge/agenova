@@ -448,6 +448,74 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 	}
 }
 
+func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
+	request := deploymentRequest()
+	drifted := true
+	restarted := false
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		switch {
+		case contains(args, "version"):
+			return commandResult{stdout: `{}`}, nil
+		case contains(args, "can-i"):
+			return commandResult{stdout: "yes\n"}, nil
+		case contains(args, "apply"):
+			drifted = false
+			return commandResult{}, nil
+		case contains(args, "rollout") && contains(args, "restart"):
+			restarted = true
+			return commandResult{}, nil
+		case contains(args, "rollout") && contains(args, "status"):
+			if !restarted {
+				return commandResult{}, errors.New("rollout status before restart")
+			}
+			return commandResult{}, nil
+		case contains(args, "get") && !contains(args, "json"):
+			return commandResult{stdout: "existing\n"}, nil
+		case contains(args, "get") && contains(args, "json") && contains(args, platformRecord) && drifted:
+			result, ok := readyResourceResult(args, request)
+			if !ok {
+				return commandResult{}, errors.New("missing Platform record")
+			}
+			var object map[string]any
+			if err := json.Unmarshal([]byte(result.stdout), &object); err != nil {
+				return commandResult{}, err
+			}
+			object["data"].(map[string]any)["effective-platform.json"] = `{"tampered":true}`
+			encoded, _ := json.Marshal(object)
+			return commandResult{stdout: string(encoded)}, nil
+		default:
+			if contains(args, "deployments.apps") {
+				alias := append([]string(nil), args...)
+				for index, item := range alias {
+					if item == "deployments.apps" {
+						alias[index] = "deployment"
+					}
+				}
+				if result, ok := readyResourceResult(alias, request); ok {
+					return result, nil
+				}
+			}
+			if result, ok := readyResourceResult(args, request); ok {
+				return result, nil
+			}
+			return commandResult{}, errors.New("unexpected kubectl call")
+		}
+	}}
+	adapter := newKubernetesDeployment(runner)
+	_, changes, _, err := adapter.Plan(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 2 || changes[0].Component != platformRecord || changes[0].Action != "update" || changes[1].Component != controlPlaneName {
+		t.Fatalf("Platform record drift plan = %#v, want record update and Deployment reconcile", changes)
+	}
+	request.TargetChanges = changes
+	statuses, attempted, err := adapter.Apply(context.Background(), request)
+	if err != nil || !attempted || !restarted {
+		t.Fatalf("Apply() = %#v, attempted %v, restarted %v, err %v", statuses, attempted, restarted, err)
+	}
+}
+
 func TestKubernetesPlanRejectsUnmanagedNameCollision(t *testing.T) {
 	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 		if contains(args, "version") {
@@ -509,6 +577,16 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	if !deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("matching current rollout should be Ready")
 	}
+	annotations := actual["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any)["annotations"].(map[string]any)
+	annotations["kubectl.kubernetes.io/restartedAt"] = "2026-09-18T10:11:12Z"
+	if !deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("kubectl rollout restart annotation should be accepted")
+	}
+	annotations["kubectl.kubernetes.io/restartedAt"] = "invalid timestamp"
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("invalid restart annotation must not be silently accepted")
+	}
+	delete(annotations, "kubectl.kubernetes.io/restartedAt")
 	container := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
 	environment := container["env"].([]any)
 	environment[2].(map[string]any)["value"] = "unexpected-policy@2"
