@@ -83,6 +83,17 @@ invocation IDs are from this run. The seven `ProviderAttempt` facts are **four
 matching decision; they are not seven model requests. Tool provider outcomes
 remain explicitly mock; model outcomes came from local Ollama.
 
+The seven `Runtime` facts are also intentional: `Pending` is emitted when the
+request is admitted, before `RunService` starts recording issued-state runtime
+events. The remaining six correspond one-for-one to the six
+`state.evidence.runtimeEvents`. A read-only query of the same installed service
+returned:
+
+```text
+Runtime facts: Pending, Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded
+Issued-state runtime events: Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded
+```
+
 ```powershell
 kubectl --context kind-agenova-k8s-lab -n agenova-system get sandboxclaims.extensions.agents.x-k8s.io
 ```
@@ -95,3 +106,47 @@ These captures came from the #165 CLI and installed service after the review
 corrections. They do not depend on the later #167 `work show` extension and do
 not imply durable history or production authentication. An identical policy
 and AgentTemplate reapply printed `already registered` after the run.
+
+## Unavailable-model negative on the installed kind path
+
+We temporarily applied [the test-only Platform](unavailable-model.platform.kind.yaml) with only the model endpoint changed
+from `http://host.docker.internal:11434/v1` to the deliberately unreachable
+`http://host.docker.internal:19999/v1`. The trusted policy and registered
+template both remained active (`already registered`). We submitted a new
+synthetic [Work](unavailable-model.work.yaml) name to avoid duplicate-request
+behavior:
+
+```powershell
+.\.tmp\agenova.exe platform apply -f docs/evidence/165/unavailable-model.platform.kind.yaml --yes --json
+$v = .\.tmp\agenova.exe run -f docs/evidence/165/unavailable-model.work.yaml --json | ConvertFrom-Json
+$exitCode = $LASTEXITCODE
+[pscustomobject]@{exitCode=$exitCode;requestRef=$v.requestRef;decision=$v.state.decision.result;phase=$v.state.claim.phase;outcome=$v.outcome.status;failure=$v.outcome.failure;facts=@($v.facts | Where-Object {$_.kind -in @('ModelDecision','ProviderAttempt','ProviderOutcome','RunOutcome')} | Select-Object kind,operation,reasonCode,result)} | ConvertTo-Json -Depth 8
+```
+
+```json
+{
+  "exitCode": 1,
+  "requestRef": "investigate-payment-retries-unavailable-model",
+  "decision": "Allow",
+  "phase": "Failed",
+  "outcome": "Failed",
+  "failure": "The last governed provider call failed. Open the failed call record for context.",
+  "facts": [
+    {"kind": "ModelDecision", "operation": "model.invoke", "reasonCode": "within-effective-authority", "result": "Allow"},
+    {"kind": "ProviderAttempt", "operation": "model.invoke", "reasonCode": null, "result": null},
+    {"kind": "ProviderOutcome", "operation": "model.invoke", "reasonCode": "model-provider-failed", "result": null},
+    {"kind": "RunOutcome", "operation": "Failed", "reasonCode": "provider-failed", "result": null}
+  ]
+}
+```
+
+This verifies that authorization success is distinct from provider execution
+success and that the installed path did not silently fall back to a fixture or
+another model. We immediately ran
+`agenova platform apply -f deploy/reference/platform.kind.yaml --yes --json`
+to restore the original endpoint; `platform status --json` then reported
+the original revision
+`sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f`,
+`"installationReady":true`, `"changes":[]`, and
+`"providerHealth":"not-checked"`. The last field is explicit: Platform
+installation readiness alone is not an Ollama health probe.

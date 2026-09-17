@@ -90,8 +90,8 @@ func (s *FileState) Load() (*AppliedState, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return nil, fmt.Errorf("applied Platform pointer has trailing data")
 	}
-	if state.Platform.Revision == "" || state.Platform.Revision != state.Lock.Revision {
-		return nil, fmt.Errorf("applied Platform pointer revision mismatch")
+	if err := platform.VerifyResolvedLock(&state.Platform, &state.Lock); err != nil {
+		return nil, fmt.Errorf("applied Platform pointer integrity: %w", err)
 	}
 	return &state, nil
 }

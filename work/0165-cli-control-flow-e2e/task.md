@@ -38,7 +38,7 @@ Unknown template/profile, unavailable Ollama, conflicting registration, invalid 
 - [x] Add effective revision/status and connected service deployment.
 - [x] Add narrow Policy and AgentTemplate registration with trusted management boundary.
 - [x] Connect CLI run/evidence to shared service; retain explicit reference mode.
-- [x] Add tests and real kind/Ollama E2E evidence.
+- [x] Add tests and real kind/Ollama E2E evidence, including an installed-path unavailable-model failure and restoration.
 - [x] Run focused and full gates.
 - [x] Independently review: fix three in-scope findings; disclose the remaining mid-run rollout/durability limitation as future scope.
 - [x] Owner superseded the manual-test hold on 17 September 2026 and authorized independent review plus direct merge when the gates pass.

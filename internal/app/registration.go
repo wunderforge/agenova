@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/platform"
@@ -69,6 +70,9 @@ func validateReferenceTemplate(template *v0.AgentTemplate, resolved *platform.Re
 	command := template.Spec.Entrypoint.Command
 	if len(command) != 2 || command[0] != "/agenova-workerctl" || command[1] != "serve" {
 		return fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
+	}
+	if ceiling := template.Spec.CapabilityCeiling; ceiling == nil || ceiling.MaxTimeout == nil || time.Duration(*ceiling.MaxTimeout) > 5*time.Minute || time.Duration(*ceiling.MaxTimeout) <= 0 {
+		return fmt.Errorf("reference runtime requires a positive execution timeout no greater than five minutes")
 	}
 	return nil
 }

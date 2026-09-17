@@ -51,6 +51,26 @@ func TestPlatformContractResolveProducesActionablePlanAndDigestOnlyLock(t *testi
 	}
 }
 
+func TestVerifyResolvedLockRejectsTargetAndConfigDigestDrift(t *testing.T) {
+	resolved, lock, err := Resolve(referencePlatform(), referenceLookup())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyResolvedLock(resolved, lock); err != nil {
+		t.Fatalf("resolved pair rejected: %v", err)
+	}
+	original := resolved.Instances[0].Config["context"]
+	resolved.Instances[0].Config["context"] = "other-kind"
+	if err := VerifyResolvedLock(resolved, lock); err == nil || !strings.Contains(err.Error(), "content revision mismatch") {
+		t.Fatalf("changed deployment target accepted: %v", err)
+	}
+	resolved.Instances[0].Config["context"] = original
+	lock.Instances[0].ConfigDigest = "sha256:incorrect"
+	if err := VerifyResolvedLock(resolved, lock); err == nil || !strings.Contains(err.Error(), "lock content mismatch") {
+		t.Fatalf("changed config digest accepted: %v", err)
+	}
+}
+
 func TestPlatformContractResolutionIsStableAcrossInputOrdering(t *testing.T) {
 	first := referencePlatform()
 	second := referencePlatform()
