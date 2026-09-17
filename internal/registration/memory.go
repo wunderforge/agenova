@@ -24,6 +24,8 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{policies: map[PolicyReference]policy.PolicyBundle{}, templates: map[string]*v0.AgentTemplate{}}
 }
 
+func (*MemoryStore) CanActivatePolicy(PolicyReference) error { return nil }
+
 func (s *MemoryStore) PutPolicy(bundle policy.PolicyBundle) (bool, error) {
 	if err := policy.ValidateBundle(bundle); err != nil {
 		return false, err

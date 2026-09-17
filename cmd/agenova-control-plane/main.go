@@ -59,7 +59,10 @@ func serve() error {
 		return err
 	}
 	defer configured.Close()
-	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 90 * time.Second}
+	// Admission can perform three bounded registration reads (20s each) and
+	// two bounded runtime setup calls (30s each) before returning Accepted.
+	// Keep the server budget above their sum; clients wait longer still.
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
 	privateListener, err := net.Listen("tcp", private.Addr)
 	if err != nil {
 		return fmt.Errorf("start private Work service: %w", err)
@@ -273,7 +276,7 @@ func localCommand(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("missing private command")
 	}
-	client := &http.Client{Timeout: 90 * time.Second}
+	client := &http.Client{Timeout: 4 * time.Minute}
 	var method, path string
 	var body io.Reader
 	switch args[0] {

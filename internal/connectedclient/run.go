@@ -153,7 +153,7 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 	client := c.HTTPClient
 	if client == nil {
 		client = &http.Client{
-			Timeout:   90 * time.Second,
+			Timeout:   4 * time.Minute,
 			Transport: &http.Transport{Proxy: nil},
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -25,8 +26,14 @@ func TestKubernetesStoreReferenceRegistrationAndActivation(t *testing.T) {
 		command := args[4:]
 		switch command[0] {
 		case "auth":
-			if len(command) != 6 || command[1] != "can-i" || command[2] != "patch" || command[3] != "configmaps" || command[4] != "--resource-name" || command[5] == "" {
-				t.Fatalf("idempotent authorization did not name its ConfigMap: %v", command)
+			if len(command) != 4 || command[1] != "can-i" {
+				t.Fatalf("unexpected ConfigMap authorization: %v", command)
+			}
+			if command[2] == "patch" && !strings.HasPrefix(command[3], "configmaps/") {
+				t.Fatalf("patch authorization did not name its ConfigMap: %v", command)
+			}
+			if command[2] == "create" && command[3] != "configmaps" {
+				t.Fatalf("create authorization must be namespace-wide: %v", command)
 			}
 			if !allowMutation {
 				return []byte("no\n"), nil
@@ -85,6 +92,45 @@ spec:
 	}
 	if mutations != 2 {
 		t.Fatal("conflicting reference policy mutated Kubernetes")
+	}
+}
+
+func TestKubernetesPolicyApplyPreflightsActivationBeforeRecordCreation(t *testing.T) {
+	for _, pointerExists := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pointer-exists=%t", pointerExists), func(t *testing.T) {
+			mutations := 0
+			store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+				command := args[2:]
+				switch command[0] {
+				case "get":
+					if pointerExists {
+						return []byte(`{"metadata":{"name":"agenova-active-policy","resourceVersion":"1","labels":{"app.kubernetes.io/managed-by":"agenova"}}}`), nil
+					}
+					return nil, errMissingRecord
+				case "auth":
+					if pointerExists && (len(command) != 4 || command[2] != "patch" || command[3] != "configmaps/agenova-active-policy") {
+						t.Fatalf("expected named patch preflight: %v", command)
+					}
+					if !pointerExists && (len(command) != 4 || command[2] != "create" || command[3] != "configmaps") {
+						t.Fatalf("expected create preflight: %v", command)
+					}
+					return []byte("no\n"), nil
+				case "create", "patch":
+					mutations++
+				}
+				return nil, nil
+			}}
+			_, err := (Service{Store: store}).ApplyPolicy([]byte(`apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata: {name: reference-default-deny, version: "1"}
+spec:
+  rules:
+    - {team: team-a, action: claim.create, project: payments, templateRef: engineer}
+`))
+			if err == nil || mutations != 0 {
+				t.Fatalf("unauthorized policy apply mutated registry: err=%v mutations=%d", err, mutations)
+			}
+		})
 	}
 }
 

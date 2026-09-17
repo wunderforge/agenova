@@ -35,6 +35,7 @@ type Result struct {
 // Store must implement atomic create-or-equal semantics. Implementations may
 // return ErrConflict for the same identity with different canonical content.
 type Store interface {
+	CanActivatePolicy(PolicyReference) error
 	PutPolicy(policy.PolicyBundle) (changed bool, err error)
 	ActivatePolicy(PolicyReference) error
 	ActivePolicy() (policy.PolicyBundle, error)
@@ -60,11 +61,15 @@ func (s Service) ApplyPolicy(data []byte) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	ref := PolicyReference{ID: bundle.ID, Version: bundle.Version}
+	if err := s.Store.CanActivatePolicy(ref); err != nil {
+		return Result{}, fmt.Errorf("PolicyBundle activation is not authorized: %w", err)
+	}
 	changed, err := s.Store.PutPolicy(bundle)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := s.Store.ActivatePolicy(PolicyReference{ID: bundle.ID, Version: bundle.Version}); err != nil {
+	if err := s.Store.ActivatePolicy(ref); err != nil {
 		return Result{}, fmt.Errorf("PolicyBundle registered but not activated: %w", err)
 	}
 	return Result{Kind: policy.DocumentKind, Name: bundle.ID, Version: bundle.Version, Changed: changed, Active: true}, nil

@@ -175,7 +175,7 @@ func TestTemplateConfigurationFailureRemainsQueryable(t *testing.T) {
 	backend := &verticalBackend{}
 	s, err := NewServiceWithOptions(backend, &verticalExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{
 		Configure: func(*v0.AgentTemplate) (app.ResolvedLaunch, error) {
-			return app.ResolvedLaunch{}, errors.New("sandbox template unavailable")
+			return app.ResolvedLaunch{}, errors.New("private kubectl stderr token")
 		},
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func TestTemplateConfigurationFailureRemainsQueryable(t *testing.T) {
 	}
 	defer s.Close()
 	view, err := s.Submit(verticalRequest(t, "configure-failed"))
-	if err != nil || view.Outcome == nil || view.Outcome.Status != "Failed" || !strings.Contains(view.Outcome.Failure, "sandbox template unavailable") {
+	if err != nil || view.Outcome == nil || view.Outcome.Status != "Failed" || !strings.Contains(view.Outcome.Failure, "runtime template configuration failed") || strings.Contains(view.Outcome.Failure, "private kubectl") {
 		t.Fatalf("configuration failure = %#v, %v", view.Outcome, err)
 	}
 	if view.State == nil || view.State.Claim == nil || view.State.Claim.Phase != v0.ClaimPhaseFailed || view.State.Claim.BackendIdentity != nil || backend.calls.Load() != 0 {

@@ -40,6 +40,29 @@ func (s KubernetesStore) PutPolicy(bundle policy.PolicyBundle) (bool, error) {
 	return s.put(recordName("policy", bundle.ID+"@"+bundle.Version), "policy.json", bundle)
 }
 
+// CanActivatePolicy checks the pointer's required management authority before
+// an immutable policy record is created. This prevents an identity with only
+// ConfigMap create rights from occupying a policy version it cannot activate.
+func (s KubernetesStore) CanActivatePolicy(PolicyReference) error {
+	current, err := s.run(nil, "get", "configmap", "agenova-active-policy", "-o", "json")
+	if errors.Is(err, errMissingRecord) {
+		return s.requireConfigMapMutation("create", "")
+	}
+	if err != nil {
+		return err
+	}
+	var pointer struct {
+		Metadata struct {
+			ResourceVersion string            `json:"resourceVersion"`
+			Labels          map[string]string `json:"labels"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(current, &pointer); err != nil || pointer.Metadata.ResourceVersion == "" || pointer.Metadata.Labels["app.kubernetes.io/managed-by"] != "agenova" {
+		return fmt.Errorf("active PolicyBundle pointer is not Agenova-managed")
+	}
+	return s.requireConfigMapMutation("patch", "agenova-active-policy")
+}
+
 func (s KubernetesStore) ActivatePolicy(ref PolicyReference) error {
 	if _, err := s.get(recordName("policy", ref.ID+"@"+ref.Version), "policy.json"); err != nil {
 		return err
@@ -225,7 +248,11 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 // not be able to reapply an identical record merely because no patch is
 // needed after comparison.
 func (s KubernetesStore) requireConfigMapMutation(verb, name string) error {
-	output, err := s.run(nil, "auth", "can-i", verb, "configmaps", "--resource-name", name)
+	resource := "configmaps"
+	if name != "" {
+		resource += "/" + name
+	}
+	output, err := s.run(nil, "auth", "can-i", verb, resource)
 	if err != nil {
 		return fmt.Errorf("verify ConfigMap %s authority: %w", verb, err)
 	}
@@ -284,6 +311,7 @@ func (s KubernetesStore) run(input []byte, args ...string) ([]byte, error) {
 		return s.Invoke(ctx, input, commandArgs...)
 	}
 	cmd := exec.CommandContext(ctx, path, commandArgs...)
+	cmd.WaitDelay = time.Second
 	if input != nil {
 		cmd.Stdin = strings.NewReader(string(input))
 	}
