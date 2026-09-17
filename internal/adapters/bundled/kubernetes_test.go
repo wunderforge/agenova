@@ -451,6 +451,7 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 	request := deploymentRequest()
 	drifted := true
+	recordMissing := false
 	reloadPending := false
 	restarted := false
 	failRestart := true
@@ -460,8 +461,11 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 			return commandResult{stdout: `{}`}, nil
 		case contains(args, "can-i"):
 			return commandResult{stdout: "yes\n"}, nil
+		case contains(args, "get") && contains(args, platformRecord) && recordMissing:
+			return commandResult{stderr: "Error from server (NotFound): configmap not found"}, errors.New("exit 1")
 		case contains(args, "apply"):
 			drifted = false
+			recordMissing = false
 			reloadPending = true
 			return commandResult{}, nil
 		case contains(args, "rollout") && contains(args, "restart"):
@@ -543,6 +547,19 @@ func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
 	}
 	if reloadPending {
 		t.Fatal("successful restart left a pending marker")
+	}
+	// Recreating a deleted ConfigMap beside an existing Ready Deployment must
+	// also reload its Pod; creation alone cannot be mistaken for a first install.
+	recordMissing = true
+	restarted = false
+	_, changes, _, err = adapter.Plan(context.Background(), request)
+	if err != nil || len(changes) != 2 || changes[0].Component != platformRecord || changes[0].Action != "create" || changes[1].Component != controlPlaneName {
+		t.Fatalf("missing record plan = %#v, err %v", changes, err)
+	}
+	request.TargetChanges = changes
+	statuses, attempted, err = adapter.Apply(context.Background(), request)
+	if err != nil || !attempted || !restarted || reloadPending {
+		t.Fatalf("recreated record Apply() = %#v, attempted %v, restarted %v, marker %v, err %v", statuses, attempted, restarted, reloadPending, err)
 	}
 }
 

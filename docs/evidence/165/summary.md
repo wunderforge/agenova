@@ -1,6 +1,6 @@
 # #165 kind + Ollama CLI control-flow verification
 
-Date: 2026-09-17. Target: existing `kind-agenova-k8s-lab/agenova-system`; Agent Sandbox v0.4.6; local Ollama `llama3.1:latest`. No React or separate console process was started.
+Date: 2026-09-17, with final-image evidence refreshed 2026-09-18. Target: existing `kind-agenova-k8s-lab/agenova-system`; Agent Sandbox v0.4.6; local Ollama `llama3.1:latest`. No React or separate console process was started.
 
 ## Commands and observed result
 
@@ -12,9 +12,9 @@ Date: 2026-09-17. Target: existing `kind-agenova-k8s-lab/agenova-system`; Agent 
 | `agenova platform status` | same revision and target, zero remaining changes |
 | `agenova policy apply -f deploy/reference/demo/policy.yaml` | `reference-default-deny@1` active; identical reapply: already registered |
 | `agenova agent-template apply -f deploy/reference/demo/engineer.yaml` | `engineer` registered; identical reapply: already registered |
-| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; final post-review rerun used 362 input and 63 output tokens |
+| `agenova run -f deploy/reference/demo/work.yaml` | Allow, Agent Sandbox worker bound, Succeeded, task-specific answer; final-image rerun used 362 input and 76 output tokens |
 
-The positive request's evidence had `Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded`, model and mock `git.read` invocations across six ReAct turns, and worker ID `agenova-pool-pool-engineer-t5r5p`. The final model answer identified a synthetic 2-second retry backoff and fresh 5-second deadline per attempt as the cause.
+The positive request's evidence had `Bound, BackendReady, Running, Succeeded, TerminateSucceeded, CleanupSucceeded`, four real model invocations and three mock `git.read` invocations, and worker ID `agenova-pool-pool-engineer-mfb4j`. The final model answer identified a synthetic 2-second retry backoff and fresh 5-second deadline per attempt as the cause.
 
 Negative checks: `denied-work.yaml` received Deny before Claim/worker/model/tool facts; `policy-conflict.yaml` was rejected as same identity with different content. Both registrations were idempotent on identical reapply.
 
@@ -22,7 +22,7 @@ The final review pass also tested rejection of unverified worker images and mult
 
 The exact secret-free CLI/API fields and Kubernetes cleanup output are preserved in [captured-output.md](captured-output.md); the table above is a summary, not the sole evidence artifact.
 
-Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into kind, and reconciled the Deployment. `platform status` then reported zero drift, `installationReady: true`, and `providerHealth: not-checked`. The subsequent Work completed through the installed service and local Ollama using the loopback-only API tunnel instead of `pods/exec`; the denied Work had no Claim or runtime/model/tool invocations. The full `scripts/check.ps1 -All` gate passed, including Go checks and 48 Playwright browser smoke tests.
+Final-image verification rebuilt `agenova-control-plane:0.1.0`, loaded it into kind, and manually restarted the dedicated test Deployment so it used that image. `platform status` then reported zero drift, `installationReady: true`, and `providerHealth: not-checked`. The subsequent Work completed through the installed service and local Ollama using the loopback-only API tunnel instead of `pods/exec`; the denied Work had no Claim or runtime/model/tool invocations. The full `scripts/check.ps1 -All` gate passed, including Go checks and 48 Playwright browser smoke tests.
 
 ## Scope and caveats
 

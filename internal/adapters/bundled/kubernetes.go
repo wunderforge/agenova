@@ -372,10 +372,26 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	}
 	mutationAttempted := false
 	recordUpdate := false
+	recordCreate := false
 	for _, change := range request.TargetChanges {
-		if change.Component == platformRecord && change.Action == "update" {
-			recordUpdate = true
-			break
+		if change.Component == platformRecord {
+			recordUpdate = change.Action == "update"
+			recordCreate = change.Action == "create"
+		}
+	}
+	recordReloadNeeded := recordUpdate
+	if recordCreate {
+		// A deleted ConfigMap does not imply the old Pod disappeared. If the
+		// Deployment remains, its process may still hold the former config.
+		recordReloadNeeded, err = k.resourceExists(ctx, contextName, "deployments.apps", controlPlaneName, namespace)
+		if err != nil {
+			return failedStatuses(request.Platform.Revision), false, err
+		}
+		if recordReloadNeeded {
+			// The creation preflight alone does not authorize clearing the marker.
+			if err := k.requireRBAC(ctx, contextName, "patch", "configmaps", namespace); err != nil {
+				return failedStatuses(request.Platform.Revision), false, err
+			}
 		}
 	}
 	for index, step := range steps {
@@ -396,7 +412,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
 		}
-		if step.name == platformRecord && recordUpdate {
+		if step.name == platformRecord && recordReloadNeeded {
 			// Persist the reload debt in the same write as the repaired bytes.
 			// A failed restart must leave the next plan non-ready and retryable.
 			metadata := step.object["metadata"].(map[string]any)
@@ -426,7 +442,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	// A previously installed ConfigMap repair must reload the process that may
 	// have started from drifted bytes. The plan includes the Deployment so its
 	// patch/watch authority was checked before any mutation.
-	if recordUpdate {
+	if recordReloadNeeded {
 		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
 			statuses := k.observedAfterFailure(ctx, request)
 			return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
@@ -443,7 +459,7 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
 		}
 	}
-	if recordUpdate {
+	if recordReloadNeeded {
 		// Only clear the debt after the new Pod is observed Ready. A failed
 		// cleanup stays visible to status and is safe for a later apply retry.
 		patch := `{"metadata":{"annotations":{"` + reloadPendingAnnotation + `":null}}}`
