@@ -23,23 +23,24 @@ Out of scope: arbitrary adapters/images, public-provider credentials, general CR
 - `policy apply` and `agent-template apply` validate canonical YAML, repeat identically without mutation, reject conflicting identity/content and unauthorized operators, and survive service restart.
 - `run -f` submits to the installed shared service, not an implicit in-memory stack. A named reference mode remains available.
 - Registered Policy/template determine admission, authority, worker artifact and model/runtime profiles. Missing/invalid configuration has zero worker/provider side effect.
-- CLI evidence shows kind worker, governed Ollama call, outcome/failure reason. Team B is denied before allocation.
+- CLI evidence shows kind worker, governed Ollama call, outcome/failure reason. A request outside the trusted Team A policy is denied before allocation; switching to a genuine Team B identity is not available in this reference installation.
 - PRD, architecture, quickstart and implementation status distinguish verified behavior from future adapters.
 
 ## Negative Case
 
-Unknown template/profile, unavailable Ollama, conflicting registration, invalid YAML, unauthorized principal/operator, and unsupported adapter fail closed with no silent fallback.
+Unknown template/profile, unavailable Ollama, conflicting registration, invalid YAML, unauthorized assignment/operator, and unsupported adapter fail closed with no silent fallback.
 
 ## Execution Todo
 
 - [x] Read ticket, PRD and architecture; isolate from dirty bootstrap worktree.
 - [x] Record the owner's 17 September 2026 direction as approval for this narrow E2E scope; independent review remains required.
-- [ ] Synchronize PRD and design decisions before implementation.
-- [ ] Add effective revision/status and connected service deployment.
-- [ ] Add narrow Policy and AgentTemplate registration with trusted management boundary.
-- [ ] Connect CLI run/evidence to shared service; retain explicit reference mode.
-- [ ] Add tests and real kind/Ollama E2E evidence.
-- [ ] Run focused and full gates; independently review and fix findings.
+- [x] Synchronize PRD and design decisions before implementation.
+- [x] Add effective revision/status and connected service deployment.
+- [x] Add narrow Policy and AgentTemplate registration with trusted management boundary.
+- [x] Connect CLI run/evidence to shared service; retain explicit reference mode.
+- [x] Add tests and real kind/Ollama E2E evidence.
+- [x] Run focused and full gates.
+- [ ] Independently review and fix findings.
 - [ ] Hand to owner for manual test before merge.
 - [ ] After acceptance, merge and reconcile related tickets/dependencies.
 
@@ -51,7 +52,7 @@ Unknown template/profile, unavailable Ollama, conflicting registration, invalid 
 
 ## Evidence Required
 
-Capture CLI inputs/outputs, Platform revision, registrations, Team A allow and Team B deny, worker identity/cleanup, real model response, and correlated evidence. Label synthetic tool activity.
+Capture CLI inputs/outputs, Platform revision, registrations, Team A allow and out-of-policy deny, worker identity/cleanup, real model response, and correlated evidence. Label synthetic tool activity. Genuine Team B identity switching is deferred to a production identity boundary, not simulated by a caller flag.
 
 ## Constraints
 

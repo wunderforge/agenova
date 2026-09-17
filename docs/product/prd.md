@@ -31,10 +31,9 @@ agenova platform status
 agenova policy apply -f policy.yaml
 agenova agent-template apply -f engineer.yaml
 agenova run -f work.yaml
-agenova work show <request-ref>
 ```
 
-The root Platform declaration may reference capability-owned configuration files. Its effective revision selects the installed application service, deployment/runtime adapter, model backend and logical profiles. A command may report an unsupported adapter; the product must not synthesize a successful capability or silently use the memory backend. The first verified reference path uses an existing kind cluster, a compatible Agent Sandbox worker, and a local OpenAI-compatible Ollama provider. Tool observations in that path may be labelled synthetic; Memory and Observability are not implied by this slice. General Policy CRUD and arbitrary agent-image compatibility remain out of scope. This narrow operator journey was requested by the Owner on 17 September 2026 as [#165](https://github.com/wunderforge/agenova/issues/165); it is a target requirement, not a claim that the current release already implements every command.
+Its effective revision selects the installed application service, deployment/runtime adapter, model backend and logical profiles. A command may report an unsupported adapter; the product must not synthesize a successful capability or silently use the memory backend. The reference acceptance path uses an existing kind cluster, a compatible Agent Sandbox worker, and a local OpenAI-compatible Ollama provider. Tool observations in that path are labelled synthetic; Memory and Observability are not implied by this slice. General Policy CRUD, arbitrary agent-image compatibility and multi-file Platform includes remain future scope. This narrow operator journey was requested by the Owner on 17 September 2026 as [#165](https://github.com/wunderforge/agenova/issues/165); its reproducible procedure and reference-only limits are in the [kind + Ollama CLI guide](../reference-cli-kind-ollama.md). A later `work show` command may expose durable evidence, but is not part of this seven-command acceptance flow.
 
 ```text
 receive a trusted principal and one ClaimRequest
