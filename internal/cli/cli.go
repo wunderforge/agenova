@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/platform"
@@ -340,6 +341,9 @@ func workPhase(view evidence.View) string {
 	}
 	if view.State != nil {
 		if view.State.Claim != nil {
+			if view.State.Claim.Phase == v0.ClaimPhaseSucceeded {
+				return "Finishing"
+			}
 			return string(view.State.Claim.Phase)
 		}
 	}
