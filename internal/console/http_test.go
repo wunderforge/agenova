@@ -202,8 +202,23 @@ func TestHTTPTeamBDeniedBeforeAllExternalWork(t *testing.T) {
 	}
 	w = httpCall(h, "GET", "/api/setup", nil, nil)
 	var setup Setup
-	if json.Unmarshal(w.Body.Bytes(), &setup) != nil || setup.Principal.Team != "team-b" || setup.Template.Metadata.Name != "engineer" || setup.Capabilities["model"] != "configured" || setup.Capabilities["memory"] != "notConnected" {
+	if json.Unmarshal(w.Body.Bytes(), &setup) != nil || setup.Principal.Team != "team-b" || setup.Template.Metadata.Name != "engineer" || setup.Capabilities["model"] != "configured" || setup.Capabilities["memory"] != "notConnected" || setup.Installation.Kind != "local-demo" {
 		t.Fatalf("setup=%s", w.Body.String())
+	}
+}
+
+func TestHTTPSetupProviderFailsClosed(t *testing.T) {
+	backend := &httpBackend{}
+	service, err := NewServiceWithOptions(backend, httpExecutor{}, &httpProvider{}, app.ReferencePrincipalTeamA, Options{
+		Setup: func() (Setup, error) { return Setup{}, errors.New("synthetic-secret-registry-error") },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(service.Close)
+	w := httpCall(Handler(service), "GET", "/api/setup", nil, nil)
+	if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "synthetic-secret") || strings.Contains(w.Body.String(), "engineer") {
+		t.Fatalf("invalid setup leaked or fell back: %d %s", w.Code, w.Body.String())
 	}
 }
 

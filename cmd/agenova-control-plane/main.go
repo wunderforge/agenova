@@ -167,6 +167,22 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, err
 	}
 	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+		Setup: func() (console.Setup, error) {
+			bundle, err := store.ActivePolicy()
+			if err != nil {
+				return console.Setup{}, err
+			}
+			templates, err := store.Templates()
+			if err != nil {
+				return console.Setup{}, err
+			}
+			if len(templates) != 1 {
+				return console.Setup{}, fmt.Errorf("reference Portal requires exactly one registered AgentTemplate")
+			}
+			return console.Setup{Principal: principal.Principal(), Template: templates[0], Policy: bundle,
+				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"},
+				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
+		},
 		Prepare: func(data []byte) (app.PreparedAssignment, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {

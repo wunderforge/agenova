@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ func (s KubernetesStore) ActivatePolicy(ref PolicyReference) error {
 		return fmt.Errorf("active PolicyBundle pointer is not Agenova-managed")
 	}
 	if object.Data["reference.json"] == string(data) {
-		if err := s.requireConfigMapMutation("patch"); err != nil {
+		if err := s.requireConfigMapMutation("patch", "agenova-active-policy"); err != nil {
 			return err
 		}
 		return nil
@@ -140,6 +141,48 @@ func (s KubernetesStore) Template(name string) (*v0.AgentTemplate, error) {
 
 func (s KubernetesStore) Lookup(name string) (*v0.AgentTemplate, error) { return s.Template(name) }
 
+// Templates returns only validated, Agenova-managed template records.
+func (s KubernetesStore) Templates() ([]*v0.AgentTemplate, error) {
+	output, err := s.run(nil, "get", "configmap", "-l", "app.kubernetes.io/managed-by=agenova,app.kubernetes.io/part-of=agenova", "-o", "json")
+	if err != nil {
+		return nil, err
+	}
+	var list struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Data map[string]string `json:"data"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(output, &list); err != nil {
+		return nil, fmt.Errorf("decode registered AgentTemplate list: %w", err)
+	}
+	templates := make([]*v0.AgentTemplate, 0)
+	for _, item := range list.Items {
+		if !strings.HasPrefix(item.Metadata.Name, "agenova-template-") {
+			continue
+		}
+		data, ok := item.Data["template.json"]
+		if !ok {
+			return nil, fmt.Errorf("registered AgentTemplate record is incomplete")
+		}
+		var template v0.AgentTemplate
+		if err := json.Unmarshal([]byte(data), &template); err != nil {
+			return nil, fmt.Errorf("decode registered AgentTemplate: %w", err)
+		}
+		if err := v0.ValidateAgentTemplate(&template); err != nil {
+			return nil, err
+		}
+		if item.Metadata.Name != recordName("template", template.Metadata.Name) {
+			return nil, fmt.Errorf("registered AgentTemplate identity mismatch")
+		}
+		templates = append(templates, &template)
+	}
+	sort.Slice(templates, func(i, j int) bool { return templates[i].Metadata.Name < templates[j].Metadata.Name })
+	return templates, nil
+}
+
 func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -149,7 +192,7 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 		if !jsonEqual(previous, data) {
 			return false, ErrConflict
 		}
-		if err := s.requireConfigMapMutation("patch"); err != nil {
+		if err := s.requireConfigMapMutation("patch", name); err != nil {
 			return false, err
 		}
 		return false, nil
@@ -165,7 +208,7 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 		// A concurrent creator may have won. Compare rather than replacing it.
 		if previous, readErr := s.get(name, key); readErr == nil {
 			if jsonEqual(previous, data) {
-				if authErr := s.requireConfigMapMutation("patch"); authErr != nil {
+				if authErr := s.requireConfigMapMutation("patch", name); authErr != nil {
 					return false, authErr
 				}
 				return false, nil
@@ -181,8 +224,8 @@ func (s KubernetesStore) put(name, key string, value any) (bool, error) {
 // operator has the corresponding write authority. A read-only identity must
 // not be able to reapply an identical record merely because no patch is
 // needed after comparison.
-func (s KubernetesStore) requireConfigMapMutation(verb string) error {
-	output, err := s.run(nil, "auth", "can-i", verb, "configmaps")
+func (s KubernetesStore) requireConfigMapMutation(verb, name string) error {
+	output, err := s.run(nil, "auth", "can-i", verb, "configmaps", "--resource-name", name)
 	if err != nil {
 		return fmt.Errorf("verify ConfigMap %s authority: %w", verb, err)
 	}

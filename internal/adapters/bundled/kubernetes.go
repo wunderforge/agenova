@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/policy"
@@ -79,6 +80,31 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 	}
 	if count != 1 {
 		return fmt.Errorf("reference Control Plane requires exactly one runtime backend")
+	}
+	backends := map[string]string{}
+	for _, instance := range request.Platform.Instances {
+		if instance.Category == platform.CapabilityModel {
+			endpoint, _ := instance.Config["endpoint"].(string)
+			backends[instance.Name] = endpoint
+		}
+	}
+	models := map[string]string{}
+	endpoint := ""
+	for _, profile := range request.Platform.Profiles {
+		if profile.Capability != platform.CapabilityModel {
+			continue
+		}
+		backend := backends[profile.BackendRef]
+		if backend == "" || (endpoint != "" && endpoint != backend) {
+			return fmt.Errorf("reference Control Plane requires model profiles on one configured endpoint")
+		}
+		endpoint = backend
+		model, _ := profile.Config["model"].(string)
+		models[profile.Name] = model
+	}
+	_, err = modelprovider.New(modelprovider.Config{Endpoint: endpoint, AllowDockerHostHTTP: strings.HasPrefix(endpoint, "http://host.docker.internal:"), Models: models})
+	if err != nil {
+		return fmt.Errorf("reference Control Plane model composition is unsupported: %w", err)
 	}
 	return nil
 }
@@ -729,7 +755,9 @@ func serviceAccountObject(namespace string) map[string]any {
 }
 
 func roleObject(namespace string) map[string]any {
-	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get"}}}
+	// Installed setup enumerates managed template records in this namespace.
+	// Kubernetes RBAC cannot scope list by label.
+	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get", "list"}}}
 	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
 	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "rules": rules}
 }

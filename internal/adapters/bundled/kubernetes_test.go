@@ -829,9 +829,24 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 }
 
 func deploymentRequest() platformapply.DeploymentRequest {
-	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}, Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "reference-worker", Config: map[string]any{"compatible-worker-image": "agenova-testworker:kind", "connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}}}}}
+	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}, Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "reference-worker", Config: map[string]any{"compatible-worker-image": "agenova-testworker:kind", "connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}}}, {Category: platform.CapabilityModel, Name: "reference-model", Config: map[string]any{"endpoint": "http://host.docker.internal:11434/v1"}}}, Profiles: []platform.ResolvedProfile{{Capability: platform.CapabilityModel, Name: "coding-standard", BackendRef: "reference-model", Config: map[string]any{"model": "qwen3:0.6b"}}}}
 	lock := &platform.PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, InitialPolicyRef: resolved.InitialPolicyRef}
 	return platformapply.DeploymentRequest{Platform: resolved, Lock: lock, Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}}
+}
+
+func TestReferenceCompositionRejectsMissingOrDivergentModelBeforeRollout(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = request.Platform.Instances[:1]
+	request.Platform.Profiles = nil
+	if err := validateReferenceRuntime(request); err == nil {
+		t.Fatal("missing model composition reached rollout")
+	}
+	request = deploymentRequest()
+	request.Platform.Instances = append(request.Platform.Instances, platform.ResolvedInstance{Category: platform.CapabilityModel, Name: "second-model", Config: map[string]any{"endpoint": "https://provider.example/v1"}})
+	request.Platform.Profiles = append(request.Platform.Profiles, platform.ResolvedProfile{Capability: platform.CapabilityModel, Name: "research", BackendRef: "second-model", Config: map[string]any{"model": "other"}})
+	if err := validateReferenceRuntime(request); err == nil {
+		t.Fatal("multiple model endpoints reached rollout")
+	}
 }
 
 func effectivePlatformJSON(request platformapply.DeploymentRequest) string {

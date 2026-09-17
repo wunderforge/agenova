@@ -42,6 +42,7 @@ type Service struct {
 	mu        sync.RWMutex
 	executeMu chan struct{}
 	preset    app.ReferencePrincipalPreset
+	setup     func() (Setup, error)
 	prepare   func([]byte) (app.PreparedAssignment, error)
 	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
 	runner    *app.RunService
@@ -58,6 +59,7 @@ type Service struct {
 type Options struct {
 	Prepare   func([]byte) (app.PreparedAssignment, error)
 	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup     func() (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -90,7 +92,16 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return app.ResolvedLaunch{TemplateRef: app.ReferenceRuntimeTemplateRef}, nil
 		}
 	}
-	s := &Service{preset: preset, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	if options.Setup == nil {
+		options.Setup = func() (Setup, error) {
+			source, err := app.NewReferencePrincipalSource(preset)
+			if err != nil {
+				return Setup{}, err
+			}
+			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
+		}
+	}
+	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err

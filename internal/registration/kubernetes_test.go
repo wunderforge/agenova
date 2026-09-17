@@ -25,6 +25,9 @@ func TestKubernetesStoreReferenceRegistrationAndActivation(t *testing.T) {
 		command := args[4:]
 		switch command[0] {
 		case "auth":
+			if len(command) != 6 || command[1] != "can-i" || command[2] != "patch" || command[3] != "configmaps" || command[4] != "--resource-name" || command[5] == "" {
+				t.Fatalf("idempotent authorization did not name its ConfigMap: %v", command)
+			}
 			if !allowMutation {
 				return []byte("no\n"), nil
 			}
