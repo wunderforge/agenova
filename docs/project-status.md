@@ -16,16 +16,16 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 - In-memory runtime and governance reference path, isolated behind explicit `--backend memory` for CLI Work.
 - Claim-scoped Tool and Model authorization/facts, evidence projection, and a controlled-worker ReAct demonstration. Example tool content in the kind/Ollama path is labelled synthetic.
 - Bundled adapter catalog and exact version activation for the supported deployment, runtime and model adapters.
-- React Portal with fixture and connected modes, bounded polling, lifecycle/outcome/authority evidence and browser smoke coverage. A local demo service can feed connected mode, but it is not yet the installed kind service's shared API endpoint.
+- React Portal with fixture and connected modes, bounded polling, lifecycle/outcome/authority evidence and browser smoke coverage. Connected mode requires the installed Platform identity and revision from `/api/setup`; the old standalone demo service is not accepted as an installed Platform.
 
 ## Limits and Unverified Claims
 
-- The installed-service CLI currently submits and polls through a Kubernetes-authenticated private command transport. There is no documented host-accessible Agenova API address for both CLI queries and `npm dev` UI, and no standalone `work show` command yet. Do not present the local UI and installed CLI as one live source.
+- The installed-service CLI submits and queries (`work list/show`) through the same private HTTP API used by local `npm dev` through `agenova api connect`. The reference API is bound through a loopback-only Kubernetes port-forward, not published as a public Service. CLI and UI evidence parity for allowed and denied Work was checked with real kind/Ollama plus the opt-in installed Playwright test (see [`evidence/167/`](evidence/167/)).
 - Active Work and evidence are in one Control Plane process. Restart or Platform rollout during a run can interrupt it and lose historical evidence; no draining, durable handoff, HA or production upgrade guarantee exists.
 - The reference principal is fixed by service configuration. Kubernetes RBAC protects operator registration, but loopback/port access alone is not production authentication or tenancy. There is no external identity-provider integration.
 - The verified real-provider path is one compatible Agent Sandbox worker plus local Ollama. Arbitrary agent images, production-grade adapter/plugin lifecycle, public-provider credential handling, real Tool/Memory/Observability backends and network-enforced gateway isolation are not proven.
-- Backend-neutral runtime semantics beyond the supported kind path, complete cross-claim gateway correlation, filesystem/isolation proof, persistent history and authorized Work listing remain separate work.
+- Backend-neutral runtime semantics beyond the supported kind path, complete cross-claim gateway correlation, filesystem/isolation proof, persistent history and production-authorized Work listing remain separate work. The reference list is limited to the current service session and fixed local Team A identity.
 
 ## Next Delivery Slice
 
-Expose the installed service's existing evidence boundary through one safe local API access path. Make the CLI submit and query Work through that API, and configure local `npm dev` to read the same endpoint without installing UI as part of Platform apply. Verify allow/deny, CLI/UI evidence parity, negative transport cases and real kind/Ollama execution with automated browser evidence. Then reconcile overlapping tickets by their actual remaining acceptance criteria.
+Harden the reference API with production identity and tenancy, durable Work/evidence across rollout, and backend-independent deployment/access packaging. Those remain separate follow-up tickets; `platform apply` intentionally does not install the local React UI.

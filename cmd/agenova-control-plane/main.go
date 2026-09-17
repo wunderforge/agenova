@@ -294,11 +294,6 @@ func localCommand(args []string) error {
 			return fmt.Errorf("provide one bounded request reference")
 		}
 		method, path = http.MethodGet, "/api/requests/"+args[1]+"/evidence"
-	case "list":
-		if len(args) != 1 {
-			return fmt.Errorf("list accepts no arguments")
-		}
-		method, path = http.MethodGet, "/api/requests"
 	default:
 		return fmt.Errorf("unknown private command")
 	}
@@ -314,12 +309,9 @@ func localCommand(args []string) error {
 		return fmt.Errorf("installed Work service is unavailable")
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return err
-	}
-	if len(data) > 8<<20 {
-		return fmt.Errorf("Work service response is too large")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("Work service rejected the request (%d): %s", resp.StatusCode, strings.TrimSpace(string(data)))

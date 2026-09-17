@@ -857,8 +857,8 @@ func serviceAccountObject(namespace string) map[string]any {
 }
 
 func roleObject(namespace string) map[string]any {
-	// Installed setup enumerates managed template records in this namespace.
-	// Kubernetes RBAC cannot scope list by label.
+	// The installed setup API enumerates Agenova-managed template records in
+	// this dedicated namespace. Kubernetes RBAC cannot scope list by label.
 	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get", "list"}}}
 	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
 	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "rules": rules}

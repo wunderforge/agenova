@@ -28,9 +28,11 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   expect(list.find(item => item.requestRef === allowedRef)?.state?.claim?.id).toBe(detail.state?.claim?.id);
 
   await page.goto(`/?mode=connected#/work/${encodeURIComponent(allowedRef!)}`);
+  await page.locator('summary').filter({ hasText: 'Execution details' }).click();
   await expect(page.getByText(allowedRef!, { exact: true }).first()).toBeVisible();
   await expect(page.getByText(detail.state!.claim!.id, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Succeeded', { exact: true }).first()).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: info.outputPath('installed-allowed-work.png'), fullPage: true });
 });
 
@@ -42,7 +44,9 @@ test('installed API and Portal show denial without an invented claim', async ({ 
   expect(detail.state?.decision.result).toBe('Deny');
   expect(detail.state?.claim).toBeFalsy();
   await page.goto(`/?mode=connected#/work/${encodeURIComponent(deniedRef!)}`);
+  await page.locator('summary').filter({ hasText: 'Execution details' }).click();
   await expect(page.getByText('Denied', { exact: true }).first()).toBeVisible();
   await expect(page.getByText(deniedRef!, { exact: true }).first()).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: info.outputPath('installed-denied-work.png'), fullPage: true });
 });
