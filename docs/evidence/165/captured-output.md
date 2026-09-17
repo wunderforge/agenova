@@ -143,11 +143,13 @@ $exitCode = $LASTEXITCODE
 This verifies that authorization success is distinct from provider execution
 success and that the installed path did not silently fall back to a fixture or
 another model. To verify that failure still tore down the allocated worker, we
-repeated this tracked fixture on the #165 image and captured the **same failed
-request's** full lifecycle:
+submitted [a second tracked Work](unavailable-model-cleanup.work.yaml) with a
+distinct request reference on the #165 image and captured that **same failed
+request's** full lifecycle. The first terminal request remains in the service
+record map; this is not a duplicate submission:
 
 ```powershell
-$v = .\.tmp\agenova.exe run -f docs/evidence/165/unavailable-model.work.yaml --json | ConvertFrom-Json
+$v = .\.tmp\agenova.exe run -f docs/evidence/165/unavailable-model-cleanup.work.yaml --json | ConvertFrom-Json
 $exitCode = $LASTEXITCODE
 [pscustomobject]@{exitCode=$exitCode;requestRef=$v.requestRef;claimId=$v.state.claim.id;workerId=$v.state.claim.backendIdentity.workerId;phase=$v.state.claim.phase;outcome=$v.outcome.status;runtimeFacts=@($v.facts | Where-Object kind -EQ 'Runtime' | ForEach-Object operation);runtimeEvents=@($v.state.evidence.runtimeEvents | ForEach-Object kind);providerOutcomes=@($v.facts | Where-Object kind -EQ 'ProviderOutcome' | Select-Object operation,reasonCode);runOutcomes=@($v.facts | Where-Object kind -EQ 'RunOutcome' | Select-Object operation,reasonCode)} | ConvertTo-Json -Depth 7
 ```
@@ -155,9 +157,9 @@ $exitCode = $LASTEXITCODE
 ```json
 {
   "exitCode": 1,
-  "requestRef": "investigate-payment-retries-unavailable-model",
-  "claimId": "claim:investigate-payment-retries-unavailable-model:issuance:79deda31251f6b13506e302e9db00865",
-  "workerId": "agenova-pool-pool-engineer-g45bx",
+  "requestRef": "investigate-payment-retries-unavailable-model-cleanup",
+  "claimId": "claim:investigate-payment-retries-unavailable-model-cleanup:issuance:0e3894b8f647939dba783d1ae11268ac",
+  "workerId": "agenova-pool-pool-engineer-hj424",
   "phase": "Failed",
   "outcome": "Failed",
   "runtimeFacts": ["Pending", "Bound", "BackendReady", "Running", "Failed", "TerminateSucceeded", "CleanupSucceeded"],
@@ -180,11 +182,19 @@ No resources found in agenova-system namespace.
 
 Thus the failed model call produced a failed outcome and the bound worker's
 terminate/cleanup evidence, with no SandboxClaim remaining in this dedicated
-test namespace. We immediately ran
-`agenova platform apply -f deploy/reference/platform.kind.yaml --yes --json`
-to restore the original endpoint; `platform status --json` then reported
-the original revision
-`sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f`,
-`"installationReady":true`, `"changes":[]`, and
-`"providerHealth":"not-checked"`. The last field is explicit: Platform
-installation readiness alone is not an Ollama health probe.
+test namespace. We immediately restored the original endpoint. The exact
+commands and raw CLI responses are below; they preserve the Platform revision
+and zero-drift result, rather than relying on a prose status summary:
+
+```powershell
+.\.tmp\agenova.exe platform apply -f deploy/reference/platform.kind.yaml --yes --json
+.\.tmp\agenova.exe platform status --json
+```
+
+```json
+{"plan":{"platformName":"reference-kind","revision":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f","target":"kind-agenova-k8s-lab/agenova-system","changes":[{"component":"agenova-control-plane","action":"reconcile","detail":"run the internal reference control plane at the effective revision"},{"component":"agenova-platform","action":"update","detail":"reconcile effective Platform revision and adapter lock"},{"component":"agenova-policy-3c894142a815b4b87b6a8c70","action":"reconcile","detail":"seed the versioned reference default-deny policy"}],"components":[{"name":"agent-sandbox-runtime","category":"adapter","state":"configured","reference":"agenova.io/runtime/agent-sandbox@0.1.0"},{"name":"kubernetes-deployment","category":"adapter","state":"used","reference":"agenova.io/deployment/kubernetes@0.1.0"},{"name":"openai-compatible-backend","category":"adapter","state":"configured","reference":"agenova.io/model/openai-compatible@0.1.0"},{"name":"agenova-control-plane","category":"deployment","state":"unavailable"},{"name":"agenova-control-plane-account","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime-binding","category":"deployment","state":"configured"},{"name":"agenova-control-plane-service","category":"deployment","state":"available"},{"name":"agenova-platform","category":"deployment","state":"unavailable","reference":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f"},{"name":"agenova-system","category":"deployment","state":"available"},{"name":"agenova-active-policy","category":"policy","state":"configured","reference":"reference-default-deny@1"},{"name":"agenova-policy-3c894142a815b4b87b6a8c70","category":"policy","state":"unavailable","reference":"reference-default-deny@1"}]},"applied":true,"ready":true,"readinessScope":"installation-components","components":[{"name":"agent-sandbox-runtime","category":"adapter","state":"configured","reference":"agenova.io/runtime/agent-sandbox@0.1.0"},{"name":"kubernetes-deployment","category":"adapter","state":"used","reference":"agenova.io/deployment/kubernetes@0.1.0"},{"name":"openai-compatible-backend","category":"adapter","state":"configured","reference":"agenova.io/model/openai-compatible@0.1.0"},{"name":"agenova-control-plane","category":"deployment","state":"available"},{"name":"agenova-control-plane-account","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime-binding","category":"deployment","state":"configured"},{"name":"agenova-control-plane-service","category":"deployment","state":"available"},{"name":"agenova-platform","category":"deployment","state":"configured","reference":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f"},{"name":"agenova-system","category":"deployment","state":"available"},{"name":"agenova-active-policy","category":"policy","state":"configured","reference":"reference-default-deny@1"},{"name":"agenova-policy-3c894142a815b4b87b6a8c70","category":"policy","state":"configured","reference":"reference-default-deny@1"}]}
+{"platformName":"reference-kind","revision":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f","target":"kind-agenova-k8s-lab/agenova-system","changes":[],"components":[{"name":"agent-sandbox-runtime","category":"adapter","state":"configured","reference":"agenova.io/runtime/agent-sandbox@0.1.0"},{"name":"kubernetes-deployment","category":"adapter","state":"used","reference":"agenova.io/deployment/kubernetes@0.1.0"},{"name":"openai-compatible-backend","category":"adapter","state":"configured","reference":"agenova.io/model/openai-compatible@0.1.0"},{"name":"agenova-control-plane","category":"deployment","state":"available"},{"name":"agenova-control-plane-account","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime","category":"deployment","state":"configured"},{"name":"agenova-control-plane-runtime-binding","category":"deployment","state":"configured"},{"name":"agenova-control-plane-service","category":"deployment","state":"available"},{"name":"agenova-platform","category":"deployment","state":"configured","reference":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f"},{"name":"agenova-system","category":"deployment","state":"available"},{"name":"agenova-active-policy","category":"policy","state":"configured","reference":"reference-default-deny@1"},{"name":"agenova-policy-3c894142a815b4b87b6a8c70","category":"policy","state":"configured","reference":"reference-default-deny@1"}],"installationReady":true,"readinessScope":"installation-components","providerHealth":"not-checked"}
+```
+
+`providerHealth: not-checked` is explicit: installation readiness alone is not
+an Ollama health probe.

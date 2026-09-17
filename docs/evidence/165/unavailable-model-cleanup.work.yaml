@@ -1,0 +1,19 @@
+# Test-only synthetic Work with a distinct reference for the cleanup rerun.
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: investigate-payment-retries-unavailable-model-cleanup
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Investigate synthetic payment retry deadlines and report the cause.
+  requestedAccess:
+    tools: [git.read]
+    resourceScopes: [repo:acme/payments]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 2m
