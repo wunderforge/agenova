@@ -13,6 +13,7 @@
     "build": "node scripts/contracts.mjs check && tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "test:smoke": "playwright test",
+    "test:installed": "playwright test --config playwright.installed.config.ts",
     "browsers:install": "playwright install chromium",
     "check": "npm run contracts:check && npm run typecheck && npm test -- --run && npm run build && npm run test:smoke"
   },
