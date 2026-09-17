@@ -114,6 +114,11 @@ func validate(bundle PolicyBundle) error {
 	if strings.TrimSpace(bundle.Version) == "" {
 		return errors.New("policy bundle version is required")
 	}
+	// These identifiers are repeated in issued state and multiple evidence
+	// facts. Bound their encoded size before an operator can register them.
+	if len(bundle.ID) > 128 || len(bundle.Version) > 64 {
+		return errors.New("policy bundle ID or version exceeds the evidence-safe limit")
+	}
 
 	seen := make(map[Rule]int, len(bundle.Rules))
 	for index, rule := range bundle.Rules {

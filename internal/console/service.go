@@ -171,6 +171,9 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
 	}
+	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
+		return evidence.View{}, err
+	}
 	launch, err := s.configure(prepared.Template)
 	if err != nil {
 		// A failed template installation is a terminal, queryable Work result.
@@ -189,9 +192,6 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		return s.QueryRequest(ref)
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
-	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
-		return evidence.View{}, err
-	}
 	details := []string{}
 	for _, change := range prepared.Changes {
 		if change.Effective == "" {

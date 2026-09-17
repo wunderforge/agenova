@@ -193,6 +193,15 @@ func TestTemplateConfigurationFailureRemainsQueryable(t *testing.T) {
 	if err != nil || queried.Outcome == nil || queried.Outcome.Status != "Failed" {
 		t.Fatalf("failure was not queryable: %#v, %v", queried.Outcome, err)
 	}
+	foundOutcome := false
+	for _, fact := range queried.Facts {
+		if fact.Kind == "RunOutcome" && fact.ClaimID == view.State.Claim.ID && fact.ReasonCode == "runtime-template-configuration-failed" {
+			foundOutcome = true
+		}
+	}
+	if !foundOutcome {
+		t.Fatal("runtime configuration failure lacks claim-correlated RunOutcome fact")
+	}
 	if _, err := s.Submit(verticalRequest(t, "configure-failed")); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate failure reference = %v", err)
 	}

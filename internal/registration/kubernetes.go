@@ -134,12 +134,27 @@ func (s KubernetesStore) ActivePolicy() (policy.PolicyBundle, error) {
 	if err := policy.ValidateBundle(bundle); err != nil {
 		return policy.PolicyBundle{}, err
 	}
+	if bundle.ID != ref.ID || bundle.Version != ref.Version {
+		return policy.PolicyBundle{}, fmt.Errorf("active PolicyBundle record identity mismatch")
+	}
 	return bundle, nil
 }
 
 func (s KubernetesStore) PutTemplate(template *v0.AgentTemplate) (bool, error) {
 	if err := v0.ValidateAgentTemplate(template); err != nil {
 		return false, err
+	}
+	// This reference installation has one Portal template slot. Reject a
+	// second name before creating an immutable record that would make setup
+	// unavailable. General multi-template selection belongs to #147.
+	templates, err := s.Templates()
+	if err != nil {
+		return false, err
+	}
+	for _, existing := range templates {
+		if existing.Metadata.Name != template.Metadata.Name {
+			return false, fmt.Errorf("reference installation supports one AgentTemplate; %s is already registered", existing.Metadata.Name)
+		}
 	}
 	return s.put(recordName("template", template.Metadata.Name), "template.json", template)
 }

@@ -7,7 +7,7 @@ import type { Setup,View } from '../src/connected-source';
 const request=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.json',import.meta.url),'utf8')) as ClaimRequest;
 const state=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json',import.meta.url),'utf8')) as IssuedState;
 const template:AgentTemplate={apiVersion:'agenova.io/v1alpha1',kind:'AgentTemplate',metadata:{name:'engineer'},spec:{artifact:{image:'example-worker'},entrypoint:{command:['worker']},defaults:{modelProfile:'approved-coding-model',memoryScopes:['team-docs']},capabilityCeiling:{tools:['git.read','git.write'],resourceScopes:['repo:acme/payments'],modelProfiles:['approved-coding-model'],memoryScopes:['team-docs'],runtimeProfiles:['standard-isolated'],maxTimeout:'30m'}}};
-const setup:Setup={principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{Team:'team-a',Action:'claim.create',Project:'payments',TemplateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
+const setup:Setup={principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{team:'team-a',action:'claim.create',project:'payments',templateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
 function work(phase:'Running'|'Succeeded'='Running'):View{
  const copy=structuredClone(state);
 copy.claim!.phase=phase;

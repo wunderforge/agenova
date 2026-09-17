@@ -422,7 +422,7 @@ function Policy({ setup }: { setup: Setup }) {
       <div className="portal-table-wrap"><table className="portal-table">
         <thead><tr><th>Team</th><th>Action</th><th>Project</th><th>Template</th></tr></thead>
         <tbody>{setup.policy.Rules.map((rule, index) => <tr key={index}>
-          <td>{rule.Team}</td><td>{rule.Action}</td><td>{rule.Project}</td><td>{rule.TemplateRef}</td>
+          <td>{rule.team}</td><td>{rule.action}</td><td>{rule.project}</td><td>{rule.templateRef}</td>
         </tr>)}</tbody>
       </table></div>
     </section>

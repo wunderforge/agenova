@@ -40,6 +40,13 @@ func TestKubernetesStoreReferenceRegistrationAndActivation(t *testing.T) {
 			}
 			return []byte("yes\n"), nil
 		case "get":
+			if command[2] == "-l" {
+				items := make([]map[string]any, 0, len(objects))
+				for _, object := range objects {
+					items = append(items, object)
+				}
+				return json.Marshal(map[string]any{"items": items})
+			}
 			object, ok := objects[command[2]]
 			if !ok {
 				return nil, errMissingRecord
@@ -146,6 +153,13 @@ func TestKubernetesStoreRejectsIdenticalReapplyWithoutMutationAuthority(t *testi
 			}
 			return []byte("yes\n"), nil
 		case "get":
+			if command[2] == "-l" {
+				items := make([]map[string]any, 0, len(objects))
+				for _, object := range objects {
+					items = append(items, object)
+				}
+				return json.Marshal(map[string]any{"items": items})
+			}
 			object, ok := objects[command[2]]
 			if !ok {
 				return nil, errMissingRecord
@@ -185,6 +199,59 @@ func TestKubernetesStoreRejectsIdenticalReapplyWithoutMutationAuthority(t *testi
 	allowMutation = false
 	if err := store.ActivatePolicy(ref); err == nil {
 		t.Fatal("identical policy activation succeeded without patch authority")
+	}
+}
+
+func TestKubernetesReferenceRegistryRejectsSecondTemplateBeforeWrite(t *testing.T) {
+	existing := &v0.AgentTemplate{APIVersion: "agenova.io/v1alpha1", Kind: v0.AgentTemplateKind, Metadata: v0.ObjectMeta{Name: "engineer"}, Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "agenova-testworker:kind"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agenova-workerctl", "serve"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{}}}
+	encoded, err := json.Marshal(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutations := 0
+	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		command := args[2:]
+		if command[0] == "get" && command[2] == "-l" {
+			return json.Marshal(map[string]any{"items": []any{map[string]any{"metadata": map[string]string{"name": recordName("template", "engineer")}, "data": map[string]string{"template.json": string(encoded)}}}})
+		}
+		if command[0] == "create" || command[0] == "patch" {
+			mutations++
+		}
+		return nil, fmt.Errorf("unexpected registry command: %v", command)
+	}}
+	other := *existing
+	other.Metadata.Name = "reviewer"
+	if _, err := store.PutTemplate(&other); err == nil || mutations != 0 {
+		t.Fatalf("second template changed registry: err=%v mutations=%d", err, mutations)
+	}
+}
+
+func TestKubernetesActivePolicyRejectsRecordWithWrongIdentity(t *testing.T) {
+	ref := PolicyReference{ID: "expected", Version: "1"}
+	pointer, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := json.Marshal(policy.ReferenceBundle())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		command := args[2:]
+		if len(command) < 3 || command[0] != "get" {
+			t.Fatalf("unexpected registry command: %v", command)
+		}
+		key := "policy.json"
+		data := bundle
+		if command[2] == "agenova-active-policy" {
+			key, data = "reference.json", pointer
+		} else if command[2] != recordName("policy", "expected@1") {
+			t.Fatalf("unexpected policy record: %v", command)
+		}
+		return json.Marshal(map[string]any{"metadata": map[string]any{"labels": map[string]string{"app.kubernetes.io/managed-by": "agenova"}}, "data": map[string]string{key: string(data)}})
+	}}
+	if _, err := store.ActivePolicy(); err == nil || !strings.Contains(err.Error(), "identity mismatch") {
+		t.Fatalf("mismatched policy record accepted: %v", err)
 	}
 }
 

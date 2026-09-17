@@ -15,7 +15,7 @@ export interface Setup {
   policy: {
     ID: string;
     Version: string;
-    Rules: { Team: string; Action: string; Project: string; TemplateRef: string }[];
+    Rules: { team: string; action: string; project: string; templateRef: string }[];
   };
   capabilities: Record<string, string>;
 }
@@ -63,7 +63,7 @@ export const connectedSource = {
         !setup.policy || typeof setup.policy.ID !== 'string' ||
         typeof setup.policy.Version !== 'string' || !Array.isArray(setup.policy.Rules) ||
         !setup.policy.Rules.every(rule => rule &&
-          [rule.Team, rule.Action, rule.Project, rule.TemplateRef].every(value => typeof value === 'string')) ||
+          [rule.team, rule.action, rule.project, rule.templateRef].every(value => typeof value === 'string')) ||
         !setup.capabilities || typeof setup.capabilities !== 'object' ||
         !Object.values(setup.capabilities).every(value => typeof value === 'string')) {
       throw new SourceError(502, 'Platform setup is incomplete.');
