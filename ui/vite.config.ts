@@ -5,12 +5,14 @@ import { defineConfig } from 'vitest/config';
 // @ts-expect-error JavaScript build helper has no public application API.
 import { fixtureRows, consoleFixtureRows, root } from './scripts/contracts.mjs';
 import { resolve } from 'node:path';
+import { localAPITarget } from './local-api-target.ts';
 
 const moduleID = 'virtual:agenova-fixtures';
 const consoleID = 'virtual:agenova-console-fixtures';
+const apiTarget = localAPITarget(process.env.AGENOVA_API_URL);
 export default defineConfig({
-  server: { proxy: { '/api': { target: 'http://127.0.0.1:8088', changeOrigin: false } } },
-  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8088', changeOrigin: false } } },
+  server: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
+  preview: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
   plugins: [{
     name: 'agenova-v0-fixtures',
     resolveId(id) { if (id === moduleID || id === consoleID) return '\0' + id; },

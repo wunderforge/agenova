@@ -7,7 +7,7 @@ import type { Setup,View } from '../src/connected-source';
 const request=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.json',import.meta.url),'utf8')) as ClaimRequest;
 const state=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json',import.meta.url),'utf8')) as IssuedState;
 const template:AgentTemplate={apiVersion:'agenova.io/v1alpha1',kind:'AgentTemplate',metadata:{name:'engineer'},spec:{artifact:{image:'example-worker'},entrypoint:{command:['worker']},defaults:{modelProfile:'approved-coding-model',memoryScopes:['team-docs']},capabilityCeiling:{tools:['git.read','git.write'],resourceScopes:['repo:acme/payments'],modelProfiles:['approved-coding-model'],memoryScopes:['team-docs'],runtimeProfiles:['standard-isolated'],maxTimeout:'30m'}}};
-const setup:Setup={principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{team:'team-a',action:'claim.create',project:'payments',templateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
+const setup:Setup={installation:{kind:'installed',platform:'reference-kind',revision:'sha256:'+'a'.repeat(64)},principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{team:'team-a',action:'claim.create',project:'payments',templateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
 function work(phase:'Running'|'Succeeded'='Running'):View{
  const copy=structuredClone(state);
 copy.claim!.phase=phase;
@@ -58,6 +58,45 @@ test('work name is separate from full instructions and identity', async({page},i
  await page.getByLabel('Search work').fill('recommend a specific fix');
  await expect(page.locator('.portal-work-title')).toHaveCount(1);
  await page.screenshot({path:info.outputPath('named-work-list.png'),fullPage:true});
+});
+
+test('connected Portal rejects an unrelated local demo API', async ({page}) => {
+ await api(page,()=>[]);
+ await page.route('**/api/setup', route => route.fulfill({json:{...setup,installation:{kind:'local-demo'}}}));
+ await page.goto('/?mode=connected#/work');
+ await expect(page.getByRole('alert')).toContainText('not an installed Agenova Platform');
+ await expect(page.getByRole('link',{name:'New work'})).toHaveCount(0);
+});
+test('connected Work polling does not repeatedly query Platform setup', async ({page}) => {
+ let setupCalls=0;
+ let listCalls=0;
+ await api(page,()=>[work()]);
+ await page.route('**/api/setup', route=>{setupCalls++;return route.fulfill({json:setup});});
+ await page.route('**/api/requests', route=>{listCalls++;return route.fulfill({json:[work()]});});
+ await page.goto('/?mode=connected#/work');
+ await expect.poll(()=>listCalls,{timeout:6000}).toBeGreaterThanOrEqual(2);
+ // Development StrictMode may mount the effect more than once. Its initial
+ // setup reads may repeat, but subsequent Work polls must not add more.
+ const initialSetupCalls=setupCalls;
+ await expect.poll(()=>listCalls,{timeout:6000}).toBeGreaterThanOrEqual(5);
+ expect(setupCalls).toBe(initialSetupCalls);
+});
+test('idle connected setup is revalidated without one-second Kubernetes polling', async ({page}) => {
+ test.setTimeout(45_000);
+ let setupCalls=0;
+ let available=true;
+ await api(page,()=>[work('Succeeded')]);
+ await page.route('**/api/setup', route=>{
+   setupCalls++;
+   return available ? route.fulfill({json:setup}) : route.fulfill({status:503,json:{code:'unavailable'}});
+ });
+ await page.goto('/?mode=connected#/work');
+ await expect.poll(()=>setupCalls).toBeGreaterThan(0);
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ const initial=setupCalls;
+ available=false;
+ await expect.poll(()=>setupCalls,{timeout:35_000,intervals:[1000]}).toBeGreaterThan(initial);
+ await expect(page.getByRole('alert')).toContainText('connection is unavailable');
 });
 test('legacy task title uses its first sentence but retains complete instructions',async({page},info)=>{
  const current=work();

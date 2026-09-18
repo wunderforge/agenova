@@ -519,12 +519,19 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	}
 	view := evidence.Clone(r.view)
 	s.mu.RUnlock()
+	// Runtime transitions update state and append their journal fact under one
+	// lifecycle lock. Observe both projections within that lock so active Work
+	// never exposes a Bound/Running state without its matching Runtime fact.
 	if view.State != nil && view.State.Claim != nil {
-		if state := s.runner.State(view.State.Claim.ID); state != nil {
-			view.State = state
-		}
+		s.runner.ObserveState(view.State.Claim.ID, func(state *v0.IssuedState) {
+			view.Facts = s.journal.ForRequest(ref)
+			if state != nil {
+				view.State = state
+			}
+		})
+	} else {
+		view.Facts = s.journal.ForRequest(ref)
 	}
-	view.Facts = s.journal.ForRequest(ref)
 	return view, nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {

@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/platform"
@@ -37,6 +39,9 @@ type RuntimeFactory func(backendName string) (backend runtime.RuntimeBackend, re
 // The hosted backend is supplied to the application composition boundary.
 type RunHandler func(path string, backend runtime.RuntimeBackend) (RunReport, error)
 type ConnectedRunHandler func(path, stateDirectory string) (RunReport, error)
+type ConnectedShowHandler func(ref, stateDirectory string) (evidence.View, error)
+type ConnectedListHandler func(stateDirectory string) ([]evidence.View, error)
+type APIConnectHandler func(stateDirectory string, port int, stdout, stderr io.Writer) error
 
 type AdapterLifecycleFactory func(stateDirectory string) (*adapterregistry.Lifecycle, error)
 
@@ -47,6 +52,9 @@ type Services struct {
 	NewRuntime      RuntimeFactory
 	Run             RunHandler
 	RunConnected    ConnectedRunHandler
+	ShowConnected   ConnectedShowHandler
+	ListConnected   ConnectedListHandler
+	ConnectAPI      APIConnectHandler
 	NewAdapters     AdapterLifecycleFactory
 	NewPlatform     PlatformServiceFactory
 	NewRegistration RegistrationServiceFactory
@@ -77,6 +85,8 @@ Commands:
   platform   Validate, plan, apply, and inspect one declarative Platform
   policy     Register and activate an immutable PolicyBundle
   agent-template Register an immutable AgentTemplate
+  work       Query current-session Work evidence from the installed service
+  api        Connect the local Portal to the private installed API
 
 Flags:
   --backend string    Explicit reference runtime backend ("memory"); default run uses the installed service
@@ -86,6 +96,7 @@ Flags:
   -f, --file string   ClaimRequest YAML for agenova run
   --json              Print JSON for run or adapter commands
   --yes               Confirm platform apply non-interactively
+  --port int          Local loopback port for api connect (default 8088)
 
 The default run command submits to the installed reference service. Use
 --backend memory to opt into the isolated in-memory reference path. Command
@@ -102,6 +113,21 @@ const runHelpText = `Usage:
 
 Submit exactly one ClaimRequest YAML document. Requested access is intent.
 The CLI does not accept --repo, --tools, or --model authority shortcuts.
+`
+
+const workHelpText = `Usage:
+  agenova work list [--json]
+  agenova work show <request-ref> [--json]
+  agenova work show [--json] -- <request-ref beginning with ->
+
+Query current-session Work from the installed service's private API.
+`
+
+const apiHelpText = `Usage:
+  agenova api connect [--port 8088]
+
+Keep this command running while the local Portal uses the private API.
+The tunnel binds 127.0.0.1 only; it is transport, not user authentication.
 `
 
 const adaptersHelpText = `Usage:
@@ -140,6 +166,8 @@ type parsedArgs struct {
 	name       string
 	nameSet    bool
 	yes        bool
+	port       int
+	portSet    bool
 	operands   []string
 }
 
@@ -176,6 +204,14 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		fmt.Fprint(stdout, platformHelpText)
 		return 0
 	}
+	if parsed.help && parsed.command == "work" {
+		fmt.Fprint(stdout, workHelpText)
+		return 0
+	}
+	if parsed.help && parsed.command == "api" {
+		fmt.Fprint(stdout, apiHelpText)
+		return 0
+	}
 	if parsed.help && (parsed.command == "policy" || parsed.command == "agent-template") {
 		fmt.Fprintf(stdout, "Usage: agenova %s apply -f <document.yaml> [--json]\n", parsed.command)
 		return 0
@@ -193,6 +229,20 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 			return printConnectedRun(stdout, stderr, parsed, services.RunConnected)
 		}
 		return printRun(stdout, stderr, parsed, services.NewRuntime, services.Run)
+	}
+	if parsed.command == "work" {
+		return printWork(stdout, stderr, parsed, services)
+	}
+	if parsed.command == "api" {
+		if len(parsed.operands) != 1 || parsed.operands[0] != "connect" || services.ConnectAPI == nil {
+			fmt.Fprint(stderr, apiHelpText)
+			return ExitUsage
+		}
+		if err := services.ConnectAPI(parsed.stateDir, parsed.port, stdout, stderr); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		return 0
 	}
 	if parsed.command == "adapters" {
 		return printAdapters(stdout, stderr, parsed, services.NewAdapters)
@@ -229,6 +279,85 @@ func printConnectedRun(stdout, stderr io.Writer, parsed parsedArgs, run Connecte
 		return 1
 	}
 	return 0
+}
+
+func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) int {
+	if len(parsed.operands) == 1 && parsed.operands[0] == "list" && services.ListConnected != nil {
+		views, err := services.ListConnected(parsed.stateDir)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, views)
+		}
+		if len(views) == 0 {
+			fmt.Fprintln(stdout, "No Work recorded in the current service session.")
+			return 0
+		}
+		for _, view := range views {
+			fmt.Fprintf(stdout, "%s\t%s\n", view.RequestRef, workPhase(view))
+		}
+		return 0
+	}
+	if len(parsed.operands) == 2 && parsed.operands[0] == "show" && services.ShowConnected != nil {
+		view, err := services.ShowConnected(parsed.operands[1], parsed.stateDir)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, view)
+		}
+		fmt.Fprintf(stdout, "request: %s\nphase: %s\n", view.RequestRef, workPhase(view))
+		if view.State != nil {
+			fmt.Fprintf(stdout, "decision: %s\n", view.State.Decision.Result)
+			if view.State.Claim != nil {
+				fmt.Fprintf(stdout, "claim: %s\n", view.State.Claim.ID)
+			}
+		}
+		if view.Outcome != nil {
+			if view.Outcome.Failure != "" {
+				fmt.Fprintf(stdout, "failure: %s\n", view.Outcome.Failure)
+			}
+			if view.Outcome.Text != "" {
+				fmt.Fprintf(stdout, "result: %s\n", view.Outcome.Text)
+			}
+		}
+		return 0
+	}
+	fmt.Fprint(stderr, workHelpText)
+	return ExitUsage
+}
+
+func workPhase(view evidence.View) string {
+	if view.State != nil && view.State.Decision.Result == "Deny" {
+		return "Denied"
+	}
+	if view.State != nil && view.State.Decision.Result == "ApprovalRequired" {
+		return "Approval required"
+	}
+	if view.Outcome != nil {
+		if view.Outcome.Status == "Deny" {
+			return "Denied"
+		}
+		if view.Outcome.Status == "ApprovalRequired" {
+			return "Approval required"
+		}
+		return view.Outcome.Status
+	}
+	if view.State != nil {
+		if view.State.Claim != nil {
+			if view.State.Claim.Phase == v0.ClaimPhaseBound {
+				return "Starting"
+			}
+			if view.State.Claim.Phase == v0.ClaimPhaseSucceeded {
+				return "Finishing"
+			}
+			return string(view.State.Claim.Phase)
+		}
+	}
+	return "Pending"
 }
 
 func printRegistration(stdout, stderr io.Writer, parsed parsedArgs, factory RegistrationServiceFactory) int {
@@ -306,7 +435,7 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
-		return printPlatformStatus(stdout, stderr, plan, parsed.json)
+		return printPlatformStatus(stdout, stderr, plan, parsed.json, parsed.stateDir)
 	case "validate":
 		resolved, _, err := service.ValidateFile(parsed.file)
 		if err != nil {
@@ -389,8 +518,14 @@ func printPlatformApplyHuman(output io.Writer, result platformapply.ApplyResult)
 
 // Status is an observation of installed components. It does not probe model
 // providers or establish that a Work can run end to end.
-func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool) int {
+func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, jsonOutput bool, stateDir string) int {
 	installationReady := !plan.Changed()
+	connectCommand := "agenova api connect"
+	if stateDir != "" {
+		// PowerShell is the reference install shell. Escape embedded quotes so
+		// the displayed command continues to select this exact local state.
+		connectCommand += " --state-dir '" + strings.ReplaceAll(stateDir, "'", "''") + "'"
+	}
 	for _, component := range plan.Components {
 		switch component.State {
 		case "available", "configured", "used":
@@ -404,12 +539,23 @@ func printPlatformStatus(stdout, stderr io.Writer, plan platformapply.Plan, json
 			InstallationReady bool   `json:"installationReady"`
 			ReadinessScope    string `json:"readinessScope"`
 			ProviderHealth    string `json:"providerHealth"`
-		}{plan, installationReady, platformapply.ReadinessScopeInstallation, "not-checked"})
+			API               struct {
+				LocalEndpointAfterConnect string `json:"localEndpointAfterConnect"`
+				ConnectCommand            string `json:"connectCommand"`
+				ConnectionState           string `json:"connectionState"`
+			} `json:"api"`
+		}{Plan: plan, InstallationReady: installationReady, ReadinessScope: platformapply.ReadinessScopeInstallation, ProviderHealth: "not-checked", API: struct {
+			LocalEndpointAfterConnect string `json:"localEndpointAfterConnect"`
+			ConnectCommand            string `json:"connectCommand"`
+			ConnectionState           string `json:"connectionState"`
+		}{"http://127.0.0.1:8088", connectCommand, "not-checked"}})
 	}
 	if code := printPlatformPlan(stdout, stderr, plan, false); code != 0 {
 		return code
 	}
 	fmt.Fprintf(stdout, "installation ready: %t\nreadiness scope: %s\nprovider health: not checked\n", installationReady, platformapply.ReadinessScopeInstallation)
+	fmt.Fprintln(stdout, "api after local connect: http://127.0.0.1:8088")
+	fmt.Fprintf(stdout, "connect: %s (separate terminal; connection not checked)\n", connectCommand)
 	return 0
 }
 
@@ -673,10 +819,20 @@ func joinCapabilities(values []platform.Capability) string {
 }
 
 func parseArgs(argv []string) (parsedArgs, error) {
-	var parsed parsedArgs
+	parsed := parsedArgs{port: 8088}
+	literalOperand := false
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
+		if literalOperand {
+			parsed.operands = append(parsed.operands, arg)
+			continue
+		}
 		switch {
+		case arg == "--":
+			if parsed.command != "work" || len(parsed.operands) != 1 || parsed.operands[0] != "show" {
+				return parsedArgs{}, fmt.Errorf("-- is only valid after agenova work show")
+			}
+			literalOperand = true
 		case arg == "--help" || arg == "-h":
 			parsed.help = true
 		case arg == "--version" || arg == "-v":
@@ -685,6 +841,18 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			parsed.json = true
 		case arg == "--yes":
 			parsed.yes = true
+		case arg == "--port":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("flag --port requires a value")
+			}
+			i++
+			if err := setPort(&parsed, argv[i]); err != nil {
+				return parsedArgs{}, err
+			}
+		case strings.HasPrefix(arg, "--port="):
+			if err := setPort(&parsed, strings.TrimPrefix(arg, "--port=")); err != nil {
+				return parsedArgs{}, err
+			}
 		case arg == "--backend":
 			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("flag --backend requires a value")
@@ -750,25 +918,38 @@ func parseArgs(argv []string) (parsedArgs, error) {
 	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
 		return parsed, fmt.Errorf("-f is only valid with agenova run, platform, policy or agent-template")
 	}
-	if parsed.json && parsed.command != "run" && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
+	if parsed.json && parsed.command != "run" && parsed.command != "work" && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
 		return parsed, fmt.Errorf("--json is not valid with agenova %s", parsed.command)
 	}
-	if parsed.stateSet && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && parsed.command != "run" && !parsed.help {
+	if parsed.stateSet && parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && parsed.command != "run" && parsed.command != "work" && parsed.command != "api" && !parsed.help {
 		return parsed, fmt.Errorf("--state-dir is not valid with agenova %s", parsed.command)
 	}
 	if parsed.nameSet && parsed.command != "adapters" && !parsed.help {
 		return parsed, fmt.Errorf("--name is only valid with agenova adapters init")
 	}
-	if parsed.backendSet && (parsed.command == "adapters" || parsed.command == "platform" || parsed.command == "policy" || parsed.command == "agent-template") && !parsed.help {
+	if parsed.backendSet && (parsed.command == "adapters" || parsed.command == "platform" || parsed.command == "policy" || parsed.command == "agent-template" || parsed.command == "work" || parsed.command == "api") && !parsed.help {
 		return parsed, fmt.Errorf("--backend is not valid with agenova %s", parsed.command)
 	}
 	if parsed.yes && parsed.command != "platform" && !parsed.help {
 		return parsed, fmt.Errorf("--yes is only valid with agenova platform apply")
 	}
-	if parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && len(parsed.operands) > 0 && !parsed.help {
+	if parsed.portSet && (parsed.command != "api" || len(parsed.operands) != 1 || parsed.operands[0] != "connect") && !parsed.help {
+		return parsed, fmt.Errorf("--port is only valid with agenova api connect")
+	}
+	if parsed.command != "adapters" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && parsed.command != "work" && parsed.command != "api" && len(parsed.operands) > 0 && !parsed.help {
 		return parsed, fmt.Errorf("unexpected argument %q", parsed.operands[0])
 	}
 	return parsed, nil
+}
+
+func setPort(parsed *parsedArgs, value string) error {
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1024 || port > 65535 {
+		return fmt.Errorf("--port must be an integer from 1024 to 65535")
+	}
+	parsed.port = port
+	parsed.portSet = true
+	return nil
 }
 
 func setFile(parsed *parsedArgs, value string) error {

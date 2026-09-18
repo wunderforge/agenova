@@ -9,8 +9,16 @@ import (
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
+
+func TestWorkPhaseApprovalRequiredMatchesPortal(t *testing.T) {
+	view := evidence.View{State: &v1alpha1.IssuedState{Decision: v1alpha1.Decision{Result: v1alpha1.DecisionResultApprovalRequired}}, Outcome: &evidence.Outcome{Status: "ApprovalRequired"}}
+	if got := workPhase(view); got != "Approval required" {
+		t.Fatalf("approval phase = %q", got)
+	}
+}
 
 func TestHelpAndVersion(t *testing.T) {
 	t.Parallel()

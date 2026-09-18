@@ -11,6 +11,7 @@ export function useConnection(parts: string[], revision: number) {
   const [current, setCurrent] = useState<View>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [setupError, setSetupError] = useState('');
   const [paused, setPaused] = useState(false);
   let ref = '';
   let routeError = '';
@@ -27,6 +28,7 @@ export function useConnection(parts: string[], revision: number) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
+    let setupLoaded = false;
     const started = Date.now();
     setLoading(true); setError(''); setCurrent(undefined); setPaused(false);
     if (routeError) {
@@ -37,12 +39,15 @@ export function useConnection(parts: string[], revision: number) {
     async function load() {
       try {
         const [nextSetup, list, detail] = await Promise.all([
-          connectedSource.setup(controller.signal),
+          // Setup may query the installed Platform and Kubernetes. Load once
+          // per connection/route revision; only Work evidence is polled.
+          setupLoaded ? Promise.resolve(undefined) : connectedSource.setup(controller.signal),
           connectedSource.list(controller.signal),
           ref ? connectedSource.request(ref, controller.signal) : Promise.resolve(undefined),
         ]);
         if (disposed) return;
-        setSetup(nextSetup); setWorks(list); setCurrent(detail);
+        if (nextSetup) { setSetup(nextSetup); setSetupError(''); setupLoaded = true; }
+        setWorks(list); setCurrent(detail);
         setLoading(false); setError('');
         if (detail && isTerminal(detail) && detail.outcome) return;
         if (Date.now() - started >= 120_000) { setPaused(true); return; }
@@ -60,8 +65,32 @@ export function useConnection(parts: string[], revision: number) {
     };
   }, [ref, routeError, revision]);
 
+  // Registry-backed setup is much more expensive than evidence polling, but
+  // it must not remain indefinitely stale on a terminal Work or idle page.
+  useEffect(() => {
+    const controller = new AbortController();
+    let disposed = false;
+    let refreshing = false;
+    const timer = setInterval(async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const next = await connectedSource.setup(controller.signal);
+        if (!disposed) { setSetup(next); setSetupError(''); }
+      } catch (cause) {
+        if (!disposed) {
+          setSetup(undefined);
+          setSetupError(cause instanceof Error ? cause.message : 'Platform setup is unavailable.');
+        }
+      } finally {
+        refreshing = false;
+      }
+    }, 30_000);
+    return () => { disposed = true; clearInterval(timer); controller.abort(); };
+  }, [revision]);
+
   // Guard synchronously: hash navigation can render a new record route with
   // the previous work's state before the effect has reset it.
-  return { setup, works, current, loading: routeError ? false : loading, error: routeError || error, paused };
+  return { setup, works, current, loading: routeError ? false : loading, error: routeError || setupError || error, paused };
 }
 

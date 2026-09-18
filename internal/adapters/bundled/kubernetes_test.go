@@ -23,6 +23,19 @@ type fakeKubectl struct {
 	run    func([]string) (commandResult, error)
 }
 
+func TestInstalledRoleCanListOnlyNamespaceConfigMapsForRegisteredSetup(t *testing.T) {
+	role := roleObject("agenova-system")
+	if role["kind"] != "Role" || role["metadata"].(map[string]any)["namespace"] != "agenova-system" {
+		t.Fatalf("expected namespace-scoped Role, got %#v", role)
+	}
+	rules := role["rules"].([]any)
+	first := rules[0].(map[string]any)
+	if first["resources"].([]any)[0] != "configmaps" ||
+		first["verbs"].([]any)[0] != "get" || first["verbs"].([]any)[1] != "list" {
+		t.Fatalf("setup query permissions = %#v", first)
+	}
+}
+
 func (f *fakeKubectl) Run(_ context.Context, input []byte, args ...string) (commandResult, error) {
 	f.calls = append(f.calls, append([]string(nil), args...))
 	f.inputs = append(f.inputs, append([]byte(nil), input...))

@@ -280,7 +280,7 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
     ['Memory Interface', 'memory', ['Memory']],
   ];
   return <>
-    <Heading title="Platform" subtitle="Configured capabilities and recorded use."/>
+    <Heading title="Platform" subtitle={`${setup.installation.platform} · ${setup.installation.revision.slice(0, 19)} · configured capabilities and recorded use.`}/>
     <div className="portal-table-wrap"><table className="portal-table portal-platform-table">
       <thead><tr><th>Capability</th><th>Configuration</th><th>Recorded use</th><th>Open</th></tr></thead>
       <tbody>{capabilities.map(([name, key, kinds]) => <tr key={name}>

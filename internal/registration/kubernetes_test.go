@@ -313,6 +313,43 @@ func TestKubernetesActivePolicyRejectsRecordWithWrongIdentity(t *testing.T) {
 	}
 }
 
+func TestKubernetesTemplateDiscoveryUsesManagedRecordsOnly(t *testing.T) {
+	template, parseErr := v0.ParseAgentTemplateYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata: {name: engineer}
+spec:
+  artifact: {image: agenova-testworker:kind}
+  entrypoint: {command: [/agenova-workerctl, serve]}
+  capabilityCeiling:
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+`))
+	if parseErr != nil {
+		t.Fatal(parseErr)
+	}
+	encoded, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listing, err := json.Marshal(map[string]any{"items": []any{
+		map[string]any{"metadata": map[string]any{"name": recordName("template", "engineer")}, "data": map[string]string{"template.json": string(encoded)}},
+		map[string]any{"metadata": map[string]any{"name": "unmanaged-unrelated"}, "data": map[string]string{"template.json": string(encoded)}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		if len(args) < 5 || args[1] != "agenova-system" || args[2] != "get" {
+			t.Fatalf("unexpected query: %v", args)
+		}
+		return listing, nil
+	}}
+	templates, err := store.Templates()
+	if err != nil || len(templates) != 1 || templates[0].Metadata.Name != "engineer" {
+		t.Fatalf("templates=%#v, %v", templates, err)
+	}
+}
+
 func TestKubernetesStoreRejectsUnmanagedActivePointer(t *testing.T) {
 	store := KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
 		if len(args) > 4 && args[4] == "agenova-active-policy" {

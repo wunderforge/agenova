@@ -614,6 +614,20 @@ func (s *RunService) State(claimID string) *v1alpha1.IssuedState {
 	return s.current(claimID)
 }
 
+// ObserveState holds the lifecycle read lock while the caller reads its
+// correlated journal projection. Runtime transitions append their event while
+// holding the write lock, so observers cannot combine a new phase with an old
+// Runtime fact (or an old phase with a new Runtime fact). The callback must not
+// call RunService methods or retain the state pointer for mutation.
+func (s *RunService) ObserveState(claimID string, observe func(*v1alpha1.IssuedState)) {
+	if s == nil || observe == nil {
+		return
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	observe(cloneIssuedState(s.state[claimID]))
+}
+
 func allowedTransition(from, to v1alpha1.ClaimPhase) bool {
 	switch from {
 	case v1alpha1.ClaimPhasePending:

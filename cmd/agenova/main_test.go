@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -21,6 +22,18 @@ func TestSubmitClaimRequestPreservesTerminalReportOnBackendFailure(t *testing.T)
 	}
 	if report.RequestRef != "fix-payment-timeout" || report.Decision != "Allow" || report.ClaimID == "" || report.Phase != "Failed" || report.Allocated {
 		t.Fatalf("terminal report = %+v", report)
+	}
+}
+
+func TestCustomAPIConnectPortAdvertisesMatchingViteTarget(t *testing.T) {
+	defaultMessage := apiConnectInstruction(8088)
+	if strings.Contains(defaultMessage, "AGENOVA_API_URL") || !strings.Contains(defaultMessage, "npm --prefix ui run dev") || strings.Contains(defaultMessage, "start npm dev") {
+		t.Fatalf("default port must advertise the valid UI command without extra configuration: %q", defaultMessage)
+	}
+	custom := apiConnectInstruction(18081)
+	if !strings.Contains(custom, "$env:AGENOVA_API_URL = 'http://127.0.0.1:18081'") ||
+		!strings.Contains(custom, "AGENOVA_API_URL=http://127.0.0.1:18081 npm --prefix ui run dev") {
+		t.Fatalf("custom port did not advertise the matching Vite target: %q", custom)
 	}
 }
 

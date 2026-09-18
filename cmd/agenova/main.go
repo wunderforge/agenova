@@ -4,11 +4,15 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"os/exec"
 
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/cli"
 	"github.com/wunderforge/agenova/internal/connectedclient"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
@@ -17,6 +21,9 @@ func main() {
 		NewRuntime:      app.NewRuntime,
 		Run:             submitClaimRequest,
 		RunConnected:    submitConnected,
+		ShowConnected:   showConnected,
+		ListConnected:   listConnected,
+		ConnectAPI:      connectAPI,
 		NewAdapters:     app.NewAdapterLifecycle,
 		NewPlatform:     app.NewPlatformService,
 		NewRegistration: app.NewRegistrationService,
@@ -24,16 +31,67 @@ func main() {
 	}))
 }
 
-func submitConnected(path, stateDirectory string) (cli.RunReport, error) {
+func installedClient(stateDirectory string) (connectedclient.Client, error) {
 	state, err := app.AppliedPlatform(stateDirectory)
 	if err != nil {
-		return cli.RunReport{}, err
+		return connectedclient.Client{}, fmt.Errorf("apply a Platform before connecting to Work: %w", err)
 	}
 	contextName, namespace, err := app.DeploymentCoordinates(&state.Platform)
 	if err != nil {
+		return connectedclient.Client{}, err
+	}
+	return connectedclient.Client{Context: contextName, Namespace: namespace}, nil
+}
+
+func showConnected(ref, stateDirectory string) (evidence.View, error) {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
+		return evidence.View{}, err
+	}
+	return client.Show(ref)
+}
+
+func listConnected(stateDirectory string) ([]evidence.View, error) {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
+		return nil, err
+	}
+	return client.List()
+}
+
+func connectAPI(stateDirectory string, port int, stdout, stderr io.Writer) error {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
+		return err
+	}
+	path, err := exec.LookPath("kubectl")
+	if err != nil {
+		return fmt.Errorf("kubectl is required to connect to the installed API")
+	}
+	cmd := exec.Command(path, "--context", client.Context, "--namespace", client.Namespace,
+		"port-forward", "deployment/agenova-control-plane", fmt.Sprintf("%d:8081", port), "--address", "127.0.0.1")
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	fmt.Fprint(stdout, apiConnectInstruction(port))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("local API connection stopped; check port availability, Platform status and Kubernetes access")
+	}
+	return nil
+}
+
+func apiConnectInstruction(port int) string {
+	message := fmt.Sprintf("Connecting local Agenova API at http://127.0.0.1:%d. Wait for kubectl's Forwarding line, then run npm --prefix ui run dev in another terminal.\n", port)
+	if port != 8088 {
+		message += fmt.Sprintf("In the Vite terminal, set $env:AGENOVA_API_URL = 'http://127.0.0.1:%d' (PowerShell) or run AGENOVA_API_URL=http://127.0.0.1:%d npm --prefix ui run dev (POSIX shell).\n", port, port)
+	}
+	return message
+}
+
+func submitConnected(path, stateDirectory string) (cli.RunReport, error) {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
 		return cli.RunReport{}, err
 	}
-	view, err := (connectedclient.Client{Context: contextName, Namespace: namespace}).RunFile(path)
+	view, err := client.RunFile(path)
 	if view.RequestRef == "" {
 		return cli.RunReport{}, err
 	}

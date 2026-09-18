@@ -10,6 +10,7 @@ export type View = Omit<CanonicalView, 'request' | 'facts'> & {
   facts: Fact[];
 };
 export interface Setup {
+  installation: { kind: 'installed'; platform: string; revision: string };
   principal: Principal;
   template: AgentTemplate;
   policy: {
@@ -69,6 +70,8 @@ export const connectedSource = {
     if (!data || typeof data !== 'object') throw new SourceError(502, 'Platform setup is unavailable.');
     const setup = data as Setup;
     if (shapeDiagnostics('Principal', setup.principal).length ||
+        setup.installation?.kind !== 'installed' || !setup.installation.platform ||
+        !/^sha256:[a-f0-9]{64}$/.test(setup.installation.revision) ||
         shapeDiagnostics('AgentTemplate', setup.template).length ||
         !setup.policy || typeof setup.policy.ID !== 'string' ||
         typeof setup.policy.Version !== 'string' || !Array.isArray(setup.policy.Rules) ||
@@ -76,7 +79,7 @@ export const connectedSource = {
           [rule.team, rule.action, rule.project, rule.templateRef].every(value => typeof value === 'string')) ||
         !setup.capabilities || typeof setup.capabilities !== 'object' ||
         !Object.values(setup.capabilities).every(value => typeof value === 'string')) {
-      throw new SourceError(502, 'Platform setup is incomplete.');
+      throw new SourceError(502, 'This connection is not an installed Agenova Platform, or its setup is incomplete.');
     }
     return setup;
   },
