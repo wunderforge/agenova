@@ -46,11 +46,16 @@ func installedEvidenceJSON(ref, outcome string) string {
 		}
 		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
 		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
+		facts = "[" + resolutionFact(ref, decision) + "]"
 		if decision == "Allow" {
-			facts = fmt.Sprintf(`[{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
+			facts = facts[:len(facts)-1] + "," + fmt.Sprintf(`{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
 		}
 	}
 	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":%s%s}`, ref, ref, facts, suffix)
+}
+
+func resolutionFact(ref, decision string) string {
+	return fmt.Sprintf(`{"id":"fact:1","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":%q,"result":%q,"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"}}`, ref, decision, decision)
 }
 
 func withEvidenceFacts(source string, facts ...string) string {
@@ -236,14 +241,14 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:1","sequence":2,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestReceived","requestRef":"demo"},{"id":"fact:2","sequence":1,"timestamp":"2026-09-18T00:00:01Z","kind":"RequestReceived","requestRef":"demo"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"other"}]`, 1),
 		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}`),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo"}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo"}]`, 1),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}`),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo"}`),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo"}`),
 		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:other","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`),
 		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"],"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Allow","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","policyRef":{"id":"policy:other","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","decision":{"id":"decision:other","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
+		withEvidenceFacts(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Allow","policyRef":{"id":"policy:demo","version":"1"}}}`),
+		withEvidenceFacts(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","policyRef":{"id":"policy:other","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}`),
+		withEvidenceFacts(installedEvidenceJSON("demo", "Deny"), `{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","decision":{"id":"decision:other","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}`),
 		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","invocationId":"inv:demo","operation":"model.invoke","result":"Allow"}`),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","model":{"invocationId":"inv:other","model":"llama3.1:latest","inputTokens":1,"outputTokens":1}}`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[],"unknownField":true`, 1),
@@ -275,22 +280,24 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	fact := func(id string, sequence int, kind, result, providerStatus, target string) string {
 		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":%q,"result":%q,"providerStatus":%q}`, id, sequence, kind, target, result, providerStatus)
 	}
-	decision := fact("fact:1", 1, "ModelDecision", "Allow", "", "coding-standard")
-	attempt := fact("fact:2", 2, "ProviderAttempt", "", "Attempted", "coding-standard")
-	outcome := fact("fact:3", 3, "ProviderOutcome", "", "Succeeded", "coding-standard")
+	decision := fact("fact:2", 2, "ModelDecision", "Allow", "", "coding-standard")
+	attempt := fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "coding-standard")
+	outcome := fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "coding-standard")
 	withFacts := func(items ...string) string {
-		items = append(items, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		items = append([]string{resolutionFact("demo", "Allow")}, items...)
+		items = append(items, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 		return withEvidenceFacts(base, items...)
 	}
 	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
 		t.Fatalf("valid model invocation rejected: %v", err)
 	}
 	for _, malformed := range []string{
-		withFacts(fact("fact:1", 1, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:2", 2, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "coding-standard")),
-		withFacts(decision, attempt, outcome, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "coding-standard")),
-		withFacts(fact("fact:1", 1, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
-		withFacts(decision, fact("fact:2", 2, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
-		withFacts(decision, attempt, fact("fact:3", 3, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
+		withFacts(fact("fact:2", 2, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:3", 3, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:4", 4, "ProviderAttempt", "", "Attempted", "coding-standard")),
+		withFacts(decision, attempt, outcome, fact("fact:6", 6, "ProviderOutcome", "", "Succeeded", "coding-standard")),
+		withFacts(fact("fact:2", 2, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
+		withFacts(decision, fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
+		withFacts(decision, attempt, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
+		withFacts(decision, fact("fact:3", 3, "ProviderAttempt", "", "Failed", "coding-standard"), outcome),
 	} {
 		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
 			t.Fatal("unordered or repeated model invocation accepted")
@@ -307,8 +314,8 @@ func TestSuccessfulWorkWithoutModelRemainsValidForToolOnlyAgents(t *testing.T) {
 func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	for _, invalid := range []string{
-		withEvidenceFacts(base),
-		withEvidenceFacts(base, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
+		withEvidenceFacts(base, resolutionFact("demo", "Allow")),
+		withEvidenceFacts(base, resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
 		appendEvidenceFact(base, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`),
 	} {
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
@@ -319,9 +326,30 @@ func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	if _, err := decodeView([]byte(failed), "demo"); err == nil {
 		t.Fatal("accepted terminal failure whose RunOutcome fact omitted the failure reason")
 	}
-	matching := withEvidenceFacts(failed, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
+	matching := withEvidenceFacts(failed, resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
 	if _, err := decodeView([]byte(matching), "demo"); err != nil {
 		t.Fatalf("matching terminal failure reason rejected: %v", err)
+	}
+}
+
+func TestIssuedDecisionRequiresOneCorrelatedResolutionFact(t *testing.T) {
+	for _, status := range []string{"Deny", "Succeeded"} {
+		valid := installedEvidenceJSON("demo", status)
+		if _, err := decodeView([]byte(valid), "demo"); err != nil {
+			t.Fatalf("valid %s decision rejected: %v", status, err)
+		}
+		var facts []string
+		if status == "Succeeded" {
+			facts = append(facts, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		}
+		for _, invalid := range []string{
+			withEvidenceFacts(valid, facts...),
+			appendEvidenceFact(valid, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:other","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}`),
+		} {
+			if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+				t.Fatalf("accepted %s issued decision without exactly one matching resolution", status)
+			}
+		}
 	}
 }
 

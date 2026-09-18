@@ -118,6 +118,7 @@ The CLI does not accept --repo, --tools, or --model authority shortcuts.
 const workHelpText = `Usage:
   agenova work list [--json]
   agenova work show <request-ref> [--json]
+  agenova work show [--json] -- <request-ref beginning with ->
 
 Query current-session Work from the installed service's private API.
 `
@@ -819,9 +820,19 @@ func joinCapabilities(values []platform.Capability) string {
 
 func parseArgs(argv []string) (parsedArgs, error) {
 	parsed := parsedArgs{port: 8088}
+	literalOperand := false
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
+		if literalOperand {
+			parsed.operands = append(parsed.operands, arg)
+			continue
+		}
 		switch {
+		case arg == "--":
+			if parsed.command != "work" || len(parsed.operands) != 1 || parsed.operands[0] != "show" {
+				return parsedArgs{}, fmt.Errorf("-- is only valid after agenova work show")
+			}
+			literalOperand = true
 		case arg == "--help" || arg == "-h":
 			parsed.help = true
 		case arg == "--version" || arg == "-v":

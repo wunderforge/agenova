@@ -55,6 +55,24 @@ func TestConnectedWorkQueryAndLocalAPI(t *testing.T) {
 	}
 }
 
+func TestWorkShowAcceptsFlagShapedReferenceAfterDelimiter(t *testing.T) {
+	for _, ref := range []string{"-incident", "--json"} {
+		services := Services{ShowConnected: func(actual, _ string) (evidence.View, error) {
+			if actual != ref {
+				t.Fatalf("reference = %q, want %q", actual, ref)
+			}
+			return evidence.View{RequestRef: ref}, nil
+		}}
+		var out, errs bytes.Buffer
+		if code := MainWithServices([]string{"agenova", "work", "show", "--", ref}, &out, &errs, services); code != 0 || !strings.Contains(out.String(), "request: "+ref) {
+			t.Fatalf("show %q: exit %d, out %q, err %q", ref, code, out.String(), errs.String())
+		}
+	}
+	if _, err := parseArgs([]string{"work", "list", "--", "-incident"}); err == nil {
+		t.Fatal("end-of-options delimiter must only be accepted for work show")
+	}
+}
+
 func TestDeniedWorkHumanStatusAgreesWithPortal(t *testing.T) {
 	denied := evidence.View{Version: "agenova.evidence/v0", RequestRef: "denied-work", Request: &v0.ClaimRequest{}, Outcome: &evidence.Outcome{Status: "Deny"}}
 	services := Services{
