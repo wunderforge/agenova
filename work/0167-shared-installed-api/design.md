@@ -22,6 +22,17 @@ Keep the API private in the Pod. Add a CLI `api connect` command that starts an 
   chronology and cross-record correlation), not a second governance engine or
   a source of invented outcomes. A client rejection reports unavailable or
   invalid evidence; it never repairs or reclassifies the server's facts.
+- Runtime phase and its journal projection are read under the RunService
+  lifecycle lock. The same event callback appends the journal fact while that
+  lock is held; a query cannot return a new phase with old facts. The client
+  compares the issued state's lightweight runtime-event projection to those
+  facts and checks only contract-level chronology/correlation. The initial
+  `Runtime/Pending` journal insertion is not a state transition and therefore
+  is intentionally absent from `state.evidence.runtimeEvents`.
+- Connected Portal reloads registry-backed setup on a 30-second cadence,
+  independently of the one-second Work poll and even after Work finishes.
+  A failed refresh invalidates the stale setup instead of leaving an old
+  Policy/template suggestion visible as current.
 - `cli`/`cmd`: `work list|show`, `api connect`, Platform status connection metadata and explicit usage errors.
 - `ui`: server-side loopback proxy configuration, connected-mode diagnostics and browser parity checks; no new governance state model.
 

@@ -265,3 +265,18 @@ passed with **51/51** browser smoke tests. A rebuilt CLI queried the retained
 kind Work and the opt-in installed CLI/API/Portal Playwright suite passed
 **2/2** (allowed Ollama Work and policy denial); temporary API/Vite servers
 were stopped after verification.
+
+The follow-up review exposed a producer-side snapshot race, so the installed
+service now captures lifecycle state and its journal Runtime facts under the
+same RunService read lock; a concurrency test holds an observation across a
+Bound transition. The client now checks the remaining terminal-operation
+stages, completed invocations, identity-free expiry/cancellation, canonical
+worker actions, nested runtime projection, unique authority identities and
+live authority facts as one regression matrix. The Portal refreshes setup
+every 30 seconds independently of the one-second Work poll; a browser test
+proves an idle page invalidates stale setup when its endpoint fails.
+The first rebuilt-CLI live query exposed an important projection detail:
+`Runtime/Pending` is a journal insertion, not an entry in the state's nested
+transition list. The comparison now excludes only that initial event, and
+the rebuilt CLI successfully listed the retained succeeded and denied Works.
+The installed CLI/API/Portal Playwright parity suite passed **2/2** again.

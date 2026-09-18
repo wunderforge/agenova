@@ -728,6 +728,40 @@ func newTestRunService(t *testing.T, backend runtime.RuntimeBackend, options Run
 	return service
 }
 
+func TestObserveStateKeepsLifecycleAndJournalReadAtomic(t *testing.T) {
+	service := newTestRunService(t, newRecordingBackend(), RunServiceOptions{})
+	issued := pendingIssuedState(time.Minute)
+	service.state[issued.Claim.ID] = issued
+	observing := make(chan struct{})
+	release := make(chan struct{})
+	observed := make(chan struct{})
+	go func() {
+		service.ObserveState(issued.Claim.ID, func(snapshot *v1alpha1.IssuedState) {
+			if snapshot == nil || snapshot.Claim.Phase != v1alpha1.ClaimPhasePending {
+				t.Errorf("unexpected snapshot: %#v", snapshot)
+			}
+			close(observing)
+			<-release
+		})
+		close(observed)
+	}()
+	<-observing
+	transitioned := make(chan error, 1)
+	go func() {
+		transitioned <- service.transition(issued.Claim.ID, v1alpha1.ClaimPhaseBound, EventBound, &v1alpha1.SandboxClaimBackendIdentity{Backend: "test", WorkerID: "worker:1"})
+	}()
+	select {
+	case err := <-transitioned:
+		t.Fatalf("transition overtook the snapshot: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	<-observed
+	if err := <-transitioned; err != nil {
+		t.Fatalf("transition after snapshot: %v", err)
+	}
+}
+
 func pendingIssuedState(timeout time.Duration) *v1alpha1.IssuedState {
 	policyRef := v1alpha1.PolicyReference{ID: "policy", Version: "1"}
 	return &v1alpha1.IssuedState{

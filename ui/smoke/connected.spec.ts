@@ -81,6 +81,23 @@ test('connected Work polling does not repeatedly query Platform setup', async ({
  await expect.poll(()=>listCalls,{timeout:6000}).toBeGreaterThanOrEqual(5);
  expect(setupCalls).toBe(initialSetupCalls);
 });
+test('idle connected setup is revalidated without one-second Kubernetes polling', async ({page}) => {
+ test.setTimeout(45_000);
+ let setupCalls=0;
+ let available=true;
+ await api(page,()=>[work('Succeeded')]);
+ await page.route('**/api/setup', route=>{
+   setupCalls++;
+   return available ? route.fulfill({json:setup}) : route.fulfill({status:503,json:{code:'unavailable'}});
+ });
+ await page.goto('/?mode=connected#/work');
+ await expect.poll(()=>setupCalls).toBeGreaterThan(0);
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ const initial=setupCalls;
+ available=false;
+ await expect.poll(()=>setupCalls,{timeout:35_000,intervals:[1000]}).toBeGreaterThan(initial);
+ await expect(page.getByRole('alert')).toContainText('connection is unavailable');
+});
 test('legacy task title uses its first sentence but retains complete instructions',async({page},info)=>{
  const current=work();
  const first='Investigate why synthetic payment retries exceed the deadline.';

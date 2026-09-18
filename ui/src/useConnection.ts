@@ -11,6 +11,7 @@ export function useConnection(parts: string[], revision: number) {
   const [current, setCurrent] = useState<View>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [setupError, setSetupError] = useState('');
   const [paused, setPaused] = useState(false);
   let ref = '';
   let routeError = '';
@@ -45,7 +46,7 @@ export function useConnection(parts: string[], revision: number) {
           ref ? connectedSource.request(ref, controller.signal) : Promise.resolve(undefined),
         ]);
         if (disposed) return;
-        if (nextSetup) { setSetup(nextSetup); setupLoaded = true; }
+        if (nextSetup) { setSetup(nextSetup); setSetupError(''); setupLoaded = true; }
         setWorks(list); setCurrent(detail);
         setLoading(false); setError('');
         if (detail && isTerminal(detail) && detail.outcome) return;
@@ -64,8 +65,32 @@ export function useConnection(parts: string[], revision: number) {
     };
   }, [ref, routeError, revision]);
 
+  // Registry-backed setup is much more expensive than evidence polling, but
+  // it must not remain indefinitely stale on a terminal Work or idle page.
+  useEffect(() => {
+    const controller = new AbortController();
+    let disposed = false;
+    let refreshing = false;
+    const timer = setInterval(async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const next = await connectedSource.setup(controller.signal);
+        if (!disposed) { setSetup(next); setSetupError(''); }
+      } catch (cause) {
+        if (!disposed) {
+          setSetup(undefined);
+          setSetupError(cause instanceof Error ? cause.message : 'Platform setup is unavailable.');
+        }
+      } finally {
+        refreshing = false;
+      }
+    }, 30_000);
+    return () => { disposed = true; clearInterval(timer); controller.abort(); };
+  }, [revision]);
+
   // Guard synchronously: hash navigation can render a new record route with
   // the previous work's state before the effect has reset it.
-  return { setup, works, current, loading: routeError ? false : loading, error: routeError || error, paused };
+  return { setup, works, current, loading: routeError ? false : loading, error: routeError || setupError || error, paused };
 }
 
