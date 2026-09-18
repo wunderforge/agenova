@@ -294,7 +294,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
 			return false
 		}
-		if view.Outcome.Model != nil && (view.Outcome.Status != "Succeeded" || !hasSuccessfulModelInvocation(view.Facts, view.Outcome.Model.InvocationID)) {
+		if view.Outcome.Model != nil && (view.State.EffectiveAuthority == nil || view.Outcome.Status != "Succeeded" || !hasSuccessfulModelInvocation(view.Facts, view.Outcome.Model.InvocationID, view.State.EffectiveAuthority.ModelProfile)) {
 			return false
 		}
 		// Model is optional in the shared Work evidence contract: a successful
@@ -338,7 +338,10 @@ func sameAuthority(a, b v0.EffectiveAuthority) bool {
 		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
 }
 
-func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID string) bool {
+func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedProfile string) bool {
+	if grantedProfile == "" {
+		return false
+	}
 	stage := 0
 	for _, fact := range recorded {
 		if fact.InvocationID != invocationID || fact.Operation != "model.invoke" {
@@ -346,17 +349,17 @@ func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID string) bo
 		}
 		switch fact.Kind {
 		case "ModelDecision":
-			if stage != 0 || fact.Result != v0.DecisionResultAllow {
+			if stage != 0 || fact.Result != v0.DecisionResultAllow || fact.Target != grantedProfile {
 				return false
 			}
 			stage = 1
 		case "ProviderAttempt":
-			if stage != 1 {
+			if stage != 1 || fact.Target != grantedProfile {
 				return false
 			}
 			stage = 2
 		case "ProviderOutcome":
-			if stage != 2 || fact.ProviderStatus != "Succeeded" {
+			if stage != 2 || fact.ProviderStatus != "Succeeded" || fact.Target != grantedProfile {
 				return false
 			}
 			stage = 3

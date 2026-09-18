@@ -270,12 +270,14 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 
 func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	base := strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","model":{"invocationId":"inv:demo","model":"llama3.1:latest","inputTokens":1,"outputTokens":1}}`, 1)
-	fact := func(id string, sequence int, kind, result, providerStatus string) string {
-		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","result":%q,"providerStatus":%q}`, id, sequence, kind, result, providerStatus)
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+	fact := func(id string, sequence int, kind, result, providerStatus, target string) string {
+		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":%q,"result":%q,"providerStatus":%q}`, id, sequence, kind, target, result, providerStatus)
 	}
-	decision := fact("fact:1", 1, "ModelDecision", "Allow", "")
-	attempt := fact("fact:2", 2, "ProviderAttempt", "", "Attempted")
-	outcome := fact("fact:3", 3, "ProviderOutcome", "", "Succeeded")
+	decision := fact("fact:1", 1, "ModelDecision", "Allow", "", "coding-standard")
+	attempt := fact("fact:2", 2, "ProviderAttempt", "", "Attempted", "coding-standard")
+	outcome := fact("fact:3", 3, "ProviderOutcome", "", "Succeeded", "coding-standard")
 	withFacts := func(items ...string) string {
 		items = append(items, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 		return withEvidenceFacts(base, items...)
@@ -284,8 +286,11 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 		t.Fatalf("valid model invocation rejected: %v", err)
 	}
 	for _, malformed := range []string{
-		withFacts(fact("fact:1", 1, "ProviderOutcome", "", "Succeeded"), fact("fact:2", 2, "ModelDecision", "Allow", ""), fact("fact:3", 3, "ProviderAttempt", "", "Attempted")),
-		withFacts(decision, attempt, outcome, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded")),
+		withFacts(fact("fact:1", 1, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:2", 2, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "coding-standard")),
+		withFacts(decision, attempt, outcome, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "coding-standard")),
+		withFacts(fact("fact:1", 1, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
+		withFacts(decision, fact("fact:2", 2, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
+		withFacts(decision, attempt, fact("fact:3", 3, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
 	} {
 		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
 			t.Fatal("unordered or repeated model invocation accepted")

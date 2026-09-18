@@ -137,3 +137,11 @@ explanations. Both now have focused negative and positive regression cases.
 The final repository gate passed (including 50 Playwright smoke tests), and
 the real installed CLI/API/React kind/Ollama gate passed **2/2** again after
 these changes. Temporary local servers were stopped.
+The following independent review found that model invocation facts also
+need to match the issued logical model profile. Decision, provider attempt,
+and successful provider outcome now each require that exact target; unit
+tests mutate each stage to an ungranted profile and assert rejection.
+The real installed kind/Ollama CLI/API/React suite passed **2/2** with this
+profile check. An overlapping full-gate/browser invocation had one navigation
+smoke failure; its focused rerun passed, and a serial full repository gate
+then passed all 50 browser smoke tests. Final evidence uses the serial pass.
