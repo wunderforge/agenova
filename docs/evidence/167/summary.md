@@ -90,8 +90,18 @@ Negative unit tests now cover modified capability fields, inverted/repeated
 invocation stages, and duplicate list entries. The rebuilt CLI still reads
 the actual kind/Ollama allowed and denied records without accepting these
 malformed responses.
+
 The installed CLI/API/React Playwright suite then passed **2/2** on the
 retained real allowed and denied records; the tunnel and Vite server were
 stopped after verification.
+
+The subsequent review required issued authority to remain within the
+original request and claim-scoped Fact kinds to carry the issued Claim ID.
+The CLI now checks exact requested tool/resource/memory subsets, matching
+model/runtime profile and no wider timeout, and rejects runtime/outcome facts
+on a pre-claim Deny even when their `claimId` is omitted. New negative unit
+cases passed; the rebuilt CLI still reads the real kind/Ollama allowed and
+denied records. The real installed CLI/API/React Playwright suite passed
+**2/2** again; the temporary tunnel and Vite server were stopped.
 
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
