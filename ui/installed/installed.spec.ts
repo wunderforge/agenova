@@ -41,6 +41,12 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   expect(detail.state?.claim?.backendIdentity?.workerId).toMatch(/^agenova-pool-/);
   expect(detail.outcome?.status).toBe('Succeeded');
   expect(detail.outcome?.model?.model).toBe('llama3.1:latest');
+  const finalModelFacts = detail.facts.filter(fact => fact.invocationId === detail.outcome?.model?.invocationId);
+  expect(finalModelFacts).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: 'ModelDecision', operation: 'model.invoke', result: 'Allow' }),
+    expect.objectContaining({ kind: 'ProviderAttempt', operation: 'model.invoke' }),
+    expect.objectContaining({ kind: 'ProviderOutcome', operation: 'model.invoke', providerStatus: 'Succeeded' }),
+  ]));
   expect(detail.facts).toEqual(expect.arrayContaining([
     expect.objectContaining({ kind: 'ModelDecision', operation: 'model.invoke', result: 'Allow' }),
     expect.objectContaining({ kind: 'ProviderOutcome', operation: 'model.invoke' }),

@@ -61,4 +61,14 @@ Succeeded Claim and pre-claim Deny; the separate local tunnel, Vite server,
 and strengthened installed Playwright suite passed **2/2**. The tunnel and
 Vite sessions were stopped, and `kubectl get sandboxclaims` found no resources.
 
+The next current-head review prompted three additional correlations at the
+CLI evidence boundary: Fact authority must be the issued Claim authority;
+top-level and nested decision result/policy must agree; and the terminal
+model result must have a matching allowed ModelDecision, ProviderAttempt, and
+successful ProviderOutcome for its invocation. Negative unit cases were
+added. The rebuilt CLI still queried the actual allowed Work (`Succeeded`,
+48 facts, `llama3.1:latest`) and denied Work (`Deny`, no Claim, two facts),
+and the installed Playwright suite passed **2/2** with an added assertion
+that its final model result matches those three recorded invocation facts.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
