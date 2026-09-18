@@ -182,6 +182,16 @@ The complete repository gate passed with **51/51** browser smoke tests.
 Against the retained real kind/Ollama records, the rebuilt CLI and local
 Portal again passed the installed parity suite **2/2**; the temporary API
 tunnel and Vite server were stopped afterward.
+The next review refined the lifecycle boundary: successful Work must record
+Runtime/Running; globally sequenced Facts cannot reuse a sequence across
+Works; a cancelled or expired runtime may still receive the **already in
+flight** provider's final Cancelled outcome after revocation, but cannot
+start a new invocation; and tool ProviderOutcome must retain its attempt
+target. Positive and negative tests cover the interrupted provider ordering
+and cross-Work sequence/target mutations.
+The full repository gate passed with **51/51** browser smoke tests, followed
+by the real installed kind/Ollama CLI/API/React parity suite **2/2**. The
+temporary API tunnel and Vite server were stopped.
 Independent review of the original PR found additional query-integrity
 checks: complete trusted team/authentication context, exactly one ordered
 `RequestReceived` before `RequestResolution`, and allowed ToolDecision targets

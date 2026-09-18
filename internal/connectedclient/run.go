@@ -89,6 +89,7 @@ func (c Client) List() ([]evidence.View, error) {
 	seenClaims := make(map[string]struct{}, len(views))
 	seenBackends := make(map[v0.SandboxClaimBackendIdentity]struct{}, len(views))
 	seenFacts := make(map[string]struct{})
+	seenSequences := make(map[uint64]struct{})
 	invocationOwners := make(map[string]string)
 	for _, view := range views {
 		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
@@ -116,6 +117,10 @@ func (c Client) List() ([]evidence.View, error) {
 				return nil, fmt.Errorf("installed Work service returned duplicate Fact identity")
 			}
 			seenFacts[fact.ID] = struct{}{}
+			if _, exists := seenSequences[fact.Sequence]; exists {
+				return nil, fmt.Errorf("installed Work service returned duplicate Fact sequence")
+			}
+			seenSequences[fact.Sequence] = struct{}{}
 			if fact.InvocationID != "" {
 				if owner, exists := invocationOwners[fact.InvocationID]; exists && owner != view.RequestRef {
 					return nil, fmt.Errorf("installed Work service returned duplicate invocation identity")
@@ -247,9 +252,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	}
 	seenIDs := make(map[string]struct{}, len(view.Facts))
 	type invocationStage struct {
-		operation string
-		target    string
-		stage     int
+		operation      string
+		target         string
+		providerTarget string
+		stage          int
 	}
 	invocations := make(map[string]invocationStage)
 	var lastSequence uint64
@@ -263,6 +269,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	authorityResolved := 0
 	runningRecorded := false
 	runtimeTerminal := false
+	runtimeTerminalOperation := ""
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
@@ -358,10 +365,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 					return false
 				}
 				runtimeTerminal = true
+				runtimeTerminalOperation = fact.Operation
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
-			if !runningRecorded || runtimeTerminal {
+			if !runningRecorded || runtimeTerminal &&
+				(fact.Kind != "ProviderOutcome" || fact.ProviderStatus != "Cancelled" ||
+					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {
 				return false
 			}
 		}
@@ -398,12 +408,14 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				return false
 			}
 			if fact.Kind == "ProviderAttempt" {
-				if previous.stage != 1 || fact.ProviderStatus != "Attempted" {
+				if previous.stage != 1 || fact.ProviderStatus != "Attempted" || fact.Target == "" {
 					return false
 				}
+				previous.providerTarget = fact.Target
 				previous.stage = 2
 			} else {
-				if previous.stage != 2 || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {
+				if previous.stage != 2 || fact.Target != previous.providerTarget ||
+					(fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {
 					return false
 				}
 				previous.stage = 3
@@ -470,7 +482,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {
 			return false
 		}
-		if view.Outcome.Status == "Succeeded" && authorityResolved != 1 {
+		if view.Outcome.Status == "Succeeded" && (authorityResolved != 1 || !runningRecorded) {
 			return false
 		}
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {

@@ -194,6 +194,34 @@ func changeInvocationPolicy(source, kind string, policy json.RawMessage) string 
 	return string(encoded)
 }
 
+func offsetFactSequences(source string, offset uint64) string {
+	var view map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		panic(err)
+	}
+	var recorded []map[string]json.RawMessage
+	if err := json.Unmarshal(view["facts"], &recorded); err != nil {
+		panic(err)
+	}
+	for _, fact := range recorded {
+		var sequence uint64
+		if err := json.Unmarshal(fact["sequence"], &sequence); err != nil {
+			panic(err)
+		}
+		fact["sequence"] = json.RawMessage(fmt.Sprintf("%d", sequence+offset))
+	}
+	var err error
+	view["facts"], err = json.Marshal(recorded)
+	if err != nil {
+		panic(err)
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
 func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
 	path := workFile(t, "demo")
 	calls := 0
@@ -293,7 +321,7 @@ func TestListRejectsDuplicateRequestReferences(t *testing.T) {
 func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
 	first := installedEvidenceJSON("first", "Succeeded")
 	second := strings.ReplaceAll(installedEvidenceJSON("second", "Succeeded"), `"id":"fact:`, `"id":"fact:second-`)
-	independent := strings.ReplaceAll(second, "worker:demo", "worker:second")
+	independent := offsetFactSequences(strings.ReplaceAll(second, "worker:demo", "worker:second"), 100)
 	response := "[" + first + "," + independent + "]"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(response))
@@ -306,14 +334,18 @@ func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
 		t.Fatalf("independent Work list rejected: %v", err)
 	}
 	for _, invalid := range []string{
-		"[" + first + "," + second + "]",
+		"[" + first + "," + offsetFactSequences(second, 100) + "]",
 		"[" + first + "," + strings.ReplaceAll(independent, "claim:second", "claim:first") + "]",
-		"[" + first + "," + strings.ReplaceAll(installedEvidenceJSON("second", "Succeeded"), "worker:demo", "worker:second") + "]",
+		"[" + first + "," + offsetFactSequences(strings.ReplaceAll(installedEvidenceJSON("second", "Succeeded"), "worker:demo", "worker:second"), 100) + "]",
 	} {
 		response = invalid
 		if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate") {
 			t.Fatalf("reused Claim or worker identity accepted: %v", err)
 		}
+	}
+	response = "[" + first + "," + strings.ReplaceAll(second, "worker:demo", "worker:second") + "]"
+	if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate Fact sequence") {
+		t.Fatalf("reused global Fact sequence accepted: %v", err)
 	}
 	withModelDecision := func(source, ref, invocationID, factID string) string {
 		source = strings.Replace(source, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
@@ -322,12 +354,13 @@ func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
 		return insertBeforeRunOutcome(source, fact)
 	}
 	firstCall := withModelDecision(first, "first", "inv:shared", "fact:first-call")
-	secondCall := withModelDecision(independent, "second", "inv:second", "fact:second-call")
+	secondWithWorker := strings.ReplaceAll(second, "worker:demo", "worker:second")
+	secondCall := offsetFactSequences(withModelDecision(secondWithWorker, "second", "inv:second", "fact:second-call"), 100)
 	response = "[" + firstCall + "," + secondCall + "]"
 	if views, err := client.List(); err != nil || len(views) != 2 {
 		t.Fatalf("independent invocation list rejected: %v", err)
 	}
-	response = "[" + firstCall + "," + withModelDecision(independent, "second", "inv:shared", "fact:second-call") + "]"
+	response = "[" + firstCall + "," + offsetFactSequences(withModelDecision(secondWithWorker, "second", "inv:shared", "fact:second-call"), 100) + "]"
 	if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate invocation") {
 		t.Fatalf("cross-Work invocation identity reuse accepted: %v", err)
 	}
@@ -702,9 +735,61 @@ func TestInvocationRequiresRunningAndResolvedAuthority(t *testing.T) {
 	if _, err := decodeView([]byte(withoutRunning), "demo"); err == nil {
 		t.Fatal("accepted governed call before Runtime/Running")
 	}
+	withoutWorkerStart := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+	if _, err := decodeView([]byte(withoutWorkerStart), "demo"); err == nil {
+		t.Fatal("accepted successful Work without Runtime/Running evidence")
+	}
 	withoutAuthority := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), runningFact("demo"), `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 	if _, err := decodeView([]byte(withoutAuthority), "demo"); err == nil {
 		t.Fatal("accepted runtime activity without authority resolution")
+	}
+}
+
+func TestInFlightProviderOutcomeCanCloseAfterRuntimeCancellation(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Failed")
+	base = strings.Replace(base, `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Cancelled"}`, 1)
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
+	decision := `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
+	attempt := `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
+	terminalRuntime := `{"id":"fact:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Cancelled"}`
+	providerOutcome := `{"id":"fact:9","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","operation":"model.invoke","target":"coding-standard","providerStatus":"Cancelled"}`
+	terminalWork := `{"id":"fact:10","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Cancelled"}`
+	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), runningFact("demo"), decision, attempt, terminalRuntime, providerOutcome, terminalWork)
+	if _, err := decodeView([]byte(valid), "demo"); err != nil {
+		t.Fatalf("in-flight cancelled provider outcome rejected: %v", err)
+	}
+	lateDecision := `{"id":"fact:late","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:new","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
+	if _, err := decodeView([]byte(insertBeforeRunOutcome(valid, lateDecision)), "demo"); err == nil {
+		t.Fatal("accepted a new invocation decision after runtime cancellation")
+	}
+}
+
+func TestToolProviderOutcomeRetainsAttemptTarget(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["git.read"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`)
+	decision := `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ToolDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","policyRef":{"id":"policy:demo","version":"1"},"operation":"tool.invoke","target":"git.read","result":"Allow"}`
+	attempt := `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","operation":"tool.invoke","target":"Mock git.read · a","providerStatus":"Attempted"}`
+	providerOutcome := `{"id":"fact:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","operation":"tool.invoke","target":"Mock git.read · a","providerStatus":"Succeeded"}`
+	terminal := `{"id":"fact:9","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
+	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), strings.Replace(authorityFact("demo"), `"id":"authority:demo"`, `"id":"authority:demo","tools":["git.read"]`, 1), boundFact("demo"), runningFact("demo"), decision, attempt, providerOutcome, terminal)
+	if _, err := decodeView([]byte(valid), "demo"); err != nil {
+		t.Fatalf("consistent tool provider target rejected: %v", err)
+	}
+	invalid := strings.Replace(valid, `"target":"Mock git.read · a","providerStatus":"Succeeded"`, `"target":"Mock git.read · b","providerStatus":"Succeeded"`, 1)
+	if invalid == valid {
+		t.Fatal("fixture did not change tool provider target")
+	}
+	if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+		t.Fatal("accepted a tool outcome for a different provider target")
+	}
+	emptyTarget := strings.Replace(valid, `"target":"Mock git.read · a","providerStatus":"Attempted"`, `"target":"","providerStatus":"Attempted"`, 1)
+	if emptyTarget == valid {
+		t.Fatal("fixture did not empty the tool attempt target")
+	}
+	if _, err := decodeView([]byte(emptyTarget), "demo"); err == nil {
+		t.Fatal("accepted a tool attempt without a target")
 	}
 }
 
