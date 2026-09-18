@@ -8,13 +8,16 @@ const allowedRef = process.env.AGENOVA_LIVE_REQUEST_REF;
 const deniedRef = process.env.AGENOVA_LIVE_DENIED_REF;
 const cliPath = process.env.AGENOVA_CLI_PATH;
 
+if (!allowedRef || !deniedRef || !cliPath) {
+  throw new Error('Installed E2E requires AGENOVA_LIVE_REQUEST_REF, AGENOVA_LIVE_DENIED_REF and AGENOVA_CLI_PATH.');
+}
+
 function cliJSON(args: string[]): unknown {
   if (!cliPath) throw new Error('Set AGENOVA_CLI_PATH to the CLI binary used for the installed Work run.');
   return JSON.parse(execFileSync(cliPath, args, { encoding: 'utf8', timeout: 60_000, windowsHide: true }));
 }
 
 test('installed API, CLI reference and Portal show the same allowed Work', async ({ page, request }, info) => {
-  test.skip(!allowedRef, 'Set AGENOVA_LIVE_REQUEST_REF after a real CLI run.');
   const setupResponse = await request.get('/api/setup');
   expect(setupResponse.status()).toBe(200);
   const setup = await setupResponse.json() as Setup;
@@ -70,7 +73,6 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
 });
 
 test('installed API and Portal show denial without an invented claim', async ({ page, request }, info) => {
-  test.skip(!deniedRef, 'Set AGENOVA_LIVE_DENIED_REF after a real denied CLI run.');
   const response = await request.get(`/api/requests/${encodeURIComponent(deniedRef!)}/evidence`);
   expect(response.status()).toBe(200);
   const detail = await response.json() as View;
