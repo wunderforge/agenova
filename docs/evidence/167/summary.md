@@ -250,3 +250,18 @@ The serial full repository gate passed with **51/51** browser smoke tests;
 the rebuilt CLI and local Portal passed the real installed kind/Ollama
 CLI/API/UI parity suite **2/2** on the retained allowed and denied Work.
 The temporary loopback API tunnel and Vite server were stopped afterward.
+
+The final #170 read-side integrity review tightened terminal evidence only
+where the installed service already supplies the corresponding facts: every
+queryable Work has an issued state and request resolution; fact kinds are
+canonical; Runtime allocation transitions are ordered; terminal allocated
+Work includes termination and cleanup before RunOutcome; AuthorityResolved
+cannot claim worker/provider attribution; a model result names the last
+successful model invocation; allowed failures carry a bounded reason; and
+each list entry obeys the same 1 MiB view limit as `work show`. Regression
+tests include positive pending and multi-invocation cases as well as missing,
+reordered, oversized and contradictory evidence. The full repository gate
+passed with **51/51** browser smoke tests. A rebuilt CLI queried the retained
+kind Work and the opt-in installed CLI/API/Portal Playwright suite passed
+**2/2** (allowed Ollama Work and policy denial); temporary API/Vite servers
+were stopped after verification.

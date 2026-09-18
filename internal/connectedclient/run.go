@@ -82,17 +82,25 @@ func (c Client) List() ([]evidence.View, error) {
 	if err != nil {
 		return nil, err
 	}
-	var views []evidence.View
-	if !decodeStrictJSON(response, &views) || views == nil || len(views) > 32 {
+	var entries []json.RawMessage
+	if !decodeStrictJSON(response, &entries) || entries == nil || len(entries) > 32 {
 		return nil, fmt.Errorf("installed Work service returned invalid list")
 	}
+	views := make([]evidence.View, 0, len(entries))
 	seenRefs := make(map[string]struct{}, len(views))
 	seenClaims := make(map[string]struct{}, len(views))
 	seenBackends := make(map[v0.SandboxClaimBackendIdentity]struct{}, len(views))
 	seenFacts := make(map[string]struct{})
 	seenSequences := make(map[uint64]struct{})
 	invocationOwners := make(map[string]string)
-	for _, view := range views {
+	for _, entry := range entries {
+		if len(entry) > maxEvidenceBytes {
+			return nil, fmt.Errorf("installed Work service returned oversized Work evidence")
+		}
+		var view evidence.View
+		if !decodeStrictJSON(entry, &view) {
+			return nil, fmt.Errorf("installed Work service returned invalid list")
+		}
 		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
 			return nil, fmt.Errorf("installed Work service returned invalid list")
 		}
@@ -129,6 +137,7 @@ func (c Client) List() ([]evidence.View, error) {
 				invocationOwners[fact.InvocationID] = view.RequestRef
 			}
 		}
+		views = append(views, view)
 	}
 	return views, nil
 }
@@ -227,7 +236,7 @@ func decodeStrictJSON(data []byte, value any) bool {
 }
 
 func validEvidenceView(view evidence.View, ref string) bool {
-	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil ||
+	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil || view.State == nil ||
 		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
 		return false
 	}
@@ -268,11 +277,15 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	resolutions := 0
 	var resolutionSequence uint64
 	boundRecorded := false
+	pendingRecorded := false
 	backendReadyRecorded := false
 	authorityResolved := 0
 	runningRecorded := false
 	runtimeTerminal := false
 	runtimeTerminalOperation := ""
+	terminationRecorded := false
+	cleanupRecorded := false
+	lastSucceededModelInvocation := ""
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
@@ -289,6 +302,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
+			return false
+		}
+		switch fact.Kind {
+		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
+		default:
 			return false
 		}
 		if _, exists := seenIDs[fact.ID]; exists {
@@ -343,7 +361,8 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Kind == "AuthorityResolved" {
 			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
 				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) || fact.PolicyRef == nil ||
-				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) {
+				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) ||
+				fact.BackendIdentity != nil || fact.InvocationID != "" || fact.ProviderStatus != "" || fact.Operation != "" || fact.Target != "" || fact.Decision != nil || fact.Result != "" {
 				return false
 			}
 			authorityResolved++
@@ -366,6 +385,15 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal {
 				return false
 			}
+			if fact.Operation == "Pending" {
+				if pendingRecorded || boundRecorded || backendReadyRecorded || runningRecorded {
+					return false
+				}
+				pendingRecorded = true
+			}
+			if fact.Operation == "Bound" && (boundRecorded || backendReadyRecorded || runningRecorded || fact.BackendIdentity == nil) {
+				return false
+			}
 			if fact.Operation == "BackendReady" {
 				if !boundRecorded || backendReadyRecorded || runningRecorded {
 					return false
@@ -384,6 +412,18 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				}
 				runtimeTerminal = true
 				runtimeTerminalOperation = fact.Operation
+			}
+			if fact.Operation == "TerminateSucceeded" || fact.Operation == "TerminateFailed" {
+				if terminationRecorded || cleanupRecorded {
+					return false
+				}
+				terminationRecorded = true
+			}
+			if fact.Operation == "CleanupSucceeded" || fact.Operation == "CleanupFailed" {
+				if !terminationRecorded || cleanupRecorded {
+					return false
+				}
+				cleanupRecorded = true
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
@@ -448,6 +488,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				}
 				previous.stage = 3
 				previous.providerStatus = fact.ProviderStatus
+				if previous.operation == "model.invoke" && fact.ProviderStatus == "Succeeded" {
+					lastSucceededModelInvocation = fact.InvocationID
+				}
 			}
 			invocations[fact.InvocationID] = previous
 		}
@@ -495,7 +538,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 	}
-	if receivedCount != 1 || (view.State != nil && (resolutions != 1 || receivedSequence >= resolutionSequence)) {
+	if receivedCount != 1 || resolutions != 1 || receivedSequence >= resolutionSequence {
 		return false
 	}
 	if view.Outcome != nil {
@@ -506,6 +549,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && !boundRecorded {
+			return false
+		}
+		if view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && (!runtimeTerminal || !terminationRecorded || !cleanupRecorded) {
 			return false
 		}
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {
@@ -521,6 +567,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if view.Outcome.Model != nil && (view.State.EffectiveAuthority == nil || view.Outcome.Status != "Succeeded" || !hasSuccessfulModelInvocation(view.Facts, view.Outcome.Model.InvocationID, view.State.EffectiveAuthority.ModelProfile)) {
+			return false
+		}
+		if view.Outcome.Model != nil && view.Outcome.Model.InvocationID != lastSucceededModelInvocation {
+			return false
+		}
+		if view.State.Decision.Result == v0.DecisionResultAllow && view.Outcome.Status != "Succeeded" &&
+			(strings.TrimSpace(view.Outcome.Failure) == "" || len(view.Outcome.Failure) > 4096) {
 			return false
 		}
 		// Model is optional in the shared Work evidence contract: a successful

@@ -45,10 +45,16 @@ func installedEvidenceJSON(ref, outcome string) string {
 			decision, claim = outcome, ""
 		}
 		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a","authenticationContext":"upstream:test"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
-		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
+		failure := ""
+		runReason := ""
+		if decision == "Allow" && outcome != "Succeeded" {
+			failure = `,"failure":"synthetic failure"`
+			runReason = `,"reason":"synthetic failure"`
+		}
+		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q%s}`, state, outcome, failure)
 		facts = "[" + receivedFact(ref) + "," + resolutionFact(ref, decision) + "]"
 		if decision == "Allow" {
-			facts = facts[:len(facts)-1] + "," + authorityFact(ref) + "," + boundFact(ref) + "," + backendReadyFact(ref) + "," + runningFact(ref) + "," + fmt.Sprintf(`{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":%q}`, ref, "claim:"+ref, outcome) + "," + fmt.Sprintf(`{"id":"fact:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
+			facts = facts[:len(facts)-1] + "," + authorityFact(ref) + "," + boundFact(ref) + "," + backendReadyFact(ref) + "," + runningFact(ref) + "," + fmt.Sprintf(`{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":%q}`, ref, "claim:"+ref, outcome) + "," + runtimeTeardownFacts(ref, 8) + "," + fmt.Sprintf(`{"id":"fact:10","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q%s}]`, ref, "claim:"+ref, outcome, runReason)
 		}
 	}
 	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":%s%s}`, ref, ref, facts, suffix)
@@ -80,6 +86,19 @@ func runningFact(ref string) string {
 
 func backendReadyFact(ref string) string {
 	return fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"BackendReady","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`, ref, "claim:"+ref)
+}
+
+func pendingEvidenceJSON(ref string) string {
+	base := installedEvidenceJSON(ref, "Succeeded")
+	base = strings.Replace(base, `"phase":"Succeeded"`, `"phase":"Pending"`, 1)
+	base = strings.ReplaceAll(base, `,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`, "")
+	base = strings.Replace(base, `,"outcome":{"status":"Succeeded"}`, "", 1)
+	pending := fmt.Sprintf(`{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"Pending"}`, ref, "claim:"+ref)
+	return withEvidenceFacts(base, receivedFact(ref), resolutionFact(ref, "Allow"), authorityFact(ref), pending)
+}
+
+func runtimeTeardownFacts(ref string, start int) string {
+	return fmt.Sprintf(`{"id":"fact:terminate:%d","sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"TerminateSucceeded"},{"id":"fact:cleanup:%d","sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"CleanupSucceeded"}`, start, start, ref, "claim:"+ref, start+1, start+1, ref, "claim:"+ref)
 }
 
 func withEvidenceFacts(source string, facts ...string) string {
@@ -188,6 +207,54 @@ func insertBeforeRuntimeTerminal(source, fact string) string {
 	}
 	recorded = append(recorded[:index], append([]map[string]json.RawMessage{inserted}, recorded[index:]...)...)
 	for i := index; i < len(recorded); i++ {
+		recorded[i]["sequence"] = json.RawMessage(fmt.Sprintf("%d", i+1))
+	}
+	var err error
+	view["facts"], err = json.Marshal(recorded)
+	if err != nil {
+		panic(err)
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
+// withTeardown completes a synthetic terminal fixture with the two resource
+// results that RunService records before publishing RunOutcome. Negative tests
+// that intentionally omit either result must use withEvidenceFacts directly.
+func withTeardown(source string) string {
+	var view map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		panic(err)
+	}
+	var recorded []map[string]json.RawMessage
+	if err := json.Unmarshal(view["facts"], &recorded); err != nil {
+		panic(err)
+	}
+	if len(recorded) == 0 || string(recorded[len(recorded)-1]["kind"]) != `"RunOutcome"` {
+		panic("terminal fixture needs RunOutcome last")
+	}
+	for _, entry := range recorded {
+		if string(entry["operation"]) == `"TerminateSucceeded"` {
+			return source
+		}
+	}
+	end := recorded[len(recorded)-1]
+	recorded = recorded[:len(recorded)-1]
+	for _, operation := range []string{"TerminateSucceeded", "CleanupSucceeded"} {
+		recorded = append(recorded, map[string]json.RawMessage{
+			"id":         json.RawMessage(fmt.Sprintf(`"fact:fixture:%s"`, operation)),
+			"timestamp":  json.RawMessage(`"2026-09-18T00:00:00Z"`),
+			"kind":       json.RawMessage(`"Runtime"`),
+			"requestRef": recorded[0]["requestRef"],
+			"claimId":    end["claimId"],
+			"operation":  json.RawMessage(fmt.Sprintf("%q", operation)),
+		})
+	}
+	recorded = append(recorded, end)
+	for i := range recorded {
 		recorded[i]["sequence"] = json.RawMessage(fmt.Sprintf("%d", i+1))
 	}
 	var err error
@@ -416,7 +483,7 @@ func TestRunFilePollsEscapedReference(t *testing.T) {
 	reads := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			_, _ = w.Write([]byte(withEvidenceFacts(installedEvidenceJSON(ref, ""), receivedFact(ref))))
+			_, _ = w.Write([]byte(pendingEvidenceJSON(ref)))
 			return
 		}
 		reads++
@@ -507,10 +574,24 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	withFacts := func(items ...string) string {
 		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo")}, items...)
 		items = append(items, `{"id":"fact:terminal","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`, `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
-		return withEvidenceFacts(base, items...)
+		return withTeardown(withEvidenceFacts(base, items...))
 	}
 	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
 		t.Fatalf("valid model invocation rejected: %v", err)
+	}
+	second := func(source, id string) string {
+		return strings.Replace(strings.Replace(source, `"invocationId":"inv:demo"`, `"invocationId":"inv:later"`, 1), `"id":"fact:`+id+`"`, `"id":"fact:later-`+id+`"`, 1)
+	}
+	twoSuccesses := withFacts(decision, attempt, outcome, second(decision, "decision"), second(attempt, "attempt"), second(outcome, "provider-outcome"))
+	if _, err := decodeView([]byte(twoSuccesses), "demo"); err == nil {
+		t.Fatal("accepted an earlier model invocation as the final Outcome.Model")
+	}
+	latest := strings.Replace(twoSuccesses, `"invocationId":"inv:demo","model":"llama3.1:latest"`, `"invocationId":"inv:later","model":"llama3.1:latest"`, 1)
+	if latest == twoSuccesses {
+		t.Fatal("latest model outcome fixture did not change")
+	}
+	if _, err := decodeView([]byte(latest), "demo"); err != nil {
+		t.Fatalf("latest successful model invocation rejected: %v", err)
 	}
 	for _, malformed := range []string{
 		withFacts(fact("fact:decision", 7, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:attempt", 8, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:provider-outcome", 9, "ProviderAttempt", "", "Attempted", "coding-standard")),
@@ -543,11 +624,11 @@ func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 			t.Fatal("accepted terminal outcome without one matching RunOutcome")
 		}
 	}
-	failed := strings.Replace(installedEvidenceJSON("demo", "Failed"), `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Failed","failure":"worker start failed"}`, 1)
+	failed := strings.Replace(installedEvidenceJSON("demo", "Failed"), `,"reason":"synthetic failure"`, ``, 1)
 	if _, err := decodeView([]byte(failed), "demo"); err == nil {
 		t.Fatal("accepted terminal failure whose RunOutcome fact omitted the failure reason")
 	}
-	matching := withEvidenceFacts(failed, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`, `{"id":"fact:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
+	matching := installedEvidenceJSON("demo", "Failed")
 	if _, err := decodeView([]byte(matching), "demo"); err != nil {
 		t.Fatalf("matching terminal failure reason rejected: %v", err)
 	}
@@ -585,8 +666,47 @@ func TestEvidenceRequiresReceivedFactBeforeResolution(t *testing.T) {
 			t.Fatal("accepted missing, repeated, or out-of-order request reception")
 		}
 	}
-	if _, err := decodeView([]byte(withEvidenceFacts(installedEvidenceJSON("pending", ""), receivedFact("pending"))), "pending"); err != nil {
-		t.Fatalf("received-only pending Work rejected: %v", err)
+	if _, err := decodeView([]byte(withEvidenceFacts(installedEvidenceJSON("pending", ""), receivedFact("pending"))), "pending"); err == nil {
+		t.Fatal("received-only pending Work accepted")
+	}
+	if _, err := decodeView([]byte(pendingEvidenceJSON("pending")), "pending"); err != nil {
+		t.Fatalf("resolved pending Work rejected: %v", err)
+	}
+}
+
+func TestInstalledEvidenceRejectsUnknownStagesAndIncompleteTeardown(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	if _, err := decodeView([]byte(base), "demo"); err != nil {
+		t.Fatalf("canonical evidence rejected: %v", err)
+	}
+	for name, invalid := range map[string]string{
+		"missing state":       strings.Replace(base, `,"state":`, `,"discardedState":`, 1),
+		"unknown kind":        strings.Replace(base, `"kind":"RequestReceived"`, `"kind":"UnrecognizedFact"`, 1),
+		"missing termination": strings.Replace(base, `{"id":"fact:terminate:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"TerminateSucceeded"},`, ``, 1),
+		"missing cleanup":     strings.Replace(base, `,{"id":"fact:cleanup:9","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"CleanupSucceeded"}`, ``, 1),
+		"duplicated bound":    insertBeforeRuntimeTerminal(base, boundFact("demo")),
+		"backward pending":    insertBeforeRuntimeTerminal(base, `{"id":"fact:late-pending","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Pending"}`),
+		"early backend":       strings.Replace(base, `"kind":"AuthorityResolved","requestRef":"demo"`, `"kind":"AuthorityResolved","requestRef":"demo","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`, 1),
+	} {
+		if invalid == base {
+			t.Fatalf("%s fixture did not change", name)
+		}
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatalf("accepted %s", name)
+		}
+	}
+}
+
+func TestAllowedFailureMustExplainCause(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Failed")
+	for _, invalid := range []string{
+		strings.Replace(base, `,"failure":"synthetic failure"`, ``, 1),
+		strings.Replace(base, `"failure":"synthetic failure"`, `"failure":"   "`, 1),
+		strings.Replace(base, `"failure":"synthetic failure"`, `"failure":"`+strings.Repeat("x", 4097)+`"`, 1),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted terminal failure without bounded explanation")
+		}
 	}
 }
 
@@ -641,7 +761,7 @@ func TestEveryAllowedModelDecisionMustUseGrantedProfile(t *testing.T) {
 func TestNonSuccessOutcomeCannotCarryResultText(t *testing.T) {
 	for _, status := range []string{"Deny", "Failed", "Expired"} {
 		base := installedEvidenceJSON("demo", status)
-		invalid := strings.Replace(base, `"outcome":{"status":"`+status+`"}`, `"outcome":{"status":"`+status+`","text":"fabricated result"}`, 1)
+		invalid := strings.Replace(base, `"outcome":{"status":"`+status+`"`, `"outcome":{"status":"`+status+`","text":"fabricated result"`, 1)
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 			t.Fatalf("accepted result text on %s Work", status)
 		}
@@ -690,7 +810,7 @@ func TestEveryProviderFactRequiresAnOrderedAllowedInvocation(t *testing.T) {
 	provided := `{"id":"fact:provided","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":"coding-standard","providerStatus":"Failed"}`
 	terminalRuntime := `{"id":"fact:terminal","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	terminal := `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
-	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provided, terminalRuntime, terminal)
+	valid := withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provided, terminalRuntime, terminal))
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("intermediate failed provider call rejected: %v", err)
 	}
@@ -792,15 +912,15 @@ func TestInvocationRequiresRunningAndResolvedAuthority(t *testing.T) {
 
 func TestInFlightProviderOutcomeCanCloseAfterRuntimeCancellation(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Failed")
-	base = strings.Replace(base, `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Cancelled"}`, 1)
+	base = strings.Replace(base, `"outcome":{"status":"Failed"`, `"outcome":{"status":"Cancelled"`, 1)
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
 	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
 	decision := `{"id":"fact:decision","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
 	attempt := `{"id":"fact:attempt","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
 	terminalRuntime := `{"id":"fact:terminal","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Cancelled"}`
 	providerOutcome := `{"id":"fact:provider-outcome","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:active","operation":"model.invoke","target":"coding-standard","providerStatus":"Cancelled"}`
-	terminalWork := `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Cancelled"}`
-	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, terminalRuntime, providerOutcome, terminalWork)
+	terminalWork := `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Cancelled","reason":"synthetic failure"}`
+	valid := withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, terminalRuntime, providerOutcome, terminalWork))
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("in-flight cancelled provider outcome rejected: %v", err)
 	}
@@ -808,12 +928,12 @@ func TestInFlightProviderOutcomeCanCloseAfterRuntimeCancellation(t *testing.T) {
 	if _, err := decodeView([]byte(insertBeforeRunOutcome(valid, lateDecision)), "demo"); err == nil {
 		t.Fatal("accepted a new invocation decision after runtime cancellation")
 	}
-	withGap := strings.Replace(valid, `"id":"fact:outcome","sequence":11`, `"id":"fact:outcome","sequence":13`, 1)
+	withGap := strings.Replace(valid, `"sequence":13`, `"sequence":15`, 1)
 	if _, err := decodeView([]byte(withGap), "demo"); err != nil {
 		t.Fatalf("canonical cancellation with sequence gap rejected: %v", err)
 	}
 	for _, operation := range []string{"Bound", "BackendReady", "Running", "UnexpectedRuntimeStatus"} {
-		lateRuntime := fmt.Sprintf(`{"id":"fact:late-runtime","sequence":12,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":%q}`, operation)
+		lateRuntime := fmt.Sprintf(`{"id":"fact:late-runtime","sequence":14,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":%q}`, operation)
 		if _, err := decodeView([]byte(insertBeforeRunOutcome(withGap, lateRuntime)), "demo"); err == nil {
 			t.Fatalf("accepted runtime %s after cancellation", operation)
 		}
@@ -848,13 +968,13 @@ func TestRuntimeOperationsUseCanonicalVocabulary(t *testing.T) {
 	if _, err := decodeView([]byte(base), "demo"); err != nil {
 		t.Fatalf("canonical Work with sequence gap rejected: %v", err)
 	}
-	pending := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"),
+	pending := withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"),
 		`{"id":"fact:pending","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Pending"}`,
 		strings.Replace(boundFact("demo"), `"id":"fact:4","sequence":4`, `"id":"fact:bound","sequence":5`, 1),
 		strings.Replace(backendReadyFact("demo"), `"id":"fact:5","sequence":5`, `"id":"fact:ready","sequence":6`, 1),
 		strings.Replace(runningFact("demo"), `"id":"fact:6","sequence":6`, `"id":"fact:running","sequence":7`, 1),
 		`{"id":"fact:terminal","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`,
-		`{"id":"fact:outcome","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		`{"id":"fact:outcome","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`))
 	if _, err := decodeView([]byte(pending), "demo"); err != nil {
 		t.Fatalf("RunService Pending event rejected: %v", err)
 	}
@@ -877,7 +997,7 @@ func TestWorkerActionRequiresCompletedSuccessfulModelInvocation(t *testing.T) {
 	terminal := `{"id":"fact:terminal","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	outcome := `{"id":"fact:outcome","sequence":12,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	prefix := []string{receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provider}
-	valid := withEvidenceFacts(base, append(append([]string{}, prefix...), action, terminal, outcome)...)
+	valid := withTeardown(withEvidenceFacts(base, append(append([]string{}, prefix...), action, terminal, outcome)...))
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("correlated model action rejected: %v", err)
 	}
@@ -944,7 +1064,7 @@ func TestAuthorityResolutionEvidenceMatchesRequestAndPolicy(t *testing.T) {
 	granted := strings.ReplaceAll(requested, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`)
 	narrowedFact := strings.Replace(authorityFact("demo"), `"effectiveAuthority":{"id":"authority:demo"`, `"authorityChanges":[{"field":"tools","requested":"shell.exec","effective":"","reasonCode":"outside-template-ceiling"}],"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`, 1)
 	facts := append(append(append([]string{}, prefix...), narrowedFact), suffix...)
-	if _, err := decodeView([]byte(withEvidenceFacts(granted, facts...)), "demo"); err != nil {
+	if _, err := decodeView([]byte(withTeardown(withEvidenceFacts(granted, facts...))), "demo"); err != nil {
 		t.Fatalf("real template-ceiling narrowing rejected: %v", err)
 	}
 }
@@ -958,18 +1078,22 @@ func TestToolProviderOutcomeRetainsAttemptTarget(t *testing.T) {
 	providerOutcome := `{"id":"fact:provided","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","operation":"tool.invoke","target":"Mock git.read · a","providerStatus":"Succeeded"}`
 	terminalRuntime := `{"id":"fact:terminal","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	terminal := `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
-	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), strings.Replace(authorityFact("demo"), `"id":"authority:demo"`, `"id":"authority:demo","tools":["git.read"]`, 1), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, providerOutcome, terminalRuntime, terminal)
+	valid := withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), strings.Replace(authorityFact("demo"), `"id":"authority:demo"`, `"id":"authority:demo","tools":["git.read"]`, 1), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, providerOutcome, terminalRuntime, terminal))
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("consistent tool provider target rejected: %v", err)
 	}
-	invalid := strings.Replace(valid, `"target":"Mock git.read · a","providerStatus":"Succeeded"`, `"target":"Mock git.read · b","providerStatus":"Succeeded"`, 1)
+	lastTarget := strings.LastIndex(valid, `"target":"Mock git.read · a"`)
+	if lastTarget < 0 {
+		t.Fatal("fixture did not contain tool provider target")
+	}
+	invalid := valid[:lastTarget] + strings.Replace(valid[lastTarget:], `"target":"Mock git.read · a"`, `"target":"Mock git.read · b"`, 1)
 	if invalid == valid {
 		t.Fatal("fixture did not change tool provider target")
 	}
 	if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 		t.Fatal("accepted a tool outcome for a different provider target")
 	}
-	emptyTarget := strings.Replace(valid, `"target":"Mock git.read · a","providerStatus":"Attempted"`, `"target":"","providerStatus":"Attempted"`, 1)
+	emptyTarget := strings.Replace(valid, `"target":"Mock git.read · a"`, `"target":""`, 1)
 	if emptyTarget == valid {
 		t.Fatal("fixture did not empty the tool attempt target")
 	}
@@ -1019,7 +1143,7 @@ func TestTerminalBackendIdentityRequiresBoundFact(t *testing.T) {
 
 func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
 	failedBeforeAllocation := strings.ReplaceAll(installedEvidenceJSON("demo", "Failed"), `,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`, ``)
-	failedBeforeAllocation = withEvidenceFacts(failedBeforeAllocation, receivedFact("demo"), resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`)
+	failedBeforeAllocation = withEvidenceFacts(failedBeforeAllocation, receivedFact("demo"), resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"synthetic failure"}`)
 	if _, err := decodeView([]byte(failedBeforeAllocation), "demo"); err != nil {
 		t.Fatalf("pre-allocation failure must remain representable: %v", err)
 	}
@@ -1037,7 +1161,7 @@ func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
 
 func TestCancelledOutcomeMatchesFailedClaimAndAuditFact(t *testing.T) {
 	cancelled := installedEvidenceJSON("cancelled", "Failed")
-	cancelled = strings.Replace(cancelled, `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Cancelled"}`, 1)
+	cancelled = strings.Replace(cancelled, `"outcome":{"status":"Failed"`, `"outcome":{"status":"Cancelled"`, 1)
 	cancelled = strings.ReplaceAll(cancelled, `"operation":"Failed"`, `"operation":"Cancelled"`)
 	if _, err := decodeView([]byte(cancelled), "cancelled"); err != nil {
 		t.Fatalf("service's Failed claim/Cancelled outcome rejected: %v", err)
@@ -1068,6 +1192,24 @@ func TestListTransportSupportsBoundedAggregateEvidence(t *testing.T) {
 	}
 	if _, err := client.call(context.Background(), server.URL, nil, "demo"); err == nil {
 		t.Fatal("single evidence response exceeded the per-view limit")
+	}
+}
+
+func TestListRejectsOversizedIndividualViewWithinAggregateLimit(t *testing.T) {
+	view := installedEvidenceJSON("demo", "Deny")
+	view = strings.Replace(view, `"kind":"RequestReceived","requestRef":"demo"`, `"kind":"RequestReceived","requestRef":"demo","reason":"`+strings.Repeat("x", maxEvidenceBytes)+`"`, 1)
+	if len(view) <= maxEvidenceBytes {
+		t.Fatal("oversized fixture did not exceed the per-view limit")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("[" + view + "]"))
+	}))
+	defer server.Close()
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() {}, nil
+	}}
+	if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "oversized") {
+		t.Fatalf("oversized single Work accepted inside aggregate list: %v", err)
 	}
 }
 

@@ -16,6 +16,12 @@ Keep the API private in the Pod. Add a CLI `api connect` command that starts an 
 - `console`: setup provider option; handler reuses canonical evidence/query/list; fail closed on registry errors.
 - `registration`: read active Policy and selected registered template; no HTTP management mutation.
 - `connectedclient`: bounded list/show via private API commands and strict evidence decoding.
+- The installed service remains the sole owner of admission, runtime transitions,
+  invocation decisions and recorded evidence. CLI validation is a read-side
+  integrity boundary for the service response (schema, size, identity,
+  chronology and cross-record correlation), not a second governance engine or
+  a source of invented outcomes. A client rejection reports unavailable or
+  invalid evidence; it never repairs or reclassifies the server's facts.
 - `cli`/`cmd`: `work list|show`, `api connect`, Platform status connection metadata and explicit usage errors.
 - `ui`: server-side loopback proxy configuration, connected-mode diagnostics and browser parity checks; no new governance state model.
 
@@ -30,4 +36,3 @@ Keep the API private in the Pod. Add a CLI `api connect` command that starts an 
 ## Risks and Compatibility
 
 - Loopback is reachable by other trusted-machine processes and does not provide user authentication. A fixed local port may conflict and must fail clearly. Pod restart loses Work history and active run; disconnection must show unavailable, never fixtures. Keep this as a reference demonstration, not production deployment advice.
-
