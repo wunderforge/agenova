@@ -131,6 +131,20 @@ func TestShowAndListUseInstalledLoopbackAPI(t *testing.T) {
 	}
 }
 
+func TestListRejectsDuplicateRequestReferences(t *testing.T) {
+	view := installedEvidenceJSON("demo", "Deny")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("[" + view + "," + view + "]"))
+	}))
+	defer server.Close()
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() {}, nil
+	}}
+	if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("duplicate Work list accepted: %v", err)
+	}
+}
+
 func TestRunFilePollsEscapedReference(t *testing.T) {
 	const ref = "demo?ref#one"
 	path := workFile(t, ref)
@@ -180,6 +194,7 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:other","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}]`, 1),
+		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"],"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Allow","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","policyRef":{"id":"policy:other","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","decision":{"id":"decision:other","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
@@ -203,6 +218,30 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		}
 		if _, err := client.List(); err == nil {
 			t.Fatalf("List accepted %s", incomplete)
+		}
+	}
+}
+
+func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
+	base := strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","model":{"invocationId":"inv:demo","model":"llama3.1:latest","inputTokens":1,"outputTokens":1}}`, 1)
+	fact := func(id string, sequence int, kind, result, providerStatus string) string {
+		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","result":%q,"providerStatus":%q}`, id, sequence, kind, result, providerStatus)
+	}
+	decision := fact("fact:1", 1, "ModelDecision", "Allow", "")
+	attempt := fact("fact:2", 2, "ProviderAttempt", "", "Attempted")
+	outcome := fact("fact:3", 3, "ProviderOutcome", "", "Succeeded")
+	withFacts := func(items ...string) string {
+		return strings.Replace(base, `"facts":[]`, `"facts":[`+strings.Join(items, ",")+`]`, 1)
+	}
+	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
+		t.Fatalf("valid model invocation rejected: %v", err)
+	}
+	for _, malformed := range []string{
+		withFacts(fact("fact:1", 1, "ProviderOutcome", "", "Succeeded"), fact("fact:2", 2, "ModelDecision", "Allow", ""), fact("fact:3", 3, "ProviderAttempt", "", "Attempted")),
+		withFacts(decision, attempt, outcome, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded")),
+	} {
+		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
+			t.Fatal("unordered or repeated model invocation accepted")
 		}
 	}
 }

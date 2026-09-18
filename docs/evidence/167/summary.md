@@ -83,4 +83,15 @@ records. The full repository gate passed (50 browser smoke tests), and the
 real installed CLI/API/React Playwright suite passed **2/2** using the now
 documented 5177 port. The temporary tunnel and Vite server were stopped.
 
+The latest review also required exact authority payload agreement, one
+ordered Allow → ProviderAttempt → successful ProviderOutcome sequence for the
+terminal model invocation, and unique request references in list responses.
+Negative unit tests now cover modified capability fields, inverted/repeated
+invocation stages, and duplicate list entries. The rebuilt CLI still reads
+the actual kind/Ollama allowed and denied records without accepting these
+malformed responses.
+The installed CLI/API/React Playwright suite then passed **2/2** on the
+retained real allowed and denied records; the tunnel and Vite server were
+stopped after verification.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
