@@ -145,3 +145,13 @@ The real installed kind/Ollama CLI/API/React suite passed **2/2** with this
 profile check. An overlapping full-gate/browser invocation had one navigation
 smoke failure; its focused rerun passed, and a serial full repository gate
 then passed all 50 browser smoke tests. Final evidence uses the serial pass.
+The subsequent review identified three contract edges: a successful model
+sequence now requires `ProviderAttempt.providerStatus=Attempted`; any issued
+decision now requires exactly one matching `RequestResolution` audit fact;
+and `work show -- <request-ref>` permits valid references beginning with `-`.
+Focused regression tests exercise malformed attempts, missing/duplicate
+resolution and literal flag-shaped references.
+The serial full repository gate passed again with all 50 browser smoke
+tests, followed by a real installed kind/Ollama CLI/API/React pass **2/2**
+for allowed and denied Work. The local test tunnel and Vite server were
+stopped afterward.

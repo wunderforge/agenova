@@ -216,6 +216,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	seenIDs := make(map[string]struct{}, len(view.Facts))
 	var lastSequence uint64
 	runOutcomes := 0
+	resolutions := 0
 	for _, fact := range view.Facts {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
@@ -244,6 +245,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				return false
 			}
 			runOutcomes++
+		}
+		if fact.Kind == "RequestResolution" {
+			if view.State == nil || fact.Decision == nil || fact.Result != view.State.Decision.Result || fact.PolicyRef == nil || *fact.PolicyRef != view.State.PolicyRef {
+				return false
+			}
+			resolutions++
 		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
@@ -283,6 +290,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.BackendIdentity != nil && (view.State == nil || view.State.Claim == nil || view.State.Claim.BackendIdentity == nil || *fact.BackendIdentity != *view.State.Claim.BackendIdentity) {
 			return false
 		}
+	}
+	if view.State != nil && resolutions != 1 {
+		return false
 	}
 	if view.Outcome != nil {
 		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
@@ -354,7 +364,7 @@ func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedPr
 			}
 			stage = 1
 		case "ProviderAttempt":
-			if stage != 1 || fact.Target != grantedProfile {
+			if stage != 1 || fact.Target != grantedProfile || fact.ProviderStatus != "Attempted" {
 				return false
 			}
 			stage = 2
