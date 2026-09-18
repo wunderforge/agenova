@@ -64,7 +64,7 @@ agenova api connect
 
 ```powershell
 npm --prefix ui ci
-npm --prefix ui run dev
+npm --prefix ui run dev -- --port 5177 --strictPort
 ```
 
 打开 Vite 打印的本机地址，切到 Connected，或访问 `/?mode=connected#/work`。Work 列表和详情应出现 CLI 查询的同一个 request ID、decision、claim ID 和结果。UI 未由 `platform apply` 安装；`npm dev` 只是本地客户端。若 8088 被其他进程占用，连接命令会失败；Connected 模式还会核对已安装 Platform 的身份和 revision，不会把旧 demo 服务误认为本次安装。断开连接后，页面显示不可用，不会自动回退到 mock。
