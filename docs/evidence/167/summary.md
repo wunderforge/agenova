@@ -155,3 +155,14 @@ The serial full repository gate passed again with all 50 browser smoke
 tests, followed by a real installed kind/Ollama CLI/API/React pass **2/2**
 for allowed and denied Work. The local test tunnel and Vite server were
 stopped afterward.
+Independent review of the original PR found additional query-integrity
+checks: complete trusted team/authentication context, exactly one ordered
+`RequestReceived` before `RequestResolution`, and allowed ToolDecision targets
+within the issued tool authority. The clean PR also reverses server projection
+reads (facts before the newer runtime state) to avoid a transient Pending
+state paired with a Bound fact, and accepts the service's documented Failed
+claim / Cancelled Work outcome when its terminal fact agrees. Focused tests
+cover these cases; the unrelated pitch file is excluded from the clean PR.
+The clean PR then passed the serial full repository gate (50 browser smoke)
+and the installed real kind/Ollama CLI/API/React gate **2/2** after these
+additional fixes. Temporary local servers were stopped.

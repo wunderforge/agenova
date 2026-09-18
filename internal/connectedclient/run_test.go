@@ -44,9 +44,9 @@ func installedEvidenceJSON(ref, outcome string) string {
 		if outcome == "Deny" || outcome == "ApprovalRequired" {
 			decision, claim = outcome, ""
 		}
-		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
+		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a","authenticationContext":"upstream:test"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
 		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
-		facts = "[" + resolutionFact(ref, decision) + "]"
+		facts = "[" + receivedFact(ref) + "," + resolutionFact(ref, decision) + "]"
 		if decision == "Allow" {
 			facts = facts[:len(facts)-1] + "," + fmt.Sprintf(`{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
 		}
@@ -55,7 +55,11 @@ func installedEvidenceJSON(ref, outcome string) string {
 }
 
 func resolutionFact(ref, decision string) string {
-	return fmt.Sprintf(`{"id":"fact:1","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":%q,"result":%q,"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"}}`, ref, decision, decision)
+	return fmt.Sprintf(`{"id":"fact:2","sequence":2,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":%q,"result":%q,"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"}}`, ref, decision, decision)
+}
+
+func receivedFact(ref string) string {
+	return fmt.Sprintf(`{"id":"fact:1","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestReceived","requestRef":%q}`, ref)
 }
 
 func withEvidenceFacts(source string, facts ...string) string {
@@ -195,7 +199,7 @@ func TestRunFilePollsEscapedReference(t *testing.T) {
 	reads := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			_, _ = w.Write([]byte(installedEvidenceJSON(ref, "")))
+			_, _ = w.Write([]byte(withEvidenceFacts(installedEvidenceJSON(ref, ""), receivedFact(ref))))
 			return
 		}
 		reads++
@@ -280,24 +284,24 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	fact := func(id string, sequence int, kind, result, providerStatus, target string) string {
 		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":%q,"result":%q,"providerStatus":%q}`, id, sequence, kind, target, result, providerStatus)
 	}
-	decision := fact("fact:2", 2, "ModelDecision", "Allow", "", "coding-standard")
-	attempt := fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "coding-standard")
-	outcome := fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "coding-standard")
+	decision := fact("fact:3", 3, "ModelDecision", "Allow", "", "coding-standard")
+	attempt := fact("fact:4", 4, "ProviderAttempt", "", "Attempted", "coding-standard")
+	outcome := fact("fact:5", 5, "ProviderOutcome", "", "Succeeded", "coding-standard")
 	withFacts := func(items ...string) string {
-		items = append([]string{resolutionFact("demo", "Allow")}, items...)
-		items = append(items, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow")}, items...)
+		items = append(items, `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 		return withEvidenceFacts(base, items...)
 	}
 	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
 		t.Fatalf("valid model invocation rejected: %v", err)
 	}
 	for _, malformed := range []string{
-		withFacts(fact("fact:2", 2, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:3", 3, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:4", 4, "ProviderAttempt", "", "Attempted", "coding-standard")),
-		withFacts(decision, attempt, outcome, fact("fact:6", 6, "ProviderOutcome", "", "Succeeded", "coding-standard")),
-		withFacts(fact("fact:2", 2, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
-		withFacts(decision, fact("fact:3", 3, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
-		withFacts(decision, attempt, fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
-		withFacts(decision, fact("fact:3", 3, "ProviderAttempt", "", "Failed", "coding-standard"), outcome),
+		withFacts(fact("fact:3", 3, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:4", 4, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:5", 5, "ProviderAttempt", "", "Attempted", "coding-standard")),
+		withFacts(decision, attempt, outcome, fact("fact:7", 7, "ProviderOutcome", "", "Succeeded", "coding-standard")),
+		withFacts(fact("fact:3", 3, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
+		withFacts(decision, fact("fact:4", 4, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
+		withFacts(decision, attempt, fact("fact:5", 5, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
+		withFacts(decision, fact("fact:4", 4, "ProviderAttempt", "", "Failed", "coding-standard"), outcome),
 	} {
 		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
 			t.Fatal("unordered or repeated model invocation accepted")
@@ -314,8 +318,8 @@ func TestSuccessfulWorkWithoutModelRemainsValidForToolOnlyAgents(t *testing.T) {
 func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	for _, invalid := range []string{
-		withEvidenceFacts(base, resolutionFact("demo", "Allow")),
-		withEvidenceFacts(base, resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow")),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
 		appendEvidenceFact(base, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`),
 	} {
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
@@ -326,7 +330,7 @@ func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	if _, err := decodeView([]byte(failed), "demo"); err == nil {
 		t.Fatal("accepted terminal failure whose RunOutcome fact omitted the failure reason")
 	}
-	matching := withEvidenceFacts(failed, resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
+	matching := withEvidenceFacts(failed, receivedFact("demo"), resolutionFact("demo", "Allow"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
 	if _, err := decodeView([]byte(matching), "demo"); err != nil {
 		t.Fatalf("matching terminal failure reason rejected: %v", err)
 	}
@@ -338,7 +342,7 @@ func TestIssuedDecisionRequiresOneCorrelatedResolutionFact(t *testing.T) {
 		if _, err := decodeView([]byte(valid), "demo"); err != nil {
 			t.Fatalf("valid %s decision rejected: %v", status, err)
 		}
-		var facts []string
+		facts := []string{receivedFact("demo")}
 		if status == "Succeeded" {
 			facts = append(facts, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 		}
@@ -349,6 +353,51 @@ func TestIssuedDecisionRequiresOneCorrelatedResolutionFact(t *testing.T) {
 			if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 				t.Fatalf("accepted %s issued decision without exactly one matching resolution", status)
 			}
+		}
+	}
+}
+
+func TestEvidenceRequiresReceivedFactBeforeResolution(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Deny")
+	for _, invalid := range []string{
+		withEvidenceFacts(base, resolutionFact("demo", "Deny")),
+		appendEvidenceFact(base, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestReceived","requestRef":"demo"}`),
+		withEvidenceFacts(base, resolutionFact("demo", "Deny"), receivedFact("demo")),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted missing, repeated, or out-of-order request reception")
+		}
+	}
+	if _, err := decodeView([]byte(withEvidenceFacts(installedEvidenceJSON("pending", ""), receivedFact("pending"))), "pending"); err != nil {
+		t.Fatalf("received-only pending Work rejected: %v", err)
+	}
+}
+
+func TestIssuedDecisionRequiresCompleteTrustedPrincipal(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Deny")
+	for _, invalid := range []string{
+		strings.Replace(base, `"team":"team-a"`, `"team":""`, 1),
+		strings.Replace(base, `"authenticationContext":"upstream:test"`, `"authenticationContext":""`, 1),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted issued decision without complete trusted identity")
+		}
+	}
+}
+
+func TestAllowedToolDecisionMustBeWithinEffectiveAuthority(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["git.read"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`, 1)
+	toolDecision := func(target string) string {
+		return appendEvidenceFact(base, fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ToolDecision","requestRef":"demo","claimId":"claim:demo","operation":"tool.invoke","target":%q,"result":"Allow"}`, target))
+	}
+	if _, err := decodeView([]byte(toolDecision("git.read")), "demo"); err != nil {
+		t.Fatalf("granted tool decision rejected: %v", err)
+	}
+	for _, target := range []string{"", "shell.exec"} {
+		if _, err := decodeView([]byte(toolDecision(target)), "demo"); err == nil {
+			t.Fatalf("accepted ungranted allowed tool target %q", target)
 		}
 	}
 }
@@ -367,6 +416,19 @@ func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
 		if _, err := decodeView([]byte(appendEvidenceFact(failedBeforeAllocation, fact)), "demo"); err == nil {
 			t.Fatal("accepted post-allocation evidence without backend identity")
 		}
+	}
+}
+
+func TestCancelledOutcomeMatchesFailedClaimAndAuditFact(t *testing.T) {
+	cancelled := installedEvidenceJSON("cancelled", "Failed")
+	cancelled = strings.Replace(cancelled, `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Cancelled"}`, 1)
+	cancelled = strings.Replace(cancelled, `"operation":"Failed"`, `"operation":"Cancelled"`, 1)
+	if _, err := decodeView([]byte(cancelled), "cancelled"); err != nil {
+		t.Fatalf("service's Failed claim/Cancelled outcome rejected: %v", err)
+	}
+	invalid := strings.Replace(cancelled, `"operation":"Cancelled"`, `"operation":"Failed"`, 1)
+	if _, err := decodeView([]byte(invalid), "cancelled"); err == nil {
+		t.Fatal("accepted Cancelled outcome without matching terminal audit fact")
 	}
 }
 

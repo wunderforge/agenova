@@ -199,6 +199,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
 		return false
 	}
+	if view.State != nil && (strings.TrimSpace(view.State.Principal.Team) == "" || strings.TrimSpace(view.State.Principal.AuthenticationContext) == "") {
+		return false
+	}
 	if view.State != nil && view.State.Claim != nil {
 		switch view.State.Claim.Phase {
 		case v0.ClaimPhaseBound, v0.ClaimPhaseRunning, v0.ClaimPhaseSucceeded:
@@ -215,8 +218,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	}
 	seenIDs := make(map[string]struct{}, len(view.Facts))
 	var lastSequence uint64
+	receivedCount := 0
+	var receivedSequence uint64
 	runOutcomes := 0
 	resolutions := 0
+	var resolutionSequence uint64
 	for _, fact := range view.Facts {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
@@ -246,11 +252,23 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 			runOutcomes++
 		}
+		if fact.Kind == "RequestReceived" {
+			if fact.ClaimID != "" || fact.Decision != nil || fact.Result != "" {
+				return false
+			}
+			receivedCount++
+			receivedSequence = fact.Sequence
+		}
 		if fact.Kind == "RequestResolution" {
 			if view.State == nil || fact.Decision == nil || fact.Result != view.State.Decision.Result || fact.PolicyRef == nil || *fact.PolicyRef != view.State.PolicyRef {
 				return false
 			}
 			resolutions++
+			resolutionSequence = fact.Sequence
+		}
+		if fact.Kind == "ToolDecision" && fact.Result == v0.DecisionResultAllow &&
+			(view.State == nil || view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.Tools, fact.Target)) {
+			return false
 		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
@@ -291,7 +309,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 	}
-	if view.State != nil && resolutions != 1 {
+	if receivedCount != 1 || (view.State != nil && (resolutions != 1 || receivedSequence >= resolutionSequence)) {
 		return false
 	}
 	if view.Outcome != nil {
@@ -387,7 +405,7 @@ func validOutcomeState(status string, state *v0.IssuedState) bool {
 	}
 	switch state.Claim.Phase {
 	case v0.ClaimPhaseSucceeded, v0.ClaimPhaseFailed, v0.ClaimPhaseExpired:
-		return status == string(state.Claim.Phase) || (state.Claim.Phase == v0.ClaimPhaseExpired && status == "Cancelled")
+		return status == string(state.Claim.Phase) || (state.Claim.Phase == v0.ClaimPhaseFailed || state.Claim.Phase == v0.ClaimPhaseExpired) && status == "Cancelled"
 	default:
 		return false
 	}

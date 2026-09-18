@@ -519,12 +519,15 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	}
 	view := evidence.Clone(r.view)
 	s.mu.RUnlock()
+	// Runtime state transitions precede their journal append. Read facts first,
+	// then state, so a Bound/Running fact cannot be paired with an older Pending
+	// claim snapshot and spuriously fail a connected evidence query.
+	view.Facts = s.journal.ForRequest(ref)
 	if view.State != nil && view.State.Claim != nil {
 		if state := s.runner.State(view.State.Claim.ID); state != nil {
 			view.State = state
 		}
 	}
-	view.Facts = s.journal.ForRequest(ref)
 	return view, nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {
