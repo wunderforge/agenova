@@ -61,7 +61,7 @@ func (c Client) Show(ref string) (evidence.View, error) {
 		return evidence.View{}, err
 	}
 	var view evidence.View
-	if err := json.Unmarshal(response, &view); err != nil || !validEvidenceView(view, ref) {
+	if !decodeStrictJSON(response, &view) || !validEvidenceView(view, ref) {
 		return evidence.View{}, fmt.Errorf("installed Work service returned invalid evidence")
 	}
 	return view, nil
@@ -81,7 +81,7 @@ func (c Client) List() ([]evidence.View, error) {
 		return nil, err
 	}
 	var views []evidence.View
-	if err := json.Unmarshal(response, &views); err != nil || views == nil || len(views) > 32 {
+	if !decodeStrictJSON(response, &views) || views == nil || len(views) > 32 {
 		return nil, fmt.Errorf("installed Work service returned invalid list")
 	}
 	for _, view := range views {
@@ -166,13 +166,23 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 
 func decodeView(data []byte, expectedRef string) (evidence.View, error) {
 	var view evidence.View
-	if err := json.Unmarshal(data, &view); err != nil {
-		return evidence.View{}, fmt.Errorf("decode installed Work evidence: %w", err)
+	if !decodeStrictJSON(data, &view) {
+		return evidence.View{}, errors.New("decode installed Work evidence: invalid JSON record")
 	}
 	if !validEvidenceView(view, expectedRef) {
 		return evidence.View{}, errors.New("installed Work service returned incomplete or mismatched evidence")
 	}
 	return view, nil
+}
+
+func decodeStrictJSON(data []byte, value any) bool {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return false
+	}
+	var trailing json.RawMessage
+	return decoder.Decode(&trailing) == io.EOF
 }
 
 func validEvidenceView(view evidence.View, ref string) bool {
@@ -183,11 +193,25 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
 		return false
 	}
+	if view.State != nil && (view.State.Action.Project != view.Request.Spec.ProjectRef || view.State.Action.TemplateRef != view.Request.Spec.TemplateRef) {
+		return false
+	}
+	seenIDs := make(map[string]struct{}, len(view.Facts))
+	var lastSequence uint64
 	for _, fact := range view.Facts {
-		if fact.ID == "" || fact.Sequence == 0 || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
+		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
 		}
+		if _, exists := seenIDs[fact.ID]; exists {
+			return false
+		}
+		seenIDs[fact.ID] = struct{}{}
+		// Journal sequence is global, so other Works can leave legitimate gaps.
+		lastSequence = fact.Sequence
 		if fact.ClaimID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
+			return false
+		}
+		if fact.InvocationID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
 			return false
 		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
@@ -197,6 +221,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if fact.Decision != nil {
+			if view.State == nil || *fact.Decision != view.State.Decision {
+				return false
+			}
 			if fact.Result != "" && fact.Result != fact.Decision.Result {
 				return false
 			}

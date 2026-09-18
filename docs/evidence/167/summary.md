@@ -71,4 +71,16 @@ added. The rebuilt CLI still queried the actual allowed Work (`Succeeded`,
 and the installed Playwright suite passed **2/2** with an added assertion
 that its final model result matches those three recorded invocation facts.
 
+The following review found six more version-skew integrity cases. Queried
+views now reject issued action/request mismatches, invocation facts without
+the issued Claim, decision facts contradicting the issued decision, duplicate
+or unordered Fact IDs/sequences, unknown JSON fields/trailing data, and the
+operator guide now starts Vite on the installed test's port 5177. The journal
+uses a global sequence, so gaps between a single Work's facts remain valid.
+Negative unit cases cover these responses; the rebuilt CLI continued to
+accept the retained actual kind/Ollama Allow (48 facts) and Deny (two facts)
+records. The full repository gate passed (50 browser smoke tests), and the
+real installed CLI/API/React Playwright suite passed **2/2** using the now
+documented 5177 port. The temporary tunnel and Vite server were stopped.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.

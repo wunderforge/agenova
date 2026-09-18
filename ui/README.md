@@ -51,7 +51,9 @@ separate product capability.
 
 The opt-in installed browser test compares the real API, a separate CLI
 process, and the Portal against the same allowed and denied Work records. Run
-it only after preparing kind/Ollama and those request references:
+it only after preparing kind/Ollama and those request references. Its browser
+target is port 5177, so start the dev server with
+`npm --prefix ui run dev -- --port 5177 --strictPort`:
 
 ```powershell
 $env:AGENOVA_CLI_PATH = (Resolve-Path .tmp/agenova.exe).Path
