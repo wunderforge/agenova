@@ -385,6 +385,44 @@ func TestIssuedDecisionRequiresCompleteTrustedPrincipal(t *testing.T) {
 	}
 }
 
+func TestWorkDecisionMustAuthorizeClaimCreation(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Deny")
+	invalid := strings.ReplaceAll(base, `"action":"claim.create"`, `"action":"claim.delete"`)
+	invalid = strings.Replace(invalid, `"name":"claim.create"`, `"name":"claim.delete"`, 1)
+	if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+		t.Fatal("accepted a decision for an action other than claim.create")
+	}
+}
+
+func TestEveryAllowedModelDecisionMustUseGrantedProfile(t *testing.T) {
+	for _, status := range []string{"Succeeded", "Failed"} {
+		base := installedEvidenceJSON("demo", status)
+		base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+		base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+		modelDecision := func(target string) string {
+			return appendEvidenceFact(base, fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":%q,"result":"Allow"}`, target))
+		}
+		if _, err := decodeView([]byte(modelDecision("coding-standard")), "demo"); err != nil {
+			t.Fatalf("%s: granted model decision rejected: %v", status, err)
+		}
+		for _, target := range []string{"", "unapproved-profile"} {
+			if _, err := decodeView([]byte(modelDecision(target)), "demo"); err == nil {
+				t.Fatalf("%s: accepted allowed model decision for %q", status, target)
+			}
+		}
+	}
+}
+
+func TestNonSuccessOutcomeCannotCarryResultText(t *testing.T) {
+	for _, status := range []string{"Deny", "Failed", "Expired"} {
+		base := installedEvidenceJSON("demo", status)
+		invalid := strings.Replace(base, `"outcome":{"status":"`+status+`"}`, `"outcome":{"status":"`+status+`","text":"fabricated result"}`, 1)
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatalf("accepted result text on %s Work", status)
+		}
+	}
+}
+
 func TestAllowedToolDecisionMustBeWithinEffectiveAuthority(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["git.read"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)

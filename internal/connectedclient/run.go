@@ -210,7 +210,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 	}
-	if view.State != nil && (view.State.Action.Project != view.Request.Spec.ProjectRef || view.State.Action.TemplateRef != view.Request.Spec.TemplateRef) {
+	if view.State != nil && (view.State.Action.Name != "claim.create" || view.State.Action.Project != view.Request.Spec.ProjectRef || view.State.Action.TemplateRef != view.Request.Spec.TemplateRef) {
 		return false
 	}
 	if view.State != nil && view.State.EffectiveAuthority != nil && !authorityWithinRequest(*view.State.EffectiveAuthority, view.Request) {
@@ -270,6 +270,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			(view.State == nil || view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.Tools, fact.Target)) {
 			return false
 		}
+		if fact.Kind == "ModelDecision" && fact.Result == v0.DecisionResultAllow &&
+			(view.State == nil || view.State.EffectiveAuthority == nil || fact.Target == "" || fact.Target != view.State.EffectiveAuthority.ModelProfile) {
+			return false
+		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
 		}
@@ -314,6 +318,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	}
 	if view.Outcome != nil {
 		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
+			return false
+		}
+		if view.Outcome.Status != "Succeeded" && view.Outcome.Text != "" {
 			return false
 		}
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {

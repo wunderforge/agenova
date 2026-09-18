@@ -166,3 +166,11 @@ cover these cases; the unrelated pitch file is excluded from the clean PR.
 The clean PR then passed the serial full repository gate (50 browser smoke)
 and the installed real kind/Ollama CLI/API/React gate **2/2** after these
 additional fixes. Temporary local servers were stopped.
+The next clean-head review required every allowed ModelDecision (including
+earlier/failed invocations) to target the issued model profile, Work admission
+to authorize `claim.create`, and non-success outcomes to carry no result
+text. Focused regression tests mutate each boundary and assert rejection.
+After these changes, the serial full repository gate passed all 50 browser
+smoke tests, and the real installed kind/Ollama CLI/API/React suite passed
+**2/2** on the allowed and denied records. Both temporary servers were
+stopped after verification.
