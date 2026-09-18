@@ -170,6 +170,18 @@ cover the finishing window, early allocation, and duplicate list identities.
 The complete repository gate passed with **51/51** browser smoke tests, and
 the installed CLI/API/React kind/Ollama suite passed **2/2** again. Temporary
 API and Vite servers were stopped afterward.
+The latest review prompted a stage-based evidence check, grounded in the
+actual 48-fact installed Work sequence: RequestResolution remains pre-claim;
+the AuthorityResolved fact precedes runtime activity; Runtime/Running follows
+Bound and precedes worker or governed invocation activity; terminal Runtime
+events and RunOutcome agree with the issued Claim, including the Finishing
+projection window. Work lists also reject cross-request Fact and invocation
+identity reuse. Focused positive/negative tests cover all six reported
+contradictions and preserve the pre-runtime configuration-failure path.
+The complete repository gate passed with **51/51** browser smoke tests.
+Against the retained real kind/Ollama records, the rebuilt CLI and local
+Portal again passed the installed parity suite **2/2**; the temporary API
+tunnel and Vite server were stopped afterward.
 Independent review of the original PR found additional query-integrity
 checks: complete trusted team/authentication context, exactly one ordered
 `RequestReceived` before `RequestResolution`, and allowed ToolDecision targets

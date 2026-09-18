@@ -48,7 +48,7 @@ func installedEvidenceJSON(ref, outcome string) string {
 		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
 		facts = "[" + receivedFact(ref) + "," + resolutionFact(ref, decision) + "]"
 		if decision == "Allow" {
-			facts = facts[:len(facts)-1] + "," + boundFact(ref) + "," + fmt.Sprintf(`{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
+			facts = facts[:len(facts)-1] + "," + authorityFact(ref) + "," + boundFact(ref) + "," + runningFact(ref) + "," + fmt.Sprintf(`{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
 		}
 	}
 	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":%s%s}`, ref, ref, facts, suffix)
@@ -63,7 +63,19 @@ func receivedFact(ref string) string {
 }
 
 func boundFact(ref string) string {
-	return fmt.Sprintf(`{"id":"fact:3","sequence":3,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"Bound","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`, ref, "claim:"+ref)
+	return fmt.Sprintf(`{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"Bound","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`, ref, "claim:"+ref)
+}
+
+func authorityFact(ref string) string {
+	return fmt.Sprintf(`{"id":"fact:3","sequence":3,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":%q,"claimId":%q,"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`, ref, "claim:"+ref)
+}
+
+func modelAuthorityFact(ref string) string {
+	return strings.Replace(authorityFact(ref), `"id":"authority:demo"`, `"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+}
+
+func runningFact(ref string) string {
+	return fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":%q,"claimId":%q,"operation":"Running","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`, ref, "claim:"+ref)
 }
 
 func withEvidenceFacts(source string, facts ...string) string {
@@ -280,7 +292,7 @@ func TestListRejectsDuplicateRequestReferences(t *testing.T) {
 
 func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
 	first := installedEvidenceJSON("first", "Succeeded")
-	second := installedEvidenceJSON("second", "Succeeded")
+	second := strings.ReplaceAll(installedEvidenceJSON("second", "Succeeded"), `"id":"fact:`, `"id":"fact:second-`)
 	independent := strings.ReplaceAll(second, "worker:demo", "worker:second")
 	response := "[" + first + "," + independent + "]"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -296,11 +308,28 @@ func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
 	for _, invalid := range []string{
 		"[" + first + "," + second + "]",
 		"[" + first + "," + strings.ReplaceAll(independent, "claim:second", "claim:first") + "]",
+		"[" + first + "," + strings.ReplaceAll(installedEvidenceJSON("second", "Succeeded"), "worker:demo", "worker:second") + "]",
 	} {
 		response = invalid
 		if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate") {
 			t.Fatalf("reused Claim or worker identity accepted: %v", err)
 		}
+	}
+	withModelDecision := func(source, ref, invocationID, factID string) string {
+		source = strings.Replace(source, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+		source = strings.ReplaceAll(source, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
+		fact := fmt.Sprintf(`{"id":%q,"sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":%q,"claimId":%q,"invocationId":%q,"policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`, factID, ref, "claim:"+ref, invocationID)
+		return insertBeforeRunOutcome(source, fact)
+	}
+	firstCall := withModelDecision(first, "first", "inv:shared", "fact:first-call")
+	secondCall := withModelDecision(independent, "second", "inv:second", "fact:second-call")
+	response = "[" + firstCall + "," + secondCall + "]"
+	if views, err := client.List(); err != nil || len(views) != 2 {
+		t.Fatalf("independent invocation list rejected: %v", err)
+	}
+	response = "[" + firstCall + "," + withModelDecision(independent, "second", "inv:shared", "fact:second-call") + "]"
+	if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate invocation") {
+		t.Fatalf("cross-Work invocation identity reuse accepted: %v", err)
 	}
 }
 
@@ -391,28 +420,28 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	base := strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","model":{"invocationId":"inv:demo","model":"llama3.1:latest","inputTokens":1,"outputTokens":1}}`, 1)
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
-	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
 	fact := func(id string, sequence int, kind, result, providerStatus, target string) string {
 		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":%q,"result":%q,"providerStatus":%q}`, id, sequence, kind, target, result, providerStatus)
 	}
-	decision := fact("fact:4", 4, "ModelDecision", "Allow", "", "coding-standard")
-	attempt := fact("fact:5", 5, "ProviderAttempt", "", "Attempted", "coding-standard")
-	outcome := fact("fact:6", 6, "ProviderOutcome", "", "Succeeded", "coding-standard")
+	decision := fact("fact:6", 6, "ModelDecision", "Allow", "", "coding-standard")
+	attempt := fact("fact:7", 7, "ProviderAttempt", "", "Attempted", "coding-standard")
+	outcome := fact("fact:8", 8, "ProviderOutcome", "", "Succeeded", "coding-standard")
 	withFacts := func(items ...string) string {
-		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo")}, items...)
-		items = append(items, `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), runningFact("demo")}, items...)
+		items = append(items, `{"id":"fact:9","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
 		return withEvidenceFacts(base, items...)
 	}
 	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
 		t.Fatalf("valid model invocation rejected: %v", err)
 	}
 	for _, malformed := range []string{
-		withFacts(fact("fact:4", 4, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:5", 5, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:6", 6, "ProviderAttempt", "", "Attempted", "coding-standard")),
-		withFacts(decision, attempt, outcome, fact("fact:8", 8, "ProviderOutcome", "", "Succeeded", "coding-standard")),
-		withFacts(fact("fact:4", 4, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
-		withFacts(decision, fact("fact:5", 5, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
-		withFacts(decision, attempt, fact("fact:6", 6, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
-		withFacts(decision, fact("fact:5", 5, "ProviderAttempt", "", "Failed", "coding-standard"), outcome),
+		withFacts(fact("fact:6", 6, "ProviderOutcome", "", "Succeeded", "coding-standard"), fact("fact:7", 7, "ModelDecision", "Allow", "", "coding-standard"), fact("fact:8", 8, "ProviderAttempt", "", "Attempted", "coding-standard")),
+		withFacts(decision, attempt, outcome, fact("fact:10", 10, "ProviderOutcome", "", "Succeeded", "coding-standard")),
+		withFacts(fact("fact:6", 6, "ModelDecision", "Allow", "", "unapproved-profile"), attempt, outcome),
+		withFacts(decision, fact("fact:7", 7, "ProviderAttempt", "", "Attempted", "unapproved-profile"), outcome),
+		withFacts(decision, attempt, fact("fact:8", 8, "ProviderOutcome", "", "Succeeded", "unapproved-profile")),
+		withFacts(decision, fact("fact:7", 7, "ProviderAttempt", "", "Failed", "coding-standard"), outcome),
 	} {
 		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
 			t.Fatal("unordered or repeated model invocation accepted")
@@ -429,8 +458,8 @@ func TestSuccessfulWorkWithoutModelRemainsValidForToolOnlyAgents(t *testing.T) {
 func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	for _, invalid := range []string{
-		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo")),
-		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"), boundFact("demo"), runningFact("demo")),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"), boundFact("demo"), runningFact("demo"), `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
 		appendEvidenceFact(base, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`),
 	} {
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
@@ -441,7 +470,7 @@ func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 	if _, err := decodeView([]byte(failed), "demo"); err == nil {
 		t.Fatal("accepted terminal failure whose RunOutcome fact omitted the failure reason")
 	}
-	matching := withEvidenceFacts(failed, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
+	matching := withEvidenceFacts(failed, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"), boundFact("demo"), runningFact("demo"), `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
 	if _, err := decodeView([]byte(matching), "demo"); err != nil {
 		t.Fatalf("matching terminal failure reason rejected: %v", err)
 	}
@@ -509,9 +538,9 @@ func TestEveryAllowedModelDecisionMustUseGrantedProfile(t *testing.T) {
 	for _, status := range []string{"Succeeded", "Failed"} {
 		base := installedEvidenceJSON("demo", status)
 		base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
-		base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+		base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
 		modelDecision := func(target string) string {
-			return insertBeforeRunOutcome(base, fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":%q,"result":"Allow"}`, target))
+			return insertBeforeRunOutcome(base, fmt.Sprintf(`{"id":"fact:extra","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":%q,"result":"Allow"}`, target))
 		}
 		if _, err := decodeView([]byte(modelDecision("coding-standard")), "demo"); err != nil {
 			t.Fatalf("%s: granted model decision rejected: %v", status, err)
@@ -545,9 +574,9 @@ func TestNonSuccessOutcomeCannotCarryResultText(t *testing.T) {
 func TestAllowedToolDecisionMustBeWithinEffectiveAuthority(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["git.read"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
-	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["git.read"]`)
 	toolDecision := func(target string) string {
-		return insertBeforeRunOutcome(base, fmt.Sprintf(`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ToolDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","policyRef":{"id":"policy:demo","version":"1"},"operation":"tool.invoke","target":%q,"result":"Allow"}`, target))
+		return insertBeforeRunOutcome(base, fmt.Sprintf(`{"id":"fact:extra","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ToolDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","policyRef":{"id":"policy:demo","version":"1"},"operation":"tool.invoke","target":%q,"result":"Allow"}`, target))
 	}
 	if _, err := decodeView([]byte(toolDecision("git.read")), "demo"); err != nil {
 		t.Fatalf("granted tool decision rejected: %v", err)
@@ -578,18 +607,18 @@ func TestEveryProviderFactRequiresAnOrderedAllowedInvocation(t *testing.T) {
 		}
 	}
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
-	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
-	decision := `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
-	attempt := `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
-	provided := `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":"coding-standard","providerStatus":"Failed"}`
-	terminal := `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
-	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), decision, attempt, provided, terminal)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
+	decision := `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
+	attempt := `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
+	provided := `{"id":"fact:8","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:earlier","operation":"model.invoke","target":"coding-standard","providerStatus":"Failed"}`
+	terminal := `{"id":"fact:9","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
+	valid := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), runningFact("demo"), decision, attempt, provided, terminal)
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("intermediate failed provider call rejected: %v", err)
 	}
 	for _, invalid := range []string{
-		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), decision, provided, terminal),
-		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), decision, strings.Replace(attempt, `"operation":"model.invoke"`, `"operation":"tool.invoke"`, 1), provided, terminal),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), runningFact("demo"), decision, provided, terminal),
+		withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), runningFact("demo"), decision, strings.Replace(attempt, `"operation":"model.invoke"`, `"operation":"tool.invoke"`, 1), provided, terminal),
 	} {
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 			t.Fatal("accepted an unordered or mismatched provider invocation")
@@ -600,7 +629,7 @@ func TestEveryProviderFactRequiresAnOrderedAllowedInvocation(t *testing.T) {
 func TestNoActivityAfterFinalRunOutcome(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
-	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
 	finishing := strings.Replace(base, `,"outcome":{"status":"Succeeded"}`, ``, 1)
 	if finishing == base || strings.Contains(finishing, `"outcome":`) {
 		t.Fatal("finishing fixture still contains an Outcome")
@@ -616,6 +645,79 @@ func TestNoActivityAfterFinalRunOutcome(t *testing.T) {
 			if _, err := decodeView([]byte(appendEvidenceFact(valid, postTerminal)), "demo"); err == nil {
 				t.Fatal("accepted activity after the final RunOutcome")
 			}
+		}
+	}
+}
+
+func TestFinishingRunOutcomeStillMatchesTerminalClaim(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	finishing := strings.Replace(base, `,"outcome":{"status":"Succeeded"}`, ``, 1)
+	if finishing == base {
+		t.Fatal("fixture did not remove Outcome")
+	}
+	if _, err := decodeView([]byte(finishing), "demo"); err != nil {
+		t.Fatalf("valid finishing projection rejected: %v", err)
+	}
+	for _, invalid := range []string{
+		strings.Replace(finishing, `"operation":"Succeeded"`, `"operation":"Failed"`, 1),
+		strings.Replace(finishing, `"phase":"Succeeded"`, `"phase":"Running"`, 1),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted contradictory RunOutcome in Finishing window")
+		}
+	}
+}
+
+func TestRequestResolutionCannotClaimAllocatedResources(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	if _, err := decodeView([]byte(base), "demo"); err != nil {
+		t.Fatalf("valid resolution rejected: %v", err)
+	}
+	for _, injected := range []string{
+		`"claimId":"claim:demo",`,
+		`"invocationId":"inv:demo",`,
+		`"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}},`,
+		`"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"},`,
+	} {
+		invalid := strings.Replace(base, `"kind":"RequestResolution","requestRef":"demo",`, `"kind":"RequestResolution","requestRef":"demo",`+injected, 1)
+		if invalid == base {
+			t.Fatal("fixture did not modify RequestResolution")
+		}
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted pre-admission claim attribution")
+		}
+	}
+}
+
+func TestInvocationRequiresRunningAndResolvedAuthority(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
+	decision := `{"id":"fact:call","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
+	valid := insertBeforeRunOutcome(base, decision)
+	if _, err := decodeView([]byte(valid), "demo"); err != nil {
+		t.Fatalf("valid governed call rejected: %v", err)
+	}
+	withoutRunning := withEvidenceFacts(valid, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), decision, `{"id":"fact:7","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+	if _, err := decodeView([]byte(withoutRunning), "demo"); err == nil {
+		t.Fatal("accepted governed call before Runtime/Running")
+	}
+	withoutAuthority := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), boundFact("demo"), runningFact("demo"), `{"id":"fact:6","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+	if _, err := decodeView([]byte(withoutAuthority), "demo"); err == nil {
+		t.Fatal("accepted runtime activity without authority resolution")
+	}
+}
+
+func TestTerminalRuntimeFactMustMatchClaimOutcome(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	good := insertBeforeRunOutcome(base, `{"id":"fact:terminal-runtime","sequence":6,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+	if _, err := decodeView([]byte(good), "demo"); err != nil {
+		t.Fatalf("matching runtime success rejected: %v", err)
+	}
+	for _, operation := range []string{"Failed", "Expired", "Cancelled"} {
+		bad := strings.Replace(good, `"operation":"Succeeded"`, fmt.Sprintf(`"operation":%q`, operation), 1)
+		if _, err := decodeView([]byte(bad), "demo"); err == nil {
+			t.Fatalf("accepted contradictory runtime operation %s", operation)
 		}
 	}
 }

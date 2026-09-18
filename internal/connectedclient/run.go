@@ -88,6 +88,8 @@ func (c Client) List() ([]evidence.View, error) {
 	seenRefs := make(map[string]struct{}, len(views))
 	seenClaims := make(map[string]struct{}, len(views))
 	seenBackends := make(map[v0.SandboxClaimBackendIdentity]struct{}, len(views))
+	seenFacts := make(map[string]struct{})
+	invocationOwners := make(map[string]string)
 	for _, view := range views {
 		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
 			return nil, fmt.Errorf("installed Work service returned invalid list")
@@ -107,6 +109,18 @@ func (c Client) List() ([]evidence.View, error) {
 					return nil, fmt.Errorf("installed Work service returned duplicate worker identity")
 				}
 				seenBackends[*claim.BackendIdentity] = struct{}{}
+			}
+		}
+		for _, fact := range view.Facts {
+			if _, exists := seenFacts[fact.ID]; exists {
+				return nil, fmt.Errorf("installed Work service returned duplicate Fact identity")
+			}
+			seenFacts[fact.ID] = struct{}{}
+			if fact.InvocationID != "" {
+				if owner, exists := invocationOwners[fact.InvocationID]; exists && owner != view.RequestRef {
+					return nil, fmt.Errorf("installed Work service returned duplicate invocation identity")
+				}
+				invocationOwners[fact.InvocationID] = view.RequestRef
 			}
 		}
 	}
@@ -246,6 +260,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	resolutions := 0
 	var resolutionSequence uint64
 	boundRecorded := false
+	authorityResolved := 0
+	runningRecorded := false
+	runtimeTerminal := false
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
@@ -285,8 +302,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.Kind == "RunOutcome" {
 			runOutcomeSeen = true
+			if view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID ||
+				!validRunOutcomeOperation(fact.Operation, view.State.Claim.Phase) {
+				return false
+			}
 			if view.Outcome != nil && view.State != nil && view.State.Decision.Result == v0.DecisionResultAllow {
-				if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status || fact.Reason != view.Outcome.Failure {
+				if fact.Operation != view.Outcome.Status || fact.Reason != view.Outcome.Failure {
 					return false
 				}
 				runOutcomes++
@@ -300,11 +321,49 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			receivedSequence = fact.Sequence
 		}
 		if fact.Kind == "RequestResolution" {
-			if view.State == nil || fact.Decision == nil || fact.Result != view.State.Decision.Result || fact.PolicyRef == nil || *fact.PolicyRef != view.State.PolicyRef {
+			if view.State == nil || fact.Decision == nil || fact.Result != view.State.Decision.Result || fact.PolicyRef == nil || *fact.PolicyRef != view.State.PolicyRef ||
+				fact.ClaimID != "" || fact.InvocationID != "" || fact.Authority != nil || fact.BackendIdentity != nil || len(fact.AuthorityChanges) != 0 {
 				return false
 			}
 			resolutions++
 			resolutionSequence = fact.Sequence
+		}
+		if fact.Kind == "AuthorityResolved" {
+			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
+				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) {
+				return false
+			}
+			authorityResolved++
+			if authorityResolved != 1 {
+				return false
+			}
+		}
+		if fact.Kind == "Runtime" || fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
+			if authorityResolved != 1 {
+				return false
+			}
+		}
+		if fact.Kind == "Runtime" {
+			if view.State == nil || view.State.Claim == nil || !validRuntimeTerminalOperation(fact.Operation, view.State.Claim.Phase) {
+				return false
+			}
+			if fact.Operation == "Running" {
+				if runningRecorded || !boundRecorded {
+					return false
+				}
+				runningRecorded = true
+			}
+			if isRuntimeTerminalOperation(fact.Operation) {
+				if runtimeTerminal {
+					return false
+				}
+				runtimeTerminal = true
+			}
+		}
+		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
+			if !runningRecorded || runtimeTerminal {
+				return false
+			}
 		}
 		if fact.Kind == "ToolDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.Tools, fact.Target)) {
@@ -411,6 +470,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {
 			return false
 		}
+		if view.Outcome.Status == "Succeeded" && authorityResolved != 1 {
+			return false
+		}
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
 			return false
 		}
@@ -433,6 +495,42 @@ func runtimeProvesAllocation(fact facts.Fact) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func validRunOutcomeOperation(operation string, phase v0.ClaimPhase) bool {
+	switch phase {
+	case v0.ClaimPhaseSucceeded:
+		return operation == "Succeeded"
+	case v0.ClaimPhaseFailed:
+		return operation == "Failed" || operation == "Cancelled"
+	case v0.ClaimPhaseExpired:
+		return operation == "Expired"
+	default:
+		return false
+	}
+}
+
+func isRuntimeTerminalOperation(operation string) bool {
+	switch operation {
+	case "AllocationFailed", "StartFailed", "Succeeded", "Failed", "Expired", "Cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase) bool {
+	if !isRuntimeTerminalOperation(operation) {
+		return true
+	}
+	switch operation {
+	case "Succeeded":
+		return phase == v0.ClaimPhaseSucceeded
+	case "Expired":
+		return phase == v0.ClaimPhaseExpired
+	default:
+		return phase == v0.ClaimPhaseFailed
 	}
 }
 
