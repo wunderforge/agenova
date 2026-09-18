@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -84,10 +85,15 @@ func (c Client) List() ([]evidence.View, error) {
 	if !decodeStrictJSON(response, &views) || views == nil || len(views) > 32 {
 		return nil, fmt.Errorf("installed Work service returned invalid list")
 	}
+	seenRefs := make(map[string]struct{}, len(views))
 	for _, view := range views {
 		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
 			return nil, fmt.Errorf("installed Work service returned invalid list")
 		}
+		if _, exists := seenRefs[view.RequestRef]; exists {
+			return nil, fmt.Errorf("installed Work service returned duplicate Work reference")
+		}
+		seenRefs[view.RequestRef] = struct{}{}
 	}
 	return views, nil
 }
@@ -243,7 +249,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Authority != nil && (fact.Authority.ID == "" || fact.Authority.Runtime.ProfileRef == "" || time.Duration(fact.Authority.Runtime.Timeout) <= 0) {
 			return false
 		}
-		if fact.Authority != nil && (view.State == nil || view.State.Claim == nil || view.State.EffectiveAuthority == nil || fact.ClaimID != view.State.Claim.ID || fact.Authority.ID != view.State.EffectiveAuthority.ID || fact.Authority.ID != view.State.Claim.AuthorityRef) {
+		if fact.Authority != nil && (view.State == nil || view.State.Claim == nil || view.State.EffectiveAuthority == nil || fact.ClaimID != view.State.Claim.ID || fact.Authority.ID != view.State.Claim.AuthorityRef || !sameAuthority(*fact.Authority, *view.State.EffectiveAuthority)) {
 			return false
 		}
 		if fact.BackendIdentity != nil && (fact.BackendIdentity.Backend == "" || fact.BackendIdentity.WorkerID == "") {
@@ -267,22 +273,36 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	return true
 }
 
+func sameAuthority(a, b v0.EffectiveAuthority) bool {
+	return a.ID == b.ID && slices.Equal(a.Tools, b.Tools) && slices.Equal(a.ResourceScopes, b.ResourceScopes) &&
+		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
+}
+
 func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID string) bool {
-	decision, attempt, result := false, false, false
+	stage := 0
 	for _, fact := range recorded {
 		if fact.InvocationID != invocationID || fact.Operation != "model.invoke" {
 			continue
 		}
 		switch fact.Kind {
 		case "ModelDecision":
-			decision = fact.Result == v0.DecisionResultAllow
+			if stage != 0 || fact.Result != v0.DecisionResultAllow {
+				return false
+			}
+			stage = 1
 		case "ProviderAttempt":
-			attempt = true
+			if stage != 1 {
+				return false
+			}
+			stage = 2
 		case "ProviderOutcome":
-			result = fact.ProviderStatus == "Succeeded"
+			if stage != 2 || fact.ProviderStatus != "Succeeded" {
+				return false
+			}
+			stage = 3
 		}
 	}
-	return decision && attempt && result
+	return stage == 3
 }
 
 func validOutcomeState(status string, state *v0.IssuedState) bool {
