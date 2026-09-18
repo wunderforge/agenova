@@ -25,6 +25,7 @@ import (
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/facts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -195,16 +196,33 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Decision != nil && !validDecisionResult(fact.Decision.Result) {
 			return false
 		}
+		if fact.Decision != nil {
+			if fact.Result != "" && fact.Result != fact.Decision.Result {
+				return false
+			}
+			if fact.PolicyRef != nil && *fact.PolicyRef != fact.Decision.PolicyRef {
+				return false
+			}
+		}
 		if fact.Result != "" && !validDecisionResult(fact.Result) {
 			return false
 		}
 		if fact.PolicyRef != nil && (fact.PolicyRef.ID == "" || fact.PolicyRef.Version == "") {
 			return false
 		}
+		if fact.PolicyRef != nil && view.State != nil && *fact.PolicyRef != view.State.PolicyRef {
+			return false
+		}
 		if fact.Authority != nil && (fact.Authority.ID == "" || fact.Authority.Runtime.ProfileRef == "" || time.Duration(fact.Authority.Runtime.Timeout) <= 0) {
 			return false
 		}
+		if fact.Authority != nil && (view.State == nil || view.State.Claim == nil || view.State.EffectiveAuthority == nil || fact.ClaimID != view.State.Claim.ID || fact.Authority.ID != view.State.EffectiveAuthority.ID || fact.Authority.ID != view.State.Claim.AuthorityRef) {
+			return false
+		}
 		if fact.BackendIdentity != nil && (fact.BackendIdentity.Backend == "" || fact.BackendIdentity.WorkerID == "") {
+			return false
+		}
+		if fact.BackendIdentity != nil && (view.State == nil || view.State.Claim == nil || view.State.Claim.BackendIdentity == nil || *fact.BackendIdentity != *view.State.Claim.BackendIdentity) {
 			return false
 		}
 	}
@@ -215,8 +233,29 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
 			return false
 		}
+		if view.Outcome.Model != nil && (view.Outcome.Status != "Succeeded" || !hasSuccessfulModelInvocation(view.Facts, view.Outcome.Model.InvocationID)) {
+			return false
+		}
 	}
 	return true
+}
+
+func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID string) bool {
+	decision, attempt, result := false, false, false
+	for _, fact := range recorded {
+		if fact.InvocationID != invocationID || fact.Operation != "model.invoke" {
+			continue
+		}
+		switch fact.Kind {
+		case "ModelDecision":
+			decision = fact.Result == v0.DecisionResultAllow
+		case "ProviderAttempt":
+			attempt = true
+		case "ProviderOutcome":
+			result = fact.ProviderStatus == "Succeeded"
+		}
+	}
+	return decision && attempt && result
 }
 
 func validOutcomeState(status string, state *v0.IssuedState) bool {
