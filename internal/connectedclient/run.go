@@ -25,6 +25,7 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"gopkg.in/yaml.v3"
@@ -255,6 +256,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		operation      string
 		target         string
 		providerTarget string
+		providerStatus string
 		stage          int
 	}
 	invocations := make(map[string]invocationStage)
@@ -266,6 +268,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	resolutions := 0
 	var resolutionSequence uint64
 	boundRecorded := false
+	backendReadyRecorded := false
 	authorityResolved := 0
 	runningRecorded := false
 	runtimeTerminal := false
@@ -339,7 +342,8 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.Kind == "AuthorityResolved" {
 			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
-				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) {
+				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) || fact.PolicyRef == nil ||
+				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) {
 				return false
 			}
 			authorityResolved++
@@ -359,8 +363,17 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			if runtimeTerminal && !isRuntimeTeardownOperation(fact.Operation) {
 				return false
 			}
+			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal {
+				return false
+			}
+			if fact.Operation == "BackendReady" {
+				if !boundRecorded || backendReadyRecorded || runningRecorded {
+					return false
+				}
+				backendReadyRecorded = true
+			}
 			if fact.Operation == "Running" {
-				if runningRecorded || !boundRecorded {
+				if runningRecorded || !boundRecorded || !backendReadyRecorded {
 					return false
 				}
 				runningRecorded = true
@@ -389,6 +402,16 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		switch fact.Kind {
+		case "WorkerActivity":
+			if fact.InvocationID != "" {
+				previous, exists := invocations[fact.InvocationID]
+				if !exists || previous.operation != "model.invoke" || previous.stage != 3 ||
+					previous.providerStatus != "Succeeded" || fact.Operation != "ActionValidated" {
+					return false
+				}
+				previous.stage = 4
+				invocations[fact.InvocationID] = previous
+			}
 		case "ModelDecision", "ToolDecision":
 			expected := "model.invoke"
 			if fact.Kind == "ToolDecision" {
@@ -424,6 +447,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 					return false
 				}
 				previous.stage = 3
+				previous.providerStatus = fact.ProviderStatus
 			}
 			invocations[fact.InvocationID] = previous
 		}
@@ -488,6 +512,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if view.Outcome.Status == "Succeeded" && (authorityResolved != 1 || !runningRecorded) {
+			return false
+		}
+		if view.Outcome.Status == "Succeeded" && (!runtimeTerminal || runtimeTerminalOperation != "Succeeded") {
 			return false
 		}
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
@@ -572,6 +599,9 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		{granted.ResourceScopes, wanted.ResourceScopes},
 		{granted.MemoryScopes, wanted.MemoryScopes},
 	} {
+		if len(pair.requested) > 0 && len(pair.granted) == 0 {
+			return false
+		}
 		for _, value := range pair.granted {
 			if !slices.Contains(pair.requested, value) {
 				return false
@@ -580,6 +610,31 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 	}
 	return granted.ModelProfile == wanted.ModelProfile && granted.Runtime.ProfileRef == request.Spec.Runtime.ProfileRef &&
 		time.Duration(granted.Runtime.Timeout) <= time.Duration(*request.Spec.Runtime.Timeout)
+}
+
+func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthority) []authority.Change {
+	var changes []authority.Change
+	for _, dimension := range []struct {
+		field                string
+		requested, effective []string
+	}{
+		{"tools", request.Spec.RequestedAccess.Tools, granted.Tools},
+		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, granted.ResourceScopes},
+		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, granted.MemoryScopes},
+	} {
+		for _, value := range dimension.requested {
+			if !slices.Contains(dimension.effective, value) {
+				changes = append(changes, authority.Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+			}
+		}
+	}
+	if *request.Spec.Runtime.Timeout != granted.Runtime.Timeout {
+		changes = append(changes, authority.Change{
+			Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(),
+			Effective: time.Duration(granted.Runtime.Timeout).String(), ReasonCode: "template-timeout-cap",
+		})
+	}
+	return changes
 }
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {

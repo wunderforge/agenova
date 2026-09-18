@@ -237,3 +237,16 @@ included with a positive regression test. Focused tests cover the rejected
 attributions, post-revocation events and unknown operations. The rebuilt CLI,
 real installed API and local Portal pass the kind/Ollama parity suite **2/2**.
 Temporary API/Vite servers were stopped after verification.
+The next independent clean-head review required the evidence client to
+correlate invocation-attributed WorkerActivity with a successful completed
+model call; require BackendReady before Running and a terminal Runtime event
+before successful RunOutcome; reject teardown before the terminal transition;
+bind AuthorityResolved to the issued Policy and the exact request/effective
+authority differences; and reject an allowed claim whose requested access
+dimension resolved wholly empty. Focused positive/negative regression tests
+now cover these producer-contract edges, including real template-ceiling
+narrowing and a successful model action.
+The serial full repository gate passed with **51/51** browser smoke tests;
+the rebuilt CLI and local Portal passed the real installed kind/Ollama
+CLI/API/UI parity suite **2/2** on the retained allowed and denied Work.
+The temporary loopback API tunnel and Vite server were stopped afterward.
