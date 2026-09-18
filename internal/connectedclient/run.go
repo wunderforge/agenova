@@ -463,7 +463,7 @@ func validOutcomeState(status string, state *v0.IssuedState) bool {
 	}
 	switch state.Claim.Phase {
 	case v0.ClaimPhaseSucceeded, v0.ClaimPhaseFailed, v0.ClaimPhaseExpired:
-		return status == string(state.Claim.Phase) || (state.Claim.Phase == v0.ClaimPhaseFailed || state.Claim.Phase == v0.ClaimPhaseExpired) && status == "Cancelled"
+		return status == string(state.Claim.Phase) || state.Claim.Phase == v0.ClaimPhaseFailed && status == "Cancelled"
 	default:
 		return false
 	}

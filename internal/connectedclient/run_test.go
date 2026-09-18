@@ -514,6 +514,10 @@ func TestCancelledOutcomeMatchesFailedClaimAndAuditFact(t *testing.T) {
 	if _, err := decodeView([]byte(invalid), "cancelled"); err == nil {
 		t.Fatal("accepted Cancelled outcome without matching terminal audit fact")
 	}
+	expired := strings.Replace(cancelled, `"phase":"Failed"`, `"phase":"Expired"`, 1)
+	if _, err := decodeView([]byte(expired), "cancelled"); err == nil {
+		t.Fatal("accepted Expired claim with Cancelled Work outcome")
+	}
 }
 
 func TestListTransportSupportsBoundedAggregateEvidence(t *testing.T) {

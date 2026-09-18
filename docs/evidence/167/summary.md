@@ -183,3 +183,10 @@ facts, missing Bound evidence, and repeated Work polling. The serial full
 repository gate passed, including **51/51** browser smoke tests, followed by
 the installed CLI/API/React kind/Ollama suite **2/2**. The temporary API
 tunnel and Vite server were stopped after verification.
+The current-head review also found an invalid terminal combination: only a
+Failed Claim may pair with the service's Cancelled Work outcome; an Expired
+Claim must report Expired. The client now rejects Expired/Cancelled evidence
+and has a focused negative regression test. The full repository gate again
+passed with **51/51** browser smoke tests, and the final installed
+CLI/API/React kind/Ollama suite passed **2/2**; both temporary servers were
+stopped afterward.
