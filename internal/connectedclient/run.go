@@ -202,6 +202,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	if view.State != nil && (view.State.Action.Project != view.Request.Spec.ProjectRef || view.State.Action.TemplateRef != view.Request.Spec.TemplateRef) {
 		return false
 	}
+	if view.State != nil && view.State.EffectiveAuthority != nil && !authorityWithinRequest(*view.State.EffectiveAuthority, view.Request) {
+		return false
+	}
 	seenIDs := make(map[string]struct{}, len(view.Facts))
 	var lastSequence uint64
 	for _, fact := range view.Facts {
@@ -215,6 +218,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		// Journal sequence is global, so other Works can leave legitimate gaps.
 		lastSequence = fact.Sequence
 		if fact.ClaimID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
+			return false
+		}
+		if fact.Kind != "RequestReceived" && fact.Kind != "RequestResolution" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
 			return false
 		}
 		if fact.InvocationID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
@@ -271,6 +277,23 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 	}
 	return true
+}
+
+func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequest) bool {
+	wanted := request.Spec.RequestedAccess
+	for _, pair := range []struct{ granted, requested []string }{
+		{granted.Tools, wanted.Tools},
+		{granted.ResourceScopes, wanted.ResourceScopes},
+		{granted.MemoryScopes, wanted.MemoryScopes},
+	} {
+		for _, value := range pair.granted {
+			if !slices.Contains(pair.requested, value) {
+				return false
+			}
+		}
+	}
+	return granted.ModelProfile == wanted.ModelProfile && granted.Runtime.ProfileRef == request.Spec.Runtime.ProfileRef &&
+		time.Duration(granted.Runtime.Timeout) <= time.Duration(*request.Spec.Runtime.Timeout)
 }
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {
