@@ -333,9 +333,15 @@ func workPhase(view evidence.View) string {
 	if view.State != nil && view.State.Decision.Result == "Deny" {
 		return "Denied"
 	}
+	if view.State != nil && view.State.Decision.Result == "ApprovalRequired" {
+		return "Approval required"
+	}
 	if view.Outcome != nil {
 		if view.Outcome.Status == "Deny" {
 			return "Denied"
+		}
+		if view.Outcome.Status == "ApprovalRequired" {
+			return "Approval required"
 		}
 		return view.Outcome.Status
 	}

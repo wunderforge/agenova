@@ -20,6 +20,14 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   const setup = await setupResponse.json() as Setup;
   expect(setup.installation.kind).toBe('installed');
   expect(setup.installation.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
+  expect(setup.policy.ID).toBe('reference-default-deny');
+  expect(setup.policy.Version).toBe('1');
+  expect(setup.policy.Rules).toEqual(expect.arrayContaining([
+    expect.objectContaining({ team: 'team-a', action: 'claim.create', project: 'payments', templateRef: 'engineer' }),
+  ]));
+  expect(setup.template.metadata.name).toBe('engineer');
+  expect(setup.template.spec.capabilityCeiling?.modelProfiles).toContain('coding-standard');
+  expect(setup.template.spec.capabilityCeiling?.runtimeProfiles).toContain('standard-isolated');
 
   const detailResponse = await request.get(`/api/requests/${encodeURIComponent(allowedRef!)}/evidence`);
   expect(detailResponse.status()).toBe(200);

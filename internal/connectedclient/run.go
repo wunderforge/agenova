@@ -186,6 +186,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.ID == "" || fact.Sequence == 0 || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
 		}
+		if fact.ClaimID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
+			return false
+		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
 		}
@@ -206,7 +209,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 	}
 	if view.Outcome != nil {
-		if strings.TrimSpace(view.Outcome.Status) == "" {
+		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
 			return false
 		}
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
@@ -214,6 +217,21 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 	}
 	return true
+}
+
+func validOutcomeState(status string, state *v0.IssuedState) bool {
+	if state.Decision.Result != v0.DecisionResultAllow {
+		return state.Claim == nil && status == string(state.Decision.Result)
+	}
+	if state.Claim == nil {
+		return false
+	}
+	switch state.Claim.Phase {
+	case v0.ClaimPhaseSucceeded, v0.ClaimPhaseFailed, v0.ClaimPhaseExpired:
+		return status == string(state.Claim.Phase) || (state.Claim.Phase == v0.ClaimPhaseExpired && status == "Cancelled")
+	default:
+		return false
+	}
 }
 
 func validDecisionResult(result v0.DecisionResult) bool {

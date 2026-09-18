@@ -50,4 +50,15 @@ accepted. Unit negatives cover those shapes, and the real installed
 CLI/API/React Playwright suite again passed **2/2** against the allowed and
 denied kind/Ollama records with this validation enabled.
 
+After #166 entered main, #167 was rebased onto that squash merge. The latest
+review fixes reject facts attributed to a different Claim and outcomes that
+contradict the issued phase, align CLI `ApprovalRequired` wording with the
+Portal, and make the installed Playwright gate assert the registered Policy
+rule and AgentTemplate ceiling. Focused Go tests passed. The complete
+repository gate passed with **50** browser smoke tests. Against the retained
+real kind/Ollama records, the rebuilt CLI `work list` returned the allowed
+Succeeded Claim and pre-claim Deny; the separate local tunnel, Vite server,
+and strengthened installed Playwright suite passed **2/2**. The tunnel and
+Vite sessions were stopped, and `kubectl get sandboxclaims` found no resources.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
