@@ -174,3 +174,12 @@ After these changes, the serial full repository gate passed all 50 browser
 smoke tests, and the real installed kind/Ollama CLI/API/React suite passed
 **2/2** on the allowed and denied records. Both temporary servers were
 stopped after verification.
+The latest review required all provider attempts and outcomes, including
+failed intermediate calls, to follow an ordered allowed decision for the
+same invocation; a terminal backend identity to match a recorded Runtime
+Bound fact; and the connected UI to avoid querying platform setup on every
+one-second Work poll. Regression tests now cover orphan/reordered provider
+facts, missing Bound evidence, and repeated Work polling. The serial full
+repository gate passed, including **51/51** browser smoke tests, followed by
+the installed CLI/API/React kind/Ollama suite **2/2**. The temporary API
+tunnel and Vite server were stopped after verification.

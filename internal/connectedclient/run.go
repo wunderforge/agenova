@@ -217,12 +217,19 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		return false
 	}
 	seenIDs := make(map[string]struct{}, len(view.Facts))
+	type invocationStage struct {
+		operation string
+		target    string
+		stage     int
+	}
+	invocations := make(map[string]invocationStage)
 	var lastSequence uint64
 	receivedCount := 0
 	var receivedSequence uint64
 	runOutcomes := 0
 	resolutions := 0
 	var resolutionSequence uint64
+	boundRecorded := false
 	for _, fact := range view.Facts {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
@@ -274,6 +281,47 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			(view.State == nil || view.State.EffectiveAuthority == nil || fact.Target == "" || fact.Target != view.State.EffectiveAuthority.ModelProfile) {
 			return false
 		}
+		switch fact.Kind {
+		case "ModelDecision", "ToolDecision":
+			expected := "model.invoke"
+			if fact.Kind == "ToolDecision" {
+				expected = "tool.invoke"
+			}
+			if fact.InvocationID == "" || fact.Operation != expected || !validDecisionResult(fact.Result) {
+				return false
+			}
+			if _, exists := invocations[fact.InvocationID]; exists {
+				return false
+			}
+			stage := 0
+			if fact.Result == v0.DecisionResultAllow {
+				stage = 1
+			}
+			invocations[fact.InvocationID] = invocationStage{operation: expected, target: fact.Target, stage: stage}
+		case "ProviderAttempt", "ProviderOutcome":
+			previous, exists := invocations[fact.InvocationID]
+			if !exists || fact.InvocationID == "" || fact.Operation != previous.operation ||
+				(previous.operation == "model.invoke" && fact.Target != previous.target) {
+				return false
+			}
+			if fact.Kind == "ProviderAttempt" {
+				if previous.stage != 1 || fact.ProviderStatus != "Attempted" {
+					return false
+				}
+				previous.stage = 2
+			} else {
+				if previous.stage != 2 || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {
+					return false
+				}
+				previous.stage = 3
+			}
+			invocations[fact.InvocationID] = previous
+		}
+		if fact.Kind == "Runtime" && fact.Operation == "Bound" && fact.BackendIdentity != nil &&
+			view.State != nil && view.State.Claim != nil && view.State.Claim.BackendIdentity != nil &&
+			*fact.BackendIdentity == *view.State.Claim.BackendIdentity {
+			boundRecorded = true
+		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
 		}
@@ -321,6 +369,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if view.Outcome.Status != "Succeeded" && view.Outcome.Text != "" {
+			return false
+		}
+		if view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && !boundRecorded {
 			return false
 		}
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {

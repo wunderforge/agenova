@@ -27,6 +27,7 @@ export function useConnection(parts: string[], revision: number) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
+    let setupLoaded = false;
     const started = Date.now();
     setLoading(true); setError(''); setCurrent(undefined); setPaused(false);
     if (routeError) {
@@ -37,12 +38,15 @@ export function useConnection(parts: string[], revision: number) {
     async function load() {
       try {
         const [nextSetup, list, detail] = await Promise.all([
-          connectedSource.setup(controller.signal),
+          // Setup may query the installed Platform and Kubernetes. Load once
+          // per connection/route revision; only Work evidence is polled.
+          setupLoaded ? Promise.resolve(undefined) : connectedSource.setup(controller.signal),
           connectedSource.list(controller.signal),
           ref ? connectedSource.request(ref, controller.signal) : Promise.resolve(undefined),
         ]);
         if (disposed) return;
-        setSetup(nextSetup); setWorks(list); setCurrent(detail);
+        if (nextSetup) { setSetup(nextSetup); setupLoaded = true; }
+        setWorks(list); setCurrent(detail);
         setLoading(false); setError('');
         if (detail && isTerminal(detail) && detail.outcome) return;
         if (Date.now() - started >= 120_000) { setPaused(true); return; }

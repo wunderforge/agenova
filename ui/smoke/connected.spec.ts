@@ -67,6 +67,20 @@ test('connected Portal rejects an unrelated local demo API', async ({page}) => {
  await expect(page.getByRole('alert')).toContainText('not an installed Agenova Platform');
  await expect(page.getByRole('link',{name:'New work'})).toHaveCount(0);
 });
+test('connected Work polling does not repeatedly query Platform setup', async ({page}) => {
+ let setupCalls=0;
+ let listCalls=0;
+ await api(page,()=>[work()]);
+ await page.route('**/api/setup', route=>{setupCalls++;return route.fulfill({json:setup});});
+ await page.route('**/api/requests', route=>{listCalls++;return route.fulfill({json:[work()]});});
+ await page.goto('/?mode=connected#/work');
+ await expect.poll(()=>listCalls,{timeout:6000}).toBeGreaterThanOrEqual(2);
+ // Development StrictMode may mount the effect more than once. Its initial
+ // setup reads may repeat, but subsequent Work polls must not add more.
+ const initialSetupCalls=setupCalls;
+ await expect.poll(()=>listCalls,{timeout:6000}).toBeGreaterThanOrEqual(5);
+ expect(setupCalls).toBe(initialSetupCalls);
+});
 test('legacy task title uses its first sentence but retains complete instructions',async({page},info)=>{
  const current=work();
  const first='Investigate why synthetic payment retries exceed the deadline.';
