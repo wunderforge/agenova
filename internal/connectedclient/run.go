@@ -321,7 +321,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "RequestReceived" {
-			if fact.ClaimID != "" || fact.Decision != nil || fact.Result != "" {
+			if fact.ClaimID != "" || fact.InvocationID != "" || fact.Decision != nil || fact.Result != "" ||
+				fact.PolicyRef != nil || fact.Authority != nil || len(fact.AuthorityChanges) != 0 ||
+				fact.BackendIdentity != nil || fact.Operation != "" || fact.Target != "" || fact.ProviderStatus != "" {
 				return false
 			}
 			receivedCount++
@@ -352,6 +354,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.Kind == "Runtime" {
 			if view.State == nil || view.State.Claim == nil || !validRuntimeTerminalOperation(fact.Operation, view.State.Claim.Phase) {
+				return false
+			}
+			if runtimeTerminal && !isRuntimeTeardownOperation(fact.Operation) {
 				return false
 			}
 			if fact.Operation == "Running" {
@@ -532,9 +537,23 @@ func isRuntimeTerminalOperation(operation string) bool {
 	}
 }
 
+func isRuntimeTeardownOperation(operation string) bool {
+	switch operation {
+	case "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
+		return true
+	default:
+		return false
+	}
+}
+
 func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase) bool {
 	if !isRuntimeTerminalOperation(operation) {
-		return true
+		switch operation {
+		case "Pending", "Bound", "BackendReady", "Running", "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
+			return true
+		default:
+			return false
+		}
 	}
 	switch operation {
 	case "Succeeded":

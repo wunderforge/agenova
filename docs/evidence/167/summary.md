@@ -227,3 +227,13 @@ and has a focused negative regression test. The full repository gate again
 passed with **51/51** browser smoke tests, and the final installed
 CLI/API/React kind/Ollama suite passed **2/2**; both temporary servers were
 stopped afterward.
+The subsequent clean-head review tightened the audit vocabulary: a
+`RequestReceived` fact cannot claim later policy, authority, invocation or
+backend attribution; no new binding/readiness/running event is accepted after
+terminal runtime revocation; and Runtime operations must use the canonical
+RunService vocabulary. The installed check caught `Pending`, a legitimate
+pre-allocation RunService event missing from the initial whitelist; it is now
+included with a positive regression test. Focused tests cover the rejected
+attributions, post-revocation events and unknown operations. The rebuilt CLI,
+real installed API and local Portal pass the kind/Ollama parity suite **2/2**.
+Temporary API/Vite servers were stopped after verification.

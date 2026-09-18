@@ -763,6 +763,60 @@ func TestInFlightProviderOutcomeCanCloseAfterRuntimeCancellation(t *testing.T) {
 	if _, err := decodeView([]byte(insertBeforeRunOutcome(valid, lateDecision)), "demo"); err == nil {
 		t.Fatal("accepted a new invocation decision after runtime cancellation")
 	}
+	withGap := strings.Replace(valid, `"id":"fact:10","sequence":10`, `"id":"fact:10","sequence":12`, 1)
+	if _, err := decodeView([]byte(withGap), "demo"); err != nil {
+		t.Fatalf("canonical cancellation with sequence gap rejected: %v", err)
+	}
+	for _, operation := range []string{"Bound", "BackendReady", "Running", "UnexpectedRuntimeStatus"} {
+		lateRuntime := fmt.Sprintf(`{"id":"fact:late-runtime","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":%q}`, operation)
+		if _, err := decodeView([]byte(insertBeforeRunOutcome(withGap, lateRuntime)), "demo"); err == nil {
+			t.Fatalf("accepted runtime %s after cancellation", operation)
+		}
+	}
+}
+
+func TestRequestReceiptHasNoLaterStageAttribution(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	if _, err := decodeView([]byte(base), "demo"); err != nil {
+		t.Fatalf("canonical request receipt rejected: %v", err)
+	}
+	for _, field := range []string{
+		`"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`,
+		`"policyRef":{"id":"policy:demo","version":"1"}`,
+		`"invocationId":"inv:early"`,
+		`"operation":"Bound"`,
+		`"target":"coding-standard"`,
+		`"providerStatus":"Attempted"`,
+	} {
+		invalid := strings.Replace(base, `"kind":"RequestReceived","requestRef":"demo"`, `"kind":"RequestReceived","requestRef":"demo",`+field, 1)
+		if invalid == base {
+			t.Fatal("request receipt fixture did not change")
+		}
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatalf("accepted request receipt with %s", field)
+		}
+	}
+}
+
+func TestRuntimeOperationsUseCanonicalVocabulary(t *testing.T) {
+	base := strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"id":"fact:6","sequence":6`, `"id":"fact:6","sequence":8`, 1)
+	if _, err := decodeView([]byte(base), "demo"); err != nil {
+		t.Fatalf("canonical Work with sequence gap rejected: %v", err)
+	}
+	pending := withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), authorityFact("demo"),
+		`{"id":"fact:pending","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Pending"}`,
+		strings.Replace(boundFact("demo"), `"id":"fact:4","sequence":4`, `"id":"fact:bound","sequence":5`, 1),
+		strings.Replace(runningFact("demo"), `"id":"fact:5","sequence":5`, `"id":"fact:running","sequence":6`, 1),
+		`{"id":"fact:outcome","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+	if _, err := decodeView([]byte(pending), "demo"); err != nil {
+		t.Fatalf("RunService Pending event rejected: %v", err)
+	}
+	for _, operation := range []string{"KubernetesReady", "Allocated", "Unknown"} {
+		fact := fmt.Sprintf(`{"id":"fact:unexpected","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":%q}`, operation)
+		if _, err := decodeView([]byte(insertBeforeRunOutcome(base, fact)), "demo"); err == nil {
+			t.Fatalf("accepted unknown runtime operation %s", operation)
+		}
+	}
 }
 
 func TestToolProviderOutcomeRetainsAttemptTarget(t *testing.T) {
