@@ -231,6 +231,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	var resolutionSequence uint64
 	boundRecorded := false
 	for _, fact := range view.Facts {
+		// RunOutcome is appended after worker teardown. No further activity for
+		// this Work can be part of a canonical terminal evidence view.
+		if runOutcomes != 0 {
+			return false
+		}
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
 		}
@@ -287,7 +292,8 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			if fact.Kind == "ToolDecision" {
 				expected = "tool.invoke"
 			}
-			if fact.InvocationID == "" || fact.Operation != expected || !validDecisionResult(fact.Result) {
+			if fact.InvocationID == "" || fact.Operation != expected || !validDecisionResult(fact.Result) ||
+				fact.PolicyRef == nil || view.State == nil || *fact.PolicyRef != view.State.PolicyRef {
 				return false
 			}
 			if _, exists := invocations[fact.InvocationID]; exists {

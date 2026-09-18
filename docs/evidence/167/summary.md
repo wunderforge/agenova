@@ -155,6 +155,13 @@ The serial full repository gate passed again with all 50 browser smoke
 tests, followed by a real installed kind/Ollama CLI/API/React pass **2/2**
 for allowed and denied Work. The local test tunnel and Vite server were
 stopped afterward.
+The next review found that terminal evidence must reject any Fact following
+the final RunOutcome, and every ModelDecision/ToolDecision must explicitly
+identify the issued Policy version. Query validation now enforces both, with
+positive pre-outcome invocation tests and negative post-outcome/missing or
+mismatched Policy tests. The complete repository gate passed with **51/51**
+browser smoke tests, and the real installed CLI/API/React kind/Ollama suite
+again passed **2/2**. The temporary tunnel and Vite server were stopped.
 Independent review of the original PR found additional query-integrity
 checks: complete trusted team/authentication context, exactly one ordered
 `RequestReceived` before `RequestResolution`, and allowed ToolDecision targets
