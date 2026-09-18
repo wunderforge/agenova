@@ -25,6 +25,7 @@ Agenova provides a **claim-scoped governance contract** for reusable agent work.
 - `SandboxClaim` is the system-managed record of one resolved worker run. Callers do not self-issue claim status or effective authority.
 - Request resolution precedes claim creation and must remain backend-neutral.
 - The MVP may use a static, versioned, default-deny reference policy bundle. Identity-provider integration and self-service policy administration are separate concerns.
+- Owner-approved reference extension (#165, 17 September 2026): a trusted operator may create a versioned PolicyBundle and compatible AgentTemplate from declarative files, with identical reapply idempotency and same-identity conflict. This is not general policy/template CRUD or a task-submitter capability. Runtime/backend details remain in adapter configuration, not authority-bearing request or template fields.
 
 ## Backend Neutrality
 
@@ -83,6 +84,7 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 - CLI JSON, the read-only evidence API, and the React console must consume the same backend-neutral evidence representation.
 - An API or UI may transport, validate, and render governance evidence; it must not create a second claim, policy, decision, or evidence model.
 - The MVP console is read-only. Claim mutation, policy editing, workflow control, and broad administration require separately approved scope.
+- The #165 operator CLI registration path is a narrow management exception and does not authorize a policy/template editor in the React console. A local tunnel or loopback listener is transport, not authentication; management writes require an explicit trusted operator boundary.
 - Approved exception, 15 September 2026 (#143): a loopback/internal demo submission endpoint may accept canonical ClaimRequest input and invoke the existing trusted admission, resolution and issuance boundary. It must not trust caller-provided principal or granted authority; it permits new request submission only, not editing existing claims, policy or identity. Evidence queries remain read-only.
 - A reference evidence endpoint must bind locally or internally by default and must not be exposed publicly without an upstream authentication boundary.
 
@@ -93,6 +95,7 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 - Installation may seed the first versioned Agenova PolicyBundle. That bundle governs later Agenova control-plane actions; it does not retroactively authorize the bootstrap operation that installed it.
 - The supported reference install must be idempotent and must not require embedding administrative credentials in the Agenova CLI or configuration.
 - Production upgrades, rollback, high availability, multi-cluster administration, and general policy management require separately approved scope.
+- The installed reference service must consume the applied effective Platform revision for subsequent Work. A status-only installation cannot be presented as a connected application service, and an implicit memory/demo fallback cannot satisfy the reference operator journey.
 
 ## Scope Discipline
 

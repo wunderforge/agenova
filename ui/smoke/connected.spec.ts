@@ -7,7 +7,7 @@ import type { Setup,View } from '../src/connected-source';
 const request=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.json',import.meta.url),'utf8')) as ClaimRequest;
 const state=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json',import.meta.url),'utf8')) as IssuedState;
 const template:AgentTemplate={apiVersion:'agenova.io/v1alpha1',kind:'AgentTemplate',metadata:{name:'engineer'},spec:{artifact:{image:'example-worker'},entrypoint:{command:['worker']},defaults:{modelProfile:'approved-coding-model',memoryScopes:['team-docs']},capabilityCeiling:{tools:['git.read','git.write'],resourceScopes:['repo:acme/payments'],modelProfiles:['approved-coding-model'],memoryScopes:['team-docs'],runtimeProfiles:['standard-isolated'],maxTimeout:'30m'}}};
-const setup:Setup={principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{Team:'team-a',Action:'claim.create',Project:'payments',TemplateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
+const setup:Setup={principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{team:'team-a',action:'claim.create',project:'payments',templateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
 function work(phase:'Running'|'Succeeded'='Running'):View{
  const copy=structuredClone(state);
 copy.claim!.phase=phase;
@@ -16,9 +16,9 @@ copy.effectiveAuthority!.runtime.timeout='15m';
  const facts:Fact[]=[{id:'f1',sequence:1,timestamp:'2026-09-15T02:00:00Z',kind:'RequestResolution',requestRef:copy.requestRef,decision:copy.decision,result:'Allow',reasonCode:'assignment-allow'},{id:'f2',sequence:2,timestamp:'2026-09-15T02:00:01Z',kind:'AuthorityResolved',requestRef:copy.requestRef,claimId:copy.claim!.id,effectiveAuthority:copy.effectiveAuthority,reasonCode:'template-policy-intersection'},{id:'f3',sequence:3,timestamp:'2026-09-15T02:00:02Z',kind:'Runtime',requestRef:copy.requestRef,claimId:copy.claim!.id,operation:phase}];
  return{version:'agenova.evidence/v0',requestRef:copy.requestRef,request:structuredClone(request),state:copy,facts,...(phase==='Succeeded'?{outcome:{status:'Succeeded',text:'Use a bounded retry with exponential backoff.',model:{invocationId:'model-1',model:'local-test-model',inputTokens:12,outputTokens:20}}}:{})};
 }
-async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest)=>void){
+async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest)=>void,configured:Setup=setup){
  await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;
-  if(path==='/api/setup')return route.fulfill({json:setup});
+  if(path==='/api/setup')return route.fulfill({json:configured});
   if(path==='/api/requests'&&route.request().method()==='POST'){submitted?.(route.request().postDataJSON() as ClaimRequest);
 return route.fulfill({status:202,json:current()[0]});
 }
@@ -311,6 +311,16 @@ await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible()
 await expect(page.getByText('Use a bounded retry with exponential backoff.')).toBeVisible();
 expect(done).toBe(true);
 await page.screenshot({path:info.outputPath('connected-result.png'),fullPage:true});
+});
+test('new work suggests the active policy project instead of a demo constant',async({page})=>{
+ let submitted:ClaimRequest|undefined;
+ const billingSetup:Setup={...setup,policy:{...setup.policy,Rules:[{team:'team-a',action:'claim.create',project:'billing',templateRef:'engineer'}]}};
+ await api(page,()=>[work()],body=>{submitted=body},billingSetup);
+ await page.goto('/?mode=connected#/work/new');
+ await expect(page.getByLabel('Project')).toHaveValue('billing');
+ await page.getByLabel('What should it do?').fill('Explain retry backoff');
+ await page.getByRole('button',{name:'Start work',exact:true}).click();
+ await expect.poll(()=>submitted?.spec.projectRef).toBe('billing');
 });
 test('denial shows request evidence without invented claim worker or model result',async({page})=>{
  const denied=work();

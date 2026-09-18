@@ -26,7 +26,8 @@ spec:
         config:
           connection:
             mode: in-cluster
-            namespace: agenova-workers
+            namespace: agenova-system
+          compatible-worker-image: agenova-testworker:kind
     runtimeProfiles:
       - name: standard-isolated
         backendRef: primary-runtime
@@ -42,7 +43,7 @@ spec:
       - name: coding-standard
         backendRef: local-ollama
         config:
-          model: qwen2.5:0.5b
+          model: llama3.1:latest
   initialPolicyRef:
     id: reference-default-deny
     version: "1"

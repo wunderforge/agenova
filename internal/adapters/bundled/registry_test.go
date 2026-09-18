@@ -111,6 +111,9 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "host-context", "namespace": "workers"}}, "unsupported-connection-mode"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://user:secret@example.invalid/v1"}, "invalid-endpoint"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://models.example/v1?api_key=hidden"}, "invalid-endpoint"},
+		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "http://ollama.agenova-models.svc.cluster.local:11434/v1"}, "unsupported-endpoint"},
+		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}}, "compatible-worker-image"},
+		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}, "compatible-worker-image": "busybox:latest"}, "unsupported-worker-image"},
 	}
 	for _, test := range tests {
 		descriptor, ok := registry.Lookup(test.id, ReferenceVersion)
@@ -121,6 +124,35 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), test.want) || strings.Contains(err.Error(), "secret") {
 			t.Fatalf("canonicalize %s error = %v", test.id, err)
 		}
+	}
+}
+
+func TestAdvertisedModelEndpointIsAcceptedByInstalledProvider(t *testing.T) {
+	registry, err := NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest adapterregistry.Manifest
+	for _, candidate := range registry.Catalog() {
+		if candidate.ID == OpenAICompatibleModelID && candidate.Version == ReferenceVersion {
+			manifest = candidate
+		}
+	}
+	if manifest.ID == "" {
+		t.Fatal("missing model adapter manifest")
+	}
+	var endpoint string
+	for _, field := range manifest.InstanceSchema.Fields {
+		if field.Path == "endpoint" {
+			endpoint, _ = field.Default.(string)
+		}
+	}
+	if endpoint == "" {
+		t.Fatal("model adapter has no advertised default endpoint")
+	}
+	descriptor, _ := registry.Lookup(OpenAICompatibleModelID, ReferenceVersion)
+	if _, err := descriptor.CanonicalizeInstance(platform.CapabilityModel, map[string]any{"endpoint": endpoint}); err != nil {
+		t.Fatalf("advertised endpoint %q cannot be used by installed provider: %v", endpoint, err)
 	}
 }
 

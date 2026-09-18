@@ -15,9 +15,16 @@ export interface Setup {
   policy: {
     ID: string;
     Version: string;
-    Rules: { Team: string; Action: string; Project: string; TemplateRef: string }[];
+    Rules: { team: string; action: string; project: string; templateRef: string }[];
   };
   capabilities: Record<string, string>;
+}
+// Suggestions only: the installed service remains the authority for admission.
+export function suggestedProjects(setup: Setup): string[] {
+  return [...new Set(setup.policy.Rules
+    .filter(rule => rule.team === setup.principal.team && rule.action === 'claim.create' &&
+      rule.templateRef === setup.template.metadata.name)
+    .map(rule => rule.project))];
 }
 export class SourceError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -26,7 +33,10 @@ export class SourceError extends Error {
 }
 
 async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Promise<unknown> {
-  const timeout = AbortSignal.timeout(8000);
+  // The installed service can synchronously configure the runtime before
+  // acknowledging submission. Reads remain short; writes share the server's
+  // bounded setup window so a Work is not launched after the UI reports fail.
+  const timeout = AbortSignal.timeout(body ? 240_000 : 8_000);
   const response = await fetch(path, {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     cache: 'no-store',
@@ -63,7 +73,7 @@ export const connectedSource = {
         !setup.policy || typeof setup.policy.ID !== 'string' ||
         typeof setup.policy.Version !== 'string' || !Array.isArray(setup.policy.Rules) ||
         !setup.policy.Rules.every(rule => rule &&
-          [rule.Team, rule.Action, rule.Project, rule.TemplateRef].every(value => typeof value === 'string')) ||
+          [rule.team, rule.action, rule.project, rule.templateRef].every(value => typeof value === 'string')) ||
         !setup.capabilities || typeof setup.capabilities !== 'object' ||
         !Object.values(setup.capabilities).every(value => typeof value === 'string')) {
       throw new SourceError(502, 'Platform setup is incomplete.');

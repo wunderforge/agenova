@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -82,8 +83,8 @@ func (a *ControlledAdapter) Execute(ctx context.Context, id v0.SandboxClaimBacke
 }
 
 func (r *kubectlRunner) executionArgs(workerID string) ([]string, error) {
-	if r.context == "" || r.namespace == "" || !isDNSLabel(workerID) || len(workerID) > 63 {
-		return nil, errors.New("worker execution requires explicit context, namespace and valid pod")
+	if (r.context == "" && os.Getenv("KUBECONFIG") == "") || r.namespace == "" || !isDNSLabel(workerID) || len(workerID) > 63 {
+		return nil, errors.New("worker execution requires configured Kubernetes access, namespace and valid pod")
 	}
 	return r.baseArgs("exec", "-i", "pod/"+workerID, "-c", "agent", "--", "/agenova-demo-worker"), nil
 }

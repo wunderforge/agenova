@@ -302,6 +302,32 @@ func lockFromResolved(resolved *ResolvedPlatform) (*PlatformLock, *ResolveError)
 	return lock, nil
 }
 
+// VerifyResolvedLock rejects a stored effective Platform whose contents no
+// longer match either its revision or its digest-only lock. This is an
+// integrity check, not authentication of the local state file's author.
+func VerifyResolvedLock(resolved *ResolvedPlatform, lock *PlatformLock) error {
+	if resolved == nil || lock == nil || resolved.Revision == "" || resolved.Revision != lock.Revision {
+		return fmt.Errorf("effective Platform and lock revision mismatch")
+	}
+	payload := revisionPayload{
+		PlatformName:     resolved.PlatformName,
+		Adapters:         resolved.Adapters,
+		Instances:        resolved.Instances,
+		Profiles:         resolved.Profiles,
+		ModelRoutes:      resolved.ModelRoutes,
+		InitialPolicyRef: resolved.InitialPolicyRef,
+	}
+	revision, err := digestValue(payload)
+	if err != nil || revision != resolved.Revision {
+		return fmt.Errorf("effective Platform content revision mismatch")
+	}
+	expected, failure := lockFromResolved(resolved)
+	if failure != nil || !reflect.DeepEqual(expected, lock) {
+		return fmt.Errorf("effective Platform lock content mismatch")
+	}
+	return nil
+}
+
 func digestValue(value any) (string, error) {
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)

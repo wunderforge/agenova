@@ -171,6 +171,42 @@ func (p *verticalProvider) Complete(ctx context.Context, r modelprovider.Request
 	}
 	return modelprovider.Result{Text: "Answer: " + r.Prompt, Model: "local-test", ResponseID: "response-1", InputTokens: 10, OutputTokens: 20}, nil
 }
+func TestTemplateConfigurationFailureRemainsQueryable(t *testing.T) {
+	backend := &verticalBackend{}
+	s, err := NewServiceWithOptions(backend, &verticalExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{
+		Configure: func(*v0.AgentTemplate) (app.ResolvedLaunch, error) {
+			return app.ResolvedLaunch{}, errors.New("private kubectl stderr token")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	view, err := s.Submit(verticalRequest(t, "configure-failed"))
+	if err != nil || view.Outcome == nil || view.Outcome.Status != "Failed" || !strings.Contains(view.Outcome.Failure, "runtime template configuration failed") || strings.Contains(view.Outcome.Failure, "private kubectl") {
+		t.Fatalf("configuration failure = %#v, %v", view.Outcome, err)
+	}
+	if view.State == nil || view.State.Claim == nil || view.State.Claim.Phase != v0.ClaimPhaseFailed || view.State.Claim.BackendIdentity != nil || backend.calls.Load() != 0 {
+		t.Fatalf("configuration failure allocated a worker: %#v, calls %d", view.State, backend.calls.Load())
+	}
+	queried, err := s.QueryRequest("configure-failed")
+	if err != nil || queried.Outcome == nil || queried.Outcome.Status != "Failed" {
+		t.Fatalf("failure was not queryable: %#v, %v", queried.Outcome, err)
+	}
+	foundOutcome := false
+	for _, fact := range queried.Facts {
+		if fact.Kind == "RunOutcome" && fact.ClaimID == view.State.Claim.ID && fact.ReasonCode == "runtime-template-configuration-failed" {
+			foundOutcome = true
+		}
+	}
+	if !foundOutcome {
+		t.Fatal("runtime configuration failure lacks claim-correlated RunOutcome fact")
+	}
+	if _, err := s.Submit(verticalRequest(t, "configure-failed")); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate failure reference = %v", err)
+	}
+}
+
 func verticalRequest(t *testing.T, name string) []byte {
 	t.Helper()
 	timeout := v0.Duration(45 * time.Minute)

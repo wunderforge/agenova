@@ -65,9 +65,10 @@ func TestAdapterInitYAMLIsReviewablePlatformFragment(t *testing.T) {
             - name: primary-runtime
               adapterRef: primary-runtime
               config:
+                compatible-worker-image: agenova-testworker:kind
                 connection:
                     mode: in-cluster
-                    namespace: agenova-workers
+                    namespace: agenova-system
         runtimeProfiles:
             - name: primary-runtime-profile
               backendRef: primary-runtime
@@ -94,7 +95,7 @@ func TestAdapterCommandNegativeCases(t *testing.T) {
 		{[]string{"agenova", "adapters", "inspect", "not-qualified"}, ExitUsage, "qualified adapter ID"},
 		{[]string{"agenova", "adapters", "install"}, ExitUsage, "install requires"},
 		{[]string{"agenova", "adapters", "inspect", bundled.AgentSandboxRuntimeID, "--name", "wrong"}, ExitUsage, "--name is only valid"},
-		{[]string{"agenova", "run", "--state-dir", "somewhere"}, ExitUsage, "--state-dir is only valid"},
+		{[]string{"agenova", "run", "--state-dir", "somewhere"}, ExitUsage, "run requires -f"},
 	}
 	for _, test := range tests {
 		stdout, stderr, code := runAdapterCLI(test.args, factory)

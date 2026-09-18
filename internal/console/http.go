@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
-	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
@@ -22,10 +21,17 @@ const maxSubmissionBytes = 128 << 10
 
 // Setup describes operator configuration, not a live health assessment.
 type Setup struct {
-	Principal    v0.Principal        `json:"principal"`
-	Template     *v0.AgentTemplate   `json:"template"`
-	Policy       policy.PolicyBundle `json:"policy"`
-	Capabilities map[string]string   `json:"capabilities"`
+	Principal    v0.Principal         `json:"principal"`
+	Template     *v0.AgentTemplate    `json:"template"`
+	Policy       policy.PolicyBundle  `json:"policy"`
+	Capabilities map[string]string    `json:"capabilities"`
+	Installation InstallationIdentity `json:"installation"`
+}
+
+type InstallationIdentity struct {
+	Kind     string `json:"kind"`
+	Platform string `json:"platform,omitempty"`
+	Revision string `json:"revision,omitempty"`
 }
 
 type httpError struct {
@@ -52,12 +58,17 @@ func Handler(service *Service) http.Handler {
 			if !requireMethod(w, r, http.MethodGet) {
 				return
 			}
-			source, err := app.NewReferencePrincipalSource(service.preset)
+			setup, err := service.setup()
 			if err != nil {
-				writeError(w, 503, "unavailable", "The console service is unavailable.")
+				writeError(w, 503, "setup_unavailable", "Registered platform setup is unavailable.")
 				return
 			}
-			writeJSON(w, 200, Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}})
+			// An empty default-deny policy is valid. Keep the HTTP collection
+			// shape stable even for older records persisted with a nil Go slice.
+			if setup.Policy.Rules == nil {
+				setup.Policy.Rules = []policy.Rule{}
+			}
+			writeJSON(w, 200, setup)
 		case "/api/requests":
 			switch r.Method {
 			case http.MethodGet:
@@ -132,13 +143,16 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
 	}
 	view, err := service.Submit(data)
 	if err != nil {
+		var submission *SubmissionError
 		switch {
 		case errors.Is(err, ErrConflict):
 			writeError(w, 409, "request_conflict", "This request reference already exists.")
 		case errors.Is(err, ErrCapacity):
 			writeError(w, 429, "capacity_reached", "The local console has reached its record limit.")
+		case errors.As(err, &submission):
+			writeError(w, 422, submission.Code, submission.Message)
 		default:
-			writeError(w, 500, "submission_failed", "The request could not be submitted.")
+			writeError(w, 500, "submission_failed", "Submission failed. Check the active policy, registered AgentTemplate, installed profiles and gateway capabilities.")
 		}
 		return
 	}

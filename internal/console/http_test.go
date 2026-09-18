@@ -107,6 +107,22 @@ func httpCall(h http.Handler, method, path string, body []byte, headers map[stri
 	h.ServeHTTP(w, r)
 	return w
 }
+
+func TestHTTPSubmissionReturnsStableOperatorDiagnostic(t *testing.T) {
+	service, err := NewServiceWithOptions(&httpBackend{}, httpExecutor{}, &httpProvider{}, app.ReferencePrincipalTeamA, Options{
+		Prepare: func([]byte) (app.PreparedAssignment, error) {
+			return app.PreparedAssignment{}, &SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: errors.New("private kube detail")}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	response := httpCall(Handler(service), "POST", "/api/requests", httpInput("unknown-template"), nil)
+	if response.Code != 422 || !strings.Contains(response.Body.String(), `"code":"agent_template_unavailable"`) || strings.Contains(response.Body.String(), "private kube detail") {
+		t.Fatalf("unsafe diagnostic: %d %s", response.Code, response.Body.String())
+	}
+}
 func httpView(t *testing.T, w *httptest.ResponseRecorder) evidence.View {
 	t.Helper()
 	var v evidence.View
@@ -186,8 +202,37 @@ func TestHTTPTeamBDeniedBeforeAllExternalWork(t *testing.T) {
 	}
 	w = httpCall(h, "GET", "/api/setup", nil, nil)
 	var setup Setup
-	if json.Unmarshal(w.Body.Bytes(), &setup) != nil || setup.Principal.Team != "team-b" || setup.Template.Metadata.Name != "engineer" || setup.Capabilities["model"] != "configured" || setup.Capabilities["memory"] != "notConnected" {
+	if json.Unmarshal(w.Body.Bytes(), &setup) != nil || setup.Principal.Team != "team-b" || setup.Template.Metadata.Name != "engineer" || setup.Capabilities["model"] != "configured" || setup.Capabilities["memory"] != "notConnected" || setup.Installation.Kind != "local-demo" {
 		t.Fatalf("setup=%s", w.Body.String())
+	}
+}
+
+func TestHTTPSetupProviderFailsClosed(t *testing.T) {
+	backend := &httpBackend{}
+	service, err := NewServiceWithOptions(backend, httpExecutor{}, &httpProvider{}, app.ReferencePrincipalTeamA, Options{
+		Setup: func() (Setup, error) { return Setup{}, errors.New("synthetic-secret-registry-error") },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(service.Close)
+	w := httpCall(Handler(service), "GET", "/api/setup", nil, nil)
+	if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "synthetic-secret") || strings.Contains(w.Body.String(), "engineer") {
+		t.Fatalf("invalid setup leaked or fell back: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPSetupSerializesEmptyDefaultDenyRulesAsArray(t *testing.T) {
+	service, _, handler := httpService(t, app.ReferencePrincipalTeamA, &httpProvider{})
+	original := service.setup
+	service.setup = func() (Setup, error) {
+		setup, err := original()
+		setup.Policy.Rules = nil
+		return setup, err
+	}
+	w := httpCall(handler, "GET", "/api/setup", nil, nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Rules":[]`) {
+		t.Fatalf("empty policy setup = %d %s", w.Code, w.Body.String())
 	}
 }
 

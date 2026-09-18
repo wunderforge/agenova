@@ -20,6 +20,21 @@ Teams can build agents, but each team repeatedly assembles runtime isolation, te
 
 ## MVP User Journey
 
+The operator establishes the platform before a submitter starts Work:
+
+```text
+agenova adapters catalog
+agenova platform validate -f platform.yaml
+agenova platform plan -f platform.yaml
+agenova platform apply -f platform.yaml
+agenova platform status
+agenova policy apply -f policy.yaml
+agenova agent-template apply -f engineer.yaml
+agenova run -f work.yaml
+```
+
+Its effective revision selects the installed application service, deployment/runtime adapter, model backend and logical profiles. A command may report an unsupported adapter; the product must not synthesize a successful capability or silently use the memory backend. The reference acceptance path uses an existing kind cluster, a compatible Agent Sandbox worker, and a local OpenAI-compatible Ollama provider. Tool observations in that path are labelled synthetic; Memory and Observability are not implied by this slice. General Policy CRUD, arbitrary agent-image compatibility and multi-file Platform includes remain future scope. This narrow operator journey was requested by the Owner on 17 September 2026 as [#165](https://github.com/wunderforge/agenova/issues/165); its reproducible procedure and reference-only limits are in the [kind + Ollama CLI guide](../reference-cli-kind-ollama.md). A later `work show` command may expose durable evidence, but is not part of this seven-command acceptance flow.
+
 ```text
 receive a trusted principal and one ClaimRequest
   -> authorize claim.create for the requested project and template
@@ -113,6 +128,9 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - The first install seeds one versioned default-deny Agenova PolicyBundle for later control-plane actions.
 - Repeating the same install is idempotent and does not duplicate named resources or silently change the desired configuration.
 - Cluster creation, production lifecycle management, and general policy administration remain outside the MVP.
+- The installed reference service, not a separately hardcoded demo process, owns subsequent Work admission, execution and evidence. `platform status` reports the effective revision and distinguishes installation readiness from capability availability and real execution health.
+- An authorized operator can register a versioned PolicyBundle and a compatible AgentTemplate from canonical YAML after installation. The first scope is create/identical reapply only; same-identity different content conflicts. Registration survives service restart and cannot be performed by a task submitter merely because they can reach a loopback port.
+- CLI and connected Portal submission use the same trusted application boundary and backend-neutral evidence. Connected CLI commands do not take Kubernetes context, provider endpoint, model name, or granted-authority shortcuts for Work. Reference-memory mode, where retained, is explicitly named and separate.
 
 ### 7. Read-only claim console
 
@@ -135,6 +153,7 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - Contract, authorization, facts, and evidence-view tests.
 - One runnable local golden demo exposed through CLI or an equivalent executable entrypoint.
 - One supported, idempotent reference installation/bootstrap command for an existing test cluster.
+- One supported declarative operator CLI path covering Platform apply/status, narrow Policy and AgentTemplate registration, connected Work submission, and evidence query on kind with a real local Ollama call.
 - One real backend adapter evidence path; Kubernetes Agent Sandbox is the current candidate.
 - One evidence representation consumed by CLI JSON, a minimal read-only API, and the React claim console.
 - One minimal engineer Agent Artifact and one bounded adversarial denial scenario.

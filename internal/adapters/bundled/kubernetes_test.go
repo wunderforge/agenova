@@ -14,6 +14,7 @@ import (
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
+	"github.com/wunderforge/agenova/internal/registration"
 )
 
 type fakeKubectl struct {
@@ -40,13 +41,41 @@ func TestKubernetesPlanIsReadOnlyAndReportsMissingTarget(t *testing.T) {
 	}}
 	adapter := newKubernetesDeployment(runner)
 	target, changes, statuses, err := adapter.Plan(context.Background(), deploymentRequest())
-	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 5 || len(statuses) != 5 {
+	if err != nil || target != "kind-agenova/agenova-system" || len(changes) != 9 || len(statuses) != 9 {
 		t.Fatalf("Plan() = %q %#v %#v, %v", target, changes, statuses, err)
 	}
 	for _, call := range runner.calls {
 		if contains(call, "apply") || contains(call, "create") || contains(call, "patch") {
 			t.Fatalf("read-only Plan issued mutating call: %#v", call)
 		}
+	}
+}
+
+func TestReferenceInstallSeedsThePolicyReadByRegistrationStore(t *testing.T) {
+	steps, err := referenceSteps(deploymentRequest(), "agenova-system", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects := map[string]map[string]any{}
+	for _, step := range steps {
+		if step.name == policyRecord || step.name == activePolicyRecord {
+			objects[step.name] = step.object
+		}
+	}
+	if len(objects) != 2 {
+		t.Fatalf("seeded policy objects = %d, want record and active pointer", len(objects))
+	}
+	store := registration.KubernetesStore{Namespace: "agenova-system", Invoke: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		for _, name := range []string{policyRecord, activePolicyRecord} {
+			if contains(args, name) {
+				return json.Marshal(objects[name])
+			}
+		}
+		return nil, errors.New("NotFound")
+	}}
+	bundle, err := store.ActivePolicy()
+	if err != nil || bundle.ID != "reference-default-deny" || bundle.Version != "1" || len(bundle.Rules) != 1 {
+		t.Fatalf("installed policy cannot be read as active: %#v, %v", bundle, err)
 	}
 }
 
@@ -57,6 +86,36 @@ func TestKubernetesPlanRejectsPolicyOutsideReferenceCatalog(t *testing.T) {
 	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
 	if err == nil || !strings.Contains(err.Error(), "reference install provides") || len(runner.calls) != 0 {
 		t.Fatalf("Plan() = %v, calls %#v; want policy rejection before target access", err, runner.calls)
+	}
+}
+
+func TestKubernetesPlanRejectsUnsupportedCrossNamespaceRuntimeBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "worker", Config: map[string]any{"connection": map[string]any{"namespace": "other-workers"}}}}
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "runtime namespace must match") || len(runner.calls) != 0 {
+		t.Fatalf("unsupported target = %v, calls %#v", err, runner.calls)
+	}
+}
+
+func TestKubernetesPlanRejectsUnsupportedRuntimeCardinalityBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = append(request.Platform.Instances, request.Platform.Instances[0])
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "exactly one runtime backend") || len(runner.calls) != 0 {
+		t.Fatalf("multiple runtimes = %v, target calls %#v", err, runner.calls)
+	}
+}
+
+func TestKubernetesPlanRejectsUnverifiedWorkerImageBeforeAccess(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances[0].Config["compatible-worker-image"] = "busybox:latest"
+	runner := &fakeKubectl{}
+	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "bundled controlled worker image") || len(runner.calls) != 0 {
+		t.Fatalf("unsupported worker image = %v, target calls %#v", err, runner.calls)
 	}
 }
 
@@ -101,7 +160,7 @@ func TestKubernetesApplyMutatesOnlyChangedPolicyRecord(t *testing.T) {
 	}
 	request.TargetChanges = changes
 	statuses, attempted, err := adapter.Apply(context.Background(), request)
-	if err != nil || !attempted || len(statuses) != 5 {
+	if err != nil || !attempted || len(statuses) != 9 {
 		t.Fatalf("Apply() = %#v, %t, %v", statuses, attempted, err)
 	}
 	applyCount := 0
@@ -155,7 +214,7 @@ func TestKubernetesApplyDeniesBeforeMutationWhenRBACMissing(t *testing.T) {
 		return commandResult{}, nil
 	}}
 	statuses, attempted, err := newKubernetesDeployment(runner).Apply(context.Background(), deploymentRequest())
-	if err == nil || !strings.Contains(err.Error(), "lacks required RBAC") || len(statuses) != 4 {
+	if err == nil || !strings.Contains(err.Error(), "lacks required RBAC") || len(statuses) != 5 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
 	if attempted {
@@ -190,7 +249,7 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 		return commandResult{}, nil
 	}}
 	statuses, _, err := newKubernetesDeployment(runner).Apply(context.Background(), request)
-	if err != nil || len(statuses) != 5 {
+	if err != nil || len(statuses) != 9 {
 		t.Fatalf("Apply() = %#v, %v", statuses, err)
 	}
 	applyCount, rollout := 0, false
@@ -204,8 +263,8 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 			rollout = true
 		}
 	}
-	if applyCount != 5 || !rollout {
-		t.Fatalf("calls = %#v, want five resource applies then rollout", runner.calls)
+	if applyCount != 9 || !rollout {
+		t.Fatalf("calls = %#v, want nine resource applies then rollout", runner.calls)
 	}
 	manifestText := manifest.String()
 	for _, required := range []string{"kind: Namespace", "kind: ConfigMap", "kind: Deployment", "kind: Service", "reference-default-deny"} {
@@ -218,6 +277,9 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 	}
 	if !strings.Contains(manifestText, "team-a") || !strings.Contains(manifestText, "claim.create") {
 		t.Fatalf("initial policy omitted the actual reference allow rule: %s", manifestText)
+	}
+	if !strings.Contains(manifestText, "AGENOVA_ALLOWED_WORKER_IMAGE") || !strings.Contains(manifestText, "agenova-testworker:kind") {
+		t.Fatalf("control plane is missing the configured worker image boundary: %s", manifestText)
 	}
 }
 
@@ -301,8 +363,8 @@ func TestKubernetesApplyDoesNotRelabelExistingNamespace(t *testing.T) {
 			}
 		}
 	}
-	if applyCount != 4 {
-		t.Fatalf("got %d resource applies, want four namespaced resources", applyCount)
+	if applyCount != 8 {
+		t.Fatalf("got %d resource applies, want eight namespaced resources", applyCount)
 	}
 }
 
@@ -347,10 +409,21 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 		case contains(args, "namespace"):
 			return `{"metadata":{"name":"agenova-system"}}`
 		case contains(args, "configmap") && contains(args, platformRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}})
 			return string(data)
 		case contains(args, "configmap") && contains(args, policyRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
+			return string(data)
+		case contains(args, "configmap") && contains(args, activePolicyRecord):
+			return `{"metadata":{"name":"agenova-active-policy","labels":{"app.kubernetes.io/managed-by":"agenova"}},"data":{"reference.json":"{\"id\":\"reference-default-deny\",\"version\":\"1\"}"}}`
+		case contains(args, "serviceaccount"):
+			data, _ := json.Marshal(serviceAccountObject("agenova-system"))
+			return string(data)
+		case contains(args, "rolebinding"):
+			data, _ := json.Marshal(roleBindingObject("agenova-system"))
+			return string(data)
+		case contains(args, "role"):
+			data, _ := json.Marshal(roleObject("agenova-system"))
 			return string(data)
 		case contains(args, "deployment"):
 			return `{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"},"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
@@ -372,6 +445,121 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 	}
 	if len(changes) != 1 || changes[0].Component != controlPlaneName {
 		t.Fatalf("drift plan = %#v, want only deployment reconcile", changes)
+	}
+}
+
+func TestKubernetesPlatformRecordRepairRestartsReadyControlPlane(t *testing.T) {
+	request := deploymentRequest()
+	drifted := true
+	recordMissing := false
+	reloadPending := false
+	restarted := false
+	failRestart := true
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		switch {
+		case contains(args, "version"):
+			return commandResult{stdout: `{}`}, nil
+		case contains(args, "can-i"):
+			return commandResult{stdout: "yes\n"}, nil
+		case contains(args, "get") && contains(args, platformRecord) && recordMissing:
+			return commandResult{stderr: "Error from server (NotFound): configmap not found"}, errors.New("exit 1")
+		case contains(args, "apply"):
+			drifted = false
+			recordMissing = false
+			reloadPending = true
+			return commandResult{}, nil
+		case contains(args, "rollout") && contains(args, "restart"):
+			if failRestart {
+				return commandResult{}, errors.New("restart rejected")
+			}
+			restarted = true
+			return commandResult{}, nil
+		case contains(args, "patch") && contains(args, platformRecord):
+			if !restarted {
+				return commandResult{}, errors.New("marker cleared before restart")
+			}
+			reloadPending = false
+			return commandResult{}, nil
+		case contains(args, "rollout") && contains(args, "status"):
+			if !restarted {
+				return commandResult{}, errors.New("rollout status before restart")
+			}
+			return commandResult{}, nil
+		case contains(args, "get") && !contains(args, "json"):
+			return commandResult{stdout: "existing\n"}, nil
+		case contains(args, "get") && contains(args, "json") && contains(args, platformRecord) && (drifted || reloadPending):
+			result, ok := readyResourceResult(args, request)
+			if !ok {
+				return commandResult{}, errors.New("missing Platform record")
+			}
+			var object map[string]any
+			if err := json.Unmarshal([]byte(result.stdout), &object); err != nil {
+				return commandResult{}, err
+			}
+			if drifted {
+				object["data"].(map[string]any)["effective-platform.json"] = `{"tampered":true}`
+			}
+			if reloadPending {
+				object["metadata"].(map[string]any)["annotations"].(map[string]any)[reloadPendingAnnotation] = "true"
+			}
+			encoded, _ := json.Marshal(object)
+			return commandResult{stdout: string(encoded)}, nil
+		default:
+			if contains(args, "deployments.apps") {
+				alias := append([]string(nil), args...)
+				for index, item := range alias {
+					if item == "deployments.apps" {
+						alias[index] = "deployment"
+					}
+				}
+				if result, ok := readyResourceResult(alias, request); ok {
+					return result, nil
+				}
+			}
+			if result, ok := readyResourceResult(args, request); ok {
+				return result, nil
+			}
+			return commandResult{}, errors.New("unexpected kubectl call")
+		}
+	}}
+	adapter := newKubernetesDeployment(runner)
+	_, changes, _, err := adapter.Plan(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 2 || changes[0].Component != platformRecord || changes[0].Action != "update" || changes[1].Component != controlPlaneName {
+		t.Fatalf("Platform record drift plan = %#v, want record update and Deployment reconcile", changes)
+	}
+	request.TargetChanges = changes
+	statuses, attempted, err := adapter.Apply(context.Background(), request)
+	if err == nil || !attempted || restarted || !reloadPending {
+		t.Fatalf("failed restart = %#v, attempted %v, restarted %v, marker %v, err %v", statuses, attempted, restarted, reloadPending, err)
+	}
+	_, changes, statuses, err = adapter.Plan(context.Background(), request)
+	if err != nil || len(changes) != 2 || changes[0].Component != platformRecord || changes[1].Component != controlPlaneName {
+		t.Fatalf("restart retry plan = %#v, statuses %#v, err %v", changes, statuses, err)
+	}
+	failRestart = false
+	request.TargetChanges = changes
+	statuses, attempted, err = adapter.Apply(context.Background(), request)
+	if err != nil || !attempted || !restarted {
+		t.Fatalf("Apply() = %#v, attempted %v, restarted %v, err %v", statuses, attempted, restarted, err)
+	}
+	if reloadPending {
+		t.Fatal("successful restart left a pending marker")
+	}
+	// Recreating a deleted ConfigMap beside an existing Ready Deployment must
+	// also reload its Pod; creation alone cannot be mistaken for a first install.
+	recordMissing = true
+	restarted = false
+	_, changes, _, err = adapter.Plan(context.Background(), request)
+	if err != nil || len(changes) != 2 || changes[0].Component != platformRecord || changes[0].Action != "create" || changes[1].Component != controlPlaneName {
+		t.Fatalf("missing record plan = %#v, err %v", changes, err)
+	}
+	request.TargetChanges = changes
+	statuses, attempted, err = adapter.Apply(context.Background(), request)
+	if err != nil || !attempted || !restarted || reloadPending {
+		t.Fatalf("recreated record Apply() = %#v, attempted %v, restarted %v, marker %v, err %v", statuses, attempted, restarted, reloadPending, err)
 	}
 }
 
@@ -415,6 +603,44 @@ func TestKubernetesPreflightRejectsUnmanagedNameCollision(t *testing.T) {
 	}
 }
 
+func TestKubernetesPreflightChecksRoleGrantAuthorityBeforeMutation(t *testing.T) {
+	for _, test := range []struct {
+		name              string
+		missingPermission bool
+		wantError         bool
+	}{
+		{name: "contained permissions suffice"},
+		{name: "missing contained permission rejects", missingPermission: true, wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+				if contains(args, "can-i") {
+					if contains(args, "escalate") || contains(args, "bind") || (test.missingPermission && contains(args, "pods") && contains(args, "get")) {
+						return commandResult{stdout: "no\n"}, nil
+					}
+					return commandResult{stdout: "yes\n"}, nil
+				}
+				return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+			}}
+			err := newKubernetesDeployment(runner).Preflight(context.Background(), deploymentRequest())
+			if test.wantError && (err == nil || !strings.Contains(err.Error(), "cannot grant reference Role permission")) {
+				t.Fatalf("Preflight() error = %v, want contained-permission failure", err)
+			}
+			if !test.wantError && err != nil {
+				t.Fatal(err)
+			}
+			for _, call := range runner.calls {
+				if contains(call, "auth") {
+					continue
+				}
+				if contains(call, "apply") || contains(call, "patch") || contains(call, "create") {
+					t.Fatalf("Preflight mutated the cluster: %#v", call)
+				}
+			}
+		})
+	}
+}
+
 func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	request := deploymentRequest()
 	desired := deploymentObject(request, "agenova-system")
@@ -436,6 +662,16 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	if !deploymentMatches(actual, desired, request.Platform.Revision) {
 		t.Fatal("matching current rollout should be Ready")
 	}
+	annotations := actual["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any)["annotations"].(map[string]any)
+	annotations["kubectl.kubernetes.io/restartedAt"] = "2026-09-18T10:11:12Z"
+	if !deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("kubectl rollout restart annotation should be accepted")
+	}
+	annotations["kubectl.kubernetes.io/restartedAt"] = "invalid timestamp"
+	if deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("invalid restart annotation must not be silently accepted")
+	}
+	delete(annotations, "kubectl.kubernetes.io/restartedAt")
 	container := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
 	environment := container["env"].([]any)
 	environment[2].(map[string]any)["value"] = "unexpected-policy@2"
@@ -684,7 +920,7 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 			return commandResult{stdout: `{}`}, nil
 		case contains(args, "apply"):
 			applyCount++
-			if applyCount == 4 {
+			if applyCount == 8 {
 				partial = true
 				return commandResult{stderr: "deployment rejected"}, errors.New("exit 1")
 			}
@@ -692,11 +928,14 @@ func TestKubernetesApplyReportsObservedPartialState(t *testing.T) {
 		case contains(args, "get") && partial && contains(args, "namespace"):
 			return commandResult{stdout: `{"metadata":{"name":"agenova-system"}}`}, nil
 		case contains(args, "get") && partial && contains(args, platformRecord):
-			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}})
+			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}})
 			return commandResult{stdout: string(data)}, nil
 		case contains(args, "get") && partial && contains(args, policyRecord):
 			data, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}})
 			return commandResult{stdout: string(data)}, nil
+		case contains(args, "get") && partial && contains(args, activePolicyRecord):
+			result, _ := readyResourceResult(args, request)
+			return result, nil
 		default:
 			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
 		}
@@ -727,10 +966,18 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 		object = map[string]any{"metadata": map[string]any{"name": "agenova-system"}}
 	case contains(args, platformRecord):
 		lockJSON, _ := platformapply.EncodeLock(request.Lock)
-		object = map[string]any{"metadata": map[string]any{"name": platformRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}}
+		object = map[string]any{"metadata": map[string]any{"name": platformRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": effectivePlatformJSON(request)}}
 	case contains(args, policyRecord):
 		policyJSON, _ := referencePolicyJSON()
 		object = map[string]any{"metadata": map[string]any{"name": policyRecord, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyJSON)}}
+	case contains(args, activePolicyRecord):
+		object = map[string]any{"metadata": map[string]any{"name": activePolicyRecord, "labels": managedLabels()}, "data": map[string]any{"reference.json": `{"id":"reference-default-deny","version":"1"}`}}
+	case contains(args, "serviceaccount"):
+		object = serviceAccountObject("agenova-system")
+	case contains(args, "rolebinding"):
+		object = roleBindingObject("agenova-system")
+	case contains(args, "role"):
+		object = roleObject("agenova-system")
 	case contains(args, "deployment"):
 		object = deploymentObject(request, "agenova-system")
 		object["metadata"].(map[string]any)["generation"] = 1
@@ -745,9 +992,29 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 }
 
 func deploymentRequest() platformapply.DeploymentRequest {
-	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}}
+	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}, Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "reference-worker", Config: map[string]any{"compatible-worker-image": "agenova-testworker:kind", "connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}}}, {Category: platform.CapabilityModel, Name: "reference-model", Config: map[string]any{"endpoint": "http://host.docker.internal:11434/v1"}}}, Profiles: []platform.ResolvedProfile{{Capability: platform.CapabilityModel, Name: "coding-standard", BackendRef: "reference-model", Config: map[string]any{"model": "qwen3:0.6b"}}}}
 	lock := &platform.PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, InitialPolicyRef: resolved.InitialPolicyRef}
 	return platformapply.DeploymentRequest{Platform: resolved, Lock: lock, Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}}
+}
+
+func TestReferenceCompositionRejectsMissingOrDivergentModelBeforeRollout(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Instances = request.Platform.Instances[:1]
+	request.Platform.Profiles = nil
+	if err := validateReferenceRuntime(request); err == nil {
+		t.Fatal("missing model composition reached rollout")
+	}
+	request = deploymentRequest()
+	request.Platform.Instances = append(request.Platform.Instances, platform.ResolvedInstance{Category: platform.CapabilityModel, Name: "second-model", Config: map[string]any{"endpoint": "https://provider.example/v1"}})
+	request.Platform.Profiles = append(request.Platform.Profiles, platform.ResolvedProfile{Capability: platform.CapabilityModel, Name: "research", BackendRef: "second-model", Config: map[string]any{"model": "other"}})
+	if err := validateReferenceRuntime(request); err == nil {
+		t.Fatal("multiple model endpoints reached rollout")
+	}
+}
+
+func effectivePlatformJSON(request platformapply.DeploymentRequest) string {
+	data, _ := json.Marshal(request.Platform)
+	return string(data)
 }
 
 func contains(values []string, target string) bool {

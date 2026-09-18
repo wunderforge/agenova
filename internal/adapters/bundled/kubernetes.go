@@ -6,6 +6,8 @@ package bundled
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,18 +15,142 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/wunderforge/agenova/internal/modelprovider"
+	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/policy"
+	"github.com/wunderforge/agenova/internal/registration"
+	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	controlPlaneName  = "agenova-control-plane"
-	platformRecord    = "agenova-platform"
-	policyRecord      = "agenova-policy-reference-default-deny-v1"
-	controlPlaneImage = "agenova-control-plane:0.1.0"
+	controlPlaneName        = "agenova-control-plane"
+	platformRecord          = "agenova-platform"
+	reloadPendingAnnotation = "agenova.io/reload-pending"
+	activePolicyRecord      = "agenova-active-policy"
+	controlPlaneRole        = "agenova-control-plane-runtime"
+	controlPlaneImage       = "agenova-control-plane:0.1.0"
 )
+
+// The reference install writes the same immutable record name as the
+// operator registration store; otherwise ActivePolicy cannot read the seed.
+var policyRecord = policyRegistrationRecord(policy.ReferenceBundle().ID, policy.ReferenceBundle().Version)
+
+func policyRegistrationRecord(id, version string) string {
+	sum := sha256.Sum256([]byte(id + "@" + version))
+	return "agenova-policy-" + hex.EncodeToString(sum[:12])
+}
+
+func referenceWorkerImage(resolved *platform.ResolvedPlatform) string {
+	if resolved == nil {
+		return ""
+	}
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityRuntime {
+			image, _ := instance.Config["compatible-worker-image"].(string)
+			return image
+		}
+	}
+	return ""
+}
+
+func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
+	if request.Platform == nil {
+		return fmt.Errorf("resolved Platform is required")
+	}
+	_, namespace, err := deploymentCoordinates(request.Config)
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, instance := range request.Platform.Instances {
+		if instance.Category != platform.CapabilityRuntime {
+			continue
+		}
+		count++
+		connection, _ := instance.Config["connection"].(map[string]any)
+		workerNamespace, _ := connection["namespace"].(string)
+		if workerNamespace != namespace {
+			return fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
+		}
+		if instance.Config["compatible-worker-image"] != referenceControlledWorkerImage {
+			return fmt.Errorf("reference runtime requires the bundled controlled worker image")
+		}
+	}
+	if count != 1 {
+		return fmt.Errorf("reference Control Plane requires exactly one runtime backend")
+	}
+	backends := map[string]string{}
+	for _, instance := range request.Platform.Instances {
+		if instance.Category == platform.CapabilityModel {
+			endpoint, _ := instance.Config["endpoint"].(string)
+			backends[instance.Name] = endpoint
+		}
+	}
+	models := map[string]string{}
+	endpoint := ""
+	for _, profile := range request.Platform.Profiles {
+		if profile.Capability != platform.CapabilityModel {
+			continue
+		}
+		backend := backends[profile.BackendRef]
+		if backend == "" || (endpoint != "" && endpoint != backend) {
+			return fmt.Errorf("reference Control Plane requires model profiles on one configured endpoint")
+		}
+		endpoint = backend
+		model, _ := profile.Config["model"].(string)
+		models[profile.Name] = model
+	}
+	_, err = modelprovider.New(modelprovider.Config{Endpoint: endpoint, AllowDockerHostHTTP: strings.HasPrefix(endpoint, "http://host.docker.internal:"), Models: models})
+	if err != nil {
+		return fmt.Errorf("reference Control Plane model composition is unsupported: %w", err)
+	}
+	return nil
+}
+
+// ValidateComposition is target-specific but read-only: generic Platform
+// validation calls it before planning or applying cluster resources.
+func (*KubernetesDeployment) ValidateComposition(request platformapply.DeploymentRequest) error {
+	return validateReferenceRuntime(request)
+}
+
+// A later policy registration may legitimately activate a different version.
+// The initial reference is only used when no valid active registry pointer
+// exists; platform reconciliation must not silently undo policy apply.
+func (k *KubernetesDeployment) activePolicyReady(ctx context.Context, contextName, namespace string, pointer map[string]any, initial registration.PolicyReference) (bool, string, error) {
+	if pointer == nil {
+		return false, initial.ID + "@" + initial.Version, nil
+	}
+	var ref registration.PolicyReference
+	if err := json.Unmarshal([]byte(objectData(pointer, "reference.json")), &ref); err != nil || ref.ID == "" || ref.Version == "" {
+		return false, initial.ID + "@" + initial.Version, nil
+	}
+	identity := ref.ID + "@" + ref.Version
+	// The initial record is checked independently as policyRecord/policyReady.
+	// Reconcile a drifted record without rewriting an already-correct pointer.
+	if ref.ID == initial.ID && ref.Version == initial.Version {
+		return true, identity, nil
+	}
+	recordName := policyRegistrationRecord(ref.ID, ref.Version)
+	record, err := k.getJSON(ctx, contextName, namespace, "configmap", recordName)
+	if isNotFound(err) {
+		return false, identity, nil
+	}
+	if err != nil {
+		return false, identity, err
+	}
+	if err := requireManaged(record, "configmap", recordName); err != nil {
+		return false, identity, err
+	}
+	var bundle policy.PolicyBundle
+	if err := json.Unmarshal([]byte(objectData(record, "policy.json")), &bundle); err != nil || policy.ValidateBundle(bundle) != nil || bundle.ID != ref.ID || bundle.Version != ref.Version {
+		return false, identity, nil
+	}
+	return true, identity, nil
+}
 
 var errKubectlUnavailable = errors.New("kubectl executable is unavailable; install kubectl and add it to PATH")
 
@@ -63,6 +189,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		return "", nil, nil, err
 	}
 	target := platformapply.SafeTarget(contextName, namespace)
+	if err := k.ValidateComposition(request); err != nil {
+		return target, nil, nil, err
+	}
 	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
 		return target, nil, nil, fmt.Errorf("initial policy: %w", err)
 	}
@@ -91,9 +220,25 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if policyErr != nil && !isNotFound(policyErr) {
 		return target, nil, nil, policyErr
 	}
+	activePolicyObject, activePolicyErr := k.getJSON(ctx, contextName, namespace, "configmap", activePolicyRecord)
+	if activePolicyErr != nil && !isNotFound(activePolicyErr) {
+		return target, nil, nil, activePolicyErr
+	}
 	service, serviceErr := k.getJSON(ctx, contextName, namespace, "service", controlPlaneName)
 	if serviceErr != nil && !isNotFound(serviceErr) {
 		return target, nil, nil, serviceErr
+	}
+	serviceAccount, serviceAccountErr := k.getJSON(ctx, contextName, namespace, "serviceaccount", controlPlaneName)
+	if serviceAccountErr != nil && !isNotFound(serviceAccountErr) {
+		return target, nil, nil, serviceAccountErr
+	}
+	role, roleErr := k.getJSON(ctx, contextName, namespace, "role", controlPlaneRole)
+	if roleErr != nil && !isNotFound(roleErr) {
+		return target, nil, nil, roleErr
+	}
+	roleBinding, roleBindingErr := k.getJSON(ctx, contextName, namespace, "rolebinding", controlPlaneRole)
+	if roleBindingErr != nil && !isNotFound(roleBindingErr) {
+		return target, nil, nil, roleBindingErr
 	}
 	for _, existing := range []struct {
 		kind   string
@@ -102,8 +247,12 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	}{
 		{"configmap", platformRecord, record},
 		{"configmap", policyRecord, policyObject},
+		{"configmap", activePolicyRecord, activePolicyObject},
 		{"deployment", controlPlaneName, deployment},
 		{"service", controlPlaneName, service},
+		{"serviceaccount", controlPlaneName, serviceAccount},
+		{"role", controlPlaneRole, role},
+		{"rolebinding", controlPlaneRole, roleBinding},
 	} {
 		if err := requireManaged(existing.object, existing.kind, existing.name); err != nil {
 			return target, nil, nil, err
@@ -114,16 +263,30 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if err != nil {
 		return target, nil, nil, err
 	}
+	effectiveJSON, err := json.Marshal(request.Platform)
+	if err != nil {
+		return target, nil, nil, fmt.Errorf("encode effective Platform: %w", err)
+	}
 	policyData, err := referencePolicyJSON()
 	if err != nil {
 		return target, nil, nil, fmt.Errorf("encode reference policy: %w", err)
 	}
 	namespaceReady := objectName(namespaceObject) == namespace
 	revision := objectAnnotation(record, "agenova.io/platform-revision")
-	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON
+	recordReady := revision == request.Platform.Revision && objectData(record, "platform-lock.json") == lockJSON && objectData(record, "effective-platform.json") == string(effectiveJSON) && objectAnnotation(record, reloadPendingAnnotation) == ""
 	policyReady := objectAnnotation(policyObject, "agenova.io/platform-revision") == request.Platform.Revision && objectData(policyObject, "policy.json") == string(policyData)
-	ready := deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
+	activePolicyReady, activePolicyRef, err := k.activePolicyReady(ctx, contextName, namespace, activePolicyObject, registration.PolicyReference{ID: request.Platform.InitialPolicyRef.ID, Version: request.Platform.InitialPolicyRef.Version})
+	if err != nil {
+		return target, nil, nil, err
+	}
+	// The process reads the effective ConfigMap only at startup. Repairing a
+	// revision-preserving ConfigMap drift also requires a new Pod, even when
+	// the Deployment spec itself is already Ready at that same revision.
+	ready := recordReady && deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
+	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
+	roleReady := managedObjectMatches(role, roleObject(namespace))
+	bindingReady := managedObjectMatches(roleBinding, roleBindingObject(namespace))
 	var changes []platformapply.Change
 	if !namespaceReady {
 		changes = append(changes, platformapply.Change{Component: namespace, Action: "create", Detail: "create the selected Agenova namespace"})
@@ -141,6 +304,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	if !policyReady {
 		changes = append(changes, platformapply.Change{Component: policyRecord, Action: "reconcile", Detail: "seed the versioned reference default-deny policy"})
 	}
+	if !activePolicyReady {
+		changes = append(changes, platformapply.Change{Component: activePolicyRecord, Action: "reconcile", Detail: "activate the initial policy in the operator registry"})
+	}
 	if !serviceReady {
 		action := "create"
 		if service != nil {
@@ -148,12 +314,24 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		}
 		changes = append(changes, platformapply.Change{Component: controlPlaneName + "-service", Action: action, Detail: "expose the internal reference status endpoint inside the cluster"})
 	}
+	for _, component := range []struct {
+		name  string
+		ready bool
+	}{{controlPlaneName + "-account", saReady}, {controlPlaneRole, roleReady}, {controlPlaneRole + "-binding", bindingReady}} {
+		if !component.ready {
+			changes = append(changes, platformapply.Change{Component: component.name, Action: "reconcile", Detail: "install reference control-plane namespace permissions"})
+		}
+	}
 	statuses := []platformapply.ComponentStatus{
 		{Name: namespace, Category: "deployment", State: state(namespaceReady, "available", "unavailable")},
 		{Name: platformRecord, Category: "deployment", State: state(recordReady, "configured", "unavailable"), Reference: request.Platform.Revision},
 		{Name: policyRecord, Category: "policy", State: state(policyReady, "configured", "unavailable"), Reference: request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
+		{Name: activePolicyRecord, Category: "policy", State: state(activePolicyReady, "configured", "unavailable"), Reference: activePolicyRef},
 		{Name: controlPlaneName, Category: "deployment", State: state(ready, "available", "unavailable")},
 		{Name: controlPlaneName + "-service", Category: "deployment", State: state(serviceReady, "available", "unavailable")},
+		{Name: controlPlaneName + "-account", Category: "deployment", State: state(saReady, "configured", "unavailable")},
+		{Name: controlPlaneRole, Category: "deployment", State: state(roleReady, "configured", "unavailable")},
+		{Name: controlPlaneRole + "-binding", Category: "deployment", State: state(bindingReady, "configured", "unavailable")},
 	}
 	return target, changes, statuses, nil
 }
@@ -193,6 +371,29 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return failedStatuses(request.Platform.Revision), false, err
 	}
 	mutationAttempted := false
+	recordUpdate := false
+	recordCreate := false
+	for _, change := range request.TargetChanges {
+		if change.Component == platformRecord {
+			recordUpdate = change.Action == "update"
+			recordCreate = change.Action == "create"
+		}
+	}
+	recordReloadNeeded := recordUpdate
+	if recordCreate {
+		// A deleted ConfigMap does not imply the old Pod disappeared. If the
+		// Deployment remains, its process may still hold the former config.
+		recordReloadNeeded, err = k.resourceExists(ctx, contextName, "deployments.apps", controlPlaneName, namespace)
+		if err != nil {
+			return failedStatuses(request.Platform.Revision), false, err
+		}
+		if recordReloadNeeded {
+			// The creation preflight alone does not authorize clearing the marker.
+			if err := k.requireRBAC(ctx, contextName, "patch", "configmaps", namespace); err != nil {
+				return failedStatuses(request.Platform.Revision), false, err
+			}
+		}
+	}
 	for index, step := range steps {
 		if !plannedComponent(request.TargetChanges, step.name) {
 			continue
@@ -210,6 +411,12 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			if err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 			}
+		}
+		if step.name == platformRecord && recordReloadNeeded {
+			// Persist the reload debt in the same write as the repaired bytes.
+			// A failed restart must leave the next plan non-ready and retryable.
+			metadata := step.object["metadata"].(map[string]any)
+			metadata["annotations"].(map[string]any)[reloadPendingAnnotation] = "true"
 		}
 		manifest, err := yaml.Marshal(step.object)
 		if err != nil {
@@ -232,6 +439,15 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 			}
 		}
 	}
+	// A previously installed ConfigMap repair must reload the process that may
+	// have started from drifted bytes. The plan includes the Deployment so its
+	// patch/watch authority was checked before any mutation.
+	if recordReloadNeeded {
+		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
+		}
+	}
 	if plannedComponent(request.TargetChanges, controlPlaneName) {
 		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+controlPlaneName, "--timeout=60s"); err != nil {
 			statuses := k.observedAfterFailure(ctx, request)
@@ -241,6 +457,15 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 				}
 			}
 			return statuses, mutationAttempted, fmt.Errorf("wait for reference control plane Ready: %w", err)
+		}
+	}
+	if recordReloadNeeded {
+		// Only clear the debt after the new Pod is observed Ready. A failed
+		// cleanup stays visible to status and is safe for a later apply retry.
+		patch := `{"metadata":{"annotations":{"` + reloadPendingAnnotation + `":null}}}`
+		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "patch", "configmap", platformRecord, "--type", "merge", "-p", patch); err != nil {
+			statuses := k.observedAfterFailure(ctx, request)
+			return statuses, mutationAttempted, fmt.Errorf("clear Platform reload marker after Ready: %w", err)
 		}
 	}
 	_, remaining, statuses, err := k.Plan(ctx, request)
@@ -345,8 +570,9 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 		// authority for every managed reference resource.
 		request.TargetChanges = []platformapply.Change{
 			{Component: namespace}, {Component: platformRecord},
-			{Component: policyRecord}, {Component: controlPlaneName},
+			{Component: policyRecord}, {Component: activePolicyRecord}, {Component: controlPlaneName},
 			{Component: controlPlaneName + "-service"},
+			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
 	}
 	return k.preflight(ctx, contextName, namespace, request.TargetChanges)
@@ -377,13 +603,23 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		{resource: "namespaces", name: namespace},
 		{resource: "configmaps", name: platformRecord, namespace: namespace},
 		{resource: "configmaps", name: policyRecord, namespace: namespace},
+		{resource: "configmaps", name: activePolicyRecord, namespace: namespace},
 		{resource: "deployments.apps", name: controlPlaneName, namespace: namespace},
 		{resource: "services", name: controlPlaneName, namespace: namespace},
+		{resource: "serviceaccounts", name: controlPlaneName, namespace: namespace},
+		{resource: "roles.rbac.authorization.k8s.io", name: controlPlaneRole, namespace: namespace},
+		{resource: "rolebindings.rbac.authorization.k8s.io", name: controlPlaneRole, namespace: namespace},
 	}
 	for _, target := range targets {
 		component := target.name
 		if target.resource == "services" {
 			component += "-service"
+		}
+		if target.resource == "serviceaccounts" {
+			component += "-account"
+		}
+		if target.resource == "rolebindings.rbac.authorization.k8s.io" {
+			component += "-binding"
 		}
 		if !plannedComponent(changes, component) {
 			continue
@@ -424,6 +660,56 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		}
 		if err := k.requireRBAC(ctx, contextName, action, target.resource, target.namespace); err != nil {
 			return err
+		}
+	}
+	if plannedComponent(changes, controlPlaneRole) || plannedComponent(changes, controlPlaneRole+"-binding") {
+		if err := k.preflightRoleAuthority(ctx, contextName, namespace, changes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Kubernetes checks contained permissions in addition to create/patch on
+// Roles and RoleBindings. Check both authorization routes before any manifest
+// is written, so a restricted installer cannot partially install the stack.
+func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
+	roleResource := "roles.rbac.authorization.k8s.io/" + controlPlaneRole
+	needRole := plannedComponent(changes, controlPlaneRole)
+	needBinding := plannedComponent(changes, controlPlaneRole+"-binding")
+	checkSpecial := func(verb string) bool {
+		result, err := k.run(ctx, nil, "--context", contextName, "auth", "can-i", verb, roleResource, "--namespace", namespace)
+		return err == nil && strings.TrimSpace(result.stdout) == "yes"
+	}
+	if (!needRole || checkSpecial("escalate")) && (!needBinding || checkSpecial("bind")) {
+		return nil
+	}
+	for _, entry := range roleObject(namespace)["rules"].([]any) {
+		rule := entry.(map[string]any)
+		for _, groupValue := range rule["apiGroups"].([]any) {
+			group := groupValue.(string)
+			for _, resourceValue := range rule["resources"].([]any) {
+				resource := resourceValue.(string)
+				subresource := ""
+				if base, sub, ok := strings.Cut(resource, "/"); ok {
+					resource, subresource = base, sub
+				}
+				if group != "" {
+					resource += "." + group
+				}
+				for _, verbValue := range rule["verbs"].([]any) {
+					verb := verbValue.(string)
+					args := []string{"--context", contextName, "auth", "can-i", verb, resource}
+					if subresource != "" {
+						args = append(args, "--subresource="+subresource)
+					}
+					args = append(args, "--namespace", namespace)
+					result, err := k.run(ctx, nil, args...)
+					if err != nil || strings.TrimSpace(result.stdout) != "yes" {
+						return fmt.Errorf("current Kubernetes identity cannot grant reference Role permission %s %s in namespace %s; grant that permission or explicit escalate/bind authority before apply", verb, resource, namespace)
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -507,13 +793,25 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	if err != nil {
 		return nil, err
 	}
+	effectiveJSON, err := json.Marshal(request.Platform)
+	if err != nil {
+		return nil, fmt.Errorf("encode effective Platform: %w", err)
+	}
 	policyData, err := referencePolicyJSON()
 	if err != nil {
 		return nil, fmt.Errorf("encode reference policy: %w", err)
 	}
+	activeRef, err := json.Marshal(registration.PolicyReference{ID: request.Platform.InitialPolicyRef.ID, Version: request.Platform.InitialPolicyRef.Version})
+	if err != nil {
+		return nil, fmt.Errorf("encode active reference policy: %w", err)
+	}
 	steps := []manifestStep{
-		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON}}},
+		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": string(effectiveJSON)}}},
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
+		{name: activePolicyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": activePolicyRecord, "namespace": namespace, "labels": managedLabels()}, "data": map[string]any{"reference.json": string(activeRef)}}},
+		{name: controlPlaneName + "-account", category: "deployment", object: serviceAccountObject(namespace)},
+		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace)},
+		{name: controlPlaneRole + "-binding", category: "deployment", object: roleBindingObject(namespace)},
 		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
 		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},
 	}
@@ -534,18 +832,57 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
 			map[string]any{"name": "AGENOVA_PLATFORM_REVISION", "value": request.Platform.Revision},
 			map[string]any{"name": "AGENOVA_POLICY_REF", "value": request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
+			map[string]any{"name": "AGENOVA_ALLOWED_WORKER_IMAGE", "value": referenceWorkerImage(request.Platform)},
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 	}
 	template := map[string]any{
 		"metadata": map[string]any{"labels": labels, "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
-		"spec":     map[string]any{"containers": []any{container}},
+		"spec":     map[string]any{"serviceAccount": controlPlaneName, "serviceAccountName": controlPlaneName, "automountServiceAccountToken": false, "containers": []any{container}},
+	}
+	container["volumeMounts"] = []any{map[string]any{"name": "platform", "mountPath": "/etc/agenova", "readOnly": true}, map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true}}
+	template["spec"].(map[string]any)["volumes"] = []any{
+		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
+		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
 	}
 	return map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment",
 		"metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec":     map[string]any{"replicas": 1, "selector": map[string]any{"matchLabels": labels}, "template": template},
 	}
+}
+
+func serviceAccountObject(namespace string) map[string]any {
+	return map[string]any{"apiVersion": "v1", "kind": "ServiceAccount", "metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels()}}
+}
+
+func roleObject(namespace string) map[string]any {
+	// Installed setup enumerates managed template records in this namespace.
+	// Kubernetes RBAC cannot scope list by label.
+	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get", "list"}}}
+	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
+	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "rules": rules}
+}
+
+func roleBindingObject(namespace string) map[string]any {
+	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "RoleBinding", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "roleRef": map[string]any{"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": controlPlaneRole}, "subjects": []any{map[string]any{"kind": "ServiceAccount", "name": controlPlaneName, "namespace": namespace}}}
+}
+
+func managedObjectMatches(actual, desired map[string]any) bool {
+	if actual == nil || objectName(actual) != objectName(desired) {
+		return false
+	}
+	metadata, _ := actual["metadata"].(map[string]any)
+	labels, _ := metadata["labels"].(map[string]any)
+	if labels["app.kubernetes.io/managed-by"] != "agenova" {
+		return false
+	}
+	for _, key := range []string{"rules", "roleRef", "subjects"} {
+		if value, ok := desired[key]; ok && !expectedFieldsMatch(actual[key], value) {
+			return false
+		}
+	}
+	return true
 }
 
 func serviceObject(namespace string) map[string]any {
@@ -558,12 +895,7 @@ func managedLabels() map[string]any {
 }
 
 func referencePolicyJSON() ([]byte, error) {
-	bundle := policy.ReferenceBundle()
-	rules := make([]map[string]string, 0, len(bundle.Rules))
-	for _, rule := range bundle.Rules {
-		rules = append(rules, map[string]string{"team": rule.Team, "action": rule.Action, "project": rule.Project, "templateRef": rule.TemplateRef})
-	}
-	return json.Marshal(map[string]any{"id": bundle.ID, "version": bundle.Version, "rules": rules})
+	return json.Marshal(policy.ReferenceBundle())
 }
 
 func objectAnnotation(object map[string]any, key string) string {
@@ -651,6 +983,14 @@ func managedFieldsMatch(actual, desired any, path string) bool {
 			if _, owned := wanted[key]; owned {
 				continue
 			}
+			if path == "deploymentSpec/template/metadata/annotations" && key == "kubectl.kubernetes.io/restartedAt" {
+				stamp, ok := value.(string)
+				if ok {
+					if _, err := time.Parse(time.RFC3339, stamp); err == nil {
+						continue
+					}
+				}
+			}
 			if defaultValue, known := defaults[key]; !known || !reflect.DeepEqual(value, defaultValue) {
 				return false
 			}
@@ -689,6 +1029,8 @@ func managedKubernetesDefaults(path string) map[string]any {
 		return map[string]any{"failureThreshold": float64(3), "successThreshold": float64(1), "timeoutSeconds": float64(1)}
 	case "pod/containers[]/readinessProbe/httpGet":
 		return map[string]any{"scheme": "HTTP"}
+	case "pod/volumes[]/configMap", "pod/volumes[]/projected":
+		return map[string]any{"defaultMode": float64(420)}
 	default:
 		return nil
 	}
@@ -768,7 +1110,7 @@ func state(ok bool, yes, no string) string {
 }
 
 func failedStatuses(revision string) []platformapply.ComponentStatus {
-	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}}
+	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}, {Name: activePolicyRecord, Category: "policy", State: "failed"}}
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
 	return statuses
 }

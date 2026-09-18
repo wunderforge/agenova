@@ -44,5 +44,16 @@ func NewPlatformService(stateDirectory string) (platformapply.Service, error) {
 	if err != nil {
 		return platformapply.Service{}, err
 	}
-	return platformapply.Service{Adapters: lifecycle, Policies: bundled.ReferencePolicyCatalog{}}, nil
+	if strings.TrimSpace(stateDirectory) == "" {
+		root, configErr := os.UserConfigDir()
+		if configErr != nil {
+			return platformapply.Service{}, fmt.Errorf("resolve user configuration directory: %w", configErr)
+		}
+		stateDirectory = filepath.Join(root, "agenova")
+	}
+	state, err := platformapply.NewFileState(stateDirectory)
+	if err != nil {
+		return platformapply.Service{}, err
+	}
+	return platformapply.Service{Adapters: lifecycle, Policies: bundled.ReferencePolicyCatalog{}, State: state}, nil
 }

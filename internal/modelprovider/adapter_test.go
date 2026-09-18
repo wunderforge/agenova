@@ -276,6 +276,18 @@ func TestRedirectNeverCallsTargetOrMutatesSuppliedClient(t *testing.T) {
 }
 
 func TestConfigurationValidation(t *testing.T) {
+	if _, err := New(Config{Endpoint: "http://host.docker.internal:11434/v1", Models: map[string]string{"approved": "local"}}); err == nil {
+		t.Fatal("Docker host HTTP accepted without explicit trusted reference opt-in")
+	}
+	for _, endpoint := range []string{"http://host.docker.internal:11434/v1", "http://example.com/v1"} {
+		_, err := New(Config{Endpoint: endpoint, Models: map[string]string{"approved": "local"}, AllowDockerHostHTTP: true})
+		if endpoint == "http://host.docker.internal:11434/v1" && err != nil {
+			t.Fatalf("trusted Docker host rejected: %v", err)
+		}
+		if endpoint == "http://example.com/v1" && err == nil {
+			t.Fatal("unrelated plaintext provider accepted by reference opt-in")
+		}
+	}
 	for _, endpoint := range []string{"", "http://example.com/v1", "http://localhost:11434/v1", "ftp://127.0.0.1/v1", "https://synthetic:credential@example.com/v1", "https://example.com/v1?key=synthetic", "https://example.com/v1?", "https://example.com/v1#fragment", "http://[::1%25zone]:11434/v1"} {
 		if _, err := New(Config{Endpoint: endpoint, Models: map[string]string{"approved": "local"}}); err == nil {
 			t.Errorf("accepted invalid endpoint %q", endpoint)

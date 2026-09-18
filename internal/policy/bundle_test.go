@@ -5,6 +5,7 @@ package policy
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -38,6 +39,19 @@ func TestLoaderLoadsVersionedBundle(t *testing.T) {
 	again, _ := loader.Current()
 	if again.Rules[0].Action != "claim.create" {
 		t.Fatal("Current() exposed mutable loader state")
+	}
+}
+
+func TestPolicyIdentityIsBoundedForEvidence(t *testing.T) {
+	for _, mutate := range []func(*PolicyBundle){
+		func(bundle *PolicyBundle) { bundle.ID = strings.Repeat("a", 129) },
+		func(bundle *PolicyBundle) { bundle.Version = strings.Repeat("v", 65) },
+	} {
+		bundle := validBundle()
+		mutate(&bundle)
+		if err := ValidateBundle(bundle); err == nil {
+			t.Fatal("oversized policy identity accepted")
+		}
 	}
 }
 

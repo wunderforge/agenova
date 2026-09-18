@@ -1,0 +1,50 @@
+# Test-only Platform: the model endpoint is intentionally unreachable.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: reference-kind
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: openai-compatible-backend
+      id: agenova.io/model/openai-compatible
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: kind-agenova-k8s-lab
+        namespace: agenova-system
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-system
+          compatible-worker-image: agenova-testworker:kind
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: local-ollama
+        adapterRef: openai-compatible-backend
+        config:
+          endpoint: http://host.docker.internal:19999/v1
+    modelProfiles:
+      - name: coding-standard
+        backendRef: local-ollama
+        config:
+          model: llama3.1:latest
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

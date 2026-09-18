@@ -22,10 +22,10 @@ type PolicyBundle struct {
 
 // Rule grants one action for one trusted team, project, and agent template.
 type Rule struct {
-	Team        string
-	Action      string
-	Project     string
-	TemplateRef string
+	Team        string `json:"team" yaml:"team"`
+	Action      string `json:"action" yaml:"action"`
+	Project     string `json:"project" yaml:"project"`
+	TemplateRef string `json:"templateRef" yaml:"templateRef"`
 }
 
 // Match is the trusted assignment context evaluated against a policy bundle.
@@ -114,6 +114,11 @@ func validate(bundle PolicyBundle) error {
 	if strings.TrimSpace(bundle.Version) == "" {
 		return errors.New("policy bundle version is required")
 	}
+	// These identifiers are repeated in issued state and multiple evidence
+	// facts. Bound their encoded size before an operator can register them.
+	if len(bundle.ID) > 128 || len(bundle.Version) > 64 {
+		return errors.New("policy bundle ID or version exceeds the evidence-safe limit")
+	}
 
 	seen := make(map[Rule]int, len(bundle.Rules))
 	for index, rule := range bundle.Rules {
@@ -127,6 +132,10 @@ func validate(bundle PolicyBundle) error {
 	}
 	return nil
 }
+
+// ValidateBundle is shared by operator registration and the in-process
+// reference loader; it performs no write or activation.
+func ValidateBundle(bundle PolicyBundle) error { return validate(bundle) }
 
 func clone(bundle PolicyBundle) PolicyBundle {
 	copy := bundle
