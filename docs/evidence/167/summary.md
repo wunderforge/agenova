@@ -118,3 +118,15 @@ environment variables set, the installed Playwright gate passed **2/2** on
 the real kind/Ollama records, and both temporary servers were stopped.
 
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.
+
+The final evidence-boundary review added three checks: an allowed terminal
+Outcome must have exactly one claim-correlated, status-matching `RunOutcome`
+Fact; Failed/Expired claims may omit backend identity only when no recorded
+runtime, worker or invocation fact proves allocation; and a bounded 32-item
+Work list may use the aggregate response budget rather than a single-view
+budget. Focused tests cover missing/mismatched/duplicate outcomes, early
+failure versus post-allocation failure, and a list response over 8 MiB. The
+complete repository gate passed again, including 50 browser smoke tests.
+After rebuilding the CLI, the real installed CLI/API/React Playwright gate
+passed **2/2** on the retained kind/Ollama allowed and denied records. Both
+temporary local servers were stopped after verification.
