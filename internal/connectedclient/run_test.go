@@ -38,7 +38,13 @@ spec:
 func installedEvidenceJSON(ref, outcome string) string {
 	suffix := ""
 	if outcome != "" {
-		suffix = fmt.Sprintf(`,"outcome":{"status":%q}`, outcome)
+		decision := "Allow"
+		claim := fmt.Sprintf(`,"claim":{"id":%q,"requestRef":%q,"templateRef":"engineer","authorityRef":"authority:demo","phase":%q},"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}`, "claim:"+ref, ref, outcome)
+		if outcome == "Deny" || outcome == "ApprovalRequired" {
+			decision, claim = outcome, ""
+		}
+		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
+		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
 	}
 	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":[]%s}`, ref, ref, suffix)
 }
@@ -167,6 +173,9 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`,
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"other"}]`, 1),
+		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
+		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
+		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"phase":"Succeeded"`, `"phase":"Running"`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[],"outcome":{}`, 1),
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"metadata":{"name":"demo"}}}`,
 		`{"version":"agenova.evidence/v0","requestRef":"demo","request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":"demo"}},"facts":[]}`,
