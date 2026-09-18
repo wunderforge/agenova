@@ -310,6 +310,14 @@ func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
 			t.Fatal("accepted terminal outcome without one matching RunOutcome")
 		}
 	}
+	failed := strings.Replace(installedEvidenceJSON("demo", "Failed"), `"outcome":{"status":"Failed"}`, `"outcome":{"status":"Failed","failure":"worker start failed"}`, 1)
+	if _, err := decodeView([]byte(failed), "demo"); err == nil {
+		t.Fatal("accepted terminal failure whose RunOutcome fact omitted the failure reason")
+	}
+	matching := withEvidenceFacts(failed, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed","reason":"worker start failed"}`)
+	if _, err := decodeView([]byte(matching), "demo"); err != nil {
+		t.Fatalf("matching terminal failure reason rejected: %v", err)
+	}
 }
 
 func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
@@ -319,6 +327,7 @@ func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
 	}
 	for _, fact := range []string{
 		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Bound"}`,
+		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"StartFailed"}`,
 		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","operation":"TurnStarted"}`,
 		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke"}`,
 	} {

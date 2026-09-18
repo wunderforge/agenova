@@ -240,7 +240,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if fact.Kind == "RunOutcome" && view.Outcome != nil && view.State != nil && view.State.Decision.Result == v0.DecisionResultAllow {
-			if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status {
+			if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status || fact.Reason != view.Outcome.Failure {
 				return false
 			}
 			runOutcomes++
@@ -309,7 +309,7 @@ func runtimeProvesAllocation(fact facts.Fact) bool {
 		return false
 	}
 	switch fact.Operation {
-	case "Bound", "BackendReady", "Running", "Succeeded", "CleanupSucceeded", "CleanupFailed", "TerminateSucceeded", "TerminateFailed":
+	case "Bound", "BackendReady", "Running", "StartFailed", "Succeeded", "CleanupSucceeded", "CleanupFailed", "TerminateSucceeded", "TerminateFailed":
 		return true
 	default:
 		return false

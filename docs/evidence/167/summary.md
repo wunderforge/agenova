@@ -130,3 +130,10 @@ complete repository gate passed again, including 50 browser smoke tests.
 After rebuilding the CLI, the real installed CLI/API/React Playwright gate
 passed **2/2** on the retained kind/Ollama allowed and denied records. Both
 temporary local servers were stopped after verification.
+The next independent review tightened two details: `Runtime/StartFailed`
+also proves the worker was allocated, and a Failed `RunOutcome.reason` must
+match `Outcome.Failure` so CLI and Portal cannot display different terminal
+explanations. Both now have focused negative and positive regression cases.
+The final repository gate passed (including 50 Playwright smoke tests), and
+the real installed CLI/API/React kind/Ollama gate passed **2/2** again after
+these changes. Temporary local servers were stopped.
