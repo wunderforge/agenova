@@ -104,4 +104,17 @@ cases passed; the rebuilt CLI still reads the real kind/Ollama allowed and
 denied records. The real installed CLI/API/React Playwright suite passed
 **2/2** again; the temporary tunnel and Vite server were stopped.
 
+The next review tightened post-allocation evidence: Bound, Running and
+Succeeded Claims must have a backend identity. The clean-checkout UI guide
+now installs Playwright Chromium, and the installed suite fails nonzero when
+its required live request references or CLI path are missing (verified by
+running it without those variables). We did **not** make every successful
+Work require a model call: `Outcome.Model` is optional in the shared contract
+so future tool-only agents remain valid, with a positive unit test. The
+kind/Ollama installed Playwright gate specifically requires the real model
+result and its correlated decision/attempt/success facts. The complete
+repository gate passed again (50 browser smoke tests); with all live
+environment variables set, the installed Playwright gate passed **2/2** on
+the real kind/Ollama records, and both temporary servers were stopped.
+
 The reference API and UI connection are loopback-only transport, not production user authentication. The service uses a fixed Team A identity; Work/evidence exist in one Pod's memory and disappear on restart. The tool artifact reads are marked mock; Agent Sandbox execution and Ollama inference are real. The UI is a separately started local client, not a `platform apply` installation result.

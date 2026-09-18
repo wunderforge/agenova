@@ -39,7 +39,7 @@ func installedEvidenceJSON(ref, outcome string) string {
 	suffix := ""
 	if outcome != "" {
 		decision := "Allow"
-		claim := fmt.Sprintf(`,"claim":{"id":%q,"requestRef":%q,"templateRef":"engineer","authorityRef":"authority:demo","phase":%q},"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}`, "claim:"+ref, ref, outcome)
+		claim := fmt.Sprintf(`,"claim":{"id":%q,"requestRef":%q,"templateRef":"engineer","authorityRef":"authority:demo","phase":%q,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}},"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}`, "claim:"+ref, ref, outcome)
 		if outcome == "Deny" || outcome == "ApprovalRequired" {
 			decision, claim = outcome, ""
 		}
@@ -187,6 +187,7 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		`{"version":"agenova.evidence/v0","requestRef":"demo","facts":[]}`,
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"projectRef":"payments"`, `"projectRef":"billing"`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"templateRef":"engineer"`, `"templateRef":"analyst"`, 1),
+		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`, ``, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}`, `"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"2m"}`, 1),
@@ -248,6 +249,12 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 		if _, err := decodeView([]byte(malformed), "demo"); err == nil {
 			t.Fatal("unordered or repeated model invocation accepted")
 		}
+	}
+}
+
+func TestSuccessfulWorkWithoutModelRemainsValidForToolOnlyAgents(t *testing.T) {
+	if _, err := decodeView([]byte(installedEvidenceJSON("tool-only", "Succeeded")), "tool-only"); err != nil {
+		t.Fatalf("shared evidence rejected tool-only success: %v", err)
 	}
 }
 

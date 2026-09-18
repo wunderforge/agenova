@@ -64,6 +64,7 @@ agenova api connect
 
 ```powershell
 npm --prefix ui ci
+npm --prefix ui run browsers:install
 npm --prefix ui run dev -- --port 5177 --strictPort
 ```
 

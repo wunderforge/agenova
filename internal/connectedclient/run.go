@@ -199,6 +199,14 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
 		return false
 	}
+	if view.State != nil && view.State.Claim != nil {
+		switch view.State.Claim.Phase {
+		case v0.ClaimPhaseBound, v0.ClaimPhaseRunning, v0.ClaimPhaseSucceeded:
+			if view.State.Claim.BackendIdentity == nil {
+				return false
+			}
+		}
+	}
 	if view.State != nil && (view.State.Action.Project != view.Request.Spec.ProjectRef || view.State.Action.TemplateRef != view.Request.Spec.TemplateRef) {
 		return false
 	}
@@ -275,6 +283,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.Outcome.Model != nil && (view.Outcome.Status != "Succeeded" || !hasSuccessfulModelInvocation(view.Facts, view.Outcome.Model.InvocationID)) {
 			return false
 		}
+		// Model is optional in the shared Work evidence contract: a successful
+		// tool-only agent need not call a model. The installed kind/Ollama E2E
+		// separately requires and correlates its real model invocation.
 	}
 	return true
 }
