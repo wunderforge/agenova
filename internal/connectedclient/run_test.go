@@ -278,6 +278,32 @@ func TestListRejectsDuplicateRequestReferences(t *testing.T) {
 	}
 }
 
+func TestListRejectsClaimAndWorkerIdentityReuseAcrossWorks(t *testing.T) {
+	first := installedEvidenceJSON("first", "Succeeded")
+	second := installedEvidenceJSON("second", "Succeeded")
+	independent := strings.ReplaceAll(second, "worker:demo", "worker:second")
+	response := "[" + first + "," + independent + "]"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() {}, nil
+	}}
+	if views, err := client.List(); err != nil || len(views) != 2 {
+		t.Fatalf("independent Work list rejected: %v", err)
+	}
+	for _, invalid := range []string{
+		"[" + first + "," + second + "]",
+		"[" + first + "," + strings.ReplaceAll(independent, "claim:second", "claim:first") + "]",
+	} {
+		response = invalid
+		if _, err := client.List(); err == nil || !strings.Contains(err.Error(), "duplicate") {
+			t.Fatalf("reused Claim or worker identity accepted: %v", err)
+		}
+	}
+}
+
 func TestRunFilePollsEscapedReference(t *testing.T) {
 	const ref = "demo?ref#one"
 	path := workFile(t, ref)
@@ -575,16 +601,36 @@ func TestNoActivityAfterFinalRunOutcome(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
 	base = strings.Replace(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1)
-	if _, err := decodeView([]byte(base), "demo"); err != nil {
-		t.Fatalf("valid terminal baseline rejected: %v", err)
+	finishing := strings.Replace(base, `,"outcome":{"status":"Succeeded"}`, ``, 1)
+	if finishing == base || strings.Contains(finishing, `"outcome":`) {
+		t.Fatal("finishing fixture still contains an Outcome")
 	}
-	for _, postTerminal := range []string{
-		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:late","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`,
-		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Bound","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`,
-	} {
-		if _, err := decodeView([]byte(appendEvidenceFact(base, postTerminal)), "demo"); err == nil {
-			t.Fatal("accepted activity after the final RunOutcome")
+	for _, valid := range []string{base, finishing} {
+		if _, err := decodeView([]byte(valid), "demo"); err != nil {
+			t.Fatalf("valid terminal/finishing baseline rejected: %v", err)
 		}
+		for _, postTerminal := range []string{
+			`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:late","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`,
+			`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Bound","backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}}`,
+		} {
+			if _, err := decodeView([]byte(appendEvidenceFact(valid, postTerminal)), "demo"); err == nil {
+				t.Fatal("accepted activity after the final RunOutcome")
+			}
+		}
+	}
+}
+
+func TestClaimActivityCannotPrecedeRequestResolution(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	if _, err := decodeView([]byte(base), "demo"); err != nil {
+		t.Fatalf("valid admitted Work rejected: %v", err)
+	}
+	earlyBound := strings.Replace(boundFact("demo"), `"id":"fact:3","sequence":3`, `"id":"fact:2","sequence":2`, 1)
+	lateResolution := strings.Replace(resolutionFact("demo", "Allow"), `"id":"fact:2","sequence":2`, `"id":"fact:3","sequence":3`, 1)
+	terminal := `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
+	invalid := withEvidenceFacts(base, receivedFact("demo"), earlyBound, lateResolution, terminal)
+	if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+		t.Fatal("accepted worker allocation before admission resolution")
 	}
 }
 

@@ -162,6 +162,14 @@ positive pre-outcome invocation tests and negative post-outcome/missing or
 mismatched Policy tests. The complete repository gate passed with **51/51**
 browser smoke tests, and the real installed CLI/API/React kind/Ollama suite
 again passed **2/2**. The temporary tunnel and Vite server were stopped.
+The following review required three cross-record correlations: any
+RunOutcome is final even before its Outcome projection arrives; Claim
+activity must follow the RequestResolution; and a bounded Work list cannot
+reuse a Claim or worker identity across different requests. Focused tests
+cover the finishing window, early allocation, and duplicate list identities.
+The complete repository gate passed with **51/51** browser smoke tests, and
+the installed CLI/API/React kind/Ollama suite passed **2/2** again. Temporary
+API and Vite servers were stopped afterward.
 Independent review of the original PR found additional query-integrity
 checks: complete trusted team/authentication context, exactly one ordered
 `RequestReceived` before `RequestResolution`, and allowed ToolDecision targets

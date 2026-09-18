@@ -86,6 +86,8 @@ func (c Client) List() ([]evidence.View, error) {
 		return nil, fmt.Errorf("installed Work service returned invalid list")
 	}
 	seenRefs := make(map[string]struct{}, len(views))
+	seenClaims := make(map[string]struct{}, len(views))
+	seenBackends := make(map[v0.SandboxClaimBackendIdentity]struct{}, len(views))
 	for _, view := range views {
 		if !validRequestRef(view.RequestRef) || !validEvidenceView(view, view.RequestRef) {
 			return nil, fmt.Errorf("installed Work service returned invalid list")
@@ -94,6 +96,19 @@ func (c Client) List() ([]evidence.View, error) {
 			return nil, fmt.Errorf("installed Work service returned duplicate Work reference")
 		}
 		seenRefs[view.RequestRef] = struct{}{}
+		if view.State != nil && view.State.Claim != nil {
+			claim := view.State.Claim
+			if _, exists := seenClaims[claim.ID]; exists {
+				return nil, fmt.Errorf("installed Work service returned duplicate Claim identity")
+			}
+			seenClaims[claim.ID] = struct{}{}
+			if claim.BackendIdentity != nil {
+				if _, exists := seenBackends[*claim.BackendIdentity]; exists {
+					return nil, fmt.Errorf("installed Work service returned duplicate worker identity")
+				}
+				seenBackends[*claim.BackendIdentity] = struct{}{}
+			}
+		}
 	}
 	return views, nil
 }
@@ -227,13 +242,23 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	receivedCount := 0
 	var receivedSequence uint64
 	runOutcomes := 0
+	runOutcomeSeen := false
 	resolutions := 0
 	var resolutionSequence uint64
 	boundRecorded := false
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
-		if runOutcomes != 0 {
+		if runOutcomeSeen {
+			return false
+		}
+		if receivedCount == 0 && fact.Kind != "RequestReceived" {
+			return false
+		}
+		if fact.Kind == "RequestResolution" && receivedCount != 1 {
+			return false
+		}
+		if fact.Kind != "RequestReceived" && fact.Kind != "RequestResolution" && resolutions != 1 {
 			return false
 		}
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
@@ -258,11 +283,14 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			(fact.BackendIdentity != nil || fact.Kind == "WorkerActivity" || fact.InvocationID != "" || runtimeProvesAllocation(fact)) {
 			return false
 		}
-		if fact.Kind == "RunOutcome" && view.Outcome != nil && view.State != nil && view.State.Decision.Result == v0.DecisionResultAllow {
-			if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status || fact.Reason != view.Outcome.Failure {
-				return false
+		if fact.Kind == "RunOutcome" {
+			runOutcomeSeen = true
+			if view.Outcome != nil && view.State != nil && view.State.Decision.Result == v0.DecisionResultAllow {
+				if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status || fact.Reason != view.Outcome.Failure {
+					return false
+				}
+				runOutcomes++
 			}
-			runOutcomes++
 		}
 		if fact.Kind == "RequestReceived" {
 			if fact.ClaimID != "" || fact.Decision != nil || fact.Result != "" {
