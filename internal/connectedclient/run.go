@@ -215,6 +215,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	}
 	seenIDs := make(map[string]struct{}, len(view.Facts))
 	var lastSequence uint64
+	runOutcomes := 0
 	for _, fact := range view.Facts {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
@@ -233,6 +234,16 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.InvocationID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
 			return false
+		}
+		if view.State != nil && view.State.Claim != nil && view.State.Claim.BackendIdentity == nil &&
+			(fact.BackendIdentity != nil || fact.Kind == "WorkerActivity" || fact.InvocationID != "" || runtimeProvesAllocation(fact)) {
+			return false
+		}
+		if fact.Kind == "RunOutcome" && view.Outcome != nil && view.State != nil && view.State.Decision.Result == v0.DecisionResultAllow {
+			if view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID || fact.Operation != view.Outcome.Status {
+				return false
+			}
+			runOutcomes++
 		}
 		if fact.Decision != nil && (fact.Decision.ID == "" || fact.Decision.PrincipalRef == "" || fact.Decision.Action == "" || fact.Decision.Result == "" || fact.Decision.PolicyRef.ID == "" || fact.Decision.PolicyRef.Version == "") {
 			return false
@@ -277,6 +288,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
 			return false
 		}
+		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {
+			return false
+		}
 		if view.Outcome.Model != nil && (view.Outcome.Model.InvocationID == "" || view.Outcome.Model.Model == "" || view.Outcome.Model.InputTokens < 0 || view.Outcome.Model.OutputTokens < 0) {
 			return false
 		}
@@ -288,6 +302,18 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		// separately requires and correlates its real model invocation.
 	}
 	return true
+}
+
+func runtimeProvesAllocation(fact facts.Fact) bool {
+	if fact.Kind != "Runtime" {
+		return false
+	}
+	switch fact.Operation {
+	case "Bound", "BackendReady", "Running", "Succeeded", "CleanupSucceeded", "CleanupFailed", "TerminateSucceeded", "TerminateFailed":
+		return true
+	default:
+		return false
+	}
 }
 
 func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequest) bool {
@@ -412,7 +438,7 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 	limit := maxEvidenceBytes
 	if input == nil && ref == "" {
 		// A bounded current-session list may contain up to 32 individual views.
-		limit = 8 << 20
+		limit = 32*maxEvidenceBytes + 4096 // 32 bounded views plus JSON framing.
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, int64(limit)+1))
 	if err != nil || len(data) > limit {

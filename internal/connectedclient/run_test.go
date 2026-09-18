@@ -37,6 +37,7 @@ spec:
 
 func installedEvidenceJSON(ref, outcome string) string {
 	suffix := ""
+	facts := "[]"
 	if outcome != "" {
 		decision := "Allow"
 		claim := fmt.Sprintf(`,"claim":{"id":%q,"requestRef":%q,"templateRef":"engineer","authorityRef":"authority:demo","phase":%q,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}},"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}`, "claim:"+ref, ref, outcome)
@@ -45,8 +46,46 @@ func installedEvidenceJSON(ref, outcome string) string {
 		}
 		state := fmt.Sprintf(`{"requestRef":%q,"principal":{"subject":"user:demo","team":"team-a"},"action":{"name":"claim.create","project":"payments","templateRef":"engineer"},"policyRef":{"id":"policy:demo","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":%q,"policyRef":{"id":"policy:demo","version":"1"},"reason":"test"},"evidence":{"requestRef":%q,"decisionIds":["decision:demo"]}%s}`, ref, decision, ref, claim)
 		suffix = fmt.Sprintf(`,"state":%s,"outcome":{"status":%q}`, state, outcome)
+		if decision == "Allow" {
+			facts = fmt.Sprintf(`[{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":%q,"claimId":%q,"operation":%q}]`, ref, "claim:"+ref, outcome)
+		}
 	}
-	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":[]%s}`, ref, ref, suffix)
+	return fmt.Sprintf(`{"version":"agenova.evidence/v0","requestRef":%q,"request":{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":%q},"spec":{"templateRef":"engineer","projectRef":"payments","task":{"type":"investigation","input":{"objective":"Synthetic test"}},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts":%s%s}`, ref, ref, facts, suffix)
+}
+
+func withEvidenceFacts(source string, facts ...string) string {
+	var view map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		panic(err)
+	}
+	view["facts"] = json.RawMessage("[" + strings.Join(facts, ",") + "]")
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
+func appendEvidenceFact(source, fact string) string {
+	var view map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		panic(err)
+	}
+	var facts []json.RawMessage
+	if err := json.Unmarshal(view["facts"], &facts); err != nil {
+		panic(err)
+	}
+	facts = append(facts, json.RawMessage(fact))
+	encodedFacts, err := json.Marshal(facts)
+	if err != nil {
+		panic(err)
+	}
+	view["facts"] = encodedFacts
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
 }
 
 func TestRunFileUsesInstalledHTTPAPIAndCanonicalDocument(t *testing.T) {
@@ -191,20 +230,21 @@ func TestShowAndListRejectIncompleteInstalledEvidence(t *testing.T) {
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"1m"}`, `"effectiveAuthority":{"id":"authority:demo","runtime":{"profileRef":"standard-isolated","timeout":"2m"}`, 1),
+		withEvidenceFacts(installedEvidenceJSON("demo", "Succeeded")),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:1","sequence":2,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestReceived","requestRef":"demo"},{"id":"fact:1","sequence":3,"timestamp":"2026-09-18T00:00:01Z","kind":"RequestReceived","requestRef":"demo"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:1","sequence":2,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestReceived","requestRef":"demo"},{"id":"fact:2","sequence":1,"timestamp":"2026-09-18T00:00:01Z","kind":"RequestReceived","requestRef":"demo"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"other"}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}`),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:other"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo"}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo"}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:other","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"],"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}]`, 1),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:other","runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:other","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"AuthorityResolved","requestRef":"demo","claimId":"claim:demo","effectiveAuthority":{"id":"authority:demo","tools":["shell.exec"],"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Allow","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","result":"Deny","policyRef":{"id":"policy:other","version":"1"},"decision":{"id":"decision:demo","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Deny"), `"facts":[]`, `"facts":[{"id":"fact:other","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"RequestResolution","requestRef":"demo","decision":{"id":"decision:other","principalRef":"user:demo","action":"claim.create","result":"Deny","policyRef":{"id":"policy:demo","version":"1"}}}]`, 1),
-		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"facts":[]`, `"facts":[{"id":"fact:1","sequence":1,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","invocationId":"inv:demo","operation":"model.invoke","result":"Allow"}]`, 1),
+		appendEvidenceFact(installedEvidenceJSON("demo", "Succeeded"), `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","invocationId":"inv:demo","operation":"model.invoke","result":"Allow"}`),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","model":{"invocationId":"inv:other","model":"llama3.1:latest","inputTokens":1,"outputTokens":1}}`, 1),
 		strings.Replace(installedEvidenceJSON("demo", ""), `"facts":[]`, `"facts":[],"unknownField":true`, 1),
 		strings.Replace(installedEvidenceJSON("demo", "Succeeded"), `"status":"Succeeded"`, `"status":"Succeeded","unknownField":true`, 1),
@@ -237,7 +277,8 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 	attempt := fact("fact:2", 2, "ProviderAttempt", "", "Attempted")
 	outcome := fact("fact:3", 3, "ProviderOutcome", "", "Succeeded")
 	withFacts := func(items ...string) string {
-		return strings.Replace(base, `"facts":[]`, `"facts":[`+strings.Join(items, ",")+`]`, 1)
+		items = append(items, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		return withEvidenceFacts(base, items...)
 	}
 	if _, err := decodeView([]byte(withFacts(decision, attempt, outcome)), "demo"); err != nil {
 		t.Fatalf("valid model invocation rejected: %v", err)
@@ -255,6 +296,50 @@ func TestModelOutcomeRequiresOneOrderedInvocationSequence(t *testing.T) {
 func TestSuccessfulWorkWithoutModelRemainsValidForToolOnlyAgents(t *testing.T) {
 	if _, err := decodeView([]byte(installedEvidenceJSON("tool-only", "Succeeded")), "tool-only"); err != nil {
 		t.Fatalf("shared evidence rejected tool-only success: %v", err)
+	}
+}
+
+func TestAllowedTerminalOutcomeRequiresCorrelatedRunOutcome(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	for _, invalid := range []string{
+		withEvidenceFacts(base),
+		withEvidenceFacts(base, `{"id":"fact:4","sequence":4,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Failed"}`),
+		appendEvidenceFact(base, `{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Fatal("accepted terminal outcome without one matching RunOutcome")
+		}
+	}
+}
+
+func TestFailedClaimNeedsBackendIdentityOnlyAfterAllocation(t *testing.T) {
+	failedBeforeAllocation := strings.Replace(installedEvidenceJSON("demo", "Failed"), `,"backendIdentity":{"backend":"test-backend","workerId":"worker:demo"}`, ``, 1)
+	if _, err := decodeView([]byte(failedBeforeAllocation), "demo"); err != nil {
+		t.Fatalf("pre-allocation failure must remain representable: %v", err)
+	}
+	for _, fact := range []string{
+		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Bound"}`,
+		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","operation":"TurnStarted"}`,
+		`{"id":"fact:5","sequence":5,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke"}`,
+	} {
+		if _, err := decodeView([]byte(appendEvidenceFact(failedBeforeAllocation, fact)), "demo"); err == nil {
+			t.Fatal("accepted post-allocation evidence without backend identity")
+		}
+	}
+}
+
+func TestListTransportSupportsBoundedAggregateEvidence(t *testing.T) {
+	const aggregate = 9 << 20
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", aggregate)))
+	}))
+	defer server.Close()
+	client := Client{}
+	if _, err := client.call(context.Background(), server.URL, nil, ""); err != nil {
+		t.Fatalf("valid aggregate list capacity rejected: %v", err)
+	}
+	if _, err := client.call(context.Background(), server.URL, nil, "demo"); err == nil {
+		t.Fatal("single evidence response exceeded the per-view limit")
 	}
 }
 
