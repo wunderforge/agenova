@@ -6,11 +6,11 @@ Implementation order and stable Epic boundaries are summarized in the [MVP Epic 
 
 ## Product Statement
 
-Agenova gives one agent worker run a standard, backend-neutral governance boundary: a claim, temporary authority, governed interfaces, auditable facts, and execution-backend evidence.
+Agenova lets teams reuse an AgentTemplate without giving the agent growing standing permissions. Each Work submission is evaluated for its trusted submitter, organization policy, task request, template ceiling, and runtime limits; one worker run receives its own temporary claim, governed interfaces, auditable facts, and execution-backend evidence.
 
 ## Problem
 
-Teams can build agents, but each team repeatedly assembles runtime isolation, temporary access, credential proxies, tool/model controls, audit records, and backend integrations. The result is tightly coupled to one runtime and difficult to explain after a run finishes.
+Teams can build agents, but each team repeatedly assembles runtime isolation, temporary access, credential proxies, tool/model controls, audit records, and backend integrations. Separate team deployments make agent capabilities hard to reuse and governance inconsistent; a shared agent with standing permissions tends to accumulate access as more teams adopt it. The result is tightly coupled to one runtime and difficult to explain after a run finishes.
 
 ## Target Users
 
@@ -40,7 +40,7 @@ Its effective revision selects the installed application service, deployment/run
 receive a trusted principal and one ClaimRequest
   -> authorize claim.create for the requested project and template
   -> validate the request and resolve the Agent Template
-  -> derive effective authority from request and policy limits
+  -> derive effective authority from the admitted request, template ceiling, and runtime limits
   -> create one system-managed claim
   -> allocate a runtime
   -> execute governed requests
@@ -92,7 +92,8 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - Agenova authorizes the principal's action, project, and template against a versioned reference policy before claim creation or backend allocation.
 - Requested access is never treated as granted authority.
 - Task input identifies what the agent should work on; requested resource scopes identify what it is asking to access.
-- Effective claim authority is the intersection of the request, Agent Template limits, applicable caller/project/platform policy, and runtime restrictions.
+- Effective claim authority is bounded by requested access, the AgentTemplate ceiling, admission under applicable caller/project/platform policy, and runtime restrictions. The reference PolicyBundle currently allows or denies `claim.create` for an exact trusted team, project, and template; it does not express additional team-specific tool or resource ceilings. Do not describe that admission gate as capability-level policy intersection.
+- Reusing one template does not reuse a previous claim or its authority: each admitted Work gets an independent, time-bounded authority snapshot and evidence tied to its trusted principal and template reference. The reference harness must retain the registered template content used for the comparison; a public template-version field is not part of the v0 claim contract.
 - Requests contain references and scopes, never long-lived external secret values.
 
 ### 2. Claim lifecycle
@@ -183,12 +184,12 @@ The MVP is accepted when a teammate can reproduce this behavior:
 4. Show that requested access outside the applicable limits is absent from effective authority.
 5. Observe backend allocation and claim transition to `Running`.
 6. Execute one allowed tool call and one allowed model call.
-7. Run a second independent allowed claim through `Running` and one governed invocation.
-8. From one running worker context, submit a governed request that nominates the other running claim's ID; observe context-mismatch denial evidence and prove that no external call or invocation fact is produced.
-9. Verify that each claim's decisions, runtime events, and tool/model invocation facts remain attributable only to that claim.
+7. Under a separately versioned policy that permits Team B's own project while still denying Team B access to Team A's project, submit a second independent allowed Work as a separately verified Team B principal. Reuse the same registered `engineer` template content without modifying its ceiling; use distinct concrete requested scopes within that ceiling, and compare the two effective-authority snapshots.
+8. Run both claims through `Running` and a governed invocation. From one running worker context, submit a governed request that nominates the other running claim's ID; observe context-mismatch denial evidence and prove that no external call or invocation fact is produced.
+9. Verify that each claim's principal, policy version, template reference, decision, authority, runtime events, and tool/model invocation facts remain attributable only to that claim.
 10. End both worker claims and prove further governed access is denied.
 11. Query the same evidence representation through CLI JSON and the live read-only console.
-12. Run the reference path locally and demonstrate the supported runtime portion on the selected real backend.
+12. Run the reference path locally and demonstrate the supported runtime portion on the selected real backend. The 24 September 2026 mid-term checkpoint may present the existing single-principal installed path as a narrower proof; it must not claim to have demonstrated this cross-team acceptance before the trusted multi-principal path exists.
 
 ## Success Measures
 

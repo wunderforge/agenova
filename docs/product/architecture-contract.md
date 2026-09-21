@@ -62,7 +62,7 @@ Pending / Bound / Running -> Expired when the relevant timeout applies
 ## Authority and Credentials
 
 - Requested access is intent, not granted authority.
-- Effective claim authority is the intersection of Agent Template limits, applicable caller/project/platform policy, requested access, and runtime restrictions.
+- A trusted principal must pass applicable caller/project/platform assignment policy before any claim authority is issued. Effective authority is then bounded by requested access, AgentTemplate limits, runtime restrictions, and any explicit capability-level policy limits. The v0 reference PolicyBundle is an allow/deny assignment gate, not a source of per-team tool or resource ceilings.
 - A request may narrow authority but cannot create authority.
 - Requests contain scopes and references, never external secret values.
 - Authority is anchored to an active claim, not an idle sandbox or network location.

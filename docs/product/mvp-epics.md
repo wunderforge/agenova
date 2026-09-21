@@ -25,7 +25,7 @@ This document is the stable, repository-owned map of Agenova's MVP delivery area
 | [E6 — CLI and Local Golden Workflow](https://github.com/wunderforge/agenova/issues/10) | P0 | Let a teammate submit canonical YAML and reproduce the complete local governance path without editing code. |
 | [E7 — Reference Installation and Initial Policy Bootstrap](https://github.com/wunderforge/agenova/issues/11) | P1 | Install Agenova on an existing test cluster and seed the initial policy without confusing bootstrap RBAC with Agenova authorization. |
 | [E8 — Kubernetes Agent Sandbox MVP Adapter](https://github.com/wunderforge/agenova/issues/12) | P1 | Prove the supported RuntimeBackend semantics on Kubernetes Agent Sandbox without changing the application-facing contract. |
-| [E9 — Example Agent and Bounded Adversarial Cases](https://github.com/wunderforge/agenova/issues/13) | P1 | Teach the contract through one reproducible engineer Agent Artifact and bounded denial demonstrations. |
+| [E9 — Example Agent and Bounded Adversarial Cases](https://github.com/wunderforge/agenova/issues/13) | P1 | Teach same-template reuse through independent, claim-scoped Work examples and bounded denial demonstrations; do not imply multi-agent orchestration. |
 | [E10 — Contributor Delivery](https://github.com/wunderforge/agenova/issues/14) | P1 | Let a new contributor understand the boundary, select a ticket, pass the right gates, and reproduce the demo without private guidance. |
 | [E11 — Read-only Claim Console and Optional Trace Correlation](https://github.com/wunderforge/agenova/issues/15) | P1 | Show live request/claim evidence through a read-only API and React console; trace correlation remains stretch. |
 
