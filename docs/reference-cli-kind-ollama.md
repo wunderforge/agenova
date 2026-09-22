@@ -1,10 +1,10 @@
-# 用 CLI 复刻 kind + Ollama 演示（#165）
+# Reproduce the kind + Ollama Demo from the CLI (#165)
 
-这份手册覆盖参考 CLI 链路，以及可选的本地 React 查看。同一个已安装服务保存并返回 Work；不启动独立的 `agenova-console`。
+This guide covers the reference CLI flow and the optional local React view. The same installed service stores and returns Work; it does not start a separate `agenova-console`.
 
-## macOS 一键路径
+## One-command macOS path
 
-Intel 与 Apple Silicon Mac 可从仓库根目录运行：
+On an Intel or Apple Silicon Mac, run these commands from the repository root:
 
 ```bash
 bash harness/local/macos-bootstrap.sh doctor
@@ -12,32 +12,24 @@ bash harness/local/macos-bootstrap.sh dry-run
 bash harness/local/macos-bootstrap.sh setup
 ```
 
-`setup` 会依次复用固定版本的 substrate harness，创建或复用本 checkout
-拥有的 `agenova-k8s-lab`，安装 Agent Sandbox v0.4.6，构建并加载 worker 与
-control-plane 镜像，构建本机 CLI，通过现有的 `platform validate/plan/apply`
-安装 Platform，并注册示例 Policy 和 AgentTemplate。重复执行会收敛到相同
-状态，不会建立第二套安装配置。
+`setup` reuses the pinned substrate harness, creates or reuses the checkout-owned `agenova-k8s-lab` cluster, installs Agent Sandbox v0.4.6, builds and loads the worker and control-plane images, builds the local CLI, installs the Platform through the existing `platform validate/plan/apply` path, and registers the reference Policy and AgentTemplate. Repeating the command converges on the same state; it does not create a second installation configuration.
 
-要同时检查 Ollama 与真实 Work，运行：
+To also check Ollama and run a real Work, use:
 
 ```bash
 bash harness/local/macos-bootstrap.sh verify
 ```
 
-该命令要求本机 Ollama 可访问且已有 `llama3.1:latest`。基础 `setup` 不把
-模型就绪误报成安装就绪。清理必须显式执行
-`bash harness/local/macos-bootstrap.sh down`；它只删除能用本 checkout
-ownership receipt 验证的 kind 集群。脚本不会安装或启动 Docker Desktop、
-Homebrew、Ollama 或其他宿主机软件。
+This command requires a reachable local Ollama service with `llama3.1:latest` installed. Base `setup` deliberately keeps installation readiness separate from model readiness. Cleanup is explicit: `bash harness/local/macos-bootstrap.sh down` deletes only a kind cluster whose ownership receipt matches this checkout. The script does not install or start Docker Desktop, Homebrew, Ollama, or other host software.
 
-下面保留手动路径，供逐步调试和非 macOS 环境使用。
+The manual path below remains available for step-by-step diagnosis and non-macOS environments.
 
-## 先准备
+## Prerequisites
 
-- Docker Desktop、kind、kubectl、Go 1.22+ 和 Ollama 可用。
-- 现有 kind 集群名为 `agenova-k8s-lab`，上下文为 `kind-agenova-k8s-lab`；已安装 Agent Sandbox v0.4.6。
-- 本机 Ollama 已有 `llama3.1:latest`，并可从 kind 容器通过 `host.docker.internal:11434` 访问。
-- 已把 `agenova-testworker:kind` 与本分支构建的 `agenova-control-plane:0.1.0` 两个镜像加载进该 kind 集群。镜像构建/加载属于底层测试环境准备，不是以下 Agenova 控制流的隐藏步骤。新环境可在仓库根目录执行：
+- Docker Desktop, kind, kubectl, Go 1.22+, and Ollama are available.
+- The existing kind cluster is named `agenova-k8s-lab`, its context is `kind-agenova-k8s-lab`, and Agent Sandbox v0.4.6 is installed.
+- Local Ollama contains `llama3.1:latest` and is reachable from kind containers at `host.docker.internal:11434`.
+- Both `agenova-testworker:kind` and the branch-built `agenova-control-plane:0.1.0` image are loaded into the kind cluster. Building and loading these images prepares the underlying test environment; it is not a hidden step in the Agenova control flow. For a new environment, run from the repository root:
 
 ```powershell
 docker build -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
@@ -46,19 +38,19 @@ kind load docker-image agenova-testworker:kind --name agenova-k8s-lab
 kind load docker-image agenova-control-plane:0.1.0 --name agenova-k8s-lab
 ```
 
-从空集群安装 Agent Sandbox 的步骤仍属底层 substrate 准备，见 [固定 v0.4.6 的 runbook](../harness/spike/agent-sandbox-substrate/RUNBOOK.md)；本流程不把 kind/上游控制器伪装成 `platform apply` 所安装的能力。
+Installing Agent Sandbox into an empty cluster remains substrate preparation. Follow the [pinned v0.4.6 runbook](../harness/spike/agent-sandbox-substrate/RUNBOOK.md). This flow does not pretend that `platform apply` installs kind or the upstream controller.
 
-在仓库根目录构建 CLI，并让本次 PowerShell 会话找到它：
+Build the CLI from the repository root and add it to the current PowerShell session:
 
 ```powershell
 New-Item -ItemType Directory -Force .tmp | Out-Null
 go build -o .tmp/agenova.exe ./cmd/agenova
-$env:PATH = "$(Resolve-Path .tmp);$env:PATH"
+$env:PATH = "$(Resolve-Path .tmp)$([IO.Path]::PathSeparator)$env:PATH"
 ```
 
-## 七条命令
+## Seven commands
 
-在仓库根目录依次执行（`platform apply` 首次会询问，输入 `y`）：
+Run these commands in order from the repository root. The first `platform apply` prompts for confirmation; enter `y`.
 
 ```powershell
 agenova platform validate -f deploy/reference/platform.kind.yaml
@@ -70,9 +62,9 @@ agenova agent-template apply -f deploy/reference/demo/engineer.yaml
 agenova run -f deploy/reference/demo/work.yaml
 ```
 
-最后一条会等到 Work 结束，再显示请求、决策、worker claim、终态、回答和模型 token 数。成功时会看到 `decision: Allow`、`phase: Succeeded`。不要把 `platform status` 的安装就绪当作 Ollama 或一次任务已经成功；第七条才验证真实执行。
+The final command waits for Work to finish and then displays the request, decision, worker claim, terminal phase, answer, and model token count. A successful run includes `decision: Allow` and `phase: Succeeded`. Do not treat installation readiness from `platform status` as proof that Ollama or an individual Work succeeded; only the seventh command verifies real execution.
 
-想看完整 JSON，把 `--json` 加到 `run` 命令；同一份 evidence 包含 `RequestResolution`、`AuthorityResolved`、`Runtime`、`ModelDecision`、`ProviderOutcome`、`ToolDecision`、`RunOutcome`。提交命令退出后仍可查询本次服务会话中的 Work：
+Add `--json` to `run` for the complete representation. The same evidence contains `RequestResolution`, `AuthorityResolved`, `Runtime`, `ModelDecision`, `ProviderOutcome`, `ToolDecision`, and `RunOutcome`. After submission exits, the current service session can still be queried:
 
 ```powershell
 agenova work list
@@ -80,17 +72,17 @@ agenova work show investigate-payment-retries
 agenova work show investigate-payment-retries --json
 ```
 
-当前参考服务把 Work/evidence 存在进程内，重启 Pod 会失去这批历史；Policy 和 AgentTemplate 注册在 Kubernetes ConfigMap，重启后仍在。
+The reference service currently stores Work and evidence in process memory, so restarting the Pod loses that history. Policy and AgentTemplate registrations are stored in Kubernetes ConfigMaps and survive a service restart.
 
-## 可选：用本地 UI 看同一份记录
+## Optional: inspect the same record in the local UI
 
-`agenova platform status` 会给出本地连接命令和连接后的 API 地址；它只验证安装状态，**不**表示本机连接已经打开。在第二个终端、仓库根目录运行并保持窗口打开：
+`agenova platform status` prints the local connection command and connected API address. It verifies installation state but does **not** mean the local connection is open. In a second terminal, from the repository root, run and leave this process open:
 
 ```powershell
 agenova api connect
 ```
 
-看到 `Forwarding from 127.0.0.1:8088 -> 8081` 后，在第三个终端运行：
+After it prints `Forwarding from 127.0.0.1:8088 -> 8081`, use a third terminal:
 
 ```powershell
 npm --prefix ui ci
@@ -98,9 +90,9 @@ npm --prefix ui run browsers:install
 npm --prefix ui run dev -- --port 5177 --strictPort
 ```
 
-打开 Vite 打印的本机地址，切到 Connected，或访问 `/?mode=connected#/work`。Work 列表和详情应出现 CLI 查询的同一个 request ID、decision、claim ID 和结果。UI 未由 `platform apply` 安装；`npm dev` 只是本地客户端。若 8088 被其他进程占用，连接命令会失败；Connected 模式还会核对已安装 Platform 的身份和 revision，不会把旧 demo 服务误认为本次安装。断开连接后，页面显示不可用，不会自动回退到 mock。
+Open the local address printed by Vite and select Connected, or visit `/?mode=connected#/work`. The Work list and detail must show the same request ID, decision, claim ID, and result returned by the CLI. The UI is not installed by `platform apply`; `npm dev` runs only a local client. If port 8088 is busy, the connection command fails. Connected mode also verifies the installed Platform identity and revision instead of accepting an old demo service. When the connection closes, the page reports unavailability and never falls back to mock data.
 
-需要自动核对 CLI、API、UI 三者是同一份真实记录时，保持上述两个终端运行，在仓库根目录再执行（先运行上面的允许任务及下方的拒绝任务）：
+To automatically check that the CLI, API, and UI use the same real record, leave the preceding two terminals open and run the following after the allowed Work above and the denied Work below:
 
 ```powershell
 $env:AGENOVA_CLI_PATH = (Resolve-Path .tmp/agenova.exe).Path
@@ -109,9 +101,9 @@ $env:AGENOVA_LIVE_DENIED_REF = 'investigate-unapproved-project'
 npm --prefix ui run test:installed
 ```
 
-这项测试需要已安装服务中的这些 request ID；服务重启会清空进程内 Work 记录，需重新运行任务后再测。
+This test requires those request IDs to exist in the installed service. A service restart clears in-memory Work records, so rerun the requests first.
 
-## 治理测试
+## Governance checks
 
 ```powershell
 agenova policy apply -f deploy/reference/demo/policy.yaml
@@ -120,13 +112,13 @@ agenova run -f deploy/reference/demo/denied-work.yaml --json
 agenova policy apply -f deploy/reference/demo/policy-conflict.yaml
 ```
 
-前两条应报告 `already registered`。第三条应以 `Deny` 结束，且没有 Claim、worker、模型或工具调用。第四条故意提交同 ID/版本的不同策略，应报冲突，不能替换已生效策略。测试文件的 request 名称固定；重复运行同一 Work 前应换一个新的 `metadata.name`，或重启参考服务。不要用重启作为正式产品的“清空历史”方法。
+The first two commands must report `already registered`. The third must finish with `Deny` and produce no Claim, worker, model, or tool invocation. The fourth deliberately submits different policy content under the same ID/version and must report a conflict without replacing the active policy. Fixture request names are fixed; change `metadata.name` before repeating the same Work, or restart the reference service. Do not treat restart as a production history deletion mechanism.
 
-## 当前边界
+## Current boundaries
 
-- worker 是真实 Agent Sandbox Pod；模型通过真实 Ollama 调用；示例 `git.read` 内容是明确标记的 mock，不代表已接入真实 Git。
-- 可信 Team A 身份由参考服务配置固定提供，不能从 Work YAML 或 CLI 参数伪造。还没有生产身份提供方、用户切换或多租户认证。
-- CLI 用当前 Kubernetes 身份/RBAC 注册配置并通过临时本地 port-forward 调用已安装服务；`api connect` 为 UI 开一个持续的本地 loopback tunnel。容器内 Work 入口仅监听 loopback。两种 tunnel 都只是传输隔离，不是每个本机用户的认证；只在可信本机演示使用。
-- 不要在 Work 运行中执行新的 `platform apply` 或重启 Control Plane；当前参考服务的 Work/evidence 位于单个 Pod 内存中，滚动更新尚无 drain/持久化交接，可能中断执行及清理。这是后续生产升级能力，不属于本次七条命令的完成声明。
-- 只验证了这组 Kubernetes/Agent Sandbox/OpenAI-compatible 配置。Memory、Observability、其他 gateway/adapter 和任意 agent 镜像不是此演示的已上线能力。
-- 本流程是已验证的参考演示路径，不代表生产身份、多副本历史或通用 adapter 已完成。
+- The worker is a real Agent Sandbox Pod and the model call uses real Ollama. The example `git.read` result is explicitly marked as a mock and does not prove a real Git integration.
+- The reference service supplies the trusted Team A identity. Work YAML and CLI arguments cannot forge it. Production identity providers, user switching, and multi-tenant authentication are not implemented.
+- The CLI uses the current Kubernetes identity/RBAC to register configuration and a temporary local port-forward to call the installed service. `api connect` opens a persistent loopback tunnel for the UI. The in-container Work entry point listens only on loopback. These tunnels provide transport isolation, not per-local-user authentication, and are intended only for a trusted local demo.
+- Do not run a new `platform apply` or restart the Control Plane while Work is active. Work/evidence is held in one Pod's memory; rolling updates do not yet drain or transfer it and may interrupt execution and cleanup. Production upgrade behavior remains future work.
+- Only this Kubernetes, Agent Sandbox, and OpenAI-compatible configuration is verified. Memory, Observability, other gateways/adapters, and arbitrary agent images are not claimed as available.
+- This is a verified reference demo path, not proof of production identity, replicated history, or general adapter readiness.
