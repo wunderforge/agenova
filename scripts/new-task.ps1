@@ -63,4 +63,4 @@ if ($WithDesign) {
 }
 
 Write-Host "Created task packet: $packetPath"
-Write-Host "Read the linked Issue, replace every TODO marker, and stop for Owner/Reviewer approval before implementation."
+Write-Host "Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR."
