@@ -63,4 +63,4 @@ if ($WithDesign) {
 }
 
 Write-Host "Created task packet: $packetPath"
-Write-Host "Read the linked Issue, replace every TODO marker, and stop for Owner/Reviewer approval before implementation."
+Write-Host "Read the linked Issue and replace every TODO marker before implementation. Owner/Reviewer review is recommended; record and report the packet as unreviewed if proceeding without it."

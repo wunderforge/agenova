@@ -9,8 +9,8 @@ Use when a contributor is ready to turn an accepted GitHub Ticket into coding-ag
 3. Choose Task, Task + Spec, or Task + Spec + Design using `docs/development/AIDLC.md`.
 4. Run `./scripts/new-task.ps1` with the Issue number, slug, title, and required planning-depth switches.
 5. Replace every `TODO` marker, linking only task-relevant context.
-6. Check the packet against the Ticket and PRD, then stop until Owner/Reviewer approval is recorded in the Ticket.
-7. Begin implementation only after the task packet is approved.
+6. Check the packet against the Ticket and PRD. Owner/Reviewer review before implementation is recommended, especially for ambiguous or shared-boundary work, but is not a blocking gate.
+7. If implementation begins without that review, mark the packet unreviewed and report that status at handoff. Begin only after all template markers are resolved and the Ticket boundary is clear.
 
 Do not ask the Agent to implement directly from a conversational prompt or create a packet that silently changes the Ticket.
 

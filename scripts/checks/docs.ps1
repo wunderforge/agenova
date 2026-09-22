@@ -88,10 +88,24 @@ function Test-ArchitectureText {
     "docs/product/prd.md",
     "work/<issue>-<slug>/task.md",
     "docs/harness/playbooks.md",
-    "stop for Owner/Reviewer approval"
+    "create it from the canonical template before implementation",
+    "Owner/Reviewer review before implementation is recommended",
+    "not a blocking gate",
+    "record that status",
+    "Stop and request a maintainer decision"
   )) {
     if ($agents -notmatch [regex]::Escape($required)) {
       Fail "AGENTS.md execution routing is missing: $required"
+    }
+  }
+
+  foreach ($required in @(
+    "marks the packet unreviewed",
+    "PR -> independent review -> merge",
+    "Reviewer evaluates behavior, negative cases, scope, architecture alignment, and evidence before merge"
+  )) {
+    if ($aidlc -notmatch [regex]::Escape($required)) {
+      Fail "AIDLC advisory-review guardrail is missing: $required"
     }
   }
 

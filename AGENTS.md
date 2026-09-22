@@ -11,7 +11,7 @@ For every implementation Ticket, read in this order:
 3. the active `work/<issue>-<slug>/task.md`;
 4. only the spec, design, architecture sections, code, tests, backend notes, and playbooks linked by that task.
 
-If the task packet does not exist, follow **Start a GitHub Ticket** in `docs/harness/playbooks.md`, create it from the canonical template, and stop for Owner/Reviewer approval before implementation.
+If the task packet does not exist, follow **Start a GitHub Ticket** in `docs/harness/playbooks.md` and create it from the canonical template before implementation. Owner/Reviewer review before implementation is recommended, especially for ambiguous or shared-boundary work, but is not a blocking gate. If implementation begins from an unreviewed packet, record that status in the packet and report it at handoff.
 
 `README.md` and `docs/project-design.md` are human/public explanations, not default coding context. The collaboration contract and source ownership map are in `docs/development/AIDLC.md`.
 
@@ -28,7 +28,7 @@ The architecture contract is authoritative. Stop and request a maintainer decisi
 
 ## Execution Loop
 
-1. Confirm the approved task packet, negative behavior, dependencies, and strongest gate.
+1. Confirm the task packet, its review status, negative behavior, dependencies, and strongest gate.
 2. Scout the smallest relevant implementation and test surface.
 3. Execute one Todo slice at a time and keep task-local decisions/blockers current.
 4. Add or update focused behavioral evidence with the implementation.

@@ -24,7 +24,7 @@ The Ticket coordinates the team. The task packet controls the Agent execution. T
 | What must the MVP achieve? | `docs/product/prd.md` | Committed MVP scope or acceptance changes |
 | Which boundaries must all implementations preserve? | `docs/product/architecture-contract.md` | An explicit architecture decision is approved |
 | What does this Ticket ask the team to deliver? | GitHub Issue | Scope, dependency, owner, readiness, or outcome changes |
-| What should the active Agent read and execute? | `work/<issue>-<slug>/task.md` | The approved execution plan or a blocker changes |
+| What should the active Agent read and execute? | `work/<issue>-<slug>/task.md` | The execution plan, its review status, or a blocker changes |
 | What shared feature behavior must consumers follow? | Optional `spec.md` in the task packet | Accepted feature behavior changes |
 | Which technical approach was approved? | Optional `design.md` in the task packet | A reviewed design decision changes |
 | What does merged code currently prove? | `docs/project-status.md` | Merged behavior, evidence, or a known gap changes |
@@ -69,16 +69,16 @@ still owns approval and merge.
 For the current MVP, work starts from an accepted GitHub Ticket:
 
 ```text
-Ticket -> Agent drafts task packet -> Owner and Reviewer approve
+Ticket -> Agent drafts task packet -> optional pre-implementation review
        -> Agent executes Todo -> focused evidence -> repository gate
        -> PR -> independent review -> merge -> Ticket evidence/status
 ```
 
-1. The Owner selects or receives a Ticket and names a Reviewer.
+1. The Owner selects or receives a Ticket and identifies an independent Reviewer for the PR.
 2. The Agent reads the Ticket, `AGENTS.md`, and PRD, then follows the **Start a GitHub Ticket** playbook.
 3. The Agent creates `work/<issue>-<slug>/task.md` from the canonical template and adds optional spec/design files at the required depth.
-4. The Agent stops before implementation. The Owner corrects intent and context; the Reviewer approves scope, acceptance, constraints, and gates. That approval is recorded in the GitHub Ticket.
-5. The Agent executes the approved Todo, updating only task-local decisions and blockers.
+4. Owner/Reviewer review before implementation is recommended, especially when scope, acceptance, constraints, shared boundaries, or gates are ambiguous. It is not a blocking gate. When implementation begins without that review, the Agent marks the packet unreviewed and reports the status at handoff.
+5. The Agent executes the bounded Todo, updating only task-local decisions, review status, and blockers.
 6. The Owner opens a PR with exact evidence and links it to the Ticket.
 7. The Reviewer evaluates behavior, negative cases, scope, architecture alignment, and evidence before merge.
 8. GitHub remains authoritative for delivery status. The completed packet is provenance, not a second project board.
@@ -101,7 +101,7 @@ Humans:
 
 - choose outcomes, priorities, owners, dependencies, and reviewers;
 - resolve product ambiguity and approve architecture/security claims;
-- approve the task packet before construction;
+- review task packets before construction when risk or ambiguity warrants it;
 - provide independent review and accept evidence;
 - coordinate real environments, integration order, and demos.
 
