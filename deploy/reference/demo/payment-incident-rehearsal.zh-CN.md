@@ -32,8 +32,6 @@ agenova work show investigate-payment-retry-incident-recording --json
 
 若要展示 UI，在另一终端运行 `agenova api connect`，再按 CLI 手册启动本地 React Portal 的 Connected 模式，打开上述 Work。UI 与 CLI 查询的是同一安装服务的同一份记录。重跑时先修改 `metadata.name`，因为同一服务会话内 request ID 不可重复。
 
-若录屏需要**模拟**终期的双身份差异，切到 Portal 的 `Demo` 模式，点击侧栏 `Incident scenario 模拟身份切换`；也可直接打开 `http://127.0.0.1:5177/#/scenario/payment-incident`（端口以本机 Vite 输出为准）。依次点击“开发工程师”和“值班 SRE”：同一个请求与模板保持不变，模拟授权分别显示修复 PR 与受控回滚。页面会持续标注这是模拟，不要将此段画面与 Connected 的真实执行证据混称为已实现的身份治理或工具调用。
-
 ## 2026-09-22 本机预演结果
 
 - 相同配置的新 request `investigate-payment-retry-incident-r2` 和 `-r3` 连续在 kind + Ollama 上 `Succeeded`：两次均有 4 次模型决策、3 次 mock 工具决策、48 条事实，回答指出重试循环错误地为每次尝试重置五秒 deadline；worker 清理成功。
