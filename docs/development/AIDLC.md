@@ -1,6 +1,6 @@
 # Agenova AI-Driven Development Lifecycle
 
-This document is the team operating contract for developing Agenova with coding agents. Humans own intent, decisions, review, and acceptance; agents explore, plan, implement, verify, and report within one approved ticket boundary.
+This document is the team operating contract for developing Agenova with coding agents. The assignee owns planning and execution within an accepted Ticket; independent review and acceptance happen at the PR boundary. Agents explore, plan, implement, verify, and report within that Ticket boundary.
 
 ## Delivery Unit
 
@@ -24,9 +24,9 @@ The Ticket coordinates the team. The task packet controls the Agent execution. T
 | What must the MVP achieve? | `docs/product/prd.md` | Committed MVP scope or acceptance changes |
 | Which boundaries must all implementations preserve? | `docs/product/architecture-contract.md` | An explicit architecture decision is approved |
 | What does this Ticket ask the team to deliver? | GitHub Issue | Scope, dependency, owner, readiness, or outcome changes |
-| What should the active Agent read and execute? | `work/<issue>-<slug>/task.md` | The approved execution plan or a blocker changes |
+| What should the active Agent read and execute? | `work/<issue>-<slug>/task.md` | The assignee's execution plan or a blocker changes |
 | What shared feature behavior must consumers follow? | Optional `spec.md` in the task packet | Accepted feature behavior changes |
-| Which technical approach was approved? | Optional `design.md` in the task packet | A reviewed design decision changes |
+| Which technical approach is being used? | Optional `design.md` in the task packet | The assignee changes a technical decision |
 | What does merged code currently prove? | `docs/project-status.md` | Merged behavior, evidence, or a known gap changes |
 | How is completion verified? | `scripts/check.ps1`, focused tests, and the PR | A gate or implementation changes |
 
@@ -69,17 +69,17 @@ still owns approval and merge.
 For the current MVP, work starts from an accepted GitHub Ticket:
 
 ```text
-Ticket -> Agent drafts task packet -> Owner and Reviewer approve
+Ticket -> assignee drafts and self-reviews task packet
        -> Agent executes Todo -> focused evidence -> repository gate
        -> PR -> independent review -> merge -> Ticket evidence/status
 ```
 
-1. The Owner selects or receives a Ticket and names a Reviewer.
+1. The assignee takes an accepted Ticket. A Reviewer is assigned for the eventual PR, but this is not a prerequisite for implementation.
 2. The Agent reads the Ticket, `AGENTS.md`, and PRD, then follows the **Start a GitHub Ticket** playbook.
 3. The Agent creates `work/<issue>-<slug>/task.md` from the canonical template and adds optional spec/design files at the required depth.
-4. The Agent stops before implementation. The Owner corrects intent and context; the Reviewer approves scope, acceptance, constraints, and gates. That approval is recorded in the GitHub Ticket.
-5. The Agent executes the approved Todo, updating only task-local decisions and blockers.
-6. The Owner opens a PR with exact evidence and links it to the Ticket.
+4. The assignee removes template markers and self-reviews scope, acceptance, negative cases, constraints, and gates against the Ticket and PRD. Record material decisions in the packet and proceed without a separate Owner/Reviewer packet approval. Escalate only a conflict or expansion beyond the accepted Ticket or architecture contract.
+5. The Agent executes the self-reviewed Todo, updating task-local decisions and blockers.
+6. The assignee opens a PR with exact evidence and links it to the Ticket.
 7. The Reviewer evaluates behavior, negative cases, scope, architecture alignment, and evidence before merge.
 8. GitHub remains authoritative for delivery status. The completed packet is provenance, not a second project board.
 
@@ -91,7 +91,7 @@ Choose the smallest packet that makes execution safe:
 | --- | --- | --- |
 | Task | `task.md` | One bounded, well-understood behavior inside one ownership boundary |
 | Task + Spec | `task.md`, `spec.md` | Public/cross-component behavior, authority semantics, or multiple consumers need agreement |
-| Task + Spec + Design | `task.md`, `spec.md`, `design.md` | Multiple technical approaches, backend mapping, persistence, compatibility, or cross-team integration requires approval |
+| Task + Spec + Design | `task.md`, `spec.md`, `design.md` | Multiple technical approaches, backend mapping, persistence, compatibility, or cross-team integration requires a documented design decision |
 
 Do not create a spec, design, nested `AGENTS.md`, or repo-local skill merely because a directory exists.
 
@@ -99,9 +99,8 @@ Do not create a spec, design, nested `AGENTS.md`, or repo-local skill merely bec
 
 Humans:
 
-- choose outcomes, priorities, owners, dependencies, and reviewers;
-- resolve product ambiguity and approve architecture/security claims;
-- approve the task packet before construction;
+- choose outcomes and priorities; the assignee owns task planning, dependencies, and execution decisions within the accepted Ticket;
+- resolve product ambiguity or architecture/security changes that exceed the Ticket boundary;
 - provide independent review and accept evidence;
 - coordinate real environments, integration order, and demos.
 
@@ -109,7 +108,7 @@ Agents:
 
 - inspect the repository and propose a bounded plan;
 - identify ambiguity, risk, dependencies, and negative cases;
-- implement the approved Todo and keep the packet current;
+- implement the assignee-reviewed Todo and keep the packet current;
 - run focused and repository gates;
 - report exact evidence, residual risk, and blockers without claiming unproven completion.
 

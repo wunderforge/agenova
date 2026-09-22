@@ -62,6 +62,23 @@ Harness amendment:
 
 - On the next harness-maintenance Ticket, either compare module files before and after `go mod tidy` without depending on Git staging state, or explicitly document the staging precondition.
 
+## 2026-09-22 — Packet approval blocked assignee autonomy
+
+What slowed work:
+
+- The assignee had to wait for Owner/Reviewer approval of task-packet Markdown before implementing an accepted Ticket.
+- Templates, scaffolding output, and the docs gate all reinforced that extra dependency.
+
+Root cause:
+
+- Planning self-check and independent PR review were conflated into a pre-implementation sign-off.
+
+Harness amendment:
+
+- Let the assignee self-review the packet against the Ticket and PRD, record material decisions, and proceed within the accepted scope.
+- Keep independent PR review and escalate only unresolved scope, product, security, or architecture conflicts.
+- Guard the docs gate against restoring the obsolete packet-approval language.
+
 ## Escalation Rule
 
 - First occurrence: record a concise learning.
