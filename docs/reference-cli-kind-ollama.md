@@ -2,6 +2,36 @@
 
 这份手册覆盖参考 CLI 链路，以及可选的本地 React 查看。同一个已安装服务保存并返回 Work；不启动独立的 `agenova-console`。
 
+## macOS 一键路径
+
+Intel 与 Apple Silicon Mac 可从仓库根目录运行：
+
+```bash
+bash harness/local/macos-bootstrap.sh doctor
+bash harness/local/macos-bootstrap.sh dry-run
+bash harness/local/macos-bootstrap.sh setup
+```
+
+`setup` 会依次复用固定版本的 substrate harness，创建或复用本 checkout
+拥有的 `agenova-k8s-lab`，安装 Agent Sandbox v0.4.6，构建并加载 worker 与
+control-plane 镜像，构建本机 CLI，通过现有的 `platform validate/plan/apply`
+安装 Platform，并注册示例 Policy 和 AgentTemplate。重复执行会收敛到相同
+状态，不会建立第二套安装配置。
+
+要同时检查 Ollama 与真实 Work，运行：
+
+```bash
+bash harness/local/macos-bootstrap.sh verify
+```
+
+该命令要求本机 Ollama 可访问且已有 `llama3.1:latest`。基础 `setup` 不把
+模型就绪误报成安装就绪。清理必须显式执行
+`bash harness/local/macos-bootstrap.sh down`；它只删除能用本 checkout
+ownership receipt 验证的 kind 集群。脚本不会安装或启动 Docker Desktop、
+Homebrew、Ollama 或其他宿主机软件。
+
+下面保留手动路径，供逐步调试和非 macOS 环境使用。
+
 ## 先准备
 
 - Docker Desktop、kind、kubectl、Go 1.22+ 和 Ollama 可用。

@@ -25,6 +25,23 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 
 To reproduce the current reference installation and a real kind + Ollama Work from the CLI, then inspect the same record in a local React Portal, follow the [kind + Ollama guide](docs/reference-cli-kind-ollama.md). It separates substrate preparation from Agenova configuration, registration, execution and optional UI connection, and states the reference-only limits.
 
+On macOS (Intel or Apple Silicon), install Docker Desktop, kind, kubectl, Go,
+PowerShell 7, and optionally Ollama, then run the repository-owned bootstrap:
+
+```bash
+bash harness/local/macos-bootstrap.sh doctor
+bash harness/local/macos-bootstrap.sh setup
+```
+
+`setup` prepares the owned kind cluster and pinned Agent Sandbox substrate,
+builds and loads the required images, applies the reviewed Platform manifest,
+and registers the reference Policy and AgentTemplate. It is safe to repeat.
+Run `bash harness/local/macos-bootstrap.sh verify` to additionally require
+Ollama plus `llama3.1:latest` and execute the sample Work. Use `dry-run` to
+inspect the stages without Docker/Kubernetes mutations and `down` for explicit,
+ownership-checked cluster cleanup. This is a local reference path, not a
+production installer.
+
 Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
 
 ## Current Baseline
