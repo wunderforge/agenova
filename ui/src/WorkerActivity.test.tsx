@@ -30,17 +30,30 @@ describe('recorded worker calls',()=>{
     expect(groups.map(g=>[g.id,g.calls.length,g.observations,g.active])).toEqual([['Turn 1',1,1,false],['Turn 2',1,0,true]]);
     expect(groups[0].calls[0]).toMatchObject({state:'Failed',href:'#/activity/failed'});
   });
+  it('keeps a denied tool decision visible even though no provider call follows',()=>{
+    const facts:Fact[]=[
+      {...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'},
+      {...fact('model',2,'ProviderAttempt','m'),operation:'model.invoke'},
+      {...fact('reply',3,'ProviderOutcome','m','Succeeded'),operation:'model.invoke'},
+      {...fact('denied',4,'ToolDecision','t'),operation:'tool.invoke',target:'kubernetes.rollback',result:'Deny',reasonCode:'tool-not-granted'},
+    ];
+    const groups=groupWorkerTurns(workerActions(facts,'Succeeded','#/activity'));
+    expect(groups[0].calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({label:'Tool access',target:'kubernetes.rollback',state:'Deny',href:'#/activity/denied'}),
+    ]));
+    expect(groups[0].calls.some(a=>a.label==='Tool call')).toBe(false);
+  });
   it('does not invent turns or call permission decisions execution',()=>{
     expect(groupWorkerTurns(workerActions([fact('a',1,'ProviderAttempt','m')],'Running','#/activity'))[0].id).toBe('Recorded calls');
     expect(groupWorkerTurns(workerActions([fact('d',1,'ToolDecision')],'Running','#/activity'))[0].id).toBe('Recorded access checks');
     const mixed=groupWorkerTurns(workerActions([fact('d',1,'ModelDecision'),fact('a',2,'ProviderAttempt','m')],'Running','#/activity'));
     expect(mixed[0].calls.map(a=>a.label)).toEqual(['Model request']);
   });
-  it('shows actual loop turns and mock tool completion without treating it as model inference',()=>{
+  it('shows actual loop turns and tool completion without treating it as model inference',()=>{
     const facts:Fact[]=[{...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'}, {...fact('d',2,'ToolDecision','tool-1'),result:'Allow'}, {...fact('a',3,'ProviderAttempt','tool-1'),operation:'tool.invoke'}, {...fact('o',4,'ProviderOutcome','tool-1','Succeeded'),operation:'tool.invoke'}];
     const actions=workerActions(facts,'Running','#/activity');
     expect(actions[0]).toMatchObject({label:'Agent turn',target:'Turn 2',state:'Started'});
-    expect(actions[2]).toMatchObject({label:'Tool call (mock)',active:false,state:'Succeeded'});
+    expect(actions[2]).toMatchObject({label:'Tool call',active:false,state:'Succeeded'});
   });
   it('only an unresolved correlated attempt is active',()=>{
     const actions=workerActions([fact('a',1,'ProviderAttempt','call-1','Attempted')],'Running','#/work/1/activity');

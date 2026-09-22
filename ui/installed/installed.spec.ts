@@ -22,6 +22,7 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   expect(setupResponse.status()).toBe(200);
   const setup = await setupResponse.json() as Setup;
   expect(setup.installation.kind).toBe('installed');
+  if (setup.installation.kind !== 'installed') throw new Error('expected installed Agenova API');
   expect(setup.installation.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
   expect(setup.policy.ID).toBe('reference-default-deny');
   expect(setup.policy.Version).toBe('1');

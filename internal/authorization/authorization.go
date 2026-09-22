@@ -35,8 +35,10 @@ type BundleSource interface {
 // was actually evaluated. Its fields are private so a public Decision cannot
 // be replayed as admission proof for a different assignment.
 type Evaluation struct {
-	request  Request
-	decision v1alpha1.Decision
+	request        Request
+	decision       v1alpha1.Decision
+	toolCeiling    []string
+	hasToolCeiling bool
 }
 
 // Decision returns the public, evidence-ready result of this evaluation.
@@ -84,6 +86,15 @@ func (a Admission) Decision() v1alpha1.Decision {
 	return a.evaluation.Decision()
 }
 
+// ToolCeiling is the rule selected for this exact admitted trusted principal.
+// Absence means the legacy admission-only policy imposes no extra tool limit.
+func (a Admission) ToolCeiling() ([]string, bool) {
+	if !a.evaluation.hasToolCeiling {
+		return nil, false
+	}
+	return append([]string(nil), a.evaluation.toolCeiling...), true
+}
+
 // Authorizer performs exact-match, default-deny assignment admission.
 type Authorizer struct {
 	Policies BundleSource
@@ -112,7 +123,7 @@ func (a Authorizer) Evaluate(input Request) (Evaluation, error) {
 	}
 	decision.PolicyRef = v1alpha1.PolicyReference{ID: bundle.ID, Version: bundle.Version}
 
-	matched := bundle.Allows(policy.Match{
+	rule, matched := bundle.RuleFor(policy.Match{
 		Team:        input.Principal.Team,
 		Action:      input.Action.Name,
 		Project:     input.Action.Project,
@@ -125,7 +136,12 @@ func (a Authorizer) Evaluate(input Request) (Evaluation, error) {
 
 	decision.Result = v1alpha1.DecisionResultAllow
 	decision.Reason = "exact policy rule matched the trusted principal and requested assignment"
-	return completeEvaluation(input, decision), nil
+	evaluation := completeEvaluation(input, decision)
+	if rule.ToolCeiling != nil {
+		evaluation.toolCeiling = append([]string(nil), rule.ToolCeiling...)
+		evaluation.hasToolCeiling = true
+	}
+	return evaluation, nil
 }
 
 // Gate invokes the authorized continuation exactly once only for Allow.
