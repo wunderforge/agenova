@@ -4,7 +4,7 @@ One canonical request, one server-trusted principal, one issued claim and one ap
 
 ## Submission and identity
 
-The internal server binds loopback by default. Request JSON is ClaimRequest only, not a principal or effective-authority envelope. A fixed Team A or Team B preset is operator startup configuration, not caller-granted identity; no browser identity switch is exposed. Exercise Team B through a separately configured server composition. Reject cross-origin submissions, oversized payloads, unsupported methods and invalid shapes. No general claim mutation or policy administration.
+The internal server binds loopback by default. Request JSON is ClaimRequest only, not a principal or effective-authority envelope. A fixed Team A or Team B preset is operator startup configuration, not caller-granted identity; no browser identity switch is exposed for Connected submission. A separately labelled Demo fixture may switch fictional personas for a presentation, but it cannot alter this trusted boundary or appear as observed evidence. Exercise Team B through a separately configured server composition. Reject cross-origin submissions, oversized payloads, unsupported methods and invalid shapes. No general claim mutation or policy administration.
 
 ## Facts and view
 

@@ -124,6 +124,7 @@ Out of scope: policy editing, login/SSO, broad administration, durable history, 
 
 ## Decisions and Blockers
 
+- Owner follow-up (22 Sep): a presentation-only identity switch may be added to the explicitly labelled Demo fixture surface for the payment incident story. It must not select the principal for Connected requests or claim to be executed PolicyBundle, PR, rollback, or backend evidence. Keep the no-browser-identity-switch rule for the trusted connected submission boundary.
 - Owner approved a bigger checkpoint, internal UI submission and real LLM execution. Tools may remain explicit mocks.
 - Public API selection may be made behind the adapter, but organizational compliance is not established by endpoint choice; use public/synthetic inputs for live evidence.
 - Provider access is the owner's running local Ollama; existing model only, no download or paid API call. Public-provider compliance/access remain separate configuration.

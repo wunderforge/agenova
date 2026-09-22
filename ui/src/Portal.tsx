@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { agents, demoIdentity, demoPolicy, exampleWorks, type AccessSet, type AgentSummary, type EventKind, type WorkEvent, type WorkItem, type WorkStatus } from './portal-data';
 import { ConnectedPortal } from './ConnectedPortal';
+import { IncidentRoleDemo } from './IncidentRoleDemo';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
 import { demoWorkerActions } from './worker-activity-model';
@@ -221,6 +222,7 @@ export function Portal({ mode }: { mode: PortalMode }) {
   };
   let content: ReactNode;
   if (mode === 'connected') content = <ConnectedPortal parts={parts} onDemo={() => changeMode('demo')}/>;
+  else if (section === 'scenario' && parts[1] === 'payment-incident') content = <IncidentRoleDemo/>;
   else if (section === 'work' && parts[1] === 'new') content = <NewWork addWork={item => setWorks(current => [item, ...current])} selectedAgent={query.get('agent') || ''}/>;
   else if (section === 'work' && !parts[1]) content = <WorkList works={works}/>;
   else if (section === 'work' && work && parts[2] === 'access') content = <WorkAccess work={work}/>;
@@ -238,8 +240,8 @@ export function Portal({ mode }: { mode: PortalMode }) {
   else content = <><Head title="Work not found"/><a href={href('work')}>Back to Work</a></>;
   void location; // hashchange drives the render; route() reads the current URL.
   return <div ref={motionRoot} className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
-    <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a></nav>
-    <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Current server session</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
-      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div><div className="portal-scroll-progress" aria-hidden="true"/></header>
+    <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a>{mode === 'demo' && <a className={section === 'scenario' ? 'active' : ''} href={href('scenario/payment-incident')}>Incident scenario <small>模拟身份切换</small></a>}</nav>
+    <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Current server session</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : section === 'scenario' ? 'Incident scenario' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
+      {mode === 'demo' && section === 'scenario' ? <span className="portal-identity">模拟身份</span> : mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div><div className="portal-scroll-progress" aria-hidden="true"/></header>
       <main id="portal-main" tabIndex={-1} className="portal-page">{content}</main></div></div>;
 }
