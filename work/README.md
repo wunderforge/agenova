@@ -37,7 +37,7 @@ The packet owns the Agent's context, scope, implementation Todo, constraints, ta
 
 ## Review Gate
 
-The Agent drafts the packet and then stops. The human Owner and Reviewer must remove unresolved template markers and record approval of the execution context in the GitHub Ticket before implementation begins.
+The Agent drafts the packet and resolves all template markers before implementation. Owner/Reviewer review before implementation is recommended, especially for ambiguous or shared-boundary work, but is not a blocking gate. When implementation begins from an unreviewed packet, record that status in the packet and report it at handoff. Independent review remains required before merge.
 
 Use `spec.md` for shared behavior and `design.md` for a technical decision that dependent contributors need to rely on. Do not add them for routine local work.
 
