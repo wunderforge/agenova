@@ -1,0 +1,20 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: incident-dev-pr-allowed-r9
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      completionTool: github.pr.create
+      completionMode: success
+      objective: "You are the Payments Developer working a synthetic incident. Read src/retry.go and optionally src/retry_test.go or the incident log. The regression is confirmed: retries can start after the five-second deadline and idempotency keys change across attempts. Your deliverable is a real reviewed code fix, not a recommendation. Write a COMPLETE replacement Go source file for src/retry.go preserving its public functions, pass it as the input to github.pr.create, and finish only after reporting the actual tool outcome. If the tool fails, correct the source and retry; never invent a PR URL or say a PR was opened without its successful tool observation. Do not roll back the Deployment."
+  requestedAccess:
+    tools: [git.read, github.pr.create, kubernetes.rollback]
+    resourceScopes: [repo:wunderforge/agenova-payment-incident-demo, k8s:kind-agenova-k8s-lab/agenova-payment-demo/payment-api]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 8m

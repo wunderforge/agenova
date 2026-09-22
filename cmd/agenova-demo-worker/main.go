@@ -59,11 +59,34 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 	observations := 0
 	readFiles := []string{}
 	seen := map[string]bool{}
+	proposalRecorded := false
+	deniedAttempted := false
+	completionAttempted := false
+	completionSucceeded := false
 	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
-		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read files: %q.\n", turn, workerprotocol.MaxTurns, observations, readFiles)
+		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read files: %q. Action completed: %t. Denied attempt observed: %t.\n", turn, workerprotocol.MaxTurns, observations, readFiles, proposalRecorded, deniedAttempted)
 		promptTask := task
-		if len(readFiles) == 3 || turn == workerprotocol.MaxTurns {
+		if proposalRecorded || deniedAttempted || turn == workerprotocol.MaxTurns {
 			promptTask.ResourceScope = ""
+		} else if len(task.CandidateTools) > 0 && hasTool(task.CandidateTools, "git.read") && (len(readFiles) == 0 || (task.CompletionTool == "github.pr.create" && hasTool(task.AllowedTools, "github.pr.create") && !containsFile(readFiles, "src/retry.go"))) {
+			promptTask.CandidateTools = []string{"git.read"}
+			promptTask.AllowedTools = []string{"git.read"}
+		} else if len(readFiles) == 3 && len(task.CandidateTools) == 0 {
+			promptTask.AllowedTools = nil
+			for _, tool := range task.AllowedTools {
+				if tool != "git.read" {
+					promptTask.AllowedTools = append(promptTask.AllowedTools, tool)
+				}
+			}
+			promptTask.CandidateTools = nil
+			for _, tool := range task.CandidateTools {
+				if tool != "git.read" {
+					promptTask.CandidateTools = append(promptTask.CandidateTools, tool)
+				}
+			}
+			if len(promptTask.AllowedTools) == 0 && len(promptTask.CandidateTools) == 0 {
+				promptTask.ResourceScope = ""
+			}
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if len(prompt) > 60<<10 {
@@ -86,31 +109,64 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		if action.Action == "finish" {
-			if turn < 2 || (task.ResourceScope != "" && observations == 0) {
+			if turn < 2 || (task.ResourceScope != "" && observations == 0 && !deniedAttempted) {
 				transcript += "\nObservation: premature finish. Complete the required read/review before finishing."
+				continue
+			}
+			if task.CompletionTool != "" && ((task.CompletionMode == "attempt" && !completionAttempted) || (task.CompletionMode == "success" && !completionSucceeded)) {
+				transcript += "\nObservation: the task deliverable has not been observed. A plan is not completion. Attempt the governed operation and use the actual result; if it fails, revise and retry."
 				continue
 			}
 			return writeLine(output, workerprotocol.Message{Result: action.Answer})
 		}
-		if task.ResourceScope == "" {
+		if len(task.CandidateTools) > 0 && action.Tool != "git.read" && len(readFiles) == 0 {
+			transcript += "\nObservation: read at least one relevant incident artifact before an external operation."
+			continue
+		}
+		if action.Tool == "github.pr.create" && hasTool(task.AllowedTools, "github.pr.create") && !containsFile(readFiles, "src/retry.go") {
+			transcript += "\nObservation: read src/retry.go before authoring a PR; read src/retry_test.go too if you need its assertions."
+			continue
+		}
+		actionScope := task.ToolScopes[action.Tool]
+		if actionScope == "" {
+			actionScope = task.ResourceScope
+		}
+		if actionScope == "" {
 			transcript += "\nObservation: no tool is available. Review the objective then finish."
 			continue
 		}
-		if seen[action.Input] {
-			transcript += "\nObservation: file already read successfully; choose new evidence or finish."
+		key := action.Tool + ":" + action.Input
+		if seen[key] {
+			if action.Tool == "git.read" {
+				transcript += "\nObservation: file already read successfully; choose new evidence or finish."
+			} else {
+				transcript += "\nObservation: this exact tool request was already attempted; choose new evidence or finish."
+			}
 			continue
 		}
-		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: task.ResourceScope, Input: action.Input}}); err != nil {
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: actionScope, Input: action.Input}}); err != nil {
 			return err
 		}
 		var observation workerprotocol.Reply
 		if err := readLine(scanner, &observation); err != nil {
 			return err
 		}
+		seen[key] = true
+		if action.Tool == task.CompletionTool {
+			completionAttempted = true
+			if observation.Allowed && observation.Error == "" && observation.Text != "" {
+				completionSucceeded = true
+			}
+		}
 		if observation.Allowed && observation.Error == "" && observation.Text != "" {
 			observations++
-			seen[action.Input] = true
-			readFiles = append(readFiles, action.Input)
+			if action.Tool == "git.read" {
+				readFiles = append(readFiles, action.Input)
+			} else {
+				proposalRecorded = true
+			}
+		} else if !observation.Allowed && observation.Error == "tool access denied" {
+			deniedAttempted = true
 		}
 		data, _ := json.Marshal(struct {
 			Tool        string               `json:"tool"`
@@ -120,6 +176,24 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		transcript += "\n" + string(data)
 	}
 	return workerprotocol.ErrTurnLimit
+}
+
+func hasTool(tools []string, target string) bool {
+	for _, name := range tools {
+		if name == target {
+			return true
+		}
+	}
+	return false
+}
+
+func containsFile(files []string, target string) bool {
+	for _, name := range files {
+		if name == target {
+			return true
+		}
+	}
+	return false
 }
 
 func readLine(scanner *bufio.Scanner, value any) error {

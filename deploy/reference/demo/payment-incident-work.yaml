@@ -1,0 +1,18 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: investigate-payment-retry-incident-recording
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Investigate the payments service alert that retry attempts exceed the five-second overall deadline. Read the available incident artifacts, identify the cause, and recommend a safe fix. Do not change code or initiate a refund.
+  requestedAccess:
+    tools: [git.read, git.write]
+    resourceScopes: [repo:acme/payments]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m
