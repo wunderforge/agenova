@@ -141,7 +141,7 @@ func validateRegistration(input Registration) (Registration, error) {
 		if i > 0 && capability == manifest.Capabilities[i-1] {
 			return Registration{}, fmt.Errorf("adapter %s@%s repeats capability %q", manifest.ID, manifest.Version, capability)
 		}
-		if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+		if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel && capability != platform.CapabilityTool {
 			return Registration{}, fmt.Errorf("adapter %s@%s advertises unsupported capability %q", manifest.ID, manifest.Version, capability)
 		}
 		if input.Factories[capability] == nil {
@@ -170,7 +170,10 @@ func validateRegistration(input Registration) (Registration, error) {
 	if err := validateSchema(manifest.InstanceSchema, "instanceSchema"); err != nil {
 		return Registration{}, err
 	}
-	needsProfile := containsCapability(manifest.Capabilities, platform.CapabilityRuntime) || containsCapability(manifest.Capabilities, platform.CapabilityModel)
+	if containsCapability(manifest.Capabilities, platform.CapabilityTool) && input.Descriptor.DescribeTool == nil {
+		return Registration{}, fmt.Errorf("tool adapter has no catalog descriptor")
+	}
+	needsProfile := containsCapability(manifest.Capabilities, platform.CapabilityRuntime) || containsCapability(manifest.Capabilities, platform.CapabilityModel) || containsCapability(manifest.Capabilities, platform.CapabilityTool)
 	if needsProfile && input.Descriptor.CanonicalizeProfile == nil {
 		return Registration{}, fmt.Errorf("adapter %s@%s has no profile canonicalizer", manifest.ID, manifest.Version)
 	}
@@ -179,7 +182,7 @@ func validateRegistration(input Registration) (Registration, error) {
 			return Registration{}, err
 		}
 	} else if len(manifest.ProfileSchema.Fields) != 0 {
-		return Registration{}, fmt.Errorf("adapter %s@%s cannot declare a profile schema without runtime or model capability", manifest.ID, manifest.Version)
+		return Registration{}, fmt.Errorf("adapter %s@%s cannot declare a profile schema without runtime, model or tool capability", manifest.ID, manifest.Version)
 	}
 	factories := make(map[platform.Capability]Factory, len(input.Factories))
 	for capability, factory := range input.Factories {
@@ -293,7 +296,7 @@ func identityCapability(id string) (platform.Capability, error) {
 		return "", fmt.Errorf("invalid qualified adapter ID %q", id)
 	}
 	capability := platform.Capability(parts[1])
-	if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+	if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel && capability != platform.CapabilityTool {
 		return "", fmt.Errorf("adapter ID category %q is not supported", parts[1])
 	}
 	return capability, nil

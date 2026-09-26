@@ -64,13 +64,13 @@ func TestInstalledGatewayAuthorityRejectsUnimplementedGrantsBeforeWorkerSetup(t 
 		t.Run(test.name, func(t *testing.T) {
 			authority := &v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated"}}
 			test.modify(authority)
-			err := validateInstalledAuthority(authority, models, runtimes)
+			err := validateInstalledAuthority(authority, models, runtimes, nil)
 			if test.wantError == "" && err != nil || test.wantError != "" && (err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantError)) {
 				t.Fatalf("validateInstalledAuthority() = %v, want %q", err, test.wantError)
 			}
 		})
 	}
-	if err := validateInstalledAuthority(nil, models, runtimes); err == nil {
+	if err := validateInstalledAuthority(nil, models, runtimes, nil); err == nil {
 		t.Fatal("missing issued authority was accepted")
 	}
 }

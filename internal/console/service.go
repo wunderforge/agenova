@@ -22,6 +22,7 @@ import (
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
@@ -39,6 +40,7 @@ type record struct {
 }
 
 type Service struct {
+	tools     *toolbackend.Set
 	mu        sync.RWMutex
 	executeMu chan struct{}
 	preset    app.ReferencePrincipalPreset
@@ -57,9 +59,10 @@ type Service struct {
 }
 
 type Options struct {
-	Prepare   func([]byte) (app.PreparedAssignment, error)
-	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	Setup     func() (Setup, error)
+	ToolBackend *toolbackend.Set
+	Prepare     func([]byte) (app.PreparedAssignment, error)
+	Configure   func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup       func() (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -101,7 +104,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{tools: options.ToolBackend, preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -263,11 +266,18 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			return err
 		}))
 		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
-		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(mock), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+
+		var selected toolgateway.Adapter = mock
+		results := mock.results
+		if s.tools != nil {
+			configured := &providerToolAdapter{ctx: ctx, claims: s.runner, appendFact: s.journal.Append, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
+			selected, results = configured, configured.results
+		}
+		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
-				reason = "Allowed mock tool within active claim authority."
+				reason = "Allowed tool within active claim authority."
 			}
 			_, err := s.journal.Append(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
 			return err
@@ -292,10 +302,20 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, err
 			}
 			if op.Kind == "tool" {
-				if op.Tool != "git.read" {
-					return workerprotocol.Reply{}, errors.New("unsupported demo tool")
+				parameter := "file"
+				if s.tools == nil {
+					if op.Tool != "git.read" {
+						return workerprotocol.Reply{}, errors.New("unsupported demo tool")
+					}
+				} else {
+					var ok bool
+					parameter, ok = s.tools.Catalog().Parameter(op.Tool, op.ResourceScope)
+					if !ok {
+						return workerprotocol.Reply{}, toolbackend.ErrArguments
+					}
 				}
-				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: "git", Action: "read", ResourceScope: op.ResourceScope, Parameters: map[string]string{"file": op.Input}})
+				tool, action := toolbackend.SplitOperation(op.Tool)
+				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: map[string]string{parameter: op.Input}})
 				if err != nil {
 					return workerprotocol.Reply{}, errors.New("tool execution failed; inspect evidence")
 				}
@@ -305,7 +325,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				if err := step("ObservationReceived"); err != nil {
 					return workerprotocol.Reply{}, err
 				}
-				reply := mock.results[d.InvocationID]
+				reply := results[d.InvocationID]
 				if reply.Allowed && reply.Error == "" && reply.Text != "" {
 					readFiles[op.Input] = true
 				}
@@ -323,7 +343,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if scope == "" || turn == workerprotocol.MaxTurns || len(readFiles) == 3 {
+			if scope == "" || turn == workerprotocol.MaxTurns || (s.tools == nil && len(readFiles) == 3) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})
