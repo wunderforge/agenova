@@ -1,5 +1,7 @@
 # 中期演示：从提交任务到真实结果
 
+> 历史 checkpoint（#143）：下文保留当时独立 `agenova-console` 服务的启动与验证记录。当前演示请使用 [已安装服务的 CLI + Connected Portal 手册](../../docs/reference-cli-kind-ollama.md)；#166/#170 已接通安装、注册、提交和共享查询，当前 Portal 不接受旧独立服务作为已安装 Platform。下文的 Team B 独立服务案例也不代表同一安装实例上的多用户验证。
+
 这个 checkpoint 把已经完成的模块串成一条用户可操作的链路：
 
 **提交任务 → 检查身份和权限 → 创建 claim → kind worker 执行 → Model Gateway 调用真实模型 → 查看结果和证据 → 释放环境。**
