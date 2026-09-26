@@ -40,6 +40,15 @@ kind load docker-image agenova-control-plane:0.1.0 --name agenova-k8s-lab
 
 Installing Agent Sandbox into an empty cluster remains substrate preparation. Follow the [pinned v0.4.6 runbook](../harness/spike/agent-sandbox-substrate/RUNBOOK.md). This flow does not pretend that `platform apply` installs kind or the upstream controller.
 
+To keep the cluster for a later rehearsal, run the preparation commands explicitly from Bash at the repository root (Git Bash or WSL on Windows):
+
+```bash
+bash harness/spike/agent-sandbox-substrate/reproduce.sh status
+bash harness/spike/agent-sandbox-substrate/reproduce.sh up
+```
+
+**Do not run `all` or omit the subcommand when retaining the cluster.** The default is `all`, which completes validation and then deletes the harness-owned cluster. `up` reuses a cluster only when its fingerprint matches this checkout's ownership receipt. If an existing same-name cluster has a missing or mismatched receipt, inspect it first. Following the [substrate runbook's recovery procedure](../harness/spike/agent-sandbox-substrate/RUNBOOK.md#ownership-and-cleanup), manually remove it only after confirming it is disposable, then run `up` to create a new cluster. Do not copy or fabricate receipts to bypass the ownership check.
+
 Build the CLI from the repository root and add it to the current PowerShell session:
 
 ```powershell
