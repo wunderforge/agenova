@@ -23,6 +23,8 @@ Add the two existing local documentation notes in a separate PR. No script, runt
 
 - Explain explicit `status` / `up` use and that `all`, including the default invocation, tears down the owned cluster.
 - Preserve ownership safeguards; do not suggest adopting a cluster by copying receipts.
+- Preserve the runbook's separate recovery path: inspect a stale or unmatched cluster and manually remove it only after confirming it is disposable, then recreate it with `up`.
+- Keep the current runbook's new instructions in English; retain the historical checkpoint's Chinese text.
 - Label #143 as historical and route current CLI/Connected Portal usage to the installed guide.
 - State that its separate Team B service is not same-installation multi-user proof.
 
@@ -62,3 +64,4 @@ Source inspection of `all` dispatch and owned-cluster checks, resolved links, ex
 - Validation results will be recorded in the PR; no runtime behavior is claimed changed.
 - Documentation checks and `git diff --check` passed on 2026-09-26. The full gate passed Go, frontend contracts/types/components/build and 51/52 browser checks; the unchanged keyboard scenario failed at `ui/smoke/console.spec.ts:99` while waiting for the `Loading evidence` heading. The run used supported Node 24. No application or test source is changed by this PR.
 - A focused rerun in the freshly built docs worktree reproduced the same line-99 failure; `git diff --exit-code HEAD -- ui` confirmed that its UI sources match main `c56ba3a`. The saved PR body passed `scripts/check-pr-body.ps1`.
+- PR #191's first CI run passed on commit `1ca292a`. Its two P2 review findings are addressed by the explicit, linked manual-recovery exception and the English retention block. The follow-up is documentation only; no cluster was removed.
