@@ -35,6 +35,7 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		kubernetesDeploymentRegistration(),
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
+		mcpHTTPToolRegistration(),
 	)
 }
 
@@ -231,6 +232,8 @@ func DescribeImplementation(value any) string {
 		return fmt.Sprintf("%s@%s", KubernetesDeploymentID, ReferenceVersion)
 	case *AgentSandboxRuntime:
 		return fmt.Sprintf("%s@%s", AgentSandboxRuntimeID, ReferenceVersion)
+	case *MCPHTTPTool:
+		return fmt.Sprintf("%s@%s", MCPHTTPToolID, ReferenceVersion)
 	case *OpenAICompatibleModel:
 		return fmt.Sprintf("%s@%s", OpenAICompatibleModelID, ReferenceVersion)
 	default:

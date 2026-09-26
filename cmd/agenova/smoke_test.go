@@ -216,3 +216,27 @@ func moduleDir(t *testing.T) string {
 	}
 	return dir
 }
+
+func TestToolAdapterLifecycleSmoke(t *testing.T) {
+	bin := buildCLI(t)
+	state := t.TempDir()
+	reference := "agenova.io/tool/mcp-http@0.1.0"
+	for _, changed := range []string{"true", "false"} {
+		out := runCLI(t, bin, 0, "adapters", "install", reference, "--json", "--state-dir", state)
+		if !strings.Contains(out, `"changed":`+changed) {
+			t.Fatalf("install: %s", out)
+		}
+	}
+	inspected := runCLI(t, bin, 0, "adapters", "inspect", reference, "--json", "--state-dir", state)
+	if !strings.Contains(inspected, `"path":"max-concurrent-calls"`) || !strings.Contains(inspected, `"installed":true`) {
+		t.Fatalf("inspect: %s", inspected)
+	}
+	fragment := runCLI(t, bin, 0, "adapters", "init", reference, "--name", "docs", "--state-dir", state)
+	if !strings.Contains(fragment, "toolBackends:") || !strings.Contains(fragment, "toolProfiles:") || !strings.Contains(fragment, "logical-operation: repo.read") {
+		t.Fatalf("init: %s", fragment)
+	}
+	listed := runCLI(t, bin, 0, "adapters", "list", "--json", "--state-dir", state)
+	if strings.Count(listed, "agenova.io/tool/mcp-http") != 1 {
+		t.Fatalf("lock: %s", listed)
+	}
+}

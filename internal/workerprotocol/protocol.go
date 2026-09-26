@@ -26,9 +26,11 @@ type Operation struct {
 }
 
 type Reply struct {
-	Allowed bool   `json:"allowed"`
-	Text    string `json:"text,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Untrusted bool   `json:"untrusted,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+	Allowed   bool   `json:"allowed"`
+	Text      string `json:"text,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Message travels from worker to host: exactly one operation or final result.
