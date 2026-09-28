@@ -112,3 +112,7 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
   permanent Sydney ACM certificate stays in `infra/domain`. Preserve auth; verify
   target health, real Portal/API and denial. Remove CloudFront and cloudflared,
   update cleanup to destroy edge before EKS while preserving domain/certificates.
+
+- Owner requested fixing first external-link 403. Allow cross-site GET document
+  navigation only to Portal entry paths; keep Basic Auth, Origin validation,
+  API cross-site denial and iframe/write denial. Verify live headers and Chrome.

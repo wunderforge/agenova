@@ -32,5 +32,13 @@ check('health endpoint contains no application evidence',200,'/healthz',False)
 check('cross-origin write',403,'/api/requests',headers=['Origin: https://attacker.example','Content-Type: application/json'],method='POST',data='{}')
 check('cross-site fetch',403,'/api/requests',headers=['Sec-Fetch-Site: cross-site'])
 check('same-origin reaches validation',400,'/api/requests',headers=['Origin: '+url,'Content-Type: application/json'],method='POST',data='{}')
+navigation=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: navigate','Sec-Fetch-Dest: document']
+check('external link prompts for authentication',401,'/?mode=connected',False,headers=navigation)
+check('authenticated external link opens Portal',200,'/?mode=connected',headers=navigation)
+check('external link wrong password rejected',401,'/','wrong',headers=navigation)
+check('cross-site API navigation denied',403,'/api/setup',headers=navigation)
+check('cross-site document POST denied',403,'/',headers=navigation,method='POST',data='x')
+check('cross-site iframe denied',403,'/',headers=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: navigate','Sec-Fetch-Dest: iframe'])
+check('cross-site page fetch denied',403,'/',headers=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: cors','Sec-Fetch-Dest: empty'])
 # ALB exposes 443 only; separately inspect listener/SG instead of waiting on port 80.
 print(json.dumps(dict(url=url,dnsOverride=os.environ.get("DEMO_RESOLVE_IP"),checks=checks),indent=2))

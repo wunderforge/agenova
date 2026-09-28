@@ -51,3 +51,8 @@ kubectl -n agenova-system delete configmap agenova-demo-public-config agenova-de
 Finally destroy EKS using `infra/demo/aws`. Preserve the domain, hosted zone,
 certificates, validation records and `infra/domain` state. The local cleanup
 automation still requires a running host and valid AWS login.
+
+External cross-site links may GET the top-level Portal document (`/` or
+`/index.html`) after Basic authentication. Cross-site API navigation, fetches,
+iframes and POSTs remain denied; Origin checks are unchanged. The live verifier
+covers both entry and denial cases.

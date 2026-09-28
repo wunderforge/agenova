@@ -109,3 +109,16 @@ instance/NodePort target group, ASG attachment, restricted SG rules and the
 - Terraform roots validate; full All gate exits 0, 52 UI smoke tests passed
   (`/tmp/agenova-alb-all.txt`). Cleanup automation destroys edge before EKS and
   preserves domain/hosted zone/both regional certificates and validation records.
+
+## External-link navigation fix
+
+The blanket Sec-Fetch-Site cross-site denial also rejected ordinary links.
+The proxy now permits only GET + navigate + document for Portal entry paths,
+with Basic Auth still required. All 18 live HTTPS assertions passed using normal
+DNS: [navigation checks](alb/navigation-checks.json). Cross-site API navigation,
+POST, iframe and fetch remain 403; anonymous entry is 401, authenticated entry
+200. A fresh Chrome tab opened the real Succeeded Work on the first navigation
+without refresh. Only the public proxy was rolled; existing Work history remains.
+
+Full `./scripts/check.ps1 -All` passed after the navigation fix, including
+52/52 browser smoke checks (log: /tmp/agenova-navigation-all.txt).
