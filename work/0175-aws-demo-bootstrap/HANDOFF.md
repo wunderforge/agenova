@@ -107,3 +107,16 @@ source only. Apply added only the ManagedBy=terraform tag (0 add, 1 change,
 0 destroy); no certificate was recreated. Certificate remains visible in ACM
 us-east-1, not Sydney. Preserve this root/state during demo teardown. Follow
 `infra/domain/README.md`; no CloudFront/traffic alias has yet been provisioned.
+
+### Apex + wildcard certificate supersedes demo-only certificate
+
+Owner requested Chrome console setup for `agenova.app` plus `*.agenova.app`.
+New certificate `146c07de-d961-43f3-a291-d27bd552c410` in us-east-1 is ISSUED,
+both names validated successfully. Owner deleted old b3491085 certificate.
+Terraform `infra/domain` now imports the new certificate at the existing demo
+resource address; the old deleted certificate state was removed, not recreated.
+One shared validation CNAME `_c2bcda06481a5cdcdce022a8459d61c1.agenova.app.` points to
+`_dee5d55d6ce64231f3ff6904ca2b3a93.wzccmgtwzk.acm-validations.aws.`.
+Old demo verification CNAME is retained under `aws_route53_record.legacy_validation`.
+Preserve all permanent domain resources during EKS cleanup. Issuance alone does
+not publish the website: CloudFront/traffic DNS is still outstanding.

@@ -98,3 +98,6 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
   already-owned hosted zone. Use independent `infra/domain` state, import any
   existing certificate/validation CNAME, preserve domain/zone, and verify no
   replacement/deletion plus a clean refreshed plan after apply.
+- Owner expanded certificate scope to apex `agenova.app` and `*.agenova.app` via
+  Chrome. Adopt the issued replacement and shared validation CNAME into Terraform;
+  do not recreate the Owner-deleted demo-only certificate or duplicate CNAMEs.

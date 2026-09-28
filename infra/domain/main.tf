@@ -23,8 +23,9 @@ data "aws_route53_zone" "existing" {
 data "aws_caller_identity" "current" {}
 
 resource "aws_acm_certificate" "demo" {
-  domain_name       = "demo.agenova.app"
-  validation_method = "DNS"
+  domain_name               = "agenova.app"
+  subject_alternative_names = ["*.agenova.app"]
+  validation_method         = "DNS"
   tags = {
     Project   = "agenova-demo"
     Purpose   = "demo-https"
@@ -45,7 +46,7 @@ resource "aws_route53_record" "validation" {
       name  = option.resource_record_name
       type  = option.resource_record_type
       value = option.resource_record_value
-    }
+    } if option.domain_name == "agenova.app"
   }
   zone_id = data.aws_route53_zone.existing.zone_id
   name    = each.value.name
@@ -75,4 +76,14 @@ output "certificate_arn" {
 }
 output "hosted_zone_id" {
   value = data.aws_route53_zone.existing.zone_id
+}
+
+# Retained historical verification record; not used by the new certificate.
+resource "aws_route53_record" "legacy_validation" {
+  zone_id = data.aws_route53_zone.existing.zone_id
+  name    = "_2072119b633521d8f4e042dc1dbab723.demo.agenova.app."
+  type    = "CNAME"
+  ttl     = 300
+  records = ["_18d2ca087adc2a953661695f7accc2f5.wzccmgtwzk.acm-validations.aws."]
+  lifecycle { prevent_destroy = true }
 }

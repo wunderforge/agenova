@@ -70,3 +70,14 @@ including 52 UI smoke tests (`/tmp/agenova-domain-all.txt`). Latest certificate
 status is PENDING_VALIDATION; no custom-domain reachability or issuance is claimed.
 Local state must be preserved separately from disposable EKS state; certificate
 and CNAME have prevent_destroy and are excluded from scheduled demo cleanup.
+
+### Apex/wildcard adoption
+
+Console-requested certificate 146c07de-d961-43f3-a291-d27bd552c410 is ISSUED with
+agenova.app and *.agenova.app, both DNS validations SUCCESS. Imported into the
+independent domain state after Owner deleted the previous demo-only certificate.
+One shared verification CNAME imported; historical demo CNAME retained. Apply
+only added tags (0 add, 1 change, 0 destroy); refreshed plan no changes:
+[proof](domain/wildcard-no-drift.txt). Terraform validate passed and repository
+All gate passed including 52 UI smoke tests (`/tmp/agenova-wildcard-all.txt`).
+Certificate readiness does not imply website routing has been configured.
