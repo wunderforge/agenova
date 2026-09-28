@@ -31,3 +31,29 @@ Run with AWS_PROFILE=agenova-demo and KUBECONFIG=/Users/neoliu/.kube/agenova-dem
 - Service Work history is memory-only. Do not restart the control plane before saving the evidence needed for tonight's review.
 - Tool observations are synthetic git.read, not real repository tools.
 - Cleanup is scheduled at Sydney 2026-09-29 01:00 (UTC 2026-09-28T15:00:00Z). Local automation requires an awake host and valid AWS session; see infrastructure handoff. ECR deletion is restricted to the recorded demo image inventory.
+
+## Temporary HTTPS perimeter — 2026-09-28
+
+Owner authorized shared password access while continuing to defer E14. Live URL:
+https://trip-animal-hill-possibilities.trycloudflare.com/?mode=connected
+
+- Independent EKS Deployment `agenova-demo-public`, all three containers Running.
+- `deploy/demo/eks/public/verify.py`: 10 live assertions pass, TLS verification on;
+  anonymous page/API and wrong password 401; authenticated page/setup/evidence
+  200; cross-origin and cross-site requests 403; same-origin malformed submission
+  reaches canonical validation (400); plain HTTP 403, no password challenge.
+- Exact results: [https-checks.json](https-checks.json).
+- `node deploy/demo/eks/public/render.cjs`: authenticated Chromium renders the
+  original successful real-Bedrock Work; [rendered proof](https-portal.png).
+- Live Pod socket inspection: only 127.0.0.1:8088, :8089 and :20241 listen. Proxy
+  has no Kubernetes service-account token mount. No public Service or AWS ingress
+  resource created. Pod-scoped forwarding Role targets only the existing control
+  plane Pod. Control plane was not restarted; earlier evidence remains available.
+- `pwsh -NoProfile -File ./scripts/check.ps1 -All`: exit 0, including 52/52 UI
+  smoke tests. Full output `/tmp/agenova-e13-https-all.txt`.
+- Limits: one shared credential and reference Team A, not E14 users; temporary
+  hostname changes on connector recreation; no service uptime guarantee. Existing
+  control-plane memory-only history and E15 gaps remain. Local host is not in the
+  request path; teardown automation still depends on it and AWS session validity.
+- Cleanup automation updated to remove the overlay before Terraform destruction;
+  original Sydney Sep 29 01:00 deadline unchanged. No new ECR images.

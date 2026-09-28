@@ -65,3 +65,16 @@ Codex heartbeat ID `agenova-eks`已调度，但需要本机可运行和登录有
 ## Git 发布状态
 
 实现与证据已提交为 `a742b20`，工作树干净。首次push/PR失败：当前gh账号yliu0661_syduni是Enterprise Managed User，推送403、createPullRequest被企业账号限制拒绝。尚未成功发布远端分支或创建PR。已询问用户是否改用本机已登录的Leo1piece，未自动切换账号。拟好的PR正文在/tmp/agenova-e13-pr.md。等待用户选择；云端运行与到期清理不受影响。
+
+## Authenticated public HTTPS overlay
+
+Owner subsequently authorized a provider-issued HTTPS address with minimum access
+control. The separate `agenova-demo-public` Deployment runs nginx, cloudflared and
+a Pod-scoped kubectl forwarder inside EKS. See `deploy/demo/eks/public/README.md`.
+Current URL is saved in `.tmp/e13/public/url.txt`; shared demo credentials are in
+`.tmp/e13/public/credentials.json` (0600, never commit/print). No new AWS resources
+or ECR images. Existing control plane was not restarted. This is shared reference
+Team A, not E14 identity. Remove the overlay Deployment, ServiceAccount, Role,
+RoleBinding, Secret and two ConfigMaps before Terraform destroy. Deadline unchanged:
+2026-09-28T15:00:00Z. The public endpoint does not depend on the laptop, but scheduled
+Terraform cleanup still requires the local automation host and valid AWS login.

@@ -35,3 +35,7 @@ Behavioral tests for unknown profiles, bounded calls and sanitized failures; ada
 ## Risks and Compatibility
 
 New AWS account may lack model access; treat as explicit blocker. CNI configuration must enforce NetworkPolicy before isolation claims. Ten-hour retention needs an exact deadline and functioning local cleanup automation. A cloud cluster alone proves neither E14 identity nor E15 isolation. Main PRD's narrower local reference path remains supported; cloud integration is the accepted Epic-specific extension.
+
+## Owner-authorized temporary HTTPS demo (2026-09-28)
+
+Owner requested provider-issued HTTPS hostname and minimum access control, while E14 stays deferred. Supersedes the earlier prohibition on any public endpoint only for this authenticated demo perimeter. Deploy a separate EKS Pod with static Portal, password-protected loopback nginx and outbound Cloudflare Quick Tunnel. An explicit Pod-name-scoped Kubernetes port-forward connects to the unchanged private reference API; no control-plane restart or public Service. Only the forwarding container mounts its projected service-account token. Store a random shared demo password outside Git and its verifier in a Secret. This is shared reference-Team-A access, not two-user authorization. Check anonymous/wrong-password rejection, authenticated UI/API, cross-origin rejection and lack of public origin listeners. Keep the original cleanup deadline; remove the demo Deployment, RBAC, ConfigMaps and Secret with the cluster. Quick Tunnel hostname is temporary and has no availability guarantee.
