@@ -5,8 +5,12 @@ const credentials=JSON.parse(fs.readFileSync('.tmp/e13/public/credentials.json')
 const url=fs.readFileSync('.tmp/e13/public/url.txt','utf8').trim();
 const args=process.env.DEMO_RESOLVE_IP ? ['--host-resolver-rules=MAP '+new URL(url).hostname+' '+process.env.DEMO_RESOLVE_IP] : [];
 const browser=await chromium.launch({headless:true,args});
-const context=await browser.newContext({httpCredentials:credentials,viewport:{width:1440,height:1000}});
+const context=await browser.newContext({viewport:{width:1440,height:1000}});
 const page=await context.newPage();
+await page.goto(url+'/?mode=connected#/work/investigate-payment-retries');
+await page.getByLabel('Username',{exact:true}).fill(credentials.username);
+await page.getByLabel('Password',{exact:true}).fill(credentials.password);
+await page.getByRole('button',{name:'Sign in',exact:true}).click();
 await page.goto(url+'/?mode=connected#/work/investigate-payment-retries');
 await page.locator('main').waitFor();
 await page.getByText('Succeeded',{exact:true}).filter({visible:true}).first().waitFor();

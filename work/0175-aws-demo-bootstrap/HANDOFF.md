@@ -138,3 +138,9 @@ NoSuchDistribution); both domain and edge refreshed Terraform plans report no
 changes. Normal Mac DNS now works. All 11 HTTPS perimeter assertions and the
 rendered real Work pass without a DNS override; see evidence/alb/https-checks.json
 and evidence/alb-portal.png in work/0175-shared-eks-bedrock.
+
+The public perimeter now uses HTML /login and /logout with an eight-hour
+server-side session, replacing Basic Auth. Existing demo credentials are unchanged.
+Deploy with AGENOVA_SESSION_IMAGE=931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/control-plane@sha256:394646864093320ca64fe8ca4006ed6a3ba8d7ba81c70f4a53a975663037b467.
+Session images share the existing control-plane ECR repository; refreshed inventory
+includes their digests for cleanup. No new AWS infrastructure or cleanup timing.

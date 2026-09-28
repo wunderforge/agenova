@@ -116,3 +116,9 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
 - Owner requested fixing first external-link 403. Allow cross-site GET document
   navigation only to Portal entry paths; keep Basic Auth, Origin validation,
   API cross-site denial and iframe/write denial. Verify live headers and Chrome.
+
+- Owner authorized replacing Basic Auth with an HTML login and demo session
+  perimeter for embedded-browser compatibility. Preserve shared reference identity;
+  use random server-side expiring sessions, Secure/HttpOnly/SameSite cookies,
+  signed expiring CSRF tokens and foreign-Origin rejection on login/logout, no provider credentials or browser storage.
+  Verify anonymous API denial, login failures, tampering, expiry, logout and IAB.

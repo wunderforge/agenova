@@ -29,7 +29,9 @@ if not credentials.exists():
     fd=os.open(credentials,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(fd,'w') as f: json.dump(dict(username='demo',password=secrets.token_urlsafe(32)),f)
 creds=json.loads(credentials.read_text())
-verifier=run(['/usr/sbin/htpasswd','-niB',creds['username']],input=(creds['password']+'\n').encode())
+verifier=json.dumps(dict(Username=creds['username'],PasswordHash=hashlib.sha256(creds['password'].encode()).hexdigest())).encode()
+session_image=os.environ['AGENOVA_SESSION_IMAGE']
+if '@sha256:' not in session_image: raise SystemExit('Use a digest-pinned session image')
 with tarfile.open(local/'site.tgz','w:gz') as tar:
     for path in pathlib.Path('ui/dist').iterdir(): tar.add(path,arcname=path.name)
 mount=lambda name,path: dict(name=name,mountPath=path,readOnly=True)
@@ -39,14 +41,15 @@ def container(name,image,command,args,mounts):
 objects=[resource('ServiceAccount',automountServiceAccountToken=False),
 resource('Role',rules=[dict(apiGroups=[''],resources=['pods'],resourceNames=[pod],verbs=['get']),dict(apiGroups=[''],resources=['pods/portforward'],resourceNames=[pod],verbs=['create'])]),
 resource('RoleBinding',subjects=[dict(kind='ServiceAccount',name=NAME,namespace=NS)],roleRef=dict(apiGroup='rbac.authorization.k8s.io',kind='Role',name=NAME)),
-resource('Secret',type='Opaque',data={'htpasswd':base64.b64encode(verifier).decode()}),
+resource('Secret',type='Opaque',data={'session.json':base64.b64encode(verifier).decode()}),
 resource('ConfigMap',NAME+'-config',data={'nginx.conf':pathlib.Path('deploy/demo/eks/public/nginx.conf').read_text()}),
 resource('ConfigMap',NAME+'-site',binaryData={'site.tgz':base64.b64encode((local/'site.tgz').read_bytes()).decode()})]
 proxy=container('proxy',NGINX,['nginx'],['-c','/config/nginx.conf','-g','daemon off;'],[mount('config','/config'),mount('auth','/auth'),mount('site','/site'),dict(name='tmp',mountPath='/tmp')])
+session=container('session',session_image,['/session-server'],[],[mount('auth','/auth')])
 forward=container('forward',image,['/usr/local/bin/kubectl'],['-n',NS,'port-forward','pod/'+pod,'8088:8081','--address=127.0.0.1'],[mount('token','/var/run/secrets/kubernetes.io/serviceaccount')])
 init=container('unpack',NGINX,['tar'],['xzf','/bundle/site.tgz','-C','/site'],[mount('bundle','/bundle'),dict(name='site',mountPath='/site')])
 volumes=[dict(name='config',configMap=dict(name=NAME+'-config')),dict(name='bundle',configMap=dict(name=NAME+'-site')),dict(name='auth',secret=dict(secretName=NAME)),dict(name='site',emptyDir={}),dict(name='tmp',emptyDir={}),dict(name='token',projected=dict(sources=[dict(serviceAccountToken=dict(path='token',expirationSeconds=3600)),dict(configMap=dict(name='kube-root-ca.crt',items=[dict(key='ca.crt',path='ca.crt')])),dict(downwardAPI=dict(items=[dict(path='namespace',fieldRef=dict(fieldPath='metadata.namespace'))]))]))]
-objects.append(resource('Deployment',spec=dict(replicas=1,selector=dict(matchLabels=dict(app=NAME)),template=dict(metadata=dict(labels=dict(app=NAME),annotations={'demo.agenova.io/content':hashlib.sha256(b''.join(p.read_bytes() for p in sorted(pathlib.Path('ui/dist').rglob('*')) if p.is_file())+pathlib.Path('deploy/demo/eks/public/nginx.conf').read_bytes()).hexdigest()}),spec=dict(serviceAccountName=NAME,automountServiceAccountToken=False,securityContext=dict(runAsNonRoot=True,runAsUser=65532,runAsGroup=65532,fsGroup=65532,seccompProfile=dict(type='RuntimeDefault')),initContainers=[init],containers=[proxy,forward],volumes=volumes)))))
+objects.append(resource('Deployment',spec=dict(replicas=1,selector=dict(matchLabels=dict(app=NAME)),template=dict(metadata=dict(labels=dict(app=NAME),annotations={'demo.agenova.io/content':hashlib.sha256(b''.join(p.read_bytes() for p in sorted(pathlib.Path('ui/dist').rglob('*')) if p.is_file())+pathlib.Path('deploy/demo/eks/public/nginx.conf').read_bytes()).hexdigest()}),spec=dict(serviceAccountName=NAME,automountServiceAccountToken=False,securityContext=dict(runAsNonRoot=True,runAsUser=65532,runAsGroup=65532,fsGroup=65532,seccompProfile=dict(type='RuntimeDefault')),initContainers=[init],containers=[proxy,forward,session],volumes=volumes)))))
 objects.append(resource('Service',spec=dict(type='NodePort',selector=dict(app=NAME),ports=[dict(name='http',port=8089,targetPort=8089,nodePort=31089)],externalTrafficPolicy='Cluster')))
 # Never persist the Secret manifest or print credentials.
 print(run(['kubectl','apply','-f','-'],input=json.dumps(dict(apiVersion='v1',kind='List',items=objects)).encode()).decode())

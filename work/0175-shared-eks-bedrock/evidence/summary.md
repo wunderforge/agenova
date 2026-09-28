@@ -122,3 +122,23 @@ without refresh. Only the public proxy was rolled; existing Work history remains
 
 Full `./scripts/check.ps1 -All` passed after the navigation fix, including
 52/52 browser smoke checks (log: /tmp/agenova-navigation-all.txt).
+
+## HTML login and demo sessions
+
+Owner requested ordinary web login for the Codex embedded browser, which could
+not complete Basic Auth. The standalone demo session sidecar now authenticates
+HTML forms and issues eight-hour opaque server-side sessions. TLS cookies are
+Secure/HttpOnly/SameSite=Lax; logout and restart revoke sessions. Signed expiring
+CSRF form tokens protect login/logout even when the embedded browser sends
+Origin:null. Explicit foreign origins and cross-site APIs remain rejected.
+
+21 live perimeter checks passed: [session checks](alb/session-checks.json).
+Session unit tests cover successful opaque-origin login, wrong password, CSRF,
+tampering, expiry and logout. Codex IAB rendered the login form, submitted the
+existing demo credentials and displayed all four current-session Work records.
+One request during rollout returned 504; the complete post-rollout rerun passed.
+No control-plane restart, Work loss, provider change or E14 identity claim.
+Credentials and session values are omitted from evidence and Git.
+
+Full All gate passed for session login, including 52/52 browser smoke tests
+(/tmp/agenova-session-final-all.txt); added CSRF edge-case tests also pass.

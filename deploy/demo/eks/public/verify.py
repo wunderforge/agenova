@@ -1,44 +1,51 @@
 #!/usr/bin/env python3
-"""Live perimeter checks. Credentials stay off argv and out of evidence."""
-import json, os, pathlib, subprocess
-from urllib.parse import urlparse
+"""Live demo session checks. Never print passwords or session cookies."""
+import http.cookiejar, re, json, pathlib, time, urllib.error, urllib.parse, urllib.request
 local=pathlib.Path('.tmp/e13/public')
-url=(local/'url.txt').read_text().strip()
+url=(local/'url.txt').read_text().strip().rstrip('/')
 c=json.loads((local/'credentials.json').read_text())
-def fetch(path,auth=True,headers=(),method='GET',data=None,base=url):
-    config='silent\nshow-error\nmax-time = 30\n'
-    if auth: config+='user = "'+c['username']+':'+(c['password'] if auth is True else 'wrong-password')+'"\n'
-    args=['curl','--config','-','-w','\n%{http_code}','-X',method,base+path]
-    if os.environ.get('DEMO_RESOLVE_IP'):
-        args+=['--resolve',urlparse(base).hostname+':443:'+os.environ['DEMO_RESOLVE_IP']]
-    for h in headers: args+=['-H',h]
-    if data is not None: args+=['--data',data]
-    result=subprocess.check_output(args,input=config.encode()).decode()
-    body,code=result.rsplit('\n',1);return int(code),body
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args,**kwargs): return None
+jar=http.cookiejar.CookieJar()
+client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),NoRedirect())
+anonymous=urllib.request.build_opener(NoRedirect())
 checks=[]
-def check(label,expected,*args,**kw):
-    code,body=fetch(*args,**kw)
-    assert code==expected,(label,code,body[:100])
-    checks.append(dict(check=label,status=code));return body
-check('anonymous page',401,'/',False)
-check('anonymous API',401,'/api/requests',False)
-check('wrong password',401,'/api/setup','wrong')
-check('authenticated page',200,'/?mode=connected')
-setup=json.loads(check('authenticated setup',200,'/api/setup'))
-assert setup['installation']['platform']=='demo-eks-bedrock'
-check('authenticated evidence',200,'/api/requests/investigate-payment-retries/evidence')
-check('anonymous after authenticated response',401,'/api/requests/investigate-payment-retries/evidence',False)
-check('health endpoint contains no application evidence',200,'/healthz',False)
-check('cross-origin write',403,'/api/requests',headers=['Origin: https://attacker.example','Content-Type: application/json'],method='POST',data='{}')
-check('cross-site fetch',403,'/api/requests',headers=['Sec-Fetch-Site: cross-site'])
-check('same-origin reaches validation',400,'/api/requests',headers=['Origin: '+url,'Content-Type: application/json'],method='POST',data='{}')
-navigation=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: navigate','Sec-Fetch-Dest: document']
-check('external link prompts for authentication',401,'/?mode=connected',False,headers=navigation)
-check('authenticated external link opens Portal',200,'/?mode=connected',headers=navigation)
-check('external link wrong password rejected',401,'/','wrong',headers=navigation)
-check('cross-site API navigation denied',403,'/api/setup',headers=navigation)
-check('cross-site document POST denied',403,'/',headers=navigation,method='POST',data='x')
-check('cross-site iframe denied',403,'/',headers=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: navigate','Sec-Fetch-Dest: iframe'])
-check('cross-site page fetch denied',403,'/',headers=['Sec-Fetch-Site: cross-site','Sec-Fetch-Mode: cors','Sec-Fetch-Dest: empty'])
-# ALB exposes 443 only; separately inspect listener/SG instead of waiting on port 80.
-print(json.dumps(dict(url=url,dnsOverride=os.environ.get("DEMO_RESOLVE_IP"),checks=checks),indent=2))
+def check(label,status,path,method='GET',data=None,headers=None,opener=client):
+    if method=='POST' and path in ['/login','/logout'] and data is not None and headers and headers.get('Origin') in [url,'null']:
+        form=client.open(url+'/login',timeout=30).read().decode()
+        data={**data,'csrf':re.search(r'name="csrf" value="([^"]+)"',form).group(1)}
+    req=urllib.request.Request(url+path,data=urllib.parse.urlencode(data).encode() if data is not None else None,method=method,headers=headers or {})
+    try: response=opener.open(req,timeout=30)
+    except urllib.error.HTTPError as error: response=error
+    body=response.read().decode()
+    assert response.code==status,(label,response.code,body[:80])
+    assert not response.headers.get('WWW-Authenticate'),label
+    checks.append(dict(check=label,status=response.code))
+    return response,body
+nav={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document'}
+check('anonymous entry redirects to form',303,'/',opener=anonymous)
+check('external link redirects to form',303,'/',headers=nav,opener=anonymous)
+check('login form is public',200,'/login',opener=anonymous)
+check('anonymous API denied without Basic challenge',401,'/api/setup',opener=anonymous)
+check('login CSRF denied',403,'/login','POST',c,{'Origin':'https://attacker.example'})
+check('missing login Origin denied',403,'/login','POST',c)
+check('wrong password rejected',401,'/login','POST',dict(username=c['username'],password='wrong'),{'Origin':url})
+time.sleep(.3)
+r,_=check('opaque-origin login with CSRF token creates session',303,'/login','POST',c,{'Origin':'null'})
+header=r.headers['Set-Cookie']
+assert all(value in header for value in ['Secure','HttpOnly','SameSite=Lax','Path=/','__Host-agenova_demo='])
+check('authenticated Portal',200,'/?mode=connected')
+check('authenticated external navigation',200,'/',headers=nav)
+_,body=check('authenticated setup',200,'/api/setup');assert json.loads(body)['installation']['platform']=='demo-eks-bedrock'
+check('real Work evidence',200,'/api/requests/investigate-payment-retries/evidence')
+check('anonymous response isolation',401,'/api/setup',opener=anonymous)
+check('tampered session denied',401,'/api/setup',headers={'Cookie':'__Host-agenova_demo=invalid'},opener=anonymous)
+check('cross-site API denied',403,'/api/setup',headers=nav)
+check('cross-origin write denied',403,'/api/requests','POST',{}, {'Origin':'https://attacker.example'})
+check('cross-site iframe denied',403,'/',headers={**nav,'Sec-Fetch-Dest':'iframe'})
+check('logout CSRF denied',403,'/logout','POST',{}, {'Origin':'https://attacker.example'})
+old_cookie='; '.join(cookie.name+'='+cookie.value for cookie in jar)
+check('logout revokes session',303,'/logout','POST',{}, {'Origin':url})
+check('revoked cookie denied',401,'/api/setup',headers={'Cookie':old_cookie},opener=anonymous)
+check('logged-out API denied',401,'/api/setup')
+print(json.dumps(dict(url=url,checks=checks),indent=2))
