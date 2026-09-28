@@ -1,0 +1,20 @@
+[
+    {
+        "id": "sg-060a846257d05133b",
+        "ingress": [
+            {
+                "IpProtocol": "-1",
+                "UserIdGroupPairs": [
+                    {
+                        "Description": "Allows EFA traffic, which is not matched by CIDR rules.",
+                        "UserId": "931228356546",
+                        "GroupId": "sg-060a846257d05133b"
+                    }
+                ],
+                "IpRanges": [],
+                "Ipv6Ranges": [],
+                "PrefixListIds": []
+            }
+        ]
+    }
+]

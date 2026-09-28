@@ -1,0 +1,36 @@
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=931228356546]
+terraform_data.guard: Refreshing state... [id=19491673-151f-bb9c-998a-b16bff3f3d76]
+aws_iam_role.cluster: Refreshing state... [id=agenova-demo-cluster]
+aws_cloudwatch_log_group.eks: Refreshing state... [id=/aws/eks/agenova-demo/cluster]
+aws_vpc.demo: Refreshing state... [id=vpc-0962001dadf097860]
+aws_iam_role.node: Refreshing state... [id=agenova-demo-node]
+aws_ecr_repository.demo["worker"]: Refreshing state... [id=agenova-demo/worker]
+aws_ecr_repository.demo["control-plane"]: Refreshing state... [id=agenova-demo/control-plane]
+aws_launch_template.node: Refreshing state... [id=lt-0273deabd3ad55f30]
+aws_budgets_budget.demo: Refreshing state... [id=931228356546:agenova-demo-account-monthly]
+data.aws_availability_zones.available: Read complete after 0s [id=ap-southeast-2]
+aws_internet_gateway.demo: Refreshing state... [id=igw-0a109c480fe796e8a]
+aws_subnet.demo[1]: Refreshing state... [id=subnet-05dcd46e1f93aa195]
+aws_subnet.demo[0]: Refreshing state... [id=subnet-01acd3eb964b7e8cc]
+aws_route_table.demo: Refreshing state... [id=rtb-0023e3f30a62623f3]
+aws_route_table_association.demo[1]: Refreshing state... [id=rtbassoc-0d5c6b7de1c854333]
+aws_route_table_association.demo[0]: Refreshing state... [id=rtbassoc-054582e481083dea6]
+aws_iam_role_policy_attachment.cluster: Refreshing state... [id=agenova-demo-cluster/arn:aws:iam::aws:policy/AmazonEKSClusterPolicy]
+aws_iam_role_policy_attachment.node["AmazonEKSWorkerNodePolicy"]: Refreshing state... [id=agenova-demo-node/arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy]
+aws_iam_role_policy_attachment.node["AmazonEC2ContainerRegistryPullOnly"]: Refreshing state... [id=agenova-demo-node/arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly]
+aws_iam_role_policy_attachment.node["AmazonEKS_CNI_Policy"]: Refreshing state... [id=agenova-demo-node/arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy]
+aws_eks_cluster.demo: Refreshing state... [id=agenova-demo]
+aws_eks_access_entry.operator: Refreshing state... [id=agenova-demo:arn:aws:iam::931228356546:user/agenova-demo-operator]
+aws_iam_role.model_gateway: Refreshing state... [id=agenova-demo-model-gateway]
+aws_eks_node_group.demo: Refreshing state... [id=agenova-demo:demo]
+aws_eks_addon.pod_identity: Refreshing state... [id=agenova-demo:eks-pod-identity-agent]
+aws_eks_access_policy_association.operator: Refreshing state... [id=agenova-demo#arn:aws:iam::931228356546:user/agenova-demo-operator#arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy]
+aws_iam_role_policy.model_gateway: Refreshing state... [id=agenova-demo-model-gateway:invoke-demo-model]
+aws_eks_pod_identity_association.model_gateway: Refreshing state... [id=a-okrbgdjxbbpv6gzcr]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.

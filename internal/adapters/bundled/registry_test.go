@@ -164,3 +164,65 @@ func mustInit(t *testing.T, lifecycle *adapterregistry.Lifecycle, id, name strin
 	}
 	return fragment
 }
+
+func TestRemoteWorkerRequiresDigestAndExplicitProtocol(t *testing.T) {
+	image := "registry.example/agenova/worker@sha256:" + strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		image    string
+		protocol any
+		valid    bool
+	}{
+		{image, "controlled-v1", true},
+		{image, nil, false},
+		{image, "arbitrary-v1", false},
+		{"registry.example/agenova/worker:latest", "controlled-v1", false},
+		{"https://registry.example/worker@sha256:" + strings.Repeat("a", 64), "controlled-v1", false},
+		{referenceControlledWorkerImage, nil, true},
+	} {
+		config := map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}, "compatible-worker-image": tc.image}
+		if tc.protocol != nil {
+			config["compatible-worker-protocol"] = tc.protocol
+		}
+		got, err := canonicalizeAgentSandboxInstance(platform.CapabilityRuntime, config)
+		if (err == nil) != tc.valid {
+			t.Fatalf("%s protocol=%v: %v", tc.image, tc.protocol, err)
+		}
+		if tc.valid && got["compatible-worker-image"] != tc.image {
+			t.Fatal("image binding changed")
+		}
+	}
+}
+
+func TestRemoteControlPlaneRejectsMutableImageAndInvalidPullPolicy(t *testing.T) {
+	for _, field := range []map[string]any{
+		{"control-plane-image": "registry.example/control:latest"},
+		{"control-plane-image": true},
+		{"image-pull-policy": "Never"},
+	} {
+		field["context"] = "eks-demo"
+		field["namespace"] = "agenova-system"
+		if _, err := canonicalizeKubernetesDeployment(platform.CapabilityDeployment, field); err == nil {
+			t.Fatalf("accepted %v", field)
+		}
+	}
+}
+
+func TestBedrockCompositionRejectsMissingProfilesAndMixedBackends(t *testing.T) {
+	request := deploymentRequest()
+	request.Platform.Adapters = []platform.ResolvedAdapter{{Name: "bedrock", ID: BedrockModelID, Version: ReferenceVersion}}
+	request.Platform.Instances[1].AdapterRef = "bedrock"
+	request.Platform.Instances[1].Config = map[string]any{"region": "ap-southeast-2"}
+	request.Platform.Profiles[0].Config = map[string]any{"model": "amazon.nova-micro-v1:0"}
+	id, _, config, err := ModelComposition(request.Platform)
+	if err != nil || id != BedrockModelID || config.Models["coding-standard"] != "amazon.nova-micro-v1:0" {
+		t.Fatalf("composition %s %+v %v", id, config, err)
+	}
+	request.Platform.Profiles[0].BackendRef = "missing"
+	if _, _, _, err := ModelComposition(request.Platform); err == nil {
+		t.Fatal("missing backend accepted")
+	}
+	request.Platform.Profiles = nil
+	if _, _, _, err := ModelComposition(request.Platform); err == nil {
+		t.Fatal("missing profiles accepted")
+	}
+}
