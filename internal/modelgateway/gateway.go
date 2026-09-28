@@ -112,11 +112,11 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	req.Parameters = cloneStringMap(req.Parameters)
 
 	if outcome, rejected := validate(req); rejected {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	snapshot, outcome, unresolved := g.resolveClaim(req.ClaimID)
 	if unresolved {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	if outcome, denied := g.claimBaseline(req.ClaimID, snapshot.Claim); denied {
 		return g.record(req, id, outcome)
@@ -158,12 +158,27 @@ func decision(id string, outcome gateway.Outcome) gateway.Decision {
 	return gateway.Decision{InvocationID: id, Result: outcome.Result, Category: outcome.Category, Reason: outcome.Reason}
 }
 
-func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+// notify reports a decision to the trusted sink without writing the
+// claim-attributed fact store. Denials raised before resolveClaim succeeds use
+// it: req.ClaimID is blank or unverified at that point, so
+// RecordModelInvocation would key evidence to a claim the system does not own,
+// or to the empty string. The observer does not attribute by req.ClaimID; it
+// attributes the decision to the run that issued the request, so the denial
+// still leaves a fact. A recording failure keeps failing closed.
+func (g *Gateway) notify(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
 	d := decision(id, outcome)
 	if g.observer != nil {
 		if err := g.observer(req, d); err != nil {
 			return d, fmt.Errorf("model decision recording failed")
 		}
+	}
+	return d, nil
+}
+
+func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+	d, err := g.notify(req, id, outcome)
+	if err != nil {
+		return d, err
 	}
 	g.store.RecordModelInvocation(req.ClaimID, req.Profile, id, outcome.Result)
 	return d, nil
