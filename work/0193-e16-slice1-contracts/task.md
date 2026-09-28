@@ -51,7 +51,7 @@ Use the exact Go 1.22.12 focused command and environment in the [review packet](
 
 - `pwsh -NoProfile -File ./scripts/check.ps1 -Docs`
 - `pwsh -NoProfile -File ./scripts/check.ps1 -All`
-- `pwsh -NoProfile -File ./scripts/check-pr-body.ps1 -BodyPath .tmp/e16-slice1/pr-body.md`
+- `pwsh -NoProfile -File ./scripts/check-pr-body.ps1 -BodyPath <exported PR body file>`
 - `shasum -a 256 -c docs/evidence/178/source-sha256.txt`
 - `git diff --cached --check`
 

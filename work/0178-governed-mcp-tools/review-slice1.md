@@ -4,14 +4,14 @@
 
 - Branch: `codex/e16-slice1`.
 - Base: `c56ba3a21a43ba550185e991cecede796af4f054` (the approved main baseline).
-- Review target: the signed Slice 1 Draft PR head against this base. The initial code review covered uncommitted implementation/tests and packet files; the publication commit includes them and the S1–S4 follow-up. The 21 reviewed Go files are identified by the source hash manifest below. Local diagnostic logs under ignored `.tmp/e16-slice1/` are excluded from the commit.
+- Review target: the signed Slice 1 Draft PR head against this base. The initial code review covered uncommitted implementation/tests and packet files; the publication commit includes them and the S1–S4 follow-up. The 21 reviewed Go files are identified by the source hash manifest below. Local diagnostic logs are excluded from the commit.
 - This is Slice 1 contract/configuration/composition work for #178. It does not close the Epic or demonstrate live MCP execution.
 
 ## Changes mapped to Todo
 
 | Todo | Files | Delivered behavior |
 | --- | --- | --- |
-| Pre-work N1/N2/N3 | `task.md`, `spec.md`, `design.md` in this packet | Exact external chore draft path; independent Claude F1–F5 review and Tom self-review on 2026-09-26; retain the approved flat ValueString format after considering optional ValueInteger |
+| Pre-work N1/N2/N3 | `task.md`, `spec.md`, `design.md` in this packet | External chore draft kept outside the repository; independent packet review (F1–F5) and Tom's self-review on 2026-09-26; retain the approved flat ValueString format after considering optional ValueInteger |
 | Slice 1: neutral provider/catalog/result | `internal/toolbackend/catalog.go`, `provider.go`, `catalog_test.go` | Immutable bounded logical catalog, per-resource argument allowlist, authority intersection, neutral provider/factory/result and safe typed failures; no console or worker import |
 | Slice 1: Platform configuration/revision | `api/v1alpha1/platform.go`, `internal/platform/resolve.go` | Add toolBackends/toolProfiles and structural/reference checks; adapter callback projects logical descriptors; bind tool config and neutral toolRoutes into revision/PlatformLock, omit new route field for old documents |
 | Slice 1: registry lifecycle | `internal/adapterregistry/registry.go`, `types.go`, `lifecycle.go` | Tool identity/capability/profile validation, AdapterLock support, install/inspect/init and generated-name limits; existing scalar schema grammar unchanged |
@@ -23,15 +23,14 @@
 
 ## Verification environment and commands
 
-Working directory: `/Users/tomtianys/Workspace/Projects/P3-Agenova`.
+Working directory: the repository root.
 
-Verified compiler: `go version go1.22.12 darwin/arm64`. Node: `v24.21.0`.
+Verified compiler: `go version go1.22.12 darwin/arm64`. Node: `v24.21.0` on `PATH`.
 
 Use this environment for the successful minimum-version checks (including child CLI builds):
 
 ```sh
-export PATH="/Users/tomtianys/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.22.12.darwin-arm64/bin:/opt/homebrew/opt/node@24/bin:$PATH"
-export GOTOOLCHAIN=local
+export GOTOOLCHAIN=go1.22.12
 export CGO_ENABLED=1
 export GOFLAGS='-ldflags=-linkmode=external'
 ```
@@ -55,10 +54,10 @@ Final results on 2026-09-26:
 | Gate | Exit / result | Evidence / scope |
 | --- | --- | --- |
 | Go 1.22.12 focused command above | 0; all 16 packages pass | [Focused output](../../docs/evidence/178/slice1-focused.log) |
-| `pwsh -NoProfile -File ./scripts/check.ps1 -All` | 1; sole remaining failure is the unchanged keyboard browser case | Local-only `.tmp/e16-slice1/slice1-full-gate.log`; excluded from Git |
+| `pwsh -NoProfile -File ./scripts/check.ps1 -All` | 1; sole remaining failure is the unchanged keyboard browser case | Local-only full-gate log; excluded from Git |
 | Full-gate Go portion | pass: formatting, module tidy, `go vet ./...`, `go test -count=1 ./...`, both integration compile gates | Same local-only full log |
 | Full-gate frontend portion | pass: contract checks (22 checks), typecheck, 124 unit tests, production build; browser smoke 51/52 | Same local-only full log |
-| `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` | 0 after final packet/log updates | Rechecked after S1–S4; local `.tmp/e16-slice1/slice1-docs.log` |
+| `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` | 0 after final packet/log updates | Rechecked after S1–S4; local docs log, not committed |
 | Original `git diff --check` plus new-source whitespace/conflict scan | 0, incomplete coverage | Then-untracked evidence logs were not checked by the diff command; the separate scan covered only Go source |
 | `git diff --cached --check` | 0 after S1 cleanup and staging | Entire staged delivery, including new evidence files |
 | `shasum -a 256 -c docs/evidence/178/source-sha256.txt` | 0; all 21 files match | Approved Go source unchanged by S1–S4 |
@@ -67,7 +66,7 @@ Final results on 2026-09-26:
 
 The browser failure is `ui/smoke/console.spec.ts:99`: the keyboard scenario times out waiting for the `Loading evidence` heading. It also occurred during the earlier #191 docs-only validation in this session. This slice did not change UI sources or tests. The full local gate is **not green**; no E16 CI result or merge readiness is claimed.
 
-The first broad run found an expected catalog-count assertion in `internal/cli/adapters_test.go`. It was corrected to assert all four explicit adapter identities; the focused suite and subsequent full Go suite passed. Earlier diagnostic logs (`slice1-initial-catalog-assertion-failure.log`, `go122-default-link-failure.log`, `slice1-prior-full-gate.log`) are retained only in ignored `.tmp/e16-slice1/`. Neither full-gate log is committed. The focused/boundary logs and source hash manifest were moved to `docs/evidence/178/` with trailing whitespace removed; their results and source hashes are unchanged.
+The first broad run found an expected catalog-count assertion in `internal/cli/adapters_test.go`. It was corrected to assert all four explicit adapter identities; the focused suite and subsequent full Go suite passed. Earlier diagnostic logs (`slice1-initial-catalog-assertion-failure.log`, `go122-default-link-failure.log`, `slice1-prior-full-gate.log`) are retained locally only. Neither full-gate log is committed. The focused/boundary logs and source hash manifest were moved to `docs/evidence/178/` with trailing whitespace removed; their results and source hashes are unchanged.
 
 Source identity for the reviewed Go implementation is captured in [source-sha256.txt](../../docs/evidence/178/source-sha256.txt), covering all 21 changed Go implementation/test files. Packet prose and logs are not included in that source hash list.
 

@@ -2,7 +2,7 @@
 
 - Ticket: [#178](https://github.com/wunderforge/agenova/issues/178)
 - PRD outcome: [claim-scoped authority](../../docs/product/prd.md#4-claim-scoped-authority), [accountability](../../docs/product/prd.md#5-facts-and-accountability) and [installed service](../../docs/product/prd.md#6-reference-installation-and-initial-policy-bootstrap).
-- Status: independent Claude review F1–F5 incorporated; D1 B selected (Go 1.22 minimal client). Slice 1 contract/composition implementation is available for review; live transport and worker propagation remain Slice 2. D2 fixture selection is required before Slice 2.
+- Status: independent packet review (F1–F5) incorporated; D1 B selected (Go 1.22 minimal client). Slice 1 contract/composition implementation is available for review; live transport and worker propagation remain Slice 2. D2 fixture selection is required before Slice 2.
 
 ## Intent
 

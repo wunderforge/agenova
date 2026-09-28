@@ -5,7 +5,7 @@
 - Target: Platform backend/profile schema and resolution, adapterregistry tool-capability/lock/inspect/init support, bundled tool adapter, installed control plane, Tool Gateway/provider contract, controlled-worker tool catalog, shared facts/evidence and kind acceptance harness.
 - User value: A Work receives a real external observation under its own temporary authority; CLI and Portal distinguish permission, invocation, result and Work outcome.
 - PRD outcome: [claim-scoped authority](../../docs/product/prd.md#4-claim-scoped-authority), [facts and accountability](../../docs/product/prd.md#5-facts-and-accountability), and [reference installation](../../docs/product/prd.md#6-reference-installation-and-initial-policy-bootstrap).
-- Packet status: Independent packet review (Claude, 2026-09-26, F1–F5) incorporated; assignee self-review by Tom on 2026-09-26. Slice 1 authorized on 2026-09-26 against main `c56ba3a21a43ba550185e991cecede796af4f054`. D1 B is selected; D2 is required before Slice 2. Implementation and acceptance evidence are recorded per slice.
+- Packet status: Independent packet review (2026-09-26, findings F1–F5) incorporated; assignee self-review by Tom on 2026-09-26. Slice 1 authorized on 2026-09-26 against main `c56ba3a21a43ba550185e991cecede796af4f054`. D1 B is selected; D2 is required before Slice 2. Implementation and acceptance evidence are recorded per slice.
 
 ## Context to Read
 
