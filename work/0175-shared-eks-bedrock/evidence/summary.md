@@ -81,3 +81,31 @@ only added tags (0 add, 1 change, 0 destroy); refreshed plan no changes:
 [proof](domain/wildcard-no-drift.txt). Terraform validate passed and repository
 All gate passed including 52 UI smoke tests (`/tmp/agenova-wildcard-all.txt`).
 Certificate readiness does not imply website routing has been configured.
+
+## Direct Route 53 → ALB → EKS ingress
+
+Owner explicitly replaced both CloudFront and Cloudflare with ALB. Permanent
+Sydney ACM certificate 05298630-af13-42c2-8ffa-4bed2401d2ea is ISSUED for apex and
+wildcard. Disposable `infra/demo/edge` owns ALB agenova-demo, HTTPS 443 listener,
+instance/NodePort target group, ASG attachment, restricted SG rules and the
+`demo.agenova.app` A alias. No AAAA alias is published for this IPv4 ALB.
+
+- ALB target healthy: [target health](alb/target-health.json).
+- DNS points directly to ALB: [record](alb/dns.json); [HTTPS listener](alb/listeners.json).
+- 11 live HTTP assertions pass: [checks](alb/https-checks.json), including anonymous
+  and wrong-password 401, authenticated real evidence 200, cross-origin 403,
+  same-origin malformed POST reaching canonical validation (400), no credential
+  cache leak after authenticated access. Only static `/healthz` is unauthenticated.
+- TLS validation enabled throughout. After the Mac's stale DNS cache cleared,
+  all 11 assertions and [rendered Portal](alb-portal.png) passed using normal DNS
+  (`dnsOverride: null`). No TLS bypass, resolver override or hosts-file edit.
+  Independently, EKS `wget https://demo.agenova.app/healthz` returned `ok`.
+- CloudFront E326A8GTQMZBIR deletion completed; AWS GetDistribution now returns
+  NoSuchDistribution. Refreshed Terraform plans for edge and domain both exit 0
+  (no changes). Cloudflare is absent from the running overlay.
+- EKS overlay now has only `proxy` and `forward`; cloudflared was removed. The
+  existing control plane was not restarted. ALB SG is the sole new allowed source
+  for node port 31089. This is not proof of E15 hostile-worker network isolation.
+- Terraform roots validate; full All gate exits 0, 52 UI smoke tests passed
+  (`/tmp/agenova-alb-all.txt`). Cleanup automation destroys edge before EKS and
+  preserves domain/hosted zone/both regional certificates and validation records.

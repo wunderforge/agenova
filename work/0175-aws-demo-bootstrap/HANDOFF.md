@@ -120,3 +120,21 @@ One shared validation CNAME `_c2bcda06481a5cdcdce022a8459d61c1.agenova.app.` poi
 Old demo verification CNAME is retained under `aws_route53_record.legacy_validation`.
 Preserve all permanent domain resources during EKS cleanup. Issuance alone does
 not publish the website: CloudFront/traffic DNS is still outstanding.
+
+## ALB direct ingress supersedes both CDNs
+
+Latest Owner instruction: Route 53 → Sydney ALB → EKS, without CloudFront or
+Cloudflare. `infra/demo/edge` owns disposable ALB, listener, target group, managed
+node ASG attachment, restricted SG rules and demo traffic alias. Destroy edge
+BEFORE EKS. `infra/domain` additionally owns Sydney apex/wildcard ACM certificate
+05298630-af13-42c2-8ffa-4bed2401d2ea; preserve it and all permanent domain resources.
+Kubernetes overlay includes NodePort Service 31089; delete that Service with the
+other overlay objects. HTTPS password stays in existing ignored credentials file.
+Check final evidence for cutover/CloudFront removal status; never assume a
+partially completed transition removed the old distribution E326A8GTQMZBIR.
+
+Final ALB verification: CloudFront E326A8GTQMZBIR was deleted (AWS returns
+NoSuchDistribution); both domain and edge refreshed Terraform plans report no
+changes. Normal Mac DNS now works. All 11 HTTPS perimeter assertions and the
+rendered real Work pass without a DNS override; see evidence/alb/https-checks.json
+and evidence/alb-portal.png in work/0175-shared-eks-bedrock.

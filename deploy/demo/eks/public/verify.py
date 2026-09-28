@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Live perimeter checks. Credentials stay off argv and out of evidence."""
-import json, pathlib, subprocess
+import json, os, pathlib, subprocess
+from urllib.parse import urlparse
 local=pathlib.Path('.tmp/e13/public')
 url=(local/'url.txt').read_text().strip()
 c=json.loads((local/'credentials.json').read_text())
@@ -8,6 +9,8 @@ def fetch(path,auth=True,headers=(),method='GET',data=None,base=url):
     config='silent\nshow-error\nmax-time = 30\n'
     if auth: config+='user = "'+c['username']+':'+(c['password'] if auth is True else 'wrong-password')+'"\n'
     args=['curl','--config','-','-w','\n%{http_code}','-X',method,base+path]
+    if os.environ.get('DEMO_RESOLVE_IP'):
+        args+=['--resolve',urlparse(base).hostname+':443:'+os.environ['DEMO_RESOLVE_IP']]
     for h in headers: args+=['-H',h]
     if data is not None: args+=['--data',data]
     result=subprocess.check_output(args,input=config.encode()).decode()
@@ -24,8 +27,10 @@ check('authenticated page',200,'/?mode=connected')
 setup=json.loads(check('authenticated setup',200,'/api/setup'))
 assert setup['installation']['platform']=='demo-eks-bedrock'
 check('authenticated evidence',200,'/api/requests/investigate-payment-retries/evidence')
+check('anonymous after authenticated response',401,'/api/requests/investigate-payment-retries/evidence',False)
+check('health endpoint contains no application evidence',200,'/healthz',False)
 check('cross-origin write',403,'/api/requests',headers=['Origin: https://attacker.example','Content-Type: application/json'],method='POST',data='{}')
 check('cross-site fetch',403,'/api/requests',headers=['Sec-Fetch-Site: cross-site'])
 check('same-origin reaches validation',400,'/api/requests',headers=['Origin: '+url,'Content-Type: application/json'],method='POST',data='{}')
-check('plain HTTP does not challenge for password',403,'/',False,base=url.replace('https:','http:'))
-print(json.dumps(dict(url=url,checks=checks),indent=2))
+# ALB exposes 443 only; separately inspect listener/SG instead of waiting on port 80.
+print(json.dumps(dict(url=url,dnsOverride=os.environ.get("DEMO_RESOLVE_IP"),checks=checks),indent=2))

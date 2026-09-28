@@ -101,3 +101,14 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
 - Owner expanded certificate scope to apex `agenova.app` and `*.agenova.app` via
   Chrome. Adopt the issued replacement and shared validation CNAME into Terraform;
   do not recreate the Owner-deleted demo-only certificate or duplicate CNAMEs.
+- Owner requests working demo.agenova.app now. Add a separate ephemeral Terraform
+  edge root: CloudFront with existing issued certificate, HTTPS-only origin to the
+  authenticated EKS tunnel, no caching, auth headers forwarded; A/AAAA aliases in
+  existing zone. Preserve domain/certificate and remove edge with demo teardown.
+  Validate auth isolation, same-origin writes, negative cases and rendered Work.
+- Latest Owner decision supersedes CloudFront/tunnel routing: use Route 53 alias
+  directly to a Sydney ALB. Terraform manages the ALB, HTTPS listener, SG rules,
+  NodePort target group and managed-node ASG attachment in `infra/demo/edge`;
+  permanent Sydney ACM certificate stays in `infra/domain`. Preserve auth; verify
+  target health, real Portal/API and denial. Remove CloudFront and cloudflared,
+  update cleanup to destroy edge before EKS while preserving domain/certificates.

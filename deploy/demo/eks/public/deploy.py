@@ -5,7 +5,6 @@ import base64, hashlib, json, os, pathlib, secrets, subprocess, tarfile
 NS = 'agenova-system'
 NAME = 'agenova-demo-public'
 NGINX = 'nginx@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94'
-TUNNEL = 'cloudflare/cloudflared@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c'
 def run(args, **kw):
     return subprocess.check_output(args, **kw)
 def kube(*args):
@@ -45,10 +44,10 @@ resource('ConfigMap',NAME+'-config',data={'nginx.conf':pathlib.Path('deploy/demo
 resource('ConfigMap',NAME+'-site',binaryData={'site.tgz':base64.b64encode((local/'site.tgz').read_bytes()).decode()})]
 proxy=container('proxy',NGINX,['nginx'],['-c','/config/nginx.conf','-g','daemon off;'],[mount('config','/config'),mount('auth','/auth'),mount('site','/site'),dict(name='tmp',mountPath='/tmp')])
 forward=container('forward',image,['/usr/local/bin/kubectl'],['-n',NS,'port-forward','pod/'+pod,'8088:8081','--address=127.0.0.1'],[mount('token','/var/run/secrets/kubernetes.io/serviceaccount')])
-tunnel=container('tunnel',TUNNEL,['cloudflared'],['tunnel','--no-autoupdate','--protocol','http2','--metrics','127.0.0.1:20241','--url','http://127.0.0.1:8089'],[])
 init=container('unpack',NGINX,['tar'],['xzf','/bundle/site.tgz','-C','/site'],[mount('bundle','/bundle'),dict(name='site',mountPath='/site')])
 volumes=[dict(name='config',configMap=dict(name=NAME+'-config')),dict(name='bundle',configMap=dict(name=NAME+'-site')),dict(name='auth',secret=dict(secretName=NAME)),dict(name='site',emptyDir={}),dict(name='tmp',emptyDir={}),dict(name='token',projected=dict(sources=[dict(serviceAccountToken=dict(path='token',expirationSeconds=3600)),dict(configMap=dict(name='kube-root-ca.crt',items=[dict(key='ca.crt',path='ca.crt')])),dict(downwardAPI=dict(items=[dict(path='namespace',fieldRef=dict(fieldPath='metadata.namespace'))]))]))]
-objects.append(resource('Deployment',spec=dict(replicas=1,selector=dict(matchLabels=dict(app=NAME)),template=dict(metadata=dict(labels=dict(app=NAME),annotations={'demo.agenova.io/content':hashlib.sha256(b''.join(p.read_bytes() for p in sorted(pathlib.Path('ui/dist').rglob('*')) if p.is_file())+pathlib.Path('deploy/demo/eks/public/nginx.conf').read_bytes()).hexdigest()}),spec=dict(serviceAccountName=NAME,automountServiceAccountToken=False,securityContext=dict(runAsNonRoot=True,runAsUser=65532,runAsGroup=65532,fsGroup=65532,seccompProfile=dict(type='RuntimeDefault')),initContainers=[init],containers=[proxy,forward,tunnel],volumes=volumes)))))
+objects.append(resource('Deployment',spec=dict(replicas=1,selector=dict(matchLabels=dict(app=NAME)),template=dict(metadata=dict(labels=dict(app=NAME),annotations={'demo.agenova.io/content':hashlib.sha256(b''.join(p.read_bytes() for p in sorted(pathlib.Path('ui/dist').rglob('*')) if p.is_file())+pathlib.Path('deploy/demo/eks/public/nginx.conf').read_bytes()).hexdigest()}),spec=dict(serviceAccountName=NAME,automountServiceAccountToken=False,securityContext=dict(runAsNonRoot=True,runAsUser=65532,runAsGroup=65532,fsGroup=65532,seccompProfile=dict(type='RuntimeDefault')),initContainers=[init],containers=[proxy,forward],volumes=volumes)))))
+objects.append(resource('Service',spec=dict(type='NodePort',selector=dict(app=NAME),ports=[dict(name='http',port=8089,targetPort=8089,nodePort=31089)],externalTrafficPolicy='Cluster')))
 # Never persist the Secret manifest or print credentials.
 print(run(['kubectl','apply','-f','-'],input=json.dumps(dict(apiVersion='v1',kind='List',items=objects)).encode()).decode())
 print('Credential file:',credentials.resolve())

@@ -35,3 +35,8 @@ alias is defined yet; the custom demo URL is not deployed by this configuration.
 The apex and wildcard share one ACM validation CNAME; Terraform manages it once.
 The Owner deleted the old demo-only certificate; its historical CNAME remains
 managed as `aws_route53_record.legacy_validation`. The current certificate is ISSUED.
+
+The direct-ALB deployment additionally uses `aws_acm_certificate.sydney` in
+ap-southeast-2 with the same apex/wildcard names. Its validation uses the shared
+account/domain DNS CNAME; issuance was verified. Keep both regional certificates
+when destroying the disposable `infra/demo/edge` ALB stack.

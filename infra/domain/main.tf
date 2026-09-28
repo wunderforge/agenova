@@ -87,3 +87,24 @@ resource "aws_route53_record" "legacy_validation" {
   records = ["_18d2ca087adc2a953661695f7accc2f5.wzccmgtwzk.acm-validations.aws."]
   lifecycle { prevent_destroy = true }
 }
+
+provider "aws" {
+  alias               = "sydney"
+  region              = "ap-southeast-2"
+  allowed_account_ids = ["931228356546"]
+}
+resource "aws_acm_certificate" "sydney" {
+  provider                  = aws.sydney
+  domain_name               = "agenova.app"
+  subject_alternative_names = ["*.agenova.app"]
+  validation_method         = "DNS"
+  tags                      = { Project = "agenova-demo", ManagedBy = "terraform" }
+  lifecycle { prevent_destroy = true }
+}
+resource "aws_acm_certificate_validation" "sydney" {
+  provider                = aws.sydney
+  certificate_arn         = aws_acm_certificate.sydney.arn
+  validation_record_fqdns = [for record in aws_route53_record.validation : record.fqdn]
+  timeouts { create = "5m" }
+}
+output "sydney_certificate_arn" { value = aws_acm_certificate.sydney.arn }
