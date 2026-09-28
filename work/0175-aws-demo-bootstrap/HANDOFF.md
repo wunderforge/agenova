@@ -61,3 +61,7 @@ Codex heartbeat ID `agenova-eks`已调度，但需要本机可运行和登录有
 ```text
 阅读work/0175-aws-demo-bootstrap/HANDOFF.md及E13任务包/证据。EKS+Bedrock主链路已跑通，E14已按用户要求暂停，不能声称完整Epic完成。保留云端到悉尼9月29日01:00并按清单清理，仅用agenova-demo operator。保留state、证据和旧stash。先检查git和进程现状，再继续剩余验证或代码审查，不读取或输出密码/token。
 ```
+
+## Git 发布状态
+
+实现与证据已提交为 `a742b20`，工作树干净。首次push/PR失败：当前gh账号yliu0661_syduni是Enterprise Managed User，推送403、createPullRequest被企业账号限制拒绝。尚未成功发布远端分支或创建PR。已询问用户是否改用本机已登录的Leo1piece，未自动切换账号。拟好的PR正文在/tmp/agenova-e13-pr.md。等待用户选择；云端运行与到期清理不受影响。
