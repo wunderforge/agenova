@@ -78,3 +78,32 @@ Team A, not E14 identity. Remove the overlay Deployment, ServiceAccount, Role,
 RoleBinding, Secret and two ConfigMaps before Terraform destroy. Deadline unchanged:
 2026-09-28T15:00:00Z. The public endpoint does not depend on the laptop, but scheduled
 Terraform cleanup still requires the local automation host and valid AWS login.
+
+## Owner's permanent domain — preserve during demo teardown
+
+Owner purchased `agenova.app` and explicitly requested reuse of existing public
+hosted zone `Z00685831HNHNRLEZ9VYK`. Do not delete this zone, domain registration,
+or its NS/SOA records during EKS teardown.
+
+Prepared ACM DNS-validated non-exportable certificate for `demo.agenova.app` in
+us-east-1: `arn:aws:acm:us-east-1:931228356546:certificate/b3491085-3fd7-4649-a2c8-40a12128de7f`.
+Created only its verification CNAME in that existing zone:
+`_2072119b633521d8f4e042dc1dbab723.demo.agenova.app.` →
+`_18d2ca087adc2a953661695f7accc2f5.wzccmgtwzk.acm-validations.aws.`
+Preserve the certificate and verification record with the permanent domain.
+At preparation, registrar operation d84a7da2-9313-4073-af43-ac02e9881d9b still reported
+IN_PROGRESS and public NS resolution was empty; certificate PENDING_VALIDATION.
+No CloudFront distribution or demo traffic DNS record created yet. Do not point
+this hostname directly at the temporary trycloudflare hostname: that does not
+provision the required custom-hostname TLS/routing. Finish the authenticated
+custom-domain ingress after public delegation/certificate validation succeeds.
+
+### Terraform ownership supersedes CLI-only setup
+
+Both permanent-domain resources are now imported into `infra/domain` local state:
+`aws_acm_certificate.demo` and
+`aws_route53_record.validation["demo.agenova.app"]`. The existing zone is a data
+source only. Apply added only the ManagedBy=terraform tag (0 add, 1 change,
+0 destroy); no certificate was recreated. Certificate remains visible in ACM
+us-east-1, not Sydney. Preserve this root/state during demo teardown. Follow
+`infra/domain/README.md`; no CloudFront/traffic alias has yet been provisioned.

@@ -57,3 +57,16 @@ https://trip-animal-hill-possibilities.trycloudflare.com/?mode=connected
   request path; teardown automation still depends on it and AWS session validity.
 - Cleanup automation updated to remove the overlay before Terraform destruction;
   original Sydney Sep 29 01:00 deadline unchanged. No new ECR images.
+
+## Permanent-domain Terraform adoption
+
+Owner requested Terraform for domain HTTPS resources except the existing zone.
+`infra/domain` now owns the imported ACM certificate (us-east-1) and its validation
+CNAME; the zone is a read-only data source. No new domain/zone or duplicate cert.
+`terraform validate` and `fmt -check` pass. Reviewed apply: 0 add, 1 tag update,
+0 destroy; refreshed plan exits 0 with no drift. See [apply](domain/apply.txt)
+and [no-drift plan](domain/no-drift.txt). Full repository All gate exits 0,
+including 52 UI smoke tests (`/tmp/agenova-domain-all.txt`). Latest certificate
+status is PENDING_VALIDATION; no custom-domain reachability or issuance is claimed.
+Local state must be preserved separately from disposable EKS state; certificate
+and CNAME have prevent_destroy and are excluded from scheduled demo cleanup.

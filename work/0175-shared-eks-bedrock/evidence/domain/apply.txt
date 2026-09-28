@@ -1,0 +1,9 @@
+aws_acm_certificate.demo: Modifying... [id=arn:aws:acm:us-east-1:931228356546:certificate/b3491085-3fd7-4649-a2c8-40a12128de7f]
+aws_acm_certificate.demo: Modifications complete after 1s [id=arn:aws:acm:us-east-1:931228356546:certificate/b3491085-3fd7-4649-a2c8-40a12128de7f]
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+Outputs:
+
+certificate_arn = "arn:aws:acm:us-east-1:931228356546:certificate/b3491085-3fd7-4649-a2c8-40a12128de7f"
+hosted_zone_id = "Z00685831HNHNRLEZ9VYK"
