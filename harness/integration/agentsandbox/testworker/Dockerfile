@@ -4,7 +4,7 @@
 # Build with the repository root as context, not this directory.
 FROM golang:1.22-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker
 COPY internal/workerprotocol ./internal/workerprotocol
 COPY cmd/agenova-demo-worker ./cmd/agenova-demo-worker

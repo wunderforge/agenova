@@ -1,0 +1,13 @@
+
+> @agenova/fixture-storyboard@0.0.0 test:installed
+> playwright test --config playwright.installed.config.ts
+
+
+Running 2 tests using 1 worker
+
+(node:9101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 installed/installed.spec.ts:21:1 › installed API, CLI reference and Portal show the same allowed Work (4.2s)
+  ✓  2 installed/installed.spec.ts:76:1 › installed API and Portal show denial without an invented claim (1.9s)
+
+  2 passed (6.6s)

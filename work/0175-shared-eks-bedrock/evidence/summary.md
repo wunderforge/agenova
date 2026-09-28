@@ -1,0 +1,33 @@
+# E13 EKS / Bedrock vertical-slice evidence
+
+Captured 2026-09-28 in Sydney, account 931228356546, region ap-southeast-2, cluster agenova-demo. Current branch codex/e13-aws-demo-bootstrap. These are unmerged implementation results, not a claim that Epic #175 is complete.
+
+## Observed outcome
+
+- Final Terraform refresh reports [no changes](terraform-no-drift.txt).
+- EKS ACTIVE, one t3.medium node Ready; [node group](nodegroup.json), [nodes](nodes.txt).
+- Agent Sandbox v0.4.6 controller and EKS Pod Identity agent deployed.
+- Platform [validate](validate.txt), [plan](plan.txt), [apply](apply.txt) and [status](status.txt) passed against actual EKS. [Identical reapply](reapply.txt) reports changed:false. Policy/template repeat reports already registered.
+- [First Work](allowed.json) and [second independent Work](second-allowed.json) both Succeeded on real workers. Nova Micro returned task-dependent answers through the Agenova Gateway. The final first-Work response ID is b80c743f-5e4f-4145-97d3-52f599391497; all model turns have correlated ProviderAttempt/ProviderOutcome facts.
+- [Initial counter](provider-before.json) is zero. After the first Work, [before denial](provider-before-denial.json) is four, and [after denial](provider-after-denial.json) remains four. The [denied request](denied.json) has Deny and no claim. This proves the unapproved-project admission negative; it does not replace adversarial cross-claim/model-profile/network tests.
+- [Actual second-Work Pod snapshot](second-pod-boundaries.json) includes worker agenova-pool-pool-engineer-k4528, matching its claim backend identity: default service account, automount false, no env or volume mounts. The trusted control plane alone has Pod Identity injection. Node role lacks Bedrock grants. This is observed credential placement, not proof against arbitrary hostile-worker attacks.
+- [Security group](security-group.json) has only self-group ingress and no public SSH/application rules. Kubernetes API public access is restricted to the configured operator /32.
+- [Invalid configuration](invalid-config.txt) is rejected before mutation: invalid-region. No fallback provider.
+- [Installed E2E](installed-ui.txt): 2 passed, comparing CLI/API/Portal canonical records and rendered successful/denied states. [Allowed screenshot](allowed-portal.png), [denied screenshot](denied-portal.png).
+- [Full repository gate](final-all.txt) passed docs, Go checks/tests, integration compile, UI contracts/types/component/build, and 52 browser smoke tests. The initial native-select keyboard failure was fixed with keyboard type-ahead selection; no product UI behavior changed.
+
+## Reproduction
+
+The exact nonsecret [Platform](platform.yaml) and [AgentTemplate](engineer.yaml) reference immutable ECR digests from this session. After cleanup those images must be rebuilt/pushed and digests replaced; they are not permanent hosted artifacts. Build/registration procedure and limitations: [runbook](../../../deploy/demo/eks/README.md).
+
+Run with AWS_PROFILE=agenova-demo and KUBECONFIG=/Users/neoliu/.kube/agenova-demo. Session CLI: .tmp/e13/agenova, state: .tmp/e13/state. Explicit --state-dir is required to avoid another installation's state. Local Portal at http://127.0.0.1:5177/?mode=connected#/work/investigate-payment-retries, with .tmp/e13/agenova api connect --state-dir .tmp/e13/state maintaining port 8088.
+
+## Explicit remaining boundaries
+
+- User deferred E14. API still uses reference Team A through an operator-authorized loopback Kubernetes tunnel. No two-real-user authentication, same-request organizational narrowing or public shared API acceptance is claimed. Do not close E13/#146.
+- Worker-to-Gateway protocol remains the existing adapter-held controlled-worker bridge; no production worker identity claim.
+- E15 egress enforcement / direct-provider bypass / cross-claim malicious-worker proof is not completed. No NetworkPolicy guarantee is claimed.
+- kind/Ollama live regression was not run: no local Ollama executable/service was available. Existing kind/OpenAI-compatible Go and fixture UI regressions passed.
+- Service Work history is memory-only. Do not restart the control plane before saving the evidence needed for tonight's review.
+- Tool observations are synthetic git.read, not real repository tools.
+- Cleanup is scheduled at Sydney 2026-09-29 01:00 (UTC 2026-09-28T15:00:00Z). Local automation requires an awake host and valid AWS session; see infrastructure handoff. ECR deletion is restricted to the recorded demo image inventory.
