@@ -23,7 +23,8 @@ def check(label,status,path,method='GET',data=None,headers=None,opener=client):
     checks.append(dict(check=label,status=response.code))
     return response,body
 nav={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document'}
-check('anonymous entry redirects to form',303,'/',opener=anonymous)
+r,_=check('anonymous entry redirects to form',303,'/',opener=anonymous)
+assert r.headers['Location']=='/login',r.headers['Location']
 check('external link redirects to form',303,'/',headers=nav,opener=anonymous)
 check('login form is public',200,'/login',opener=anonymous)
 check('anonymous API denied without Basic challenge',401,'/api/setup',opener=anonymous)
@@ -34,7 +35,8 @@ time.sleep(.3)
 r,_=check('opaque-origin login with CSRF token creates session',303,'/login','POST',c,{'Origin':'null'})
 header=r.headers['Set-Cookie']
 assert all(value in header for value in ['Secure','HttpOnly','SameSite=Lax','Path=/','__Host-agenova_demo='])
-check('authenticated Portal',200,'/?mode=connected')
+_,body=check('authenticated Portal',200,'/?mode=connected')
+assert 'href="/logout"' in body and '>Sign out</a>' in body
 check('authenticated external navigation',200,'/',headers=nav)
 _,body=check('authenticated setup',200,'/api/setup');assert json.loads(body)['installation']['platform']=='demo-eks-bedrock'
 check('real Work evidence',200,'/api/requests/investigate-payment-retries/evidence')

@@ -38,3 +38,7 @@ TLS verification. Session unit tests cover tampering, expiry, logout and CSRF.
 Destroy infra/demo/edge before EKS. Remove this Deployment, Service, ServiceAccount,
 Role, RoleBinding, two ConfigMaps and Secret with the demo. Include session image
 digests in ECR teardown. Keep infra/domain, hosted zone and certificates.
+
+The Portal has a `Sign out` link at the bottom right. Confirming signs out the
+current session. Anonymous visits to `/` redirect to `/login` on the public
+HTTPS origin, without exposing the proxy port.

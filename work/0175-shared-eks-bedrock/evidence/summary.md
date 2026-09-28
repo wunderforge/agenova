@@ -142,3 +142,10 @@ Credentials and session values are omitted from evidence and Git.
 
 Full All gate passed for session login, including 52/52 browser smoke tests
 (/tmp/agenova-session-final-all.txt); added CSRF edge-case tests also pass.
+
+### Visible logout and root redirect
+
+- Added an English `Sign out` link in the demo Portal. The existing confirmation form revokes the session and returns to `/login`.
+- Fixed nginx redirect rewriting that exposed internal port 8089: relative redirects now retain the public HTTPS origin.
+- Live verifier asserts exact `/login` Location and the rendered logout link; all 21 checks passed.
+- Codex in-app browser: opened root URL and reached login, signed in, visually verified English button and live Work records, clicked logout and confirmed return to login.

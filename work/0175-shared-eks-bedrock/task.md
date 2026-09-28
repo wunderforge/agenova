@@ -122,3 +122,6 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
   use random server-side expiring sessions, Secure/HttpOnly/SameSite cookies,
   signed expiring CSRF tokens and foreign-Origin rejection on login/logout, no provider credentials or browser storage.
   Verify anonymous API denial, login failures, tampering, expiry, logout and IAB.
+
+- Owner requested a visible logout entry: add a demo-perimeter Portal link to
+  the existing CSRF-protected logout confirmation form; preserve session checks.
