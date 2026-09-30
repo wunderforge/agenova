@@ -97,4 +97,4 @@ The adversarial driver must exercise the installed composition's existing correl
 ## Open Decisions
 
 - D1 is resolved: [Option B](design.md#d1-mcp-client-option-b-selected), minimal Go 1.22 standard-library client, selected by Tom on 2026-09-26.
-- [D2](design.md#d2-fixture-server-selection-before-slice-2) remains open: independent-module SDK file server or vetted existing server plus a request-body logging reverse proxy. Select before Slice 2; source/version/image lock is required before real acceptance. No image digest or implementation is claimed yet.
+- D2 is resolved: [Option A](design.md#d2-fixture-server-option-a-selected), an independent-module official-SDK read-only file server, selected by Tom on 2026-09-30. Its image digest must be locked before real acceptance. No image digest or implementation is claimed yet.
