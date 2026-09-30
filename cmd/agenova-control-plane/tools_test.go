@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapterregistry"
@@ -77,6 +78,8 @@ type installedDouble struct {
 	received toolbackend.Invocation
 }
 
+func (*installedDouble) MaxConcurrentCalls() int { return 4 }
+
 func (p *installedDouble) Invoke(_ context.Context, call toolbackend.Invocation) (toolbackend.Result, error) {
 	p.calls++
 	p.received = call
@@ -94,10 +97,9 @@ func TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory(t *testing.T) 
 		t.Fatal("configuration contacted provider")
 	}
 	authority := &v0.EffectiveAuthority{Tools: []string{"repo.read"}, ResourceScopes: []string{"repo:agenova/e16-fixture"}, ModelProfile: "model", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "runtime"}}
-	if err := validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools); err == nil {
-		t.Fatal("unfinished installed execution was admitted")
-	} else if submission, ok := err.(*console.SubmissionError); !ok || submission.Code != "tool_transport_unavailable" {
-		t.Fatalf("wrong stage failure: %v", err)
+	// With the transport and worker catalog in place, an installed grant is admitted.
+	if err := validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools); err != nil {
+		t.Fatalf("installed tool grant was rejected: %v", err)
 	}
 	authority.Tools = nil
 	if err := validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools); err != nil {
@@ -105,8 +107,9 @@ func TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory(t *testing.T) 
 	}
 	for _, operation := range []string{"git.read", "repo.write"} {
 		authority.Tools = []string{operation}
-		if validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools) == nil {
-			t.Fatal("uninstalled grant accepted")
+		err := validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools)
+		if submission, ok := err.(*console.SubmissionError); !ok || submission.Code != "tool_unsupported" {
+			t.Fatalf("uninstalled grant %s: %v", operation, err)
 		}
 	}
 	// The installed catalog is detached from subsequently edited input data.
@@ -163,8 +166,12 @@ func TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tools.Invoke(context.Background(), toolbackend.Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: "repo:agenova/e16-fixture", Parameters: map[string]string{"file": "README.md"}}); !errors.Is(err, toolbackend.ErrUnavailable) {
-		t.Fatal("configured unfinished transport fell back")
+	// The in-cluster fixture host is unreachable here: the call must fail
+	// explicitly rather than fall back to the synthetic tool.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err = tools.Invoke(ctx, toolbackend.Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: "repo:agenova/e16-fixture", Parameters: map[string]string{"file": "README.md"}}); !errors.Is(err, toolbackend.ErrUnavailable) && !errors.Is(err, toolbackend.ErrTimeout) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("unreachable configured server did not fail explicitly: %v", err)
 	}
 	empty, err := buildInstalledTools(&platform.ResolvedPlatform{}, registry)
 	if err != nil || empty != nil {

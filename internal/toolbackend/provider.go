@@ -47,10 +47,20 @@ type Factory interface {
 	NewToolProvider(instance map[string]any, profiles []map[string]any) (Provider, error)
 }
 
+// Limiter is implemented by a provider that has a configured concurrency
+// ceiling. The installed builder copies it into each Binding.
+type Limiter interface {
+	MaxConcurrentCalls() int
+}
+
+// Binding routes one catalog entry to a provider. Bindings that name the same
+// Backend share one concurrency limit, so they must agree on it.
 type Binding struct {
 	Descriptor          Descriptor
 	Provider            Provider
+	Backend             string
 	MaxObservationBytes int
+	MaxConcurrentCalls  int
 }
 
 // Set is immutable after construction; all inputs/outputs are detached. It
@@ -58,21 +68,31 @@ type Binding struct {
 type Set struct {
 	catalog  Catalog
 	bindings map[string]Binding
+	slots    map[string]chan struct{}
 }
 
 func NewSet(bindings []Binding) (*Set, error) {
 	entries := make([]Descriptor, 0, len(bindings))
+	limits := map[string]int{}
 	for _, binding := range bindings {
-		if nilProvider(binding.Provider) || binding.MaxObservationBytes < 1 || binding.MaxObservationBytes > 16<<10 {
+		if nilProvider(binding.Provider) || binding.MaxObservationBytes < 1 || binding.MaxObservationBytes > 16<<10 ||
+			!bounded(binding.Backend, 256) || binding.MaxConcurrentCalls < 1 || binding.MaxConcurrentCalls > 16 {
 			return nil, ErrCatalog
 		}
+		if limit, ok := limits[binding.Backend]; ok && limit != binding.MaxConcurrentCalls {
+			return nil, ErrCatalog
+		}
+		limits[binding.Backend] = binding.MaxConcurrentCalls
 		entries = append(entries, binding.Descriptor)
 	}
 	catalog, err := NewCatalog(entries)
 	if err != nil {
 		return nil, err
 	}
-	result := &Set{catalog: catalog, bindings: map[string]Binding{}}
+	result := &Set{catalog: catalog, bindings: map[string]Binding{}, slots: map[string]chan struct{}{}}
+	for backend, limit := range limits {
+		result.slots[backend] = make(chan struct{}, limit)
+	}
 	for _, binding := range bindings {
 		binding.Descriptor.AllowedValues = append([]string(nil), binding.Descriptor.AllowedValues...)
 		result.bindings[routeKey(binding.Descriptor.Operation, binding.Descriptor.ResourceScope)] = binding
@@ -104,6 +124,15 @@ func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {
 	}
 	call.Parameters = parameters
 	binding := s.bindings[routeKey(call.Operation, call.ResourceScope)]
+	// Wait for backend capacity before entering the provider; a cancelled
+	// wait never reaches it.
+	slots := s.slots[binding.Backend]
+	select {
+	case slots <- struct{}{}:
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	}
+	defer func() { <-slots }()
 	result, err := binding.Provider.Invoke(ctx, call)
 	if ctx.Err() != nil {
 		return Result{}, ctx.Err()

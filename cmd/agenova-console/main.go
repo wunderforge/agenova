@@ -45,7 +45,7 @@ func run() error {
 	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
 		return fmt.Errorf("console must listen on a literal loopback address; no public authentication is provided")
 	}
-	provider, err := modelprovider.New(modelprovider.Config{Endpoint: *endpoint, Models: map[string]string{"approved-coding-model": *model}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute})
+	provider, err := modelprovider.New(modelprovider.Config{Endpoint: *endpoint, Models: map[string]string{"approved-coding-model": *model}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.FinishSchema), Timeout: 2 * time.Minute})
 	if err != nil {
 		return err
 	}

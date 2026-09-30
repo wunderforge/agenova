@@ -102,8 +102,12 @@ func buildInstalledTools(resolved *platform.ResolvedPlatform, registry toolRegis
 		if err != nil {
 			return nil, fmt.Errorf("installed tool provider cannot be configured")
 		}
+		limiter, ok := provider.(toolbackend.Limiter)
+		if !ok {
+			return nil, fmt.Errorf("installed tool provider has no concurrency limit")
+		}
 		for _, route := range backendRoutes {
-			bindings = append(bindings, toolbackend.Binding{Descriptor: route.Tool, Provider: provider, MaxObservationBytes: route.MaxObservationBytes})
+			bindings = append(bindings, toolbackend.Binding{Descriptor: route.Tool, Provider: provider, Backend: name, MaxObservationBytes: route.MaxObservationBytes, MaxConcurrentCalls: limiter.MaxConcurrentCalls()})
 			routes = append(routes, route)
 		}
 	}

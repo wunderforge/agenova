@@ -126,6 +126,7 @@ export interface Fact {
   reasonCode?: string;
   requestRef: string;
   result?: DecisionResult;
+  resultRef?: string;
   sequence: number;
   target?: string;
   timestamp: string;
@@ -906,6 +907,12 @@ export const shapes = {
         "shape": {
           "kind": "ref",
           "ref": "DecisionResult"
+        },
+        "optional": true
+      },
+      "resultRef": {
+        "shape": {
+          "kind": "string"
         },
         "optional": true
       },

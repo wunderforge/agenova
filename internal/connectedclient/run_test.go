@@ -1376,3 +1376,42 @@ func TestInstalledAPIDoesNotFollowRedirects(t *testing.T) {
 		t.Fatalf("unsafe redirect result: err=%v redirected=%t", err, redirected)
 	}
 }
+
+func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]`)
+	fact := func(id string, sequence int, kind, result, providerStatus, target, extra string) string {
+		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","policyRef":{"id":"policy:demo","version":"1"},"operation":"tool.invoke","target":%q,"result":%q,"providerStatus":%q%s}`, id, sequence, kind, target, result, providerStatus, extra)
+	}
+	toolAuthority := strings.Replace(authorityFact("demo"), `"id":"authority:demo"`, `"id":"authority:demo","tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]`, 1)
+	withFacts := func(items ...string) string {
+		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow"), toolAuthority, boundFact("demo"), backendReadyFact("demo"), runningFact("demo")}, items...)
+		items = append(items, `{"id":"fact:terminal","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`, `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		return withTeardown(withEvidenceFacts(base, items...))
+	}
+	decision := fact("fact:decision", 7, "ToolDecision", "Allow", "", "repo.read", "")
+	attempt := fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", "")
+	ref := `,"resultRef":"repo:agenova/e16-fixture/README.md"`
+	succeeded := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", ref)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, succeeded)), "demo"); err != nil {
+		t.Fatalf("a differing external resultRef must be accepted: %v", err)
+	}
+	// S2: a post-Allow rejection completes the invocation with a Failed outcome.
+	rejected := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", `,"reasonCode":"tool-arguments-rejected"`)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, rejected)), "demo"); err != nil {
+		t.Fatalf("completed post-Allow rejection rejected: %v", err)
+	}
+	for name, invalid := range map[string]string{
+		"allowed invocation left open": withFacts(decision),
+		"attempt without outcome":      withFacts(decision, attempt),
+		"differing outcome target":     withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo:agenova/e16-fixture/README.md", "")),
+		"resultRef on attempt":         withFacts(decision, fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", ref), succeeded),
+		"resultRef on failure":         withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", ref)),
+		"resultRef is a URL":           withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", `,"resultRef":"http://e16-mcp/mcp"`)),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

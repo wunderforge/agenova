@@ -16,7 +16,9 @@ import (
 
 type reactExecutor struct {
 	foreignScope bool
+	scope        string
 	artifact     string
+	seen         *workerprotocol.Task
 }
 
 func (e reactExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
@@ -24,15 +26,24 @@ func (e reactExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIden
 	if _, err := h(ctx, model); err != nil {
 		return "", err
 	}
-	scope := task.ResourceScope
+	if e.seen != nil {
+		*e.seen = task
+	}
+	if len(task.Tools) == 0 {
+		return "", errors.New("no tool catalog")
+	}
+	scope := task.Tools[0].ResourceScope
 	if e.foreignScope {
 		scope = "repo:outside/private"
+	}
+	if e.scope != "" {
+		scope = e.scope
 	}
 	artifact := e.artifact
 	if artifact == "" {
 		artifact = "logs/timeout.log"
 	}
-	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: scope, Input: artifact})
+	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: task.Tools[0].Operation, ResourceScope: scope, Input: artifact})
 	if err != nil {
 		return "", err
 	}

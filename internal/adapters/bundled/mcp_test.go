@@ -119,8 +119,9 @@ func TestToolLifecycleInitInspectAndLockRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = provider.Invoke(context.Background(), toolbackend.Invocation{}); !errors.Is(err, toolbackend.ErrUnavailable) {
-		t.Fatal("unfinished transport did not fail explicitly")
+	// An unconfigured route is rejected before any network access.
+	if _, err = provider.Invoke(context.Background(), toolbackend.Invocation{}); !errors.Is(err, toolbackend.ErrArguments) {
+		t.Fatal("unconfigured route did not fail before transport")
 	}
 }
 func TestToolConfigAndRoutesFailClosed(t *testing.T) {

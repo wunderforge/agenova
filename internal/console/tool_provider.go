@@ -26,24 +26,47 @@ type providerToolAdapter struct {
 }
 
 func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
-	if req.ClaimID != a.claimID || a.ctx.Err() != nil {
+	// A mismatched claim cannot be attributed safely, so nothing is recorded.
+	// The service binds both sides, so this is a correlation guard only.
+	if req.ClaimID != a.claimID {
 		return errors.New("tool session inactive")
 	}
-	if err := app.RequireRunningClaim(a.claims, a.claimID); err != nil {
-		return err
-	}
 	operation := req.Tool + "." + req.Action
-	if err := a.tools.Catalog().Validate(operation, req.ResourceScope, req.Parameters); err != nil {
-		return err
-	}
 	target := operation // Same logical target for both facts; never a provider URL/reference.
 	fact := facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "configured-tool", ProviderStatus: "Attempted"}
+	// Checks that can still fail after the Gateway allowed the call (a
+	// cancellation or termination race, or an argument the service did not
+	// pre-validate) complete the invocation with an attempt/outcome pair, so it
+	// never stays half-recorded. The provider is not called.
+	reject := func(status, code, reason string, cause error) error {
+		if _, err := a.appendFact(fact); err != nil {
+			return err
+		}
+		outcome := fact
+		outcome.Kind, outcome.ProviderStatus, outcome.ReasonCode, outcome.Reason = "ProviderOutcome", status, code, reason
+		if _, err := a.appendFact(outcome); err != nil {
+			return errors.New("tool outcome recording failed")
+		}
+		return cause
+	}
+	if err := a.ctx.Err(); err != nil {
+		return reject("Cancelled", "tool-session-inactive", "The Work stopped before the configured tool was called.", err)
+	}
+	if err := app.RequireRunningClaim(a.claims, a.claimID); err != nil {
+		return reject("Cancelled", "tool-claim-not-running", "The claim was no longer running when the configured tool would have been called.", err)
+	}
+	if err := a.tools.Catalog().Validate(operation, req.ResourceScope, req.Parameters); err != nil {
+		return reject("Failed", "tool-arguments-rejected", "The tool arguments are not configured for this operation and resource; no call was made.", err)
+	}
 	if _, err := a.appendFact(fact); err != nil {
 		return err
 	}
 	result, invokeErr := a.tools.Invoke(a.ctx, toolbackend.Invocation{ID: id, ClaimID: a.claimID, Operation: operation, ResourceScope: req.ResourceScope, Parameters: req.Parameters})
 	fact.Kind = "ProviderOutcome"
 	fact.ProviderStatus = "Succeeded"
+	if invokeErr == nil && facts.ValidResultRef(result.ResultRef) {
+		fact.ResultRef = result.ResultRef
+	}
 	if invokeErr != nil {
 		fact.ProviderStatus = "Failed"
 		fact.ReasonCode = "tool-provider-failed"
@@ -51,7 +74,7 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		switch {
 		case errors.Is(invokeErr, toolbackend.ErrUnavailable):
 			fact.ReasonCode = "tool-transport-unavailable"
-			fact.Reason = "Configured tool transport is unavailable in this build."
+			fact.Reason = "Configured tool server is unavailable; no fallback was used."
 		case errors.Is(invokeErr, toolbackend.ErrTimeout), errors.Is(invokeErr, context.DeadlineExceeded):
 			fact.ReasonCode = "tool-timeout"
 			fact.Reason = "Configured tool provider exceeded its deadline."
@@ -69,8 +92,6 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 	if invokeErr != nil {
 		return invokeErr
 	}
-	// ResultRef remains separate in the neutral result; evidence projection is
-	// Slice 2 work and must update the shared CLI/API/Portal decoders together.
 	prefix := "[UNTRUSTED TOOL DATA]\n"
 	if result.Truncated {
 		prefix += "[TRUNCATED]\n"

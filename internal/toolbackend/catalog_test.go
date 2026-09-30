@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -72,7 +74,7 @@ func (f providerFunc) Invoke(ctx context.Context, call Invocation) (Result, erro
 }
 func TestSetBoundsUntrustedResultsWithoutChangingCallerParameters(t *testing.T) {
 	calls := 0
-	set, err := NewSet([]Binding{{Descriptor: descriptor(), MaxObservationBytes: 4, Provider: providerFunc(func(_ context.Context, call Invocation) (Result, error) {
+	set, err := NewSet([]Binding{{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: providerFunc(func(_ context.Context, call Invocation) (Result, error) {
 		calls++
 		call.Parameters["file"] = "changed"
 		return Result{Text: "你好!", ResultRef: "artifact:readme"}, nil
@@ -110,7 +112,7 @@ func TestSetDoesNotLeakProviderErrorsOrUnsafeReferences(t *testing.T) {
 		{name: "oversize", result: Result{Text: strings.Repeat("a", (1<<20)+1)}, errorWanted: ErrResult},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			set, err := NewSet([]Binding{{Descriptor: descriptor(), MaxObservationBytes: 4, Provider: providerFunc(func(context.Context, Invocation) (Result, error) { return tc.result, tc.err })}})
+			set, err := NewSet([]Binding{{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: providerFunc(func(context.Context, Invocation) (Result, error) { return tc.result, tc.err })}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -121,7 +123,7 @@ func TestSetDoesNotLeakProviderErrorsOrUnsafeReferences(t *testing.T) {
 		})
 	}
 	var typedNil *nilClient
-	if _, err := NewSet([]Binding{{Descriptor: descriptor(), MaxObservationBytes: 4, Provider: typedNil}}); err == nil {
+	if _, err := NewSet([]Binding{{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: typedNil}}); err == nil {
 		t.Fatal("typed nil accepted")
 	}
 }
@@ -136,6 +138,105 @@ func TestCatalogRequiresBoundedTrustedDescriptions(t *testing.T) {
 		entry.Description = description
 		if _, err := NewCatalog([]Descriptor{entry}); err == nil {
 			t.Fatal("invalid description accepted")
+		}
+	}
+}
+
+func TestSetEnforcesSharedBackendConcurrency(t *testing.T) {
+	second := descriptor()
+	second.ResourceScope = "repo:example/b"
+	var mu sync.Mutex
+	active, peak, calls := 0, 0, 0
+	release := make(chan struct{})
+	entered := make(chan struct{}, 8)
+	provider := providerFunc(func(ctx context.Context, _ Invocation) (Result, error) {
+		mu.Lock()
+		active, calls = active+1, calls+1
+		if active > peak {
+			peak = active
+		}
+		mu.Unlock()
+		entered <- struct{}{}
+		<-release
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return Result{Text: "ok"}, nil
+	})
+	set, err := NewSet([]Binding{
+		{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 2, Provider: provider},
+		{Descriptor: second, Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 2, Provider: provider},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(scope string) Invocation {
+		return Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: scope, Parameters: map[string]string{"file": "README.md"}}
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		scope := []string{"repo:example/a", "repo:example/b"}[i%2]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := set.Invoke(context.Background(), call(scope)); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	<-entered
+	<-entered
+	// Two profiles share one backend limit: a third call must wait, and a
+	// cancelled waiter must never reach the provider.
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := set.Invoke(ctx, call("repo:example/a")); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waiting call returned %v", err)
+	}
+	close(release)
+	wg.Wait()
+	if peak != 2 || calls != 4 {
+		t.Fatalf("peak=%d calls=%d, want peak 2 and 4 calls", peak, calls)
+	}
+}
+
+func TestSetReleasesCapacityAfterProviderErrors(t *testing.T) {
+	failures := 0
+	set, err := NewSet([]Binding{{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: providerFunc(func(context.Context, Invocation) (Result, error) {
+		failures++
+		return Result{}, ErrUnavailable
+	})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, err := set.Invoke(ctx, Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: "repo:example/a", Parameters: map[string]string{"file": "README.md"}})
+		cancel()
+		if !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("call %d: %v (capacity was not released)", i, err)
+		}
+	}
+	if failures != 3 {
+		t.Fatalf("provider saw %d calls, want 3", failures)
+	}
+}
+
+func TestSetRejectsInconsistentOrMissingConcurrency(t *testing.T) {
+	second := descriptor()
+	second.ResourceScope = "repo:example/b"
+	provider := providerFunc(func(context.Context, Invocation) (Result, error) { return Result{}, nil })
+	for name, bindings := range map[string][]Binding{
+		"missing limit":   {{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, Provider: provider}},
+		"limit too large": {{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 17, Provider: provider}},
+		"missing backend": {{Descriptor: descriptor(), MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: provider}},
+		"disagreeing limits": {
+			{Descriptor: descriptor(), Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 1, Provider: provider},
+			{Descriptor: second, Backend: "docs", MaxObservationBytes: 4, MaxConcurrentCalls: 2, Provider: provider},
+		},
+	} {
+		if _, err := NewSet(bindings); err == nil {
+			t.Errorf("%s accepted", name)
 		}
 	}
 }

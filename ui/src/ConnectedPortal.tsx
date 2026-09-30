@@ -217,6 +217,7 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
           <Field label="Kind" value={category(fact)}/><Field label="Target" value={fact.target}/>
           <Field label="Permission" value={fact.result || fact.decision?.result}/>
           <Field label="Provider outcome" value={fact.providerStatus}/>
+          {fact.resultRef && <Field label="Result reference" value={fact.resultRef}/>}
           <Field label="Claim" value={fact.claimId}/><Field label="Invocation" value={fact.invocationId}/>
           <Field label="Policy" value={policy ? `${policy.id} / ${policy.version}` : undefined}/>
         </div>

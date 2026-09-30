@@ -4,7 +4,6 @@
 package bundled
 
 import (
-	"context"
 	"net/url"
 	"path"
 	"regexp"
@@ -188,23 +187,29 @@ func describeMCPTool(backend, profile map[string]any) (toolbackend.Descriptor, i
 	return mcpDescriptor(profile), limit, nil
 }
 
-// Slice 1 installs the validated contract. Slice 2 supplies the bounded HTTP
-// transport. Explicit failure here prevents a configured backend becoming mock.
+// NewToolProvider validates the configuration and returns the bounded
+// Streamable HTTP client. Construction never contacts the server.
 func (*MCPHTTPTool) NewToolProvider(instance map[string]any, profiles []map[string]any) (toolbackend.Provider, error) {
 	backend, err := canonicalizeMCPInstance(platform.CapabilityTool, instance)
 	if err != nil {
 		return nil, err
 	}
+	routes := map[string]mcpRoute{}
 	for _, profile := range profiles {
-		if _, err := canonicalizeMCPProfile(platform.CapabilityTool, backend, profile); err != nil {
+		config, err := canonicalizeMCPProfile(platform.CapabilityTool, backend, profile)
+		if err != nil {
 			return nil, err
 		}
+		key := mcpRouteKey(config["logical-operation"].(string), config["resource-scope"].(string))
+		if _, ok := routes[key]; ok {
+			return nil, platform.NewAdapterConfigError("duplicate-tool-route", "logical-operation")
+		}
+		routes[key] = mcpRoute{tool: config["mcp-tool"].(string), parameter: config["parameter-name"].(string)}
 	}
-	return unavailableMCP{}, nil
-}
-
-type unavailableMCP struct{}
-
-func (unavailableMCP) Invoke(context.Context, toolbackend.Invocation) (toolbackend.Result, error) {
-	return toolbackend.Result{}, toolbackend.ErrUnavailable
+	timeout, _ := time.ParseDuration(backend["timeout"].(string))
+	maxRequest, _ := strconv.Atoi(backend["max-request-bytes"].(string))
+	maxResponse, _ := strconv.Atoi(backend["max-response-bytes"].(string))
+	client := newMCPClient(backend["endpoint"].(string), timeout, maxRequest, maxResponse, routes)
+	client.concurrency, _ = strconv.Atoi(backend["max-concurrent-calls"].(string))
+	return client, nil
 }

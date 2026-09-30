@@ -37,7 +37,7 @@ func (p *toolDouble) Invoke(context.Context, toolbackend.Invocation) (toolbacken
 }
 func boundTools(t *testing.T, provider toolbackend.Provider, operation, scope string) *toolbackend.Set {
 	t.Helper()
-	tools, err := toolbackend.NewSet([]toolbackend.Binding{{Descriptor: toolbackend.Descriptor{Description: "Read a fixture file and return untrusted text.", Operation: operation, ResourceScope: scope, Parameter: "file", MaxBytes: 128, AllowedValues: []string{"logs/timeout.log"}}, Provider: provider, MaxObservationBytes: 8}})
+	tools, err := toolbackend.NewSet([]toolbackend.Binding{{Descriptor: toolbackend.Descriptor{Description: "Read a fixture file and return untrusted text.", Operation: operation, ResourceScope: scope, Parameter: "file", MaxBytes: 128, AllowedValues: []string{"logs/timeout.log"}}, Provider: provider, Backend: "docs", MaxObservationBytes: 8, MaxConcurrentCalls: 4}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +86,66 @@ func TestConfiguredServiceUsesProviderAndPreservesAttemptTarget(t *testing.T) {
 	}
 }
 
+func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments(t *testing.T) {
+	descriptor := func(scope string) toolbackend.Descriptor {
+		return toolbackend.Descriptor{Description: "Read a fixture file and return untrusted text.", Operation: "git.read", ResourceScope: scope, Parameter: "file", MaxBytes: 128, AllowedValues: []string{"logs/timeout.log"}}
+	}
+	for _, tc := range []struct {
+		name     string
+		executor reactExecutor
+		calls    int32
+		decision string
+		status   string
+	}{
+		{name: "granted route", executor: reactExecutor{}, calls: 1, decision: "Allow", status: "Succeeded"},
+		// Installed but not granted: the Gateway denies it with evidence.
+		{name: "ungranted installed scope", executor: reactExecutor{scope: "repo:other/private"}, decision: "Deny", status: "Failed"},
+		// Not an allowlisted argument: rejected before any decision is recorded.
+		{name: "unconfigured argument", executor: reactExecutor{artifact: "../private"}, status: "Failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := &toolDouble{}
+			tools, err := toolbackend.NewSet([]toolbackend.Binding{
+				{Descriptor: descriptor("repo:acme/payments"), Provider: provider, Backend: "docs", MaxObservationBytes: 64, MaxConcurrentCalls: 4},
+				{Descriptor: descriptor("repo:other/private"), Provider: provider, Backend: "docs", MaxObservationBytes: 64, MaxConcurrentCalls: 4},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var task workerprotocol.Task
+			executor := tc.executor
+			executor.seen = &task
+			service, err := NewServiceWithOptions(&verticalBackend{}, executor, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{ToolBackend: tools})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer service.Close()
+			if _, err := service.Submit(verticalRequest(t, "catalog")); err != nil {
+				t.Fatal(err)
+			}
+			view := awaitVertical(t, service, "catalog")
+			if len(task.Tools) != 1 || task.Tools[0].ResourceScope != "repo:acme/payments" || task.Tools[0].Synthetic {
+				t.Fatalf("worker catalog was not intersected with the grant: %+v", task.Tools)
+			}
+			if got := provider.calls.Load(); got != tc.calls {
+				t.Fatalf("provider calls %d, want %d", got, tc.calls)
+			}
+			decision := ""
+			for _, f := range view.Facts {
+				if f.Kind == "ToolDecision" {
+					decision = string(f.Result)
+				}
+				if f.Kind == "ProviderOutcome" && f.Operation == "tool.invoke" && f.ResultRef != "artifact:readme" {
+					t.Fatalf("successful outcome lacks its separate result reference: %+v", f)
+				}
+			}
+			if decision != tc.decision || view.Outcome.Status != tc.status {
+				t.Fatalf("decision %q status %q, want %q %q", decision, view.Outcome.Status, tc.decision, tc.status)
+			}
+		})
+	}
+}
+
 type toolClaims struct{ snapshot app.ClaimAuthoritySnapshot }
 
 func (c toolClaims) Claim(id string) (v0.SandboxClaim, bool) {
@@ -99,7 +159,7 @@ func runningToolClaims() toolClaims {
 }
 
 func TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow(t *testing.T) {
-	for _, name := range []string{"allow", "deny", "scope", "cross-claim", "terminal", "decision-record", "attempt-record", "outcome-record", "argument"} {
+	for _, name := range []string{"allow", "deny", "scope", "cross-claim", "terminal", "decision-record", "attempt-record", "outcome-record", "argument", "late-cancel"} {
 		t.Run(name, func(t *testing.T) {
 			claims := runningToolClaims()
 			provider := &toolDouble{}
@@ -118,7 +178,13 @@ func TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow(t *testi
 				recorded = append(recorded, f)
 				return f, nil
 			}
-			adapter := &providerToolAdapter{ctx: context.Background(), claims: claims, appendFact: appendFact, ref: "work", claimID: "claim", tools: tools, results: map[string]workerprotocol.Reply{}}
+			ctx := context.Background()
+			if name == "late-cancel" {
+				cancelled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = cancelled
+			}
+			adapter := &providerToolAdapter{ctx: ctx, claims: claims, appendFact: appendFact, ref: "work", claimID: "claim", tools: tools, results: map[string]workerprotocol.Reply{}}
 			if name == "cross-claim" {
 				adapter.claimID = "another-bound-context"
 			} // test-only mismatch, not caller authentication.
@@ -157,6 +223,17 @@ func TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow(t *testi
 			}
 			if name == "outcome-record" && err == nil {
 				t.Fatal("post-call journal failure hidden")
+			}
+			// S2: a rejection after Allow completes the invocation instead of
+			// leaving it at the decision stage.
+			if status := map[string]string{"argument": "Failed", "late-cancel": "Cancelled"}[name]; status != "" {
+				if err == nil || len(recorded) != 3 || recorded[1].Kind != "ProviderAttempt" || recorded[2].Kind != "ProviderOutcome" ||
+					recorded[2].ProviderStatus != status || recorded[1].Target != recorded[2].Target || recorded[2].InvocationID != decision.InvocationID {
+					t.Fatalf("post-Allow rejection was not completed: err=%v facts=%+v", err, recorded)
+				}
+			}
+			if name == "cross-claim" && len(recorded) != 1 {
+				t.Fatalf("a mismatched claim must not be attributed: %+v", recorded)
 			}
 		})
 	}

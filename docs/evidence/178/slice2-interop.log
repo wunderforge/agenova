@@ -1,0 +1,35 @@
+Client: Agenova root module on go1.22.12 (standard library only). Server: harness/integration/mcpfixture on go1.27.1 with github.com/modelcontextprotocol/go-sdk v1.8.0, run locally against the committed dataset.
+$ AGENOVA_MCP_INTEROP_ENDPOINT=http://127.0.0.1:18080/mcp go test -count=1 -v -run Interoperates ./internal/adapters/bundled
+=== RUN   TestMCPClientInteroperatesWithFixtureServer
+--- PASS: TestMCPClientInteroperatesWithFixtureServer
+PASS
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled
+exit=0
+--- fixture server log (JSON lines; no file contents, session IDs hashed)
+{"time":"2026-09-30T08:14:07.54699Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42"}
+{"time":"2026-09-30T08:14:07.547948Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210,"durationMs":1}
+{"time":"2026-09-30T08:14:07.548446Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"eb9dc16232e9"}
+{"time":"2026-09-30T08:14:07.54847Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-09-30T08:14:07.548698Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"README.md","correlation":"inv-42","session":"eb9dc16232e9"}
+{"time":"2026-09-30T08:14:07.549026Z","pod":"local-interop","event":"tool","tool":"read_file","file":"README.md","correlation":"inv-42","outcome":"ok","bytes":490}
+{"time":"2026-09-30T08:14:07.549107Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":598}
+{"time":"2026-09-30T08:14:07.549278Z","pod":"local-interop","event":"receipt","httpMethod":"DELETE","correlation":"inv-42","session":"eb9dc16232e9"}
+{"time":"2026-09-30T08:14:07.549322Z","pod":"local-interop","event":"response","httpMethod":"DELETE","correlation":"inv-42","status":204}
+{"time":"2026-09-30T08:14:07.54944Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42"}
+{"time":"2026-09-30T08:14:07.549536Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210}
+{"time":"2026-09-30T08:14:07.549622Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"df43797a5379"}
+{"time":"2026-09-30T08:14:07.54964Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-09-30T08:14:07.549735Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"logs/full-trace.log","correlation":"inv-42","session":"df43797a5379"}
+{"time":"2026-09-30T08:14:07.550458Z","pod":"local-interop","event":"tool","tool":"read_file","file":"logs/full-trace.log","correlation":"inv-42","outcome":"ok","bytes":73744}
+{"time":"2026-09-30T08:14:07.551411Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":74678,"durationMs":1}
+{"time":"2026-09-30T08:14:07.551575Z","pod":"local-interop","event":"receipt","httpMethod":"DELETE","correlation":"inv-42","session":"df43797a5379"}
+{"time":"2026-09-30T08:14:07.551613Z","pod":"local-interop","event":"response","httpMethod":"DELETE","correlation":"inv-42","status":204}
+{"time":"2026-09-30T08:14:07.551796Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42"}
+{"time":"2026-09-30T08:14:07.551866Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210}
+{"time":"2026-09-30T08:14:07.551942Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"b6fbaaeebd5e"}
+{"time":"2026-09-30T08:14:07.551962Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-09-30T08:14:07.55204Z","pod":"local-interop","event":"receipt","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"missing.md","correlation":"inv-42","session":"b6fbaaeebd5e"}
+{"time":"2026-09-30T08:14:07.552109Z","pod":"local-interop","event":"tool","tool":"read_file","file":"missing.md","correlation":"inv-42","outcome":"error","error":"not-found"}
+{"time":"2026-09-30T08:14:07.55213Z","pod":"local-interop","event":"response","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":138}
+{"time":"2026-09-30T08:14:07.552212Z","pod":"local-interop","event":"receipt","httpMethod":"DELETE","correlation":"inv-42","session":"b6fbaaeebd5e"}
+{"time":"2026-09-30T08:14:07.552221Z","pod":"local-interop","event":"response","httpMethod":"DELETE","correlation":"inv-42","status":204}

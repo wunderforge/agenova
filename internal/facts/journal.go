@@ -6,8 +6,10 @@ package facts
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authority"
@@ -34,6 +36,14 @@ type Fact struct {
 	Operation        string                          `json:"operation,omitempty"`
 	Target           string                          `json:"target,omitempty"`
 	ProviderStatus   string                          `json:"providerStatus,omitempty"`
+	// ResultRef names the external result of a successful tool call. It is
+	// separate from Target, which stays equal across attempt and outcome.
+	ResultRef string `json:"resultRef,omitempty"`
+}
+
+// ValidResultRef accepts a bounded logical reference, never a fetchable URL.
+func ValidResultRef(ref string) bool {
+	return ref != "" && len(ref) <= 256 && utf8.ValidString(ref) && !strings.ContainsAny(ref, " \t\r\n\x00?#@") && !strings.Contains(ref, "://")
 }
 
 // Journal supplies the strict correlation spine for the application path.
@@ -167,6 +177,9 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 			return Fact{}, fmt.Errorf("provider attempt requires one recorded Allow")
 		}
 		stage.attempted = true
+	}
+	if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !ValidResultRef(fact.ResultRef)) {
+		return Fact{}, fmt.Errorf("result reference is only valid on a successful tool outcome")
 	}
 	if fact.Kind == "ProviderOutcome" {
 		if fact.InvocationID == "" || !stage.attempted || stage.completed || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {

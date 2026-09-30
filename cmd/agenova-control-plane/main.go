@@ -98,10 +98,10 @@ func configuredService(path string) (*console.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	// "configured" reports installed configuration, not a successful call.
 	toolStatus := "mock"
-	// Slice 1 has no live MCP transport.
 	if tools != nil {
-		toolStatus = "notConnected"
+		toolStatus = "configured"
 	}
 	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
 	if compatibleWorkerImage == "" {
@@ -142,7 +142,7 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 	}
 	adapter := agentsandbox.NewControlled("", runtimeNamespace)
-	modelConfig := modelprovider.Config{Models: map[string]string{}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute}
+	modelConfig := modelprovider.Config{Models: map[string]string{}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.FinishSchema), Timeout: 2 * time.Minute}
 	backends := map[string]string{}
 	for _, instance := range resolved.Instances {
 		if instance.Category != platform.CapabilityModel {
@@ -267,12 +267,6 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 		if (tools == nil && tool != "git.read") || (tools != nil && !tools.Catalog().Supports(tool)) {
 			return &console.SubmissionError{Code: "tool_unsupported", Message: "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway."}
 		}
-	}
-	// Slice 1 wires and validates the configured provider contract, but the
-	// MCP transport and worker catalog propagation ship together in Slice 2.
-	// Reject before journal/worker setup rather than advertise an unusable tool.
-	if tools != nil && len(authority.Tools) != 0 {
-		return &console.SubmissionError{Code: "tool_transport_unavailable", Message: "Configured tool transport and worker catalog are unavailable in this build; install a build with MCP execution support."}
 	}
 	if len(authority.MemoryScopes) != 0 {
 		return &console.SubmissionError{Code: "memory_unsupported", Message: "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface."}

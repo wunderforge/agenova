@@ -7,12 +7,30 @@ package workerprotocol
 
 import "context"
 
+// MaxTools and MaxInputBytes bound the worker catalog; the host enforces the
+// same limits when it builds a Task.
+const MaxTools = 32
+const MaxInputBytes = 4096
+
+// Tool is one logical operation/resource pair a Work may call, already
+// intersected with its effective authority. It carries no endpoint,
+// transport, provider-native name or credential.
+type Tool struct {
+	Operation     string   `json:"operation"`
+	Description   string   `json:"description"`
+	ResourceScope string   `json:"resourceScope"`
+	Parameter     string   `json:"parameter"`
+	AllowedValues []string `json:"allowedValues"`
+	// Synthetic labels the explicitly selected legacy mock fixture.
+	Synthetic bool `json:"synthetic,omitempty"`
+}
+
 type Task struct {
-	ClaimID       string `json:"claimId"`
-	Objective     string `json:"objective"`
-	ModelProfile  string `json:"modelProfile"`
-	Mode          string `json:"mode,omitempty"`
-	ResourceScope string `json:"resourceScope,omitempty"`
+	ClaimID      string `json:"claimId"`
+	Objective    string `json:"objective"`
+	ModelProfile string `json:"modelProfile"`
+	Mode         string `json:"mode,omitempty"`
+	Tools        []Tool `json:"tools,omitempty"`
 }
 
 type Operation struct {

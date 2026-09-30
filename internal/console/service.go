@@ -282,19 +282,19 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
 			return err
 		}))
-		scope := ""
-		for _, tool := range snapshot.EffectiveAuthority.Tools {
-			if tool == "git.read" && len(snapshot.EffectiveAuthority.ResourceScopes) > 0 {
-				scope = snapshot.EffectiveAuthority.ResourceScopes[0]
-			}
+		workTools := s.workCatalog(&snapshot.EffectiveAuthority)
+		workSchema, err := workerprotocol.ActionSchema(workTools)
+		if err != nil {
+			return err
 		}
+		adapter.outputSchema = json.RawMessage(workSchema)
 		turn := 0
-		readFiles := map[string]bool{}
+		readInputs := map[string]bool{}
 		step := func(operation string) error {
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
 		}
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -302,17 +302,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, err
 			}
 			if op.Kind == "tool" {
-				parameter := "file"
-				if s.tools == nil {
-					if op.Tool != "git.read" {
-						return workerprotocol.Reply{}, errors.New("unsupported demo tool")
-					}
-				} else {
-					var ok bool
-					parameter, ok = s.tools.Catalog().Parameter(op.Tool, op.ResourceScope)
-					if !ok {
-						return workerprotocol.Reply{}, toolbackend.ErrArguments
-					}
+				parameter, err := s.toolParameter(op)
+				if err != nil {
+					return workerprotocol.Reply{}, err
 				}
 				tool, action := toolbackend.SplitOperation(op.Tool)
 				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: map[string]string{parameter: op.Input}})
@@ -327,7 +319,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				}
 				reply := results[d.InvocationID]
 				if reply.Allowed && reply.Error == "" && reply.Text != "" {
-					readFiles[op.Input] = true
+					readInputs[op.Tool+"\x00"+op.ResourceScope+"\x00"+op.Input] = true
 				}
 				return reply, nil
 			}
@@ -343,7 +335,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if scope == "" || turn == workerprotocol.MaxTurns || (s.tools == nil && len(readFiles) == 3) {
+			if len(workTools) == 0 || turn == workerprotocol.MaxTurns || len(readInputs) == workerprotocol.ToolInputs(workTools) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})
@@ -362,12 +354,12 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, err
 			}
 			// Public action shape, not model reasoning or raw model output.
-			action, parseErr := workerprotocol.ParseAction(result.Text)
+			action, parseErr := workerprotocol.ParseAction(result.Text, workTools)
 			code, reason := "agent-action-valid", "The model selected a valid final-answer action."
 			if parseErr != nil {
-				code, reason = workerprotocol.ActionIssue(result.Text)
+				code, reason = workerprotocol.ActionIssue(result.Text, workTools)
 			} else if action.Action == "tool" {
-				code, reason = "agent-action-tool", "The model selected a tool-read action."
+				code, reason = "agent-action-tool", "The model selected an available tool action."
 			}
 			if _, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason}); err != nil {
 				return workerprotocol.Reply{}, err
@@ -409,6 +401,47 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	}
 	s.records[ref].view.Outcome = outcome
 	s.mu.Unlock()
+}
+
+// toolParameter checks a call against the installed routes before the
+// Gateway, so an argument the provider would refuse never leaves an allowed
+// invocation without an outcome. It does not decide authority: an installed
+// route outside the claim's grant still reaches the Gateway and is denied
+// there with evidence.
+func (s *Service) toolParameter(op workerprotocol.Operation) (string, error) {
+	if s.tools == nil {
+		if op.Tool != "git.read" {
+			return "", errors.New("unsupported demo tool")
+		}
+		return "file", nil
+	}
+	catalog := s.tools.Catalog()
+	parameter, ok := catalog.Parameter(op.Tool, op.ResourceScope)
+	if !ok {
+		return "", toolbackend.ErrArguments
+	}
+	if err := catalog.Validate(op.Tool, op.ResourceScope, map[string]string{parameter: op.Input}); err != nil {
+		return "", err
+	}
+	return parameter, nil
+}
+
+// workCatalog intersects the installed catalog with the claim's effective
+// authority. Without a configured backend, a git.read grant selects the
+// explicitly labelled synthetic fixture instead; nothing else is advertised.
+func (s *Service) workCatalog(authority *v0.EffectiveAuthority) []workerprotocol.Tool {
+	if authority == nil {
+		return nil
+	}
+	if s.tools == nil {
+		return mockCatalog(authority)
+	}
+	entries := s.tools.Catalog().Intersect(authority.Tools, authority.ResourceScopes).Entries()
+	tools := make([]workerprotocol.Tool, 0, len(entries))
+	for _, entry := range entries {
+		tools = append(tools, workerprotocol.Tool{Operation: entry.Operation, Description: entry.Description, ResourceScope: entry.ResourceScope, Parameter: entry.Parameter, AllowedValues: entry.AllowedValues})
+	}
+	return tools
 }
 
 // Classify only trusted categories/facts. Never return arbitrary backend,
