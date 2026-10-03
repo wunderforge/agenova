@@ -56,6 +56,12 @@ type Service struct {
 	order     []string
 	closed    bool
 	wg        sync.WaitGroup
+
+	// appendTool records ToolDecision, ProviderAttempt and ProviderOutcome
+	// facts. It is always journal.Append in production builds; acceptance
+	// probes replace it only through the agenovaprobe-tagged bridge, before
+	// any Work starts.
+	appendTool func(facts.Fact) (facts.Fact, error)
 }
 
 type Options struct {
@@ -110,6 +116,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 		return nil, err
 	}
 	s.runner = runner
+	s.appendTool = s.journal.Append
 	return s, nil
 }
 
@@ -270,7 +277,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		var selected toolgateway.Adapter = mock
 		results := mock.results
 		if s.tools != nil {
-			configured := &providerToolAdapter{ctx: ctx, claims: s.runner, appendFact: s.journal.Append, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
+			configured := &providerToolAdapter{ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
 			selected, results = configured, configured.results
 		}
 		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
@@ -279,7 +286,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				code = "within-effective-authority"
 				reason = "Allowed tool within active claim authority."
 			}
-			_, err := s.journal.Append(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
+			_, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
 			return err
 		}))
 		workTools := s.workCatalog(&snapshot.EffectiveAuthority)

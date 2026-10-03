@@ -60,7 +60,7 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 		return err
 	}
 	target := "Mock git.read · " + req.Parameters["file"]
-	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "mock-tool", ProviderStatus: "Attempted"}); err != nil {
+	if _, err := a.service.appendTool(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "mock-tool", ProviderStatus: "Attempted"}); err != nil {
 		return err
 	}
 	reply := workerprotocol.Reply{Allowed: true, Text: mockArtifacts[req.Parameters["file"]]}
@@ -77,7 +77,7 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 	if err := app.RequireRunningClaim(a.service.runner, a.claimID); err != nil {
 		return err
 	}
-	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: code, Reason: reason, ProviderStatus: status}); err != nil {
+	if _, err := a.service.appendTool(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: code, Reason: reason, ProviderStatus: status}); err != nil {
 		return err
 	}
 	a.results[id] = reply
