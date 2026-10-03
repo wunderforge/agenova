@@ -114,7 +114,7 @@ A script under `harness/integration/e16/` that requires `--context`, `--install-
 
 ### G6 Installed MCP Portal spec
 
-Add an MCP-specific installed Playwright spec, or parameterise `ui/installed/installed.spec.ts` without silently changing its existing assertions. It reuses `AGENOVA_CLI_PATH`, `AGENOVA_LIVE_REQUEST_REF` and `AGENOVA_LIVE_DENIED_REF`. Any new variables (truncation and tool-failure refs) are documented with the runner.
+Add `ui/installed/mcp.spec.ts`, run on its own with a file filter, so the reference `installed.spec.ts` keeps its assertions unchanged. It reads `AGENOVA_CLI_PATH`, `AGENOVA_CLI_STATE_DIR` and `AGENOVA_E16_{POSITIVE,TRUNCATION,FAILURE,DENIED}_REF`; the runner's `parity` subcommand sets them. The Portal also labelled every `tool.invoke` attempt and outcome as "Mock tool call", including configured provider calls; only facts with a `mock-*` reason code (the synthetic adapter) keep that label, and the spec asserts a real MCP record never shows it.
 
 ## 5. Execution phases
 
