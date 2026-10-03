@@ -48,7 +48,16 @@ Mutating (each prints its plan; protect, load and restore also need --yes):
   probe              Run the probe Job and check it against the server log.
   parity             Compare CLI, API and Portal for the recorded Works
                      (positive, n8-truncation, n6-timeout, admission-deny).
-  restore            Re-import protected images and restart other installs.
+  restore            Stop E16 pods on the fixed tags, re-import protected images,
+                     restart other installs and wait until they are Ready.
+
+Recovery: protect records its plan before changing anything and marks itself
+complete only after the other installs have stopped. If any step fails or is
+interrupted, the other installs stay stopped (never running E16 images); run
+restore with the same --output to return them. restore is safe to repeat and
+keeps its state until the other installs are Ready. Archive E16 evidence
+(work, probe, parity) before restore: it stops the E16 control plane, whose
+Work history is in memory.
 EOF
 }
 
@@ -129,29 +138,102 @@ preflight() {
   pass "preflight recorded in $OUTPUT/preflight.txt"
 }
 
+# Running pods outside (others) or inside (e16) the install namespace that use
+# either fixed tag, as "namespace/name phase image..." lines.
+fixed_tag_pods() { # others|e16
+  kctl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.status.phase} {.spec.containers[*].image}{"\n"}{end}' |
+    awk -v scope="$1" -v ns="$INSTALL_NAMESPACE" -v cp="$CONTROL_PLANE_IMAGE" -v worker="$WORKER_IMAGE" '
+      $2 == "Succeeded" || $2 == "Failed" {next}
+      !(index($0, cp) || index($0, worker)) {next}
+      { split($1, p, "/"); if ((scope == "e16") == (p[1] == ns)) print }'
+}
+
+wait_no_fixed_tag_pods() { # others|e16
+  local _
+  for _ in $(seq 1 90); do
+    [ -z "$(fixed_tag_pods "$1")" ] && return 0
+    sleep 2
+  done
+  fixed_tag_pods "$1" >&2
+  return 1
+}
+
+# Copy an old control plane's in-memory Work list through its private API.
+# kubectl picks a free local port; the copy counts only if this port-forward
+# reported that port and stayed alive across the request, so another local
+# listener can never answer in its place.
+archive_other_work() { # namespace deployment file
+  local log pf port="" rc _
+  log="$(mktemp)"
+  kubectl --context "$CONTEXT" -n "$1" port-forward --address 127.0.0.1 "deployment/$2" :8081 >"$log" 2>&1 &
+  pf=$!
+  for _ in $(seq 1 50); do
+    port="$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9][0-9]*\) -> 8081$/\1/p' "$log" | head -1)"
+    [ -n "$port" ] && break
+    kill -0 "$pf" 2>/dev/null || break
+    sleep 0.2
+  done
+  if [ -z "$port" ] || ! kill -0 "$pf" 2>/dev/null; then
+    cat "$log" >&2
+    kill "$pf" 2>/dev/null || true
+    rm -f "$log"
+    return 1
+  fi
+  set +e
+  run curl -fsS --max-time 20 "http://127.0.0.1:$port/api/requests" >"$3"
+  rc=$?
+  set -e
+  kill -0 "$pf" 2>/dev/null || rc=1
+  kill "$pf" 2>/dev/null || true
+  wait "$pf" 2>/dev/null || true
+  rm -f "$log"
+  return "$rc"
+}
+
+# Work without an outcome is still active.
+active_work_count() { # file
+  node -e 'const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(!Array.isArray(v))process.exit(2);console.log(v.filter(w=>!w.outcome).length)' "$1"
+}
+
+state_complete() { grep -q '^complete ' "$1" 2>/dev/null; }
+
 protect() {
-  local state="$OUTPUT/protect-state.txt" archive kind namespace name replicas image
-  [ ! -s "$state" ] || fail "$state exists; run restore before protecting again"
+  local state="$OUTPUT/protect-state.txt" archive kind object namespace name replicas image id got file
+  [ ! -e "$state" ] || fail "$state exists (complete or interrupted); run restore before protecting again"
   other_installs >"$OUTPUT/protect-plan.txt"
-  info "plan: export node images for $CONTROL_PLANE_IMAGE and $WORKER_IMAGE, then scale to zero:"
+  if [ ! -s "$OUTPUT/protect-plan.txt" ]; then
+    printf 'complete %s nothing-to-protect\n' "$(stamp)" >"$state"
+    pass "no other install shares the fixed tags"
+    return 0
+  fi
+  info "plan: archive Work history, export node images for $CONTROL_PLANE_IMAGE and $WORKER_IMAGE, then stop:"
   sed 's/^/  /' "$OUTPUT/protect-plan.txt"
+  info "stopping a control plane discards its in-memory Work history; the plan archives it first"
   require_yes protect
-  mkdir -p "$OUTPUT/protected-images"
-  # Record first, so a failure part-way can still be restored.
+  mkdir -p "$OUTPUT/protected-images" "$OUTPUT/protected-work"
+  # Refuse before any change if history cannot be archived or Work is active.
+  while read -r object namespace name replicas; do
+    [ "$object" = Deployment ] || continue
+    file="$OUTPUT/protected-work/$namespace-$name.json"
+    archive_other_work "$namespace" "$name" "$file" || fail "could not archive Work history from $namespace/$name"
+    [ "$(active_work_count "$file")" = 0 ] || fail "$namespace/$name has active Work; wait for it to finish"
+  done <"$OUTPUT/protect-plan.txt"
+  # Record before mutating, so an interrupted protect can still be restored.
   : >"$state"
   for image in "$CONTROL_PLANE_IMAGE" "$WORKER_IMAGE"; do
-    archive="$OUTPUT/protected-images/${image//[:\/]/_}.tar"
-    printf 'image %s %s %s\n' "$image" "$(node_image_id "$image")" "$archive" >>"$state"
+    printf 'image %s %s %s\n' "$image" "$(node_image_id "$image")" "$OUTPUT/protected-images/${image//[:\/]/_}.tar" >>"$state"
   done
-  while read -r kind namespace name replicas; do
-    [ -n "$kind" ] && printf 'scale %s %s %s %s\n' "$kind" "$namespace" "$name" "$replicas" >>"$state"
+  while read -r object namespace name replicas; do
+    [ -n "$object" ] && printf 'scale %s %s %s %s\n' "$object" "$namespace" "$name" "$replicas" >>"$state"
   done <"$OUTPUT/protect-plan.txt"
   while read -r kind image id archive; do
-    [ "$kind" = image ] || continue
-    [ -n "$id" ] || { info "no node image for $image; nothing to protect"; continue; }
-    run docker exec "$(node_name)" ctr -n k8s.io images export "/tmp/e16-protect.tar" "docker.io/library/$image"
-    run docker cp "$(node_name):/tmp/e16-protect.tar" "$archive"
+    [ "$kind" = image ] && [ -n "$id" ] || continue
+    # The node /tmp is tmpfs, which docker cp cannot read; stream it instead.
+    run docker exec "$(node_name)" ctr -n k8s.io images export /tmp/e16-protect.tar "docker.io/library/$image"
+    run docker exec "$(node_name)" cat /tmp/e16-protect.tar >"$archive"
     run docker exec "$(node_name)" rm -f /tmp/e16-protect.tar
+    got="$(archive_config_digest "$archive" 2>/dev/null || true)"
+    [ -s "$archive" ] && [ "$got" = "$id" ] || fail "export of $image is incomplete (config $got, node $id)"
   done <"$state"
   while read -r kind object namespace name replicas; do
     [ "$kind" = scale ] || continue
@@ -160,18 +242,57 @@ protect() {
       SandboxWarmPool) kctl -n "$namespace" patch sandboxwarmpool "$name" --type merge -p '{"spec":{"replicas":0}}' ;;
     esac
   done <"$state"
-  record "protect $(wc -l <"$state" | tr -d ' ') entries"
-  pass "other installs stopped and their images exported; run restore after the campaign"
+  wait_no_fixed_tag_pods others || fail "other installs still run the fixed tags; protect is not complete"
+  printf 'complete %s\n' "$(stamp)" >>"$state"
+  record "protect complete"
+  pass "other installs stopped, history archived and images exported; run restore after the campaign"
 }
 
+# Load may proceed only after a complete protect whose effect still holds.
+require_protected() {
+  local state="$OUTPUT/protect-state.txt" kind object namespace name replicas current
+  [ -n "$(other_installs)" ] || return 0
+  state_complete "$state" || fail "protect is missing or incomplete; run protect (or restore after an interrupted one)"
+  while read -r object namespace name replicas; do
+    current="$replicas"
+    [ "${current:-0}" = 0 ] || fail "$object $namespace/$name is at $current replicas; protect no longer holds"
+  done < <(other_installs)
+  [ -z "$(fixed_tag_pods others)" ] || fail "pods outside $INSTALL_NAMESPACE still run the fixed tags"
+}
+
+wait_ready() { # namespace selector
+  local _
+  for _ in $(seq 1 90); do
+    if [ -n "$(kctl -n "$1" get pods -l "$2" -o name 2>/dev/null)" ] &&
+      kctl -n "$1" wait --for=condition=Ready pod -l "$2" --timeout=5s >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+# Restore stops the E16 install first (its in-memory evidence must already be
+# archived), re-imports any replaced image, restarts the other installs and
+# waits for them. Every step is safe to repeat after an interruption; the
+# state file is kept until the other installs are Ready again.
 restore() {
-  local state="$OUTPUT/protect-state.txt" kind image id archive object namespace name replicas now
-  [ -s "$state" ] || { info "no protect state; nothing to restore"; return 0; }
-  info "plan: re-import protected images and restore recorded replicas:"
+  local state="$OUTPUT/protect-state.txt" kind image id archive object namespace name replicas now pool
+  [ -e "$state" ] || { info "no protect state; nothing to restore"; return 0; }
+  info "plan: stop E16 pods on the fixed tags in $INSTALL_NAMESPACE (archive E16 evidence first),"
+  info "      re-import replaced images, restore replicas and wait until the other installs are Ready:"
   sed 's/^/  /' "$state"
   require_yes restore
+  kctl -n "$INSTALL_NAMESPACE" scale deployment agenova-control-plane --replicas=0 2>/dev/null || true
+  for pool in $(kctl -n "$INSTALL_NAMESPACE" get sandboxwarmpools -o name 2>/dev/null); do
+    kctl -n "$INSTALL_NAMESPACE" patch "$pool" --type merge -p '{"spec":{"replicas":0}}'
+  done
+  wait_no_fixed_tag_pods e16 || fail "E16 pods still run the fixed tags; nothing was restored"
   while read -r kind image id archive; do
     [ "$kind" = image ] && [ -n "$id" ] || continue
+    now="$(node_image_id "$image")"
+    [ "$now" = "$id" ] && continue
+    [ -s "$archive" ] && [ "$(archive_config_digest "$archive")" = "$id" ] || fail "no valid archive to restore $image ($id)"
     run kind load image-archive "$archive" --name "$(cluster_name)"
     now="$(node_image_id "$image")"
     [ "$now" = "$id" ] || fail "restored $image is $now, recorded $id"
@@ -183,17 +304,35 @@ restore() {
       SandboxWarmPool) kctl -n "$namespace" patch sandboxwarmpool "$name" --type merge -p "{\"spec\":{\"replicas\":$replicas}}" ;;
     esac
   done <"$state"
+  while read -r kind object namespace name replicas; do
+    [ "$kind" = scale ] && [ "${replicas:-0}" != 0 ] || continue
+    case "$object" in
+      Deployment) kctl -n "$namespace" rollout status "deployment/$name" --timeout=180s || fail "$namespace/$name is not Ready" ;;
+      SandboxWarmPool) wait_ready "$namespace" agents.x-k8s.io/warm-pool-sandbox || fail "$namespace/$name has no Ready worker" ;;
+    esac
+  done <"$state"
   mv "$state" "$state.restored-$(date -u +%Y%m%dT%H%M%SZ)"
   record "restore"
-  pass "protected images and replicas restored"
+  pass "other installs restored and Ready"
+}
+
+image_archive() { printf '%s/images/%s.tar' "$OUTPUT" "${1//[:\/]/_}"; }
+
+# The config digest is what containerd on the node reports as the image ID.
+archive_config_digest() {
+  tar -xOf "$1" manifest.json | grep -o '"Config":"blobs/sha256/[a-f0-9]*"' | head -1 | sed 's#.*blobs/sha256/#sha256:#; s#"$##'
 }
 
 image_line() { # name tag
   local id archive
   id="$(run docker image inspect -f '{{.Id}}' "$2")"
-  archive="$OUTPUT/images/${2//[:\/]/_}.tar"
+  archive="$(image_archive "$2")"
   run docker save -o "$archive" "$2"
-  printf '%s tag=%s content=%s archive-sha256=%s\n' "$1" "$2" "$id" "$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+  printf '%s tag=%s local-id=%s config=%s archive-sha256=%s\n' "$1" "$2" "$id" "$(archive_config_digest "$archive")" "$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+}
+
+build_one() { # name dockerfile tag context
+  run docker build --progress=plain -f "$2" -t "$3" "$4" 2>&1 | tee "$OUTPUT/build-$1.log"
 }
 
 # The probe tag must appear only in the probe binary's build settings.
@@ -219,14 +358,17 @@ build() {
   [ -z "$(git -C "$ROOT" status --porcelain)" ] || fail "working tree is not clean"
   info "plan: build $CONTROL_PLANE_IMAGE, $WORKER_IMAGE, $(fixture_image), $(probe_image) and the CLI from $(source_sha)"
   mkdir -p "$OUTPUT/images" "$OUTPUT/bin"
-  run docker build -f "$ROOT/deploy/reference/Dockerfile" -t "$CONTROL_PLANE_IMAGE" "$ROOT"
-  run docker build -f "$ROOT/harness/integration/agentsandbox/testworker/Dockerfile" -t "$WORKER_IMAGE" "$ROOT"
-  run docker build -f "$ROOT/harness/integration/mcpfixture/Dockerfile" -t "$(fixture_image)" "$ROOT/harness/integration/mcpfixture"
-  run docker build -f "$SCRIPT_DIR/probe.Dockerfile" -t "$(probe_image)" "$ROOT"
+  build_one control-plane "$ROOT/deploy/reference/Dockerfile" "$CONTROL_PLANE_IMAGE" "$ROOT"
+  build_one worker "$ROOT/harness/integration/agentsandbox/testworker/Dockerfile" "$WORKER_IMAGE" "$ROOT"
+  build_one fixture "$ROOT/harness/integration/mcpfixture/Dockerfile" "$(fixture_image)" "$ROOT/harness/integration/mcpfixture"
+  build_one probe "$SCRIPT_DIR/probe.Dockerfile" "$(probe_image)" "$ROOT"
   (cd "$ROOT" && GOTOOLCHAIN=go1.22.12 run go build -o "$(cli)" ./cmd/agenova)
   {
     echo "source $(source_sha)"
-    echo "builder golang:1.22-alpine $(run docker image inspect -f '{{index .RepoDigests 0}}' golang:1.22-alpine 2>/dev/null || echo unresolved)"
+    # Base images as BuildKit actually resolved them for each build.
+    for name in control-plane worker fixture probe; do
+      grep -ho 'FROM [^ ]*@sha256:[a-f0-9]*' "$OUTPUT/build-$name.log" | sort -u | sed "s/^/base $name /"
+    done
     image_line control-plane "$CONTROL_PLANE_IMAGE"
     image_line worker "$WORKER_IMAGE"
     image_line fixture "$(fixture_image)"
@@ -237,18 +379,35 @@ build() {
   record "build $(source_sha)"
 }
 
+# The archive about to be loaded must be the one build recorded for this commit.
+verify_recorded_archive() { # tag
+  local identity="$OUTPUT/build-identity.txt" archive line want_config want_sha
+  [ -s "$identity" ] || fail "no build identity; run build first"
+  [ "$(sed -n 's/^source //p' "$identity")" = "$(source_sha)" ] || fail "build identity is for another commit; rebuild"
+  line="$(grep " tag=$1 " "$identity" || true)"
+  [ -n "$line" ] || fail "build identity has no record for $1"
+  want_config="$(printf '%s' "$line" | sed -n 's/.* config=\([^ ]*\).*/\1/p')"
+  want_sha="$(printf '%s' "$line" | sed -n 's/.* archive-sha256=\([^ ]*\).*/\1/p')"
+  archive="$(image_archive "$1")"
+  [ -s "$archive" ] || fail "no recorded archive for $1"
+  [ "$(shasum -a 256 "$archive" | cut -d' ' -f1)" = "$want_sha" ] || fail "archive for $1 does not match its recorded hash"
+  [ "$(archive_config_digest "$archive")" = "$want_config" ] || fail "archive for $1 does not match its recorded config"
+}
+
 load() {
-  local state="$OUTPUT/protect-state.txt" image want got
-  if [ -n "$(other_installs)" ] && [ ! -s "$state" ]; then
-    fail "other installs share the fixed image tags; run protect first"
-  fi
-  info "plan: kind load $CONTROL_PLANE_IMAGE $WORKER_IMAGE $(fixture_image) $(probe_image) into $(cluster_name)"
+  local image want got
+  [ -z "$(git -C "$ROOT" status --porcelain)" ] || fail "working tree is not clean"
+  require_protected
+  for image in "$CONTROL_PLANE_IMAGE" "$WORKER_IMAGE" "$(fixture_image)" "$(probe_image)"; do
+    verify_recorded_archive "$image"
+  done
+  info "plan: kind load the recorded archives for $CONTROL_PLANE_IMAGE $WORKER_IMAGE $(fixture_image) $(probe_image) into $(cluster_name)"
   require_yes load
   for image in "$CONTROL_PLANE_IMAGE" "$WORKER_IMAGE" "$(fixture_image)" "$(probe_image)"; do
-    run kind load docker-image "$image" --name "$(cluster_name)"
-    want="$(run docker image inspect -f '{{.Id}}' "$image")"
+    run kind load image-archive "$(image_archive "$image")" --name "$(cluster_name)"
+    want="$(archive_config_digest "$(image_archive "$image")")"
     got="$(node_image_id "$image")"
-    [ "$want" = "$got" ] || fail "node image for $image is $got, local content is $want"
+    [ -n "$want" ] && [ "$want" = "$got" ] || fail "node image for $image is $got, recorded config is $want"
     printf 'node-image %s %s\n' "$image" "$got" | tee -a "$OUTPUT/load-identity.txt"
   done
   record "load"
