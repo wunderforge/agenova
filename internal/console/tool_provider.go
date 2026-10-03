@@ -25,6 +25,11 @@ type providerToolAdapter struct {
 	results      map[string]workerprotocol.Reply
 }
 
+// errToolEvidence reports that a tool decision, attempt or outcome could not
+// be recorded. After an attempt it means the external effect is unknown, so
+// it must never read as an ordinary tool failure or as zero activity.
+var errToolEvidence = errors.New("tool evidence recording failed")
+
 func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 	// A mismatched claim cannot be attributed safely, so nothing is recorded.
 	// The service binds both sides, so this is a correlation guard only.
@@ -40,12 +45,12 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 	// never stays half-recorded. The provider is not called.
 	reject := func(status, code, reason string, cause error) error {
 		if _, err := a.appendFact(fact); err != nil {
-			return err
+			return errToolEvidence
 		}
 		outcome := fact
 		outcome.Kind, outcome.ProviderStatus, outcome.ReasonCode, outcome.Reason = "ProviderOutcome", status, code, reason
 		if _, err := a.appendFact(outcome); err != nil {
-			return errors.New("tool outcome recording failed")
+			return errToolEvidence
 		}
 		return cause
 	}
@@ -59,7 +64,7 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		return reject("Failed", "tool-arguments-rejected", "The tool arguments are not configured for this operation and resource; no call was made.", err)
 	}
 	if _, err := a.appendFact(fact); err != nil {
-		return err
+		return errToolEvidence
 	}
 	result, invokeErr := a.tools.Invoke(a.ctx, toolbackend.Invocation{ID: id, ClaimID: a.claimID, Operation: operation, ResourceScope: req.ResourceScope, Parameters: req.Parameters})
 	fact.Kind = "ProviderOutcome"
@@ -90,7 +95,7 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		}
 	}
 	if _, err := a.appendFact(fact); err != nil {
-		return errors.New("tool outcome recording failed")
+		return errToolEvidence
 	}
 	if invokeErr != nil {
 		return invokeErr

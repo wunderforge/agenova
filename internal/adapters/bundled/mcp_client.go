@@ -307,8 +307,12 @@ func (m rpcMessage) response(id int) (json.RawMessage, bool, error) {
 	return m.Result, true, nil
 }
 
-// readEventStream reads SSE events until the response for id arrives. The
-// whole stream shares one byte budget.
+// readEventStream reads SSE events until the response for id arrives, then
+// reads the rest of the stream to its end. The whole stream, including
+// anything after the response, shares one byte budget, so a valid result
+// followed by an oversized tail is still rejected. Streamable HTTP servers
+// close the stream after the response; one that keeps it open runs into the
+// invocation deadline.
 func readEventStream(body io.Reader, id int) (json.RawMessage, error) {
 	reader := bufio.NewReaderSize(body, 4096)
 	var data strings.Builder
@@ -337,6 +341,9 @@ func readEventStream(body io.Reader, id int) (json.RawMessage, error) {
 				return nil, err
 			}
 			if matched {
+				if _, err := io.Copy(io.Discard, reader); err != nil {
+					return nil, err
+				}
 				return result, nil
 			}
 		case strings.HasPrefix(line, "data:"):

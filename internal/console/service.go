@@ -257,6 +257,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	}
 	var observed *evidence.ModelResult
 	var modelText string
+	toolEvidenceFailed := false
 	final, runErr := s.runner.RunContext(ctx, p.Issued, launch, func(ctx context.Context) error {
 		snapshot, ok := s.runner.ClaimAuthority(claimID)
 		if !ok || snapshot.Claim.BackendIdentity == nil {
@@ -286,8 +287,10 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				code = "within-effective-authority"
 				reason = "Allowed tool within active claim authority."
 			}
-			_, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
-			return err
+			if _, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action}); err != nil {
+				return errToolEvidence
+			}
+			return nil
 		}))
 		workTools := s.workCatalog(&snapshot.EffectiveAuthority)
 		workSchema, err := workerprotocol.ActionSchema(workTools)
@@ -315,6 +318,10 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				}
 				tool, action := toolbackend.SplitOperation(op.Tool)
 				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: map[string]string{parameter: op.Input}})
+				if errors.Is(err, errToolEvidence) {
+					toolEvidenceFailed = true
+					return workerprotocol.Reply{}, errToolEvidence
+				}
 				if err != nil {
 					return workerprotocol.Reply{}, errors.New("tool execution failed; inspect evidence")
 				}
@@ -373,6 +380,10 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
 		})
+		// A lost tool record fails the Work even if the worker carried on.
+		if toolEvidenceFailed {
+			return errToolEvidence
+		}
 		if err != nil {
 			return err
 		}
@@ -400,6 +411,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	code := "run-" + status
 	if runErr != nil {
 		code, outcome.Failure = runFailure(runErr, s.journal.ForRequest(ref))
+		if toolEvidenceFailed {
+			code, outcome.Failure = "tool-evidence-failed", "A governed tool call could not be fully recorded. If a provider attempt is recorded, treat its external effect as unknown."
+		}
 	}
 	_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: code, Reason: outcome.Failure})
 	s.mu.Lock()

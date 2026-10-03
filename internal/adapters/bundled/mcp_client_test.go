@@ -224,6 +224,80 @@ func TestMCPClientEnforcesResponseByteLimit(t *testing.T) {
 	}
 }
 
+// N7: the cap applies to the whole wire body, whatever its framing: an
+// event stream counts every event, including notifications before the
+// result, and a chunked body without Content-Length is counted as it streams.
+func TestMCPClientResponseLimitCoversEventStreamsAndChunkedBodies(t *testing.T) {
+	text := strings.Repeat("y", 400)
+	result := func(id json.RawMessage) string {
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{"content": []map[string]any{{"type": "text", "text": text}}}})
+		return string(body)
+	}
+	note := `{"jsonrpc":"2.0","method":"notifications/progress","params":{"progress":1,"message":"` + strings.Repeat("z", 300) + `"}}`
+	for name, tc := range map[string]struct {
+		contentType string
+		body        func(json.RawMessage) string
+		chunked     bool
+	}{
+		"event stream":                         {"text/event-stream", func(id json.RawMessage) string { return "data: " + result(id) + "\n\n" }, false},
+		"event stream with large notification": {"text/event-stream", func(id json.RawMessage) string { return "data: " + note + "\n\ndata: " + result(id) + "\n\n" }, false},
+		"chunked json":                         {"application/json", result, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var size int
+			onCall := func(w http.ResponseWriter, id json.RawMessage) {
+				body := tc.body(id)
+				size = len(body)
+				w.Header().Set("Content-Type", tc.contentType)
+				if !tc.chunked {
+					_, _ = io.WriteString(w, body)
+					return
+				}
+				for start := 0; start < len(body); start += 64 {
+					end := min(start+64, len(body))
+					_, _ = io.WriteString(w, body[start:end])
+					w.(http.Flusher).Flush()
+				}
+			}
+			fake, server := startFake(t, onCall)
+			// Learn the exact wire size with a generous limit, then probe both sides of it.
+			if _, err := testClient(server.URL, 1<<20).Invoke(context.Background(), readCall("README.md")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := testClient(server.URL, size-1).Invoke(context.Background(), readCall("README.md")); !errors.Is(err, toolbackend.ErrResponseTooLarge) {
+				t.Fatalf("one byte over the limit: error %v, want response too large", err)
+			}
+			if got, err := testClient(server.URL, size).Invoke(context.Background(), readCall("README.md")); err != nil || got.Text != text {
+				t.Fatalf("a body exactly at the limit must pass: %v", err)
+			}
+			if calls := fake.calls("tools/call"); calls != 3 {
+				t.Fatalf("tools/call sent %d times for three invocations; a rejected response must not be replayed", calls)
+			}
+		})
+	}
+}
+
+// N7: a valid result does not end the byte budget; an oversized tail after it
+// still fails the call, and no observation is returned.
+func TestMCPClientRejectsOversizedEventStreamTailAfterResult(t *testing.T) {
+	tail := ": " + strings.Repeat("c", 2000) + "\n\n"
+	fake, server := startFake(t, func(w http.ResponseWriter, id json.RawMessage) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{"content": []map[string]any{{"type": "text", "text": "ok"}}}})
+		_, _ = io.WriteString(w, "data: "+string(body)+"\n\n"+tail)
+	})
+	result, err := testClient(server.URL, 256).Invoke(context.Background(), readCall("README.md"))
+	if !errors.Is(err, toolbackend.ErrResponseTooLarge) || result.Text != "" {
+		t.Fatalf("result %+v error %v, want response too large and no observation", result, err)
+	}
+	if fake.calls("tools/call") != 1 {
+		t.Fatal("tools/call must not be replayed")
+	}
+	if _, err := testClient(server.URL, 4096).Invoke(context.Background(), readCall("README.md")); err != nil {
+		t.Fatalf("the same stream within the limit must pass: %v", err)
+	}
+}
+
 func TestMCPClientRejectsBeforeNetworkWhenRequestIsTooLarge(t *testing.T) {
 	fake, server := startFake(t, jsonResult("x"))
 	client := testClient(server.URL, 65536)

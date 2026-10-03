@@ -61,7 +61,7 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 	}
 	target := "Mock git.read · " + req.Parameters["file"]
 	if _, err := a.service.appendTool(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "mock-tool", ProviderStatus: "Attempted"}); err != nil {
-		return err
+		return errToolEvidence
 	}
 	reply := workerprotocol.Reply{Allowed: true, Text: mockArtifacts[req.Parameters["file"]]}
 	status := "Succeeded"
@@ -78,7 +78,7 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 		return err
 	}
 	if _, err := a.service.appendTool(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: code, Reason: reason, ProviderStatus: status}); err != nil {
-		return err
+		return errToolEvidence
 	}
 	a.results[id] = reply
 	return nil
