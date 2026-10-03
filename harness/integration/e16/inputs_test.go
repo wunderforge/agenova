@@ -63,6 +63,12 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 			t.Fatalf("%s allows %v, want %v", scope, routes[scope], files)
 		}
 	}
+	// evidence/work.go judges N8 against this cap.
+	for _, route := range resolved.ToolRoutes {
+		if route.MaxObservationBytes != 4096 {
+			t.Fatalf("route %s observation cap %d, the Work oracle assumes 4096", route.Profile, route.MaxObservationBytes)
+		}
+	}
 	namespace, _ := input.Spec.Infrastructure.Deployment.Config["namespace"].(string)
 	if namespace != "agenova-e16-system" {
 		t.Fatalf("control plane namespace %q", namespace)
@@ -88,11 +94,14 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		scope   string
 		project string
 		file    string
+		facts   []string
 	}{
-		"work-positive.yaml":       {scope: "repo:agenova/e16-fixture", project: "payments", file: "logs/timeout.log"},
+		"work-positive.yaml": {scope: "repo:agenova/e16-fixture", project: "payments", file: "logs/timeout.log", facts: []string{
+			"deadline_resets_each_attempt", "first_attempt_seconds", "backoff_seconds", "total_deadline_seconds", "budget_exceeded", "stable_idempotency_key_needed",
+			"fix_shares_one_deadline_across_attempts", "fix_reuses_one_idempotency_key_across_retries"}},
 		"work-n6-timeout.yaml":     {scope: "repo:agenova/e16-faults", project: "payments", file: "logs/slow.log"},
 		"work-n7-oversize.yaml":    {scope: "repo:agenova/e16-faults", project: "payments", file: "logs/full-trace.log"},
-		"work-n8-truncation.yaml":  {scope: "repo:agenova/e16-faults", project: "payments", file: "notes/incident-timeline.md"},
+		"work-n8-truncation.yaml":  {scope: "repo:agenova/e16-faults", project: "payments", file: "notes/incident-timeline.md", facts: []string{"timeline_complete"}},
 		"work-admission-deny.yaml": {scope: "repo:agenova/e16-fixture", project: "billing"},
 	} {
 		request, verr := v0.ParseClaimRequestYAML(read(t, name))
@@ -106,6 +115,11 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		objective, _ := request.Spec.Task.Input["objective"].(string)
 		if tc.file != "" && !strings.Contains(objective, tc.file) {
 			t.Fatalf("%s objective does not name %s", name, tc.file)
+		}
+		for _, key := range tc.facts {
+			if !strings.Contains(objective, "\n"+key+": ") {
+				t.Fatalf("%s objective does not ask for the %s fact line", name, key)
+			}
 		}
 	}
 }

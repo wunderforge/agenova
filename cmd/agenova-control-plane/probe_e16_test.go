@@ -69,8 +69,10 @@ type probeReceipt struct {
 	ObservedError string   `json:"observedError,omitempty"`
 	ToolFacts     []string `json:"toolFacts"`
 	ReasonCodes   []string `json:"reasonCodes"`
-	// InjectedFailures counts journal faults the probe actually triggered.
-	InjectedFailures int32 `json:"injectedFailures,omitempty"`
+	// InjectedFailures counts journal faults the probe actually triggered;
+	// InjectedFact is the fact that was refused (kind:result:status).
+	InjectedFailures int32  `json:"injectedFailures,omitempty"`
+	InjectedFact     string `json:"injectedFact,omitempty"`
 	// DoubleCalls is the local dry-run provider count; nil against MCP,
 	// where the server logs are the only call evidence.
 	DoubleCalls *int32 `json:"doubleCalls,omitempty"`
@@ -418,25 +420,29 @@ func TestE16Probes(t *testing.T) {
 	env := loadProbeEnv(t)
 
 	injected := map[string]*atomic.Int32{}
+	refused := map[string]*atomic.Value{}
 	failKind := func(kind string) func(func(facts.Fact) (facts.Fact, error)) func(facts.Fact) (facts.Fact, error) {
-		counter := &atomic.Int32{}
-		injected[kind] = counter
+		counter, fact := &atomic.Int32{}, &atomic.Value{}
+		injected[kind], refused[kind] = counter, fact
 		return func(next func(facts.Fact) (facts.Fact, error)) func(facts.Fact) (facts.Fact, error) {
 			return func(f facts.Fact) (facts.Fact, error) {
 				if f.Kind == kind && f.Operation == "tool.invoke" {
 					counter.Add(1)
+					fact.Store(strings.Join([]string{f.Kind, string(f.Result), f.ProviderStatus}, ":"))
 					return facts.Fact{}, errors.New("probe injected " + kind + " journal failure")
 				}
 				return next(f)
 			}
 		}
 	}
-	fired := func(kind string) int32 {
+	fired := func(kind string) (int32, string) {
 		if counter := injected[kind]; counter != nil {
-			return counter.Load()
+			summary, _ := refused[kind].Load().(string)
+			return counter.Load(), summary
 		}
-		return 0
+		return 0, ""
 	}
+	const evidenceFailure = "tool evidence recording failed"
 
 	// zeroCall runs one rejection inside a Work, framed by positive controls.
 	zeroCall := func(t *testing.T, caseName string, scopes []string, fault string, op func(task workerprotocol.Task) workerprotocol.Operation, point string, pass func(probeReceipt) bool) {
@@ -450,7 +456,7 @@ func TestE16Probes(t *testing.T) {
 			r, _, _ := step(env, service, ref, h, ctx, op(task))
 			r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = caseName, "probe", env.provider, point, 0
 			if fault != "" {
-				r.InjectedFailures = fired(fault)
+				r.InjectedFailures, r.InjectedFact = fired(fault)
 			}
 			r.Pass = pass(r) && (r.DoubleCalls == nil || *r.DoubleCalls == 0)
 			emit(t, r)
@@ -483,14 +489,14 @@ func TestE16Probes(t *testing.T) {
 		zeroCall(t, "N5a", []string{probeFixtureScope}, "ToolDecision", func(task workerprotocol.Task) workerprotocol.Operation {
 			return toolOp(task.ClaimID, probeFixtureScope, probeFile)
 		}, "ToolDecision journal append", func(r probeReceipt) bool {
-			return r.InjectedFailures == 1 && r.ObservedError != "" && len(r.ToolFacts) == 0
+			return r.InjectedFailures == 1 && r.InjectedFact == "ToolDecision:Allow:" && r.ObservedError == evidenceFailure && len(r.ToolFacts) == 0
 		})
 	})
 	t.Run("N5b", func(t *testing.T) {
 		zeroCall(t, "N5b", []string{probeFixtureScope}, "ProviderAttempt", func(task workerprotocol.Task) workerprotocol.Operation {
 			return toolOp(task.ClaimID, probeFixtureScope, probeFile)
 		}, "ProviderAttempt journal append", func(r probeReceipt) bool {
-			return r.InjectedFailures == 1 && r.ObservedError != "" && hasOnly(r.ToolFacts, "ToolDecision:Allow")
+			return r.InjectedFailures == 1 && r.InjectedFact == "ProviderAttempt::Attempted" && r.ObservedError == evidenceFailure && hasOnly(r.ToolFacts, "ToolDecision:Allow")
 		})
 	})
 	t.Run("N3", func(t *testing.T) { probeCrossClaim(t, env) })
@@ -502,8 +508,10 @@ func TestE16Probes(t *testing.T) {
 		runInWork(t, env, "n11", []string{probeFixtureScope}, failKind("ProviderOutcome"), func(ctx context.Context, task workerprotocol.Task, h workerprotocol.Handler, service *console.Service) {
 			r, _, _ := step(env, service, "n11", h, ctx, toolOp(task.ClaimID, probeFixtureScope, probeFile))
 			r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = "N11", "probe", env.provider, "ProviderOutcome journal append after the call", 1
-			r.InjectedFailures = fired("ProviderOutcome")
-			r.Pass = r.InjectedFailures == 1 && r.ObservedError != "" && hasOnly(r.ToolFacts, "ToolDecision:Allow", "ProviderAttempt:Attempted") && (r.DoubleCalls == nil || *r.DoubleCalls == 1)
+			// The refused outcome must be the provider's success: a failed call
+			// whose record is lost would prove nothing about N11.
+			r.InjectedFailures, r.InjectedFact = fired("ProviderOutcome")
+			r.Pass = r.InjectedFailures == 1 && r.InjectedFact == "ProviderOutcome::Succeeded" && r.ObservedError == evidenceFailure && hasOnly(r.ToolFacts, "ToolDecision:Allow", "ProviderAttempt:Attempted") && (r.DoubleCalls == nil || *r.DoubleCalls == 1)
 			emit(t, r)
 		})
 	})

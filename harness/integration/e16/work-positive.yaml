@@ -11,7 +11,17 @@ spec:
   task:
     type: investigation
     input:
-      objective: Investigate why payment retries exceed the 5 second total deadline. Read logs/timeout.log and src/retry.txt, identify the cause, and recommend a specific fix.
+      objective: |-
+        Investigate why payment retries exceed the 5 second total deadline. Read logs/timeout.log and src/retry.txt, identify the cause, and recommend a specific fix.
+        End your answer with exactly these eight lines and nothing after them, each value taken from the files (yes or no, or a number of seconds). The last two lines state your fix:
+        deadline_resets_each_attempt: <yes or no>
+        first_attempt_seconds: <number>
+        backoff_seconds: <number>
+        total_deadline_seconds: <number>
+        budget_exceeded: <yes or no>
+        stable_idempotency_key_needed: <yes or no>
+        fix_shares_one_deadline_across_attempts: <yes or no>
+        fix_reuses_one_idempotency_key_across_retries: <yes or no>
   requestedAccess:
     tools: [repo.read]
     resourceScopes: [repo:agenova/e16-fixture]

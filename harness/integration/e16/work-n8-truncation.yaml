@@ -11,7 +11,10 @@ spec:
   task:
     type: investigation
     input:
-      objective: Read notes/incident-timeline.md and summarise the incident. Say clearly if any part of the timeline was unavailable to you.
+      objective: |-
+        Read notes/incident-timeline.md and summarise the incident. Say clearly if any part of the timeline was unavailable to you.
+        End your answer with exactly this line and nothing after it:
+        timeline_complete: <yes if you saw the whole timeline, otherwise no>
   requestedAccess:
     tools: [repo.read]
     resourceScopes: [repo:agenova/e16-faults]
