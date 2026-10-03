@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-n8-truncation
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Read notes/incident-timeline.md and summarise the incident. Say clearly if any part of the timeline was unavailable to you.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-faults]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

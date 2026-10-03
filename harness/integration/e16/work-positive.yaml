@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-positive
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Investigate why payment retries exceed the 5 second total deadline. Read logs/timeout.log and src/retry.txt, identify the cause, and recommend a specific fix.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-fixture]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m
