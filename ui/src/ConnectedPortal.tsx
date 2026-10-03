@@ -218,6 +218,7 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
           <Field label="Permission" value={fact.result || fact.decision?.result}/>
           <Field label="Provider outcome" value={fact.providerStatus}/>
           {fact.resultRef && <Field label="Result reference" value={fact.resultRef}/>}
+          {fact.truncated && <Field label="Observation" value="Truncated to the configured observation limit"/>}
           <Field label="Claim" value={fact.claimId}/><Field label="Invocation" value={fact.invocationId}/>
           <Field label="Policy" value={policy ? `${policy.id} / ${policy.version}` : undefined}/>
         </div>

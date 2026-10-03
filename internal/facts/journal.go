@@ -39,6 +39,10 @@ type Fact struct {
 	// ResultRef names the external result of a successful tool call. It is
 	// separate from Target, which stays equal across attempt and outcome.
 	ResultRef string `json:"resultRef,omitempty"`
+	// Truncated marks a successful tool outcome whose observation was cut to
+	// the configured budget. Absence is not proof that an observation was
+	// complete: facts recorded before this field existed never carry it.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // ValidResultRef accepts a bounded logical reference, never a fetchable URL.
@@ -180,6 +184,9 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 	}
 	if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !ValidResultRef(fact.ResultRef)) {
 		return Fact{}, fmt.Errorf("result reference is only valid on a successful tool outcome")
+	}
+	if fact.Truncated && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded") {
+		return Fact{}, fmt.Errorf("truncation is only valid on a successful tool outcome")
 	}
 	if fact.Kind == "ProviderOutcome" {
 		if fact.InvocationID == "" || !stage.attempted || stage.completed || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {

@@ -130,6 +130,7 @@ export interface Fact {
   sequence: number;
   target?: string;
   timestamp: string;
+  truncated?: boolean;
 }
 export interface IssuedState {
   action: Action;
@@ -931,6 +932,12 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      },
+      "truncated": {
+        "shape": {
+          "kind": "boolean"
+        },
+        "optional": true
       }
     }
   },

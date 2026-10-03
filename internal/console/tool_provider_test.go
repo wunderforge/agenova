@@ -138,6 +138,9 @@ func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments
 				if f.Kind == "ProviderOutcome" && f.Operation == "tool.invoke" && f.ResultRef != "artifact:readme" {
 					t.Fatalf("successful outcome lacks its separate result reference: %+v", f)
 				}
+				if f.Truncated {
+					t.Fatalf("an observation within its budget was marked truncated: %+v", f)
+				}
 			}
 			if decision != tc.decision || view.Outcome.Status != tc.status {
 				t.Fatalf("decision %q status %q, want %q %q", decision, view.Outcome.Status, tc.decision, tc.status)
@@ -219,6 +222,9 @@ func TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow(t *testi
 				reply := adapter.results[decision.InvocationID]
 				if err != nil || !reply.Untrusted || !reply.Truncated || !strings.Contains(reply.Text, "[TRUNCATED]") {
 					t.Fatalf("reply=%+v err=%v", reply, err)
+				}
+				if outcome := recorded[len(recorded)-1]; outcome.Kind != "ProviderOutcome" || outcome.ProviderStatus != "Succeeded" || !outcome.Truncated {
+					t.Fatalf("truncation is not visible in the outcome evidence: %+v", outcome)
 				}
 			}
 			if name == "outcome-record" && err == nil {

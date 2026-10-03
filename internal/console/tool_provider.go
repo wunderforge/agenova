@@ -67,6 +67,9 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 	if invokeErr == nil && facts.ValidResultRef(result.ResultRef) {
 		fact.ResultRef = result.ResultRef
 	}
+	if invokeErr == nil {
+		fact.Truncated = result.Truncated
+	}
 	if invokeErr != nil {
 		fact.ProviderStatus = "Failed"
 		fact.ReasonCode = "tool-provider-failed"

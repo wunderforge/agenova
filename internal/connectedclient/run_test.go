@@ -1397,6 +1397,10 @@ func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.
 	if _, err := decodeView([]byte(withFacts(decision, attempt, succeeded)), "demo"); err != nil {
 		t.Fatalf("a differing external resultRef must be accepted: %v", err)
 	}
+	truncated := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", ref+`,"truncated":true`)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, truncated)), "demo"); err != nil {
+		t.Fatalf("a truncated successful observation must be accepted: %v", err)
+	}
 	// S2: a post-Allow rejection completes the invocation with a Failed outcome.
 	rejected := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", `,"reasonCode":"tool-arguments-rejected"`)
 	if _, err := decodeView([]byte(withFacts(decision, attempt, rejected)), "demo"); err != nil {
@@ -1409,6 +1413,8 @@ func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.
 		"resultRef on attempt":         withFacts(decision, fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", ref), succeeded),
 		"resultRef on failure":         withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", ref)),
 		"resultRef is a URL":           withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", `,"resultRef":"http://e16-mcp/mcp"`)),
+		"truncated on attempt":         withFacts(decision, fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", `,"truncated":true`), succeeded),
+		"truncated on failure":         withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", `,"truncated":true`)),
 	} {
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 			t.Errorf("%s accepted", name)
