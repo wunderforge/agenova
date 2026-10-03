@@ -64,6 +64,20 @@ The packet requires real-server proof for the five zero-call cases and an explic
 | N12 injected instruction text | deterministic forged-action probe; a real run only shows the text is labelled untrusted | Required (deterministic) |
 | Admission Deny (no claim, no worker, no calls) | kind, CLI/UI regression | Required, never a substitute for N1 |
 
+### Deterministic coverage map
+
+| Case | Deterministic test |
+| --- | --- |
+| N6 | `TestMCPClientFailuresAreClassifiedWithoutReplay/slow_server` |
+| N7 | `TestMCPClientEnforcesResponseByteLimit`, `TestMCPClientResponseLimitCoversEventStreamsAndChunkedBodies` (event stream, large notification before the result, chunked body without Content-Length), `TestMCPClientRejectsOversizedEventStreamTailAfterResult` (the cap covers the stream after the result) |
+| N8 | `TestSetBoundsUntrustedResultsWithoutChangingCallerParameters` (UTF-8 cut), `TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow/allow` (markers and `truncated` evidence) |
+| N9 | `TestToolConfigAndRoutesFailClosed`, `TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock`, `TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory` (`tool_unsupported`) |
+| N10 | `TestMCPClientUnreachableServerIsUnavailable`, `TestMCPClientFailuresAreClassifiedWithoutReplay`, `TestMCPClientHandshakeFailuresStopBeforeToolCall` |
+| N11 | `TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow/outcome-record` (returns the tool evidence error), `TestProbeAppendWrapperFailsBeforeProviderCall` (Work outcome `tool-evidence-failed`); server-backed in the probe Job, which asserts the refused outcome was `Succeeded` |
+| N12 | `TestInjectedToolTextCannotWidenAuthority` |
+
+Recording failures are explicit. A ToolDecision, ProviderAttempt or ProviderOutcome that cannot be recorded returns `tool evidence recording failed` to the worker and ends the Work with reason `tool-evidence-failed`, never an ordinary tool failure. The Tool Gateway now wraps its decision-observer error with `%w` (`internal/toolgateway/gateway.go`), the only change in that package; E14 (#197) and E18 also touch it.
+
 ## 4. Code and configuration gaps
 
 All of these land on `codex/e16-slice1` as separate commits.
@@ -112,9 +126,23 @@ Backend config: `timeout` 5s, `max-response-bytes` 65536, `max-observation-bytes
 
 A script under `harness/integration/e16/` that requires `--context`, `--install-namespace` (default proposal `agenova-e16-system`, kept separate from any existing `agenova-system` install), a dedicated CLI state directory, `--output` and the model profile. The E16 Platform sets the control-plane and runtime namespaces to the same value, which the installer enforces (`validateReferenceRuntime`, `kubernetes.go:76`). Because the control-plane and worker image tags are shared on the node (Phase 1), the runner protects any existing install before loading images: it records the node image IDs currently behind those two tags, exports them from the node's containerd store to an archive under the local output directory, and after the campaign re-imports that archive and verifies the restored image IDs match the record. Marking the old install out of scope is not enough, because a restart would otherwise pick up the E16 images. The runner also refuses a probe Job whose `go test` output shows the probe test skipped, or whose `E16_PROBE` receipts are missing, duplicated or failing for any expected case and step, even when the Job exits 0. The runner refuses to run without its required arguments, passes `--context` on every `kubectl` call, checks the `kind load` cluster name against the context, and stops if ownership is unclear. It never deletes or recreates an existing cluster and never runs `platform apply` while a Work is active.
 
+G5 also enforces, rather than only records, the campaign's integrity:
+
+- Every Kubernetes inventory query fails closed: a failed or unreachable query never reads as "nothing installed" or "nothing running", and fixed-tag Pods without a known controller block `protect`.
+- Image identity at every stage: the node tag must still be the recorded config, and each running Pod's `imageID` must resolve to it. kind-loaded images appear in Pod status as `docker.io/library/import-<date>@sha256:…`, which only the node image list (`crictl images`) maps back to the image ID. The claimed worker named in the Work evidence must have been captured on the recorded worker image.
+- Log continuity: fixture and control-plane collectors must start cleanly and stay alive; the collector output is frozen (complete records only) before each complete snapshot and every frozen line must appear in it (missing or unreadable files fail); the fixture Pod identity and restart count must match its start record.
+- The control-plane Pod, its image and restart count are rechecked against the install record before and after every production Work.
+- `work <name>` runs one Work, then checks it with `evidence work` (below) and archives its parity immediately. Each Work and each probe run is recorded once per campaign directory.
+- `--model-profile` is required and must exist in both `platform.yaml` and the template ceiling.
+
+The evidence checker (`harness/integration/e16/evidence`) decides calls from the server log alone:
+
+- Probe mode fixes the expected `tools/call` count per case and step; the receipt's own count is ignored. Invocation IDs must be unique across steps, step windows must not overlap, every correlated server entry must fall inside its own step's window, and any server entry inside the probe campaign that belongs to no step fails the run, including malformed or unparseable requests.
+- Work mode (`evidence work -case <name>`) checks one production Work: each attempted invocation made exactly one `tools/call` for an allowed file, denied invocations never reached the server, nothing unattributed happened during the Work, N6/N7 failed with exactly `tool-timeout` on `logs/slow.log` or `tool-response-too-large` on `logs/full-trace.log`, N8 has a truncated successful read of `notes/incident-timeline.md` and an answer admitting incomplete data, and the answer facts match. Pattern matching on prose was tried and could not prove meaning (negations, unrelated mentions, reversed claims all passed), so the positive and N8 objectives ask the agent to end its answer with a fixed facts block: the answer's final lines, each exactly `key: value` in plain text, with nothing after them. The positive block states the diagnosis (fresh per-attempt deadline, first attempt 4s, backoff 2s, deadline 5s, budget exceeded, stable idempotency key needed) and the requested fix in structured form (share one deadline across attempts, reuse one idempotency key across retries); N8 states `timeline_complete`. The checker derives every expected value from the fixture dataset (the retry summary must use one of two supported statements of the deadline behaviour, otherwise the dataset is rejected; N8 compares the timeline with the 4,096-byte observation cap) and requires each key exactly once in the final block and nowhere earlier in the answer, in any case or quoting. A fenced block, a block inside an unclosed fence, or text after it is not a facts block. Prose before the block is not judged. An agent that ignores the format fails, and the run is inspected and rerun, never accepted by loosening the check. Request entries (POST `initialize`, notifications, `tools/call`) must fall inside their invocation's attempt-to-outcome window; completion entries (responses, handler records, the session DELETE) may follow within 2s, or within a minute for a timed-out call. Denied invocations must cause no server entry at all, and a successful read needs one session, one `tools/call` and one successful handler entry for the same file. Earlier Works' invocations are passed with `-prior` as `<id> <end> <state>` records (end is the latest fact by instant; state is `denied`, `no-outcome` or the outcome reason). Entries up to an invocation's end are its history, already judged with its own Work. Afterwards a denied invocation may log nothing; any other may log each completion kind at most once: its session close (DELETE receipt or response) within 2s, and, for a timed-out call only, its handler, `tools/call` response and session close within a minute while the slow handler finishes. Anything else fails. After a Work with a timed-out call, the runner waits until the server logs that handler finishing. The probe checker applies the same 2s completion allowance and `-prior` rule.
+
 ### G6 Installed MCP Portal spec
 
-Add `ui/installed/mcp.spec.ts`, run on its own with a file filter, so the reference `installed.spec.ts` keeps its assertions unchanged. It reads `AGENOVA_CLI_PATH`, `AGENOVA_CLI_STATE_DIR` and `AGENOVA_E16_{POSITIVE,TRUNCATION,FAILURE,DENIED}_REF`; the runner's `parity` subcommand sets them. The Portal also labelled every `tool.invoke` attempt and outcome as "Mock tool call", including configured provider calls; only facts with a `mock-*` reason code (the synthetic adapter) keep that label, and the spec asserts a real MCP record never shows it.
+Add `ui/installed/mcp.spec.ts`, run on its own with a file filter, so the reference `installed.spec.ts` keeps its assertions unchanged. It checks one Work per run: `AGENOVA_E16_CASE` and `AGENOVA_E16_REF` select the case, and the runner passes `--grep '@setup$|@<case>$'` and requires the JSON report to show exactly two passed tests with nothing skipped, failed or flaky. It also reads `AGENOVA_CLI_PATH` and `AGENOVA_CLI_STATE_DIR`. N6 and N7 each have their own test with an exact reason code. The Portal also labelled every `tool.invoke` attempt and outcome as "Mock tool call", including configured provider calls; only facts with a `mock-*` reason code (the synthetic adapter) keep that label, and the spec asserts a real MCP record never shows it.
 
 ## 5. Execution phases
 
@@ -132,7 +160,7 @@ Exit: environment table fully green, ownership recorded.
 
 Implement G1–G6 with focused deterministic tests, including any N6–N12 deterministic coverage not already in Slice 2. Validate all acceptance inputs offline with `platform validate`. Build the CLI on the host with Go 1.22.12. Build the control-plane and worker images from their Dockerfiles without the probe tag; the control-plane builder `golang:1.22-alpine` is a floating tag, so record its resolved digest and the Go version reported by `go version -m`. Build the fixture image separately and the probe image with the tag. Run the G2 separation checks.
 
-Record for every image: source SHA, build command, build tags, builder image digest, toolchain, architecture and the image content digest (the local image ID, which is the config digest). Record a registry manifest digest only if one exists, and record the `docker save` archive SHA-256 separately as a transfer checksum, never as the image digest. The fixture and probe images get unique source-derived tags. The control-plane and worker tags are fixed by the reference installer (`controlPlaneImage` in `internal/adapters/bundled/kubernetes.go:35`, `referenceControlledWorkerImage` in `registry.go:24`), so loading the E16 builds replaces those tags in the shared kind node cache for every install on the node. Tags are mutable either way, so every later stage checks the content behind the tag against the recorded digest. `latest` and placeholders are never used.
+Record for every image: source SHA, build command, build tags, the base image digests BuildKit resolved, the Go toolchain of the binary inside, platform, and the config digest read from the saved archive, which is what containerd on the node reports as the image ID. With the containerd image store the local image ID is an index digest, so it is recorded separately and never compared with the node. Record a registry manifest digest only if one exists, and record the `docker save` archive SHA-256 separately as a transfer checksum, never as the image digest. The fixture and probe images get unique source-derived tags. The control-plane and worker tags are fixed by the reference installer (`controlPlaneImage` in `internal/adapters/bundled/kubernetes.go:35`, `referenceControlledWorkerImage` in `registry.go:24`), so loading the E16 builds replaces those tags in the shared kind node cache for every install on the node. Tags are mutable either way, so every later stage checks the content behind the tag against the recorded digest. `latest` and placeholders are never used.
 
 Exit: focused tests green on Go 1.22.12, inputs validate, build identity recorded, tag separation proven.
 
@@ -154,7 +182,7 @@ Exit: one controlled read is captured end to end; readiness alone is not accepte
 
 Follow the [seven-command runbook](../../docs/reference-cli-kind-ollama.md#seven-commands) with the E16 inputs: `adapters install/inspect/init` and lock check, `platform validate/plan/apply/status`, Policy and AgentTemplate registration, `run`, `work show`. Save every command and exit code, then an identical reapply to prove idempotence.
 
-Task: investigate the payment retry incident using `logs/timeout.log` and `src/retry.txt`, explain why the 5s total deadline is exceeded and propose a fix. A checker reads the fixture files independently and asserts facts in the answer: each attempt starts a fresh deadline, the 4s first attempt plus 2s backoff exceeds the total budget, and retries need a stable idempotency key. Natural wording may vary. These facts are never placed in the model input.
+Task: investigate the payment retry incident using `logs/timeout.log` and `src/retry.txt`, explain why the 5s total deadline is exceeded and propose a fix, ending with the facts block (G5). The checker derives the expected values from the fixture files: each attempt starts a fresh deadline, the 4s first attempt plus 2s backoff exceeds the 5s budget, and retries need a stable idempotency key. The objective names the keys only, never their values.
 
 Pass when all hold:
 
@@ -271,3 +299,63 @@ Round 2 (2026-10-03) found no P1 and confirmed findings 1, 3, 4, 7, 8 and 9 reso
 | R2-5 | P3 | N3 scope of proof | Qualified to handler correlation only; matched-claim controls added |
 
 Round 3 (2026-10-03) confirmed R2-1 to R2-5 resolved at plan level with no new P1/P2. Implementation and runtime evidence remain unverified.
+
+Phase 1 quality review (2026-10-03) found the implementation incomplete. Dispositions:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| Q1 | P1 | Inventory and Pod queries fail open | Queries return failure; every caller refuses; unowned fixed-tag Pods block protect |
+| Q2 | P1 | Checker accepts unknown traffic and malformed requests | Every entry inside the campaign must belong to one step's session and window |
+| Q3 | P1 | Receipts set their own expectations; sessions reusable | Fixed case/step expectations, unique invocation IDs, window-bound sessions, no overlapping windows |
+| Q4 | P1 | N11 passes after a provider failure; recording failures look generic | Probe records the refused fact and requires `ProviderOutcome::Succeeded`; explicit `tool evidence recording failed` and `tool-evidence-failed` |
+| Q5 | P1 | Oversized SSE tail after the result passes | The stream is read to its end within the cap; new N7 test; interop with the real fixture rechecked |
+| Q6 | P1 | Parity cannot run per Work; N7 absent; N6 reason loose | Per-case spec selection, per-Work archives, exact reasons, N7 test |
+| Q7 | P2 | Identity recorded, not enforced | Node tag and Pod image checks at fixture, install, work and probe; claimed worker required |
+| Q8 | P2 | Log continuity not enforced | Collector readiness and liveness, snapshot containment, fixture identity check, events and control-plane log capture |
+| Q9 | P2 | No production Work oracle | `evidence work` with dataset-anchored answer facts |
+| Q10 | P2 | Argument tests pass for unrelated failures | Each case asserts its own message and no downstream command or directory |
+| Q11 | P3 | Checker cannot read `probes.jsonl` | Reads both formats; runner uses `probes.jsonl` |
+| Q12 | – | Missing N7/N12 deterministic tests, incomplete build identity, plan wording | Added tests, platform/tags/toolchain/commands recorded, plan corrected |
+
+Phase 1 re-review (2026-10-03) closed Q3–Q6, Q10 and Q11 and found:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| R1 | P1 | `install` treated a failed Deployment query as absence | `--ignore-not-found`; any query failure refuses before apply |
+| R2 | P1 | Zero-call steps ignored GET, DELETE, notification and response entries | Any server entry carrying the step's invocation fails it |
+| R3 | P1 | Answer oracle matched words, including negated or unrelated ones | Clause-level assertions with negation rejection; tighter fact patterns; adversarial tests |
+| R4 | P1 | Work mode accepted incomplete or mistimed server proof | Per-invocation windows, zero traffic for denied calls, one session and handler per successful read |
+| R5 | P2 | A missing collector log passed continuity | Readable files required; grep error distinguished; collector output frozen before each snapshot |
+| R6 | P2 | A worker ignoring a recording error could finish Succeeded | A lost tool record always fails the Work with `tool-evidence-failed` |
+| R7 | P2 | Control-plane Pod not rechecked per Work | Identity and image checked before and after each Work |
+
+Phase 1 third review (2026-10-03) closed R1, R2 and R4–R7 and found:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| T1 | P1 | Positive prose oracle still accepted wrong or reversed facts | Replaced by an exact facts block with dataset-derived values; objectives ask for it |
+| T2 | P1 | N8 accepted unrelated incompleteness wording | `timeline_complete` fact derived from the observation cap |
+| T3 | P2 | A previous Work's late N6 completion invalidated the next Work | `-prior` reconciliation (completions only) plus a settle wait after timed-out calls |
+| T4 | P2 | Delayed session DELETE after a successful outcome was rejected | Completion entries allowed for 2s after the outcome or step, requests never |
+| T5 | P2 | A frozen follow log could end mid-record | Only complete records are frozen |
+
+Phase 1 fourth review (2026-10-03) accepted the facts-block approach, closed T4 and T5, and found:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| U1 | P1 | `-prior` rejected earlier Works' own historical requests in full logs | Prior records carry each invocation's end and reason; history before the end is ignored |
+| U2 | P1 | The facts block did not cover the requested fix | Two structured fix keys with dataset-derived values |
+| U3 | P2 | The deadline fact was not truly derived from the dataset | Two supported dataset statements; anything else is rejected |
+| U4 | P2 | Prior completions had no status, timing or count limits | Bounded windows per invocation; one late handler and one late response, timed-out calls only |
+| U5 | P3 | The parser did not identify one authoritative block | Final plain lines only; keys anywhere earlier fail; fenced blocks and trailing text fail |
+
+Phase 1 fifth review (2026-10-03) closed U2 and U3, accepted the facts-block contract for criterion 2, and found:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| V1 | P1 | A timed-out call's late session-close response broke later checks | Session close is a counted completion; timed-out calls may log it within a minute |
+| V2 | P2 | The first 2s after an invocation's end skipped counting and state checks | One policy across both windows: per-kind counts, no late handler except for timed-out calls, nothing at all for denied calls |
+| V3 | P2 | The runner picked an invocation's end by string order | Ends compared as instants with nanosecond fractions |
+| V4 | P3 | An unclosed fence passed the plain-block rule | An odd number of fences before the block fails |
+
+Phase 1 sixth review (2026-10-03) closed V1–V4, found no regression in earlier rounds and no remaining P1/P2. Its optional P3 (fence parity ignored the delimiter type) is fixed: the active fence's delimiter and length are tracked, and only a matching line closes it.
