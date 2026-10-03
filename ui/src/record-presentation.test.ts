@@ -15,4 +15,11 @@ describe('evidence presentation independent of React and transport',()=>{
     expect(category({...fact,kind:'ProviderOutcome',operation:'tool.invoke'})).toBe('Tool Gateway');
     expect(category({...fact,kind:'ProviderOutcome',operation:'model.invoke'})).toBe('Model Gateway');
   });
+  it('labels only the synthetic adapter as mock',()=>{
+    expect(recordTitle({...fact,kind:'ProviderAttempt',operation:'tool.invoke',reasonCode:'mock-tool'})).toBe('Mock tool call started');
+    expect(recordTitle({...fact,kind:'ProviderOutcome',operation:'tool.invoke',reasonCode:'mock-artifact-not-found'})).toBe('Mock tool call finished');
+    expect(recordTitle({...fact,kind:'ProviderAttempt',operation:'tool.invoke',reasonCode:'configured-tool'})).toBe('Tool call started');
+    expect(recordTitle({...fact,kind:'ProviderOutcome',operation:'tool.invoke',reasonCode:'tool-timeout'})).toBe('Tool call finished');
+    expect(recordTitle({...fact,kind:'ProviderOutcome',operation:'tool.invoke',reasonCode:undefined})).toBe('Tool call finished');
+  });
 });

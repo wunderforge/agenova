@@ -241,12 +241,12 @@ test('cobalt light locates real pending calls and separates success from failure
  await info.attach('cobalt-wait-performance',{body:JSON.stringify(frameReport,null,2),contentType:'application/json'});
  await page.screenshot({path:info.outputPath('cobalt-model-wait.png'),fullPage:true});
  add('ProviderOutcome',{invocationId:'signal-model',operation:'model.invoke',providerStatus:'Succeeded'});
- add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',target:'Mock git.read'});
+ add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read'});
  await expect(row).toHaveAttribute('data-kind','tool');
  expect(await row.evaluate(el=>getComputedStyle(el).getPropertyValue('--call-light').trim())).toBe('#76d9f4');
  await expect(page.locator('.portal-worker-state.positive')).toHaveCSS('color','rgb(140, 213, 178)');
  await page.screenshot({path:info.outputPath('cobalt-tool-wait.png'),fullPage:true});
- add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',providerStatus:'Failed'});
+ add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-artifact-not-found',providerStatus:'Failed'});
  current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'The recorded mock tool call failed.'};
  await expect(page.locator('.portal-worker-state.negative')).toHaveCSS('color','rgb(255, 140, 164)');
  await expect(page.locator('.portal-turn[data-negative=true] > summary')).toContainText('1 failed');
@@ -281,10 +281,10 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  await expect(page.locator('.portal-worker-current')).toContainText('Turn 1 · Waiting for a model response');
  add('ProviderOutcome',{invocationId:'m1',operation:'model.invoke',providerStatus:'Succeeded'});
  add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
- add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',target:'Mock git.read · logs/timeout.log'});
+ add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read · logs/timeout.log'});
  await expect(page.locator('.portal-worker-current')).toContainText('Waiting for tool observation');
  await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call (mock)');
- add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',providerStatus:'Succeeded'});
+ add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',providerStatus:'Succeeded'});
  add('WorkerActivity',{operation:'ObservationReceived',target:'Turn 1'});
  add('WorkerActivity',{operation:'TurnStarted',target:'Turn 2'});
  add('ProviderAttempt',{invocationId:'m2',operation:'model.invoke'});
