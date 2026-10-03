@@ -103,7 +103,7 @@ func (l *Lifecycle) Init(reference, localName string) (PlatformFragment, error) 
 	if !validPlatformLocalName(localName) {
 		return PlatformFragment{}, fmt.Errorf("invalid local adapter name %q", localName)
 	}
-	if (capability == platform.CapabilityRuntime || capability == platform.CapabilityModel) && !validPlatformLocalName(localName+"-profile") {
+	if (capability == platform.CapabilityRuntime || capability == platform.CapabilityModel || capability == platform.CapabilityTool) && !validPlatformLocalName(localName+"-profile") {
 		return PlatformFragment{}, fmt.Errorf("generated profile name %q exceeds the Platform name limit", localName+"-profile")
 	}
 	instanceConfig, err := defaultsFromSchema(registration.Manifest.InstanceSchema)
@@ -136,6 +136,12 @@ func (l *Lifecycle) Init(reference, localName string) (PlatformFragment, error) 
 			return PlatformFragment{}, err
 		}
 		fragment.Spec.Services = &FragmentServices{ModelBackends: []v1alpha1.PlatformInstance{instance}, ModelProfiles: []v1alpha1.PlatformProfile{profile}}
+	case platform.CapabilityTool:
+		profile, err := initializedProfile(registration, capability, instance, localName+"-profile")
+		if err != nil {
+			return PlatformFragment{}, err
+		}
+		fragment.Spec.Services = &FragmentServices{ToolBackends: []v1alpha1.PlatformInstance{instance}, ToolProfiles: []v1alpha1.PlatformProfile{profile}}
 	default:
 		return PlatformFragment{}, fmt.Errorf("adapter capability %q cannot initialize a Platform fragment", capability)
 	}

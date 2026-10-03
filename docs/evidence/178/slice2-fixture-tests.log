@@ -1,0 +1,20 @@
+$ go version (fixture module toolchain)
+go version go1.27.1 darwin/arm64
+$ GOTOOLCHAIN=local go -C harness/integration/mcpfixture test -count=1 -v ./...
+=== RUN   TestReadFileReturnsRealContentAndLogsReceiptFirst
+--- PASS: TestReadFileReturnsRealContentAndLogsReceiptFirst
+=== RUN   TestReadFileRefusesEscapesAndReportsToolErrors
+--- PASS: TestReadFileRefusesEscapesAndReportsToolErrors
+=== RUN   TestReadFileFollowsSymlinksThatStayInsideRoot
+--- PASS: TestReadFileFollowsSymlinksThatStayInsideRoot
+=== RUN   TestSlowFileHonoursClientCancellation
+--- PASS: TestSlowFileHonoursClientCancellation
+=== RUN   TestOversizedRequestIsLoggedAndRejectedBeforeDispatch
+--- PASS: TestOversizedRequestIsLoggedAndRejectedBeforeDispatch
+=== RUN   TestLogsNeverContainFileContentOrRawSession
+--- PASS: TestLogsNeverContainFileContentOrRawSession
+=== RUN   TestLoadConfigValidatesFixtureSettings
+--- PASS: TestLoadConfigValidatesFixtureSettings
+PASS
+ok  	github.com/wunderforge/agenova/harness/integration/mcpfixture
+exit=0

@@ -55,15 +55,18 @@ func run(input io.Reader, output io.Writer) error {
 }
 
 func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Task) error {
+	if workerprotocol.ValidateTools(task.Tools) != nil {
+		return errors.New("invalid tool catalog")
+	}
 	transcript := ""
 	observations := 0
-	readFiles := []string{}
+	readInputs := []string{}
 	seen := map[string]bool{}
 	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
-		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read files: %q.\n", turn, workerprotocol.MaxTurns, observations, readFiles)
+		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, workerprotocol.MaxTurns, observations, readInputs)
 		promptTask := task
-		if len(readFiles) == 3 || turn == workerprotocol.MaxTurns {
-			promptTask.ResourceScope = ""
+		if len(readInputs) == workerprotocol.ToolInputs(task.Tools) || turn == workerprotocol.MaxTurns {
+			promptTask.Tools = nil
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if len(prompt) > 60<<10 {
@@ -79,28 +82,29 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		if !reply.Allowed || reply.Error != "" || strings.TrimSpace(reply.Text) == "" {
 			return errors.New("model request failed")
 		}
-		action, err := workerprotocol.ParseAction(reply.Text)
+		action, err := workerprotocol.ParseAction(reply.Text, task.Tools)
 		if err != nil {
-			_, issue := workerprotocol.ActionIssue(reply.Text)
+			_, issue := workerprotocol.ActionIssue(reply.Text, task.Tools)
 			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
 			continue
 		}
 		if action.Action == "finish" {
-			if turn < 2 || (task.ResourceScope != "" && observations == 0) {
+			if turn < 2 || (len(task.Tools) > 0 && observations == 0) {
 				transcript += "\nObservation: premature finish. Complete the required read/review before finishing."
 				continue
 			}
 			return writeLine(output, workerprotocol.Message{Result: action.Answer})
 		}
-		if task.ResourceScope == "" {
+		if len(promptTask.Tools) == 0 {
 			transcript += "\nObservation: no tool is available. Review the objective then finish."
 			continue
 		}
-		if seen[action.Input] {
-			transcript += "\nObservation: file already read successfully; choose new evidence or finish."
+		key := action.Tool + "\x00" + action.Resource + "\x00" + action.Input
+		if seen[key] {
+			transcript += "\nObservation: input already read successfully; choose new evidence or finish."
 			continue
 		}
-		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: task.ResourceScope, Input: action.Input}}); err != nil {
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: action.Resource, Input: action.Input}}); err != nil {
 			return err
 		}
 		var observation workerprotocol.Reply
@@ -109,14 +113,15 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		if observation.Allowed && observation.Error == "" && observation.Text != "" {
 			observations++
-			seen[action.Input] = true
-			readFiles = append(readFiles, action.Input)
+			seen[key] = true
+			readInputs = append(readInputs, action.Input)
 		}
 		data, _ := json.Marshal(struct {
 			Tool        string               `json:"tool"`
-			File        string               `json:"file"`
+			Resource    string               `json:"resource"`
+			Input       string               `json:"input"`
 			Observation workerprotocol.Reply `json:"observation"`
-		}{action.Tool, action.Input, observation})
+		}{action.Tool, action.Resource, action.Input, observation})
 		transcript += "\n" + string(data)
 	}
 	return workerprotocol.ErrTurnLimit

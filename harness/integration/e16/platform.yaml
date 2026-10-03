@@ -1,0 +1,98 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E16 acceptance Platform: one revision for the whole Slice 3 campaign.
+# Installed in its own namespace so an existing reference install is untouched.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: e16-kind
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: openai-compatible-backend
+      id: agenova.io/model/openai-compatible
+      version: 0.1.0
+    - name: mcp-http-tool
+      id: agenova.io/tool/mcp-http
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: kind-agenova-k8s-lab
+        namespace: agenova-e16-system
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-e16-system
+          compatible-worker-image: agenova-testworker:kind
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: local-ollama
+        adapterRef: openai-compatible-backend
+        config:
+          endpoint: http://host.docker.internal:11434/v1
+    modelProfiles:
+      - name: coding-standard
+        backendRef: local-ollama
+        config:
+          model: llama3.1:latest
+    toolBackends:
+      - name: e16-mcp
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+    toolProfiles:
+      # Positive task files only, so the model never sees a fault file.
+      - name: e16-fixture
+        backendRef: e16-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-fixture
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+            logs/timeout.log
+            src/retry.txt
+      # Fault files for N6-N8, and the configured-but-ungranted route for N2a.
+      - name: e16-faults
+        backendRef: e16-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-faults
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            logs/slow.log
+            logs/full-trace.log
+            notes/incident-timeline.md
+  # The reference install seeds this Policy; the E16 Policy is registered and
+  # activated afterwards with `agenova policy`.
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

@@ -1,0 +1,21 @@
+$ go version
+go version go1.22.12 darwin/arm64
+$ go test -count=1 <focused E16 packages; see work/0178-governed-mcp-tools/task.md>
+ok  	github.com/wunderforge/agenova/api/v1alpha1
+ok  	github.com/wunderforge/agenova/internal/platform
+ok  	github.com/wunderforge/agenova/internal/adapterregistry
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled
+ok  	github.com/wunderforge/agenova/internal/cli
+ok  	github.com/wunderforge/agenova/internal/toolbackend
+ok  	github.com/wunderforge/agenova/cmd/agenova
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane
+ok  	github.com/wunderforge/agenova/internal/toolgateway
+ok  	github.com/wunderforge/agenova/internal/console
+ok  	github.com/wunderforge/agenova/internal/workerprotocol
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker
+ok  	github.com/wunderforge/agenova/cmd/agenova-console
+ok  	github.com/wunderforge/agenova/internal/modelprovider
+ok  	github.com/wunderforge/agenova/internal/facts
+ok  	github.com/wunderforge/agenova/internal/connectedclient
+exit=0

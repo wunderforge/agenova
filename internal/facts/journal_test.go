@@ -69,6 +69,42 @@ func TestJournalInvocationAttemptOutcomeOrdering(t *testing.T) {
 	}
 }
 
+func TestJournalTruncationOnlyOnSuccessfulToolOutcome(t *testing.T) {
+	p := &v0.PolicyReference{ID: "policy", Version: "1"}
+	for _, tc := range []struct {
+		name   string
+		mutate func(attempt, outcome *Fact)
+		ok     bool
+	}{
+		{name: "successful tool outcome", mutate: func(_, outcome *Fact) { outcome.Truncated = true }, ok: true},
+		{name: "attempt", mutate: func(attempt, _ *Fact) { attempt.Truncated = true }},
+		{name: "failed outcome", mutate: func(_, outcome *Fact) { outcome.Truncated, outcome.ProviderStatus = true, "Failed" }},
+		{name: "model outcome", mutate: func(_, outcome *Fact) { outcome.Truncated, outcome.Operation = true, "model.invoke" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			j := newRegisteredJournal(t)
+			base := Fact{RequestRef: "a", ClaimID: "claim:a", InvocationID: "inv:tool", PolicyRef: p, Operation: "tool.invoke", Target: "repo.read"}
+			d := base
+			d.Kind, d.Result, d.ReasonCode = "ToolDecision", v0.DecisionResultAllow, "allowed"
+			attempt, outcome := base, base
+			attempt.Kind, attempt.ProviderStatus = "ProviderAttempt", "Attempted"
+			outcome.Kind, outcome.ProviderStatus = "ProviderOutcome", "Succeeded"
+			tc.mutate(&attempt, &outcome)
+			if _, err := j.Append(d); err != nil {
+				t.Fatal(err)
+			}
+			_, attemptErr := j.Append(attempt)
+			var outcomeErr error
+			if attemptErr == nil {
+				_, outcomeErr = j.Append(outcome)
+			}
+			if got := attemptErr == nil && outcomeErr == nil; got != tc.ok {
+				t.Fatalf("accepted=%t want %t (attempt=%v outcome=%v)", got, tc.ok, attemptErr, outcomeErr)
+			}
+		})
+	}
+}
+
 func TestJournalAuthorityAndBackendCannotBeReassigned(t *testing.T) {
 	j := newRegisteredJournal(t)
 	if _, err := j.Append(Fact{Kind: "AuthorityResolved", RequestRef: "a", ClaimID: "claim:a", Authority: &v0.EffectiveAuthority{ID: "authority:b"}}); err == nil {

@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/toolbackend"
 )
 
 const CoreModelGateway = "agenova-core"
@@ -27,6 +28,7 @@ const (
 	CapabilityDeployment Capability = "deployment"
 	CapabilityRuntime    Capability = "runtime"
 	CapabilityModel      Capability = "model"
+	CapabilityTool       Capability = "tool"
 )
 
 type ErrorCategory string
@@ -53,6 +55,8 @@ func (e *ResolveError) Error() string {
 // Descriptor is metadata plus side-effect-free adapter-owned config logic.
 // Pair canonicalization receives the referenced backend's canonical config.
 type Descriptor struct {
+	// DescribeTool projects adapter-owned config to a provider-neutral route.
+	DescribeTool         func(map[string]any, map[string]any) (toolbackend.Descriptor, int, error)
 	ID                   string
 	Version              string
 	Capabilities         []Capability
@@ -101,6 +105,13 @@ type ResolvedProfile struct {
 	Config     map[string]any `json:"config"`
 }
 
+type ToolRoute struct {
+	Profile             string                 `json:"profile"`
+	BackendRef          string                 `json:"backendRef"`
+	Tool                toolbackend.Descriptor `json:"tool"`
+	MaxObservationBytes int                    `json:"maxObservationBytes"`
+}
+
 type ModelRoute struct {
 	Profile    string `json:"profile"`
 	Gateway    string `json:"gateway"`
@@ -114,6 +125,7 @@ type ResolvedPlatform struct {
 	Instances        []ResolvedInstance               `json:"instances"`
 	Profiles         []ResolvedProfile                `json:"profiles"`
 	ModelRoutes      []ModelRoute                     `json:"modelRoutes"`
+	ToolRoutes       []ToolRoute                      `json:"toolRoutes,omitempty"`
 	InitialPolicyRef v1alpha1.PlatformPolicyReference `json:"initialPolicyRef"`
 }
 
@@ -131,6 +143,7 @@ type PlatformLock struct {
 	Instances        []LockedConfig                   `json:"instances"`
 	Profiles         []LockedConfig                   `json:"profiles"`
 	ModelRoutes      []ModelRoute                     `json:"modelRoutes"`
+	ToolRoutes       []ToolRoute                      `json:"toolRoutes,omitempty"`
 	InitialPolicyRef v1alpha1.PlatformPolicyReference `json:"initialPolicyRef"`
 }
 
@@ -183,6 +196,11 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 			return nil, nil, failure
 		}
 	}
+	for i, instance := range input.Spec.Services.ToolBackends {
+		if failure := resolveInstance(CapabilityTool, fmt.Sprintf("spec.services.toolBackends[%d]", i), instance, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
+			return nil, nil, failure
+		}
+	}
 	sort.Slice(instances, func(i, j int) bool {
 		if instances[i].Category == instances[j].Category {
 			return instances[i].Name < instances[j].Name
@@ -207,6 +225,32 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 		profiles = append(profiles, resolved)
 		modelRoutes = append(modelRoutes, ModelRoute{Profile: profile.Name, Gateway: CoreModelGateway, BackendRef: profile.BackendRef})
 	}
+
+	var toolRoutes []ToolRoute
+	var toolDescriptors []toolbackend.Descriptor
+	for i, profile := range input.Spec.Services.ToolProfiles {
+		path := fmt.Sprintf("spec.services.toolProfiles[%d]", i)
+		resolved, failure := resolveProfile(CapabilityTool, path, profile, instanceByKey, descriptorByKey)
+		if failure != nil {
+			return nil, nil, failure
+		}
+		key := instanceKey(CapabilityTool, profile.BackendRef)
+		describe := descriptorByKey[key].DescribeTool
+		if describe == nil {
+			return nil, nil, &ResolveError{Category: ErrorInvalidConfig, FieldPath: path, Detail: "tool descriptor is unavailable"}
+		}
+		tool, limit, err := describe(cloneConfig(instanceByKey[key].Config), cloneConfig(resolved.Config))
+		if err != nil || limit < 1 || limit > 16<<10 {
+			return nil, nil, &ResolveError{Category: ErrorInvalidConfig, FieldPath: path, Detail: "invalid tool descriptor"}
+		}
+		profiles = append(profiles, resolved)
+		toolDescriptors = append(toolDescriptors, tool)
+		toolRoutes = append(toolRoutes, ToolRoute{Profile: profile.Name, BackendRef: profile.BackendRef, Tool: tool, MaxObservationBytes: limit})
+	}
+	if _, err := toolbackend.NewCatalog(toolDescriptors); err != nil {
+		return nil, nil, &ResolveError{Category: ErrorInvalidConfig, FieldPath: "spec.services.toolProfiles", Detail: "duplicate, incompatible or unbounded tool routes"}
+	}
+	sort.Slice(toolRoutes, func(i, j int) bool { return toolRoutes[i].Profile < toolRoutes[j].Profile })
 	sort.Slice(profiles, func(i, j int) bool {
 		if profiles[i].Capability == profiles[j].Capability {
 			return profiles[i].Name < profiles[j].Name
@@ -216,12 +260,12 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 	sort.Slice(modelRoutes, func(i, j int) bool { return modelRoutes[i].Profile < modelRoutes[j].Profile })
 
 	policy := *input.Spec.InitialPolicyRef
-	payload := revisionPayload{PlatformName: input.Metadata.Name, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, InitialPolicyRef: policy}
+	payload := revisionPayload{PlatformName: input.Metadata.Name, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
 	revision, err := digestValue(payload)
 	if err != nil {
 		return nil, nil, &ResolveError{Category: ErrorCanonicalEncoding, FieldPath: "$", Detail: err.Error()}
 	}
-	resolved := &ResolvedPlatform{PlatformName: input.Metadata.Name, Revision: revision, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, InitialPolicyRef: policy}
+	resolved := &ResolvedPlatform{PlatformName: input.Metadata.Name, Revision: revision, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
 	lock, failure := lockFromResolved(resolved)
 	if failure != nil {
 		return nil, nil, failure
@@ -280,11 +324,12 @@ type revisionPayload struct {
 	Instances        []ResolvedInstance               `json:"instances"`
 	Profiles         []ResolvedProfile                `json:"profiles"`
 	ModelRoutes      []ModelRoute                     `json:"modelRoutes"`
+	ToolRoutes       []ToolRoute                      `json:"toolRoutes,omitempty"`
 	InitialPolicyRef v1alpha1.PlatformPolicyReference `json:"initialPolicyRef"`
 }
 
 func lockFromResolved(resolved *ResolvedPlatform) (*PlatformLock, *ResolveError) {
-	lock := &PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Adapters: append([]ResolvedAdapter(nil), resolved.Adapters...), ModelRoutes: append([]ModelRoute(nil), resolved.ModelRoutes...), InitialPolicyRef: resolved.InitialPolicyRef}
+	lock := &PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Adapters: append([]ResolvedAdapter(nil), resolved.Adapters...), ModelRoutes: append([]ModelRoute(nil), resolved.ModelRoutes...), ToolRoutes: cloneToolRoutes(resolved.ToolRoutes), InitialPolicyRef: resolved.InitialPolicyRef}
 	for _, instance := range resolved.Instances {
 		digest, err := digestValue(instance.Config)
 		if err != nil {
@@ -315,6 +360,7 @@ func VerifyResolvedLock(resolved *ResolvedPlatform, lock *PlatformLock) error {
 		Instances:        resolved.Instances,
 		Profiles:         resolved.Profiles,
 		ModelRoutes:      resolved.ModelRoutes,
+		ToolRoutes:       resolved.ToolRoutes,
 		InitialPolicyRef: resolved.InitialPolicyRef,
 	}
 	revision, err := digestValue(payload)
@@ -450,4 +496,15 @@ func CanonicalJSON(value any) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(strings.TrimSuffix(buffer.String(), "\n")), nil
+}
+
+func cloneToolRoutes(routes []ToolRoute) []ToolRoute {
+	if len(routes) == 0 {
+		return nil
+	}
+	copy := append([]ToolRoute(nil), routes...)
+	for i := range copy {
+		copy[i].Tool.AllowedValues = append([]string(nil), routes[i].Tool.AllowedValues...)
+	}
+	return copy
 }

@@ -21,8 +21,11 @@ export const category = (fact: Observation) => fact.operation === 'tool.invoke' 
 export function recordTitle(fact: Observation): string {
   if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return `${fact.target || 'Agent'} · Action format checked`;
   if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
-  if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Mock tool call started' : 'Model request started';
-  if (fact.kind === 'ProviderOutcome') return fact.operation === 'tool.invoke' ? 'Mock tool call finished' : 'Model request finished';
+  // Only the synthetic adapter records mock-* reason codes; a configured
+  // provider call must never be presented as mock.
+  const tool = fact.operation === 'tool.invoke' ? (fact.reasonCode?.startsWith('mock-') ? 'Mock tool call' : 'Tool call') : '';
+  if (fact.kind === 'ProviderAttempt') return tool ? `${tool} started` : 'Model request started';
+  if (fact.kind === 'ProviderOutcome') return tool ? `${tool} finished` : 'Model request finished';
   if (fact.operation) return operationLabels[fact.operation] || fact.operation;
   if (fact.kind === 'RequestReceived') return 'Request received';
   if (fact.kind === 'AuthorityResolved') return 'Access resolved';

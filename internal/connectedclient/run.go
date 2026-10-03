@@ -314,6 +314,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
 		}
+		if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !facts.ValidResultRef(fact.ResultRef)) {
+			return false
+		}
+		if fact.Truncated && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded") {
+			return false
+		}
 		switch fact.Kind {
 		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
 		default:
