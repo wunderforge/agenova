@@ -359,3 +359,5 @@ Phase 1 fifth review (2026-10-03) closed U2 and U3, accepted the facts-block con
 | V4 | P3 | An unclosed fence passed the plain-block rule | An odd number of fences before the block fails |
 
 Phase 1 sixth review (2026-10-03) closed V1–V4, found no regression in earlier rounds and no remaining P1/P2. Its optional P3 (fence parity ignored the delimiter type) is fixed: the active fence's delimiter and length are tracked, and only a matching line closes it.
+
+Phase 1 final-state review (2026-10-03) accepted the committed code, image identity and commit hygiene, and found one P1: the host CLI built by the runner aborted on macOS (`dyld: missing LC_UUID`) because the external-linking workaround depended on the caller's environment. Host Go builds and runs (the CLI and the evidence checker) now go through `host_go`, which links externally on macOS; `build` runs the CLI before recording it, and a runner test builds and runs it.

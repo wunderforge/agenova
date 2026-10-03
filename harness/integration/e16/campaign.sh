@@ -65,6 +65,12 @@ EOF
 }
 
 kctl() { run kubectl --context "$CONTEXT" "$@"; }
+
+# Host Go builds use the repository's Go 1.22 toolchain. On macOS its default
+# linker omits LC_UUID and dyld refuses to run the result, so host binaries
+# (the CLI and the evidence checker) link externally there.
+host_goflags() { if [ "$(uname -s)" = Darwin ]; then printf '%s' '-ldflags=-linkmode=external'; fi; }
+host_go() { GOTOOLCHAIN=go1.22.12 GOFLAGS="$(host_goflags)" run go "$@"; }
 cluster_name() { printf '%s' "${CONTEXT#kind-}"; }
 node_name() { printf '%s-control-plane' "$(cluster_name)"; }
 source_sha() { git -C "$ROOT" rev-parse HEAD; }
@@ -397,7 +403,8 @@ build() {
   build_one worker "$ROOT/harness/integration/agentsandbox/testworker/Dockerfile" "$WORKER_IMAGE" "$ROOT"
   build_one fixture "$ROOT/harness/integration/mcpfixture/Dockerfile" "$(fixture_image)" "$ROOT/harness/integration/mcpfixture"
   build_one probe "$SCRIPT_DIR/probe.Dockerfile" "$(probe_image)" "$ROOT"
-  (cd "$ROOT" && GOTOOLCHAIN=go1.22.12 run go build -o "$(cli)" ./cmd/agenova)
+  (cd "$ROOT" && host_go build -o "$(cli)" ./cmd/agenova)
+  run "$(cli)" --help >/dev/null 2>&1 || fail "the host CLI at $(cli) does not run on this host"
   {
     echo "source $(source_sha)"
     # Base images as BuildKit actually resolved them for each build.
@@ -409,7 +416,7 @@ build() {
     image_line fixture "$(fixture_image)" none
     image_line probe "$(probe_image)" agenovaprobe
     sed 's/^/build-/' "$OUTPUT/build-commands.txt"
-    echo "cli $(GOTOOLCHAIN=go1.22.12 go version -m "$(cli)" | head -1)"
+    echo "cli $(GOTOOLCHAIN=go1.22.12 go version -m "$(cli)" | head -1) goflags=$(host_goflags) runs=yes"
   } | tee "$OUTPUT/build-identity.txt"
   check_build_tags | tee -a "$OUTPUT/build-identity.txt"
   record "build $(source_sha)"
@@ -703,7 +710,7 @@ work() {
   snapshot_fixture "$out"
   require_collector control-plane
   kctl -n "$INSTALL_NAMESPACE" get events -o wide >"$out/install-events.txt" 2>&1 || true
-  (cd "$ROOT" && GOTOOLCHAIN=go1.22.12 run go run ./harness/integration/e16/evidence work -case "$name" \
+  (cd "$ROOT" && host_go run ./harness/integration/e16/evidence work -case "$name" \
     -view "$out/work-show.json" -server-log "$out/fixture-full.jsonl" -fixture-data "$ROOT/harness/integration/mcpfixture/data" \
     -prior "$OUTPUT/work-invocations.txt") \
     >"$out/evidence.txt" 2>&1 || fail "Work $name does not meet its acceptance; see $out/evidence.txt"
@@ -742,7 +749,7 @@ probe() {
   snapshot_fixture "$out"
   validate_probe_output "$out/probe-job.log"
   sed -n 's/^E16_PROBE //p' "$out/probe-job.log" >"$out/probes.jsonl"
-  (cd "$ROOT" && GOTOOLCHAIN=go1.22.12 run go run ./harness/integration/e16/evidence -receipts "$out/probes.jsonl" -server-log "$out/fixture-full.jsonl" -prior "$OUTPUT/work-invocations.txt") >"$out/evidence.jsonl" ||
+  (cd "$ROOT" && host_go run ./harness/integration/e16/evidence -receipts "$out/probes.jsonl" -server-log "$out/fixture-full.jsonl" -prior "$OUTPUT/work-invocations.txt") >"$out/evidence.jsonl" ||
     fail "probe receipts do not match the fixture server log; see $out/evidence.jsonl"
   record "probe pass"
   pass "probe receipts match the fixture server log"

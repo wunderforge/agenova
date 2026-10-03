@@ -330,6 +330,15 @@ for bad in '{"stats":{"expected":1,"unexpected":0,"skipped":1,"flaky":0}}' '{"st
 done
 echo '[pass] parity counts only a run of exactly the setup and case tests'
 
+# --- host binaries actually run ---
+if [ "$(uname -s)" = Darwin ]; then
+  [ "$(host_goflags)" = "-ldflags=-linkmode=external" ] || { echo "[fail] macOS host builds must link externally"; exit 1; }
+fi
+( run() { "$@"; }; cd "$ROOT" && host_go build -o "$TMP/agenova-host" ./cmd/agenova ) ||
+  { echo "[fail] host CLI build failed"; exit 1; }
+"$TMP/agenova-host" --help >/dev/null 2>&1 || { echo "[fail] the host CLI built by host_go does not run"; exit 1; }
+echo '[pass] host-built binaries (CLI, evidence checker) run on this host'
+
 printf '=== RUN   TestE16Probes\n    skipped\n--- SKIP: TestE16Probes (0.00s)\nPASS\n' >"$TMP/skip.log"
 expect_fail "skipped probe run" "did not pass" validate_probe_output "$TMP/skip.log"
 printf '=== RUN   TestE16Probes\n--- PASS: TestE16Probes (1.00s)\nPASS\n' >"$TMP/empty.log"
