@@ -64,13 +64,13 @@ This spec routes readers to tickets. It does not track mutable status: the "Base
 
 | ID | Path | Assets | Matrix rows |
 |---|---|---|---|
-| T1 | A1 calls the provider (or other services) directly and bypasses B2/B3 | P1, P3 | AC-7, AC-10, TM-1, TM-3 |
+| T1 | A1 calls the provider (or other services) directly and bypasses B2/B3 | P1, P3 | AC-7, AC-9, TM-1, TM-3 |
 | T2 | A1 reads a credential from env, mounts, SA token, or metadata endpoint | P1 | AC-6, AC-8, AC-9, TM-2 |
 | T3 | A1/A2 sends an operation that names another Running claim | P2, P3 | AC-5, FL-1 |
 | T4 | A2 escalates to an ungranted tool, resource, or profile through model output | P2 | SR-4, AC-1 |
 | T5 | A3 self-declares principal, status, or effective authority | P2, P4 | SR-1, SR-2, SR-5, ES-4 |
 | T6 | A3/A4 reaches a management or evidence surface without authentication | P3, P4 | ES-3, ES-5, SR-8, RI-1 |
-| T7 | A component fails (provider, runtime, restart) and the system fails open or loses evidence silently | P3 | RI-4, TM-4 |
+| T7 | A component fails (provider, runtime, restart) and the system fails open or loses evidence silently | P3 | RI-3, TM-4 |
 
 ### Explicit Non-Goals
 
@@ -93,7 +93,7 @@ This spec routes readers to tickets. It does not track mutable status: the "Base
   - `G`: known gap. The current reference does not satisfy the sentence.
   - `V`: vacuous on K. The protected object does not exist there (for example no external secret), so a canary is needed.
 - **Verify** gives the method, `+` positive control, `−` negative control, and the **oracle** that decides the result outside Agenova's own evidence.
-- **Demo**: `D` = proposed to shape the final demo narration; `F` = full delivery only. Both are pending maintainer confirmation on #177.
+- **Demo**: `D` = the row shapes the final demo narration on 5 November 2026; `F` = full delivery only. The maintainer confirmed on [#177](https://github.com/wunderforge/agenova/issues/177) (2 October 2026) that demo evidence is collected on K first and E is revalidated only if time allows, so `D` always means evidence on K. A row whose `D` evidence is not accepted by the demo wording freeze is narrated as an unverified limit, not as a guarantee.
 - Owners named "E15-T2" / "E15-T3" / "E15-ID" / "E15-EKS" refer to planned E15 tickets that are not yet created; the matrix row is updated with the issue link when they exist.
 
 ### Submission and Resolution
@@ -127,7 +127,7 @@ Excluded from Submission and Resolution, with reasons:
 | AC-6 | "Warm workers must not hold standing external authority." | K, E | Unverified lead: pool worker SA `default`, `automountServiceAccountToken=false`, observed once. | Inspect a warm-pool worker before binding: env, mounts, SA token, reachable endpoints. + a synthetic canary placed on purpose is found by the scan; − no real credential is found. Oracle: the scan itself plus Kubernetes Pod spec. | [#52](https://github.com/wunderforge/agenova/issues/52) | F |
 | AC-7 | "External system credentials remain behind Tool and Model Gateways or the future Memory Interface." | K: `V`; E | `V` on K: Ollama has no credential. `G` for the general case: no credential resolver ([#155](https://github.com/wunderforge/agenova/issues/155)). | On K use a canary credential configured only on the control-plane side; − canary not visible in worker. On E: Bedrock via IRSA, − worker cannot obtain node/IRSA credentials. Oracle: canary scan; AWS CloudTrail on E. | [#155](https://github.com/wunderforge/agenova/issues/155) (E14); [#52](https://github.com/wunderforge/agenova/issues/52) (K scan); E15-EKS | D (only if narrated) |
 | AC-8 | "A sandbox may receive only scoped identity material required to authenticate to Agenova components." | K, E | Unverified lead: the worker currently receives no identity material; the exec channel needs none. | Enumerate identity material in the worker (tokens, certs, env). − nothing beyond what a future #121 design issues. Oracle: Pod spec plus in-worker scan. | [#52](https://github.com/wunderforge/agenova/issues/52); design → [#121](https://github.com/wunderforge/agenova/issues/121) | F |
-| AC-9 | "Gateway policy and tests do not replace network controls, workload identity, or backend isolation evidence." | K, E | `G` by definition until runtime evidence exists. Network: generated NetworkPolicy, enforcement by kindnet **unverified**. Workload identity: none (#121). Isolation: filesystem not probed ([#51 evidence](../../docs/evidence/51/kind-run.md)). | Network: from a claim worker, attempt Ollama host port, control-plane `:8080`, Kubernetes API, 169.254.169.254, kube-dns, public egress. + a reachable control target proves the probe works; − protected targets unreachable. Oracle: provider log and packet/connection result from outside the worker. | Network → [#52](https://github.com/wunderforge/agenova/issues/52); identity → [#121](https://github.com/wunderforge/agenova/issues/121); isolation → [#51](https://github.com/wunderforge/agenova/issues/51) | D if the demo says "the worker cannot bypass the Gateway" (#177 question 1) |
+| AC-9 | "Gateway policy and tests do not replace network controls, workload identity, or backend isolation evidence." | K, E | `G` by definition until runtime evidence exists. Network: generated NetworkPolicy, enforcement by kindnet **unverified**. Workload identity: none (#121). Isolation: filesystem not probed ([#51 evidence](../../docs/evidence/51/kind-run.md)). | Network: from a claim worker, attempt Ollama host port, control-plane `:8080`, Kubernetes API, 169.254.169.254, kube-dns, public egress. + a reachable control target proves the probe works; − protected targets unreachable. Oracle: provider log and packet/connection result from outside the worker. | Network → [#52](https://github.com/wunderforge/agenova/issues/52); identity → [#121](https://github.com/wunderforge/agenova/issues/121); isolation → [#51](https://github.com/wunderforge/agenova/issues/51) | D (network part, K only): the demo intends to say "the worker cannot bypass the Gateway" (#177, 2 October 2026) |
 
 No sentence in Authority and Credentials is excluded.
 
@@ -167,7 +167,7 @@ Excluded from Reference Installation, with reasons:
 
 | ID | Gap | Config | Treatment | Owner |
 |---|---|---|---|---|
-| TM-1 | The generated NetworkPolicy allows worker egress to the public internet, so task data or model output can be exfiltrated. | K, E | Record the observed behaviour. Whether blocking it is in MVP scope is a maintainer decision (see Open Decisions). | [#52](https://github.com/wunderforge/agenova/issues/52) records; decision on #177 |
+| TM-1 | The generated NetworkPolicy allows worker egress to the public internet, so task data or model output can be exfiltrated. | K, E | Record the observed behaviour. E15 reports and does not remediate (#177, 2 October 2026): if open, file a follow-up issue for the owning Epic. This is an exfiltration risk, not a Gateway bypass on K (see the meaning of the demo sentence below), so it does not decide the demo sentence. | [#52](https://github.com/wunderforge/agenova/issues/52) records; follow-up issue if open |
 | TM-2 | Instance metadata (169.254.169.254) and IRSA/node credentials reachable from a worker on EKS | E | Unverifiable on K. Re-test on E once E13 provides it; VPC CNI enforces NetworkPolicy only with the network policy agent enabled. | E15-EKS (after [#175](https://github.com/wunderforge/agenova/issues/175)) |
 | TM-3 | A worker reaches the Kubernetes API or control-plane `:8080` | K, E | Probe as part of AC-9. | [#52](https://github.com/wunderforge/agenova/issues/52) |
 | TM-4 | Restart, provider outage, or runtime failure fails open or silently drops evidence. | K | Fault matrix with fail-closed expectations; evidence loss on restart is a known limit, not a failure of E15. | E15-T3; durability → [#180](https://github.com/wunderforge/agenova/issues/180) |
@@ -194,10 +194,27 @@ Excluded from Reference Installation, with reasons:
 - The architecture contract, PRD, and `docs/project-status.md` wording stay unchanged unless merged evidence or known gaps change.
 - The worker image allowlist (`AGENOVA_ALLOWED_WORKER_IMAGE`) must not be weakened by any E15 test harness.
 
+## Maintainer Decisions
+
+Recorded on [#177](https://github.com/wunderforge/agenova/issues/177) on 2 October 2026:
+
+1. The final demo is on 5 November 2026 and intends to say "the worker cannot bypass the Gateway". Evidence is collected on K first; E is revalidated if time allows. Rows marked `D` are scoped to K accordingly.
+2. E15 reports and does not remediate. Each open gap becomes a follow-up issue for the owning Epic; E15 re-tests after the fix.
+3. High-severity findings are disclosed through a GitHub private security advisory, not a public issue.
+
+## Disclosure
+
+- High severity means a finding that lets a worker, model output or caller obtain a credential, act for another claim, or reach a protected backend without a Gateway decision, on a configuration a reader could reproduce.
+- For a high-severity finding, public issues, PRs and `docs/evidence/` state only that a finding exists, its matrix row and its status. Reproduction steps stay in the advisory until the fix is merged or the maintainer approves publication.
+- A gap already listed in [`docs/project-status.md`](../../docs/project-status.md) as an unverified claim (for example kindnet enforcement of the generated NetworkPolicy) is not new information and may be recorded publicly; the maintainer decides borderline cases.
+- Private vulnerability reporting is disabled on the repository at the time of writing, and E15 contributors cannot open an advisory without it. Until the maintainer enables it, a high-severity finding is sent to the maintainer privately and nothing is published.
+
+## Meaning of "the worker cannot bypass the Gateway"
+
+Following the maintainer's calibration on [#52](https://github.com/wunderforge/agenova/issues/52) (16 September 2026) and the E15 Epic text, the sentence means: a worker cannot reach the configured model provider, or another endpoint the Gateway or control plane protects (control-plane Service, Kubernetes API, metadata range), without going through Agenova. On K the provider is Ollama at `host.docker.internal:11434`. Public internet egress (TM-1) is a separate exfiltration risk, not a Gateway bypass on K, because the worker holds no provider credential. On E the provider (Bedrock) is a public AWS endpoint, so the two overlap and are re-tested under TM-2.
+
 ## Open Decisions
 
-These are recorded for the maintainer on [#177](https://github.com/wunderforge/agenova/issues/177). None blocks merging this spec.
+None blocks merging this spec.
 
-- Which `D` rows the final demo narration depends on, and whether it will say "the worker cannot bypass the Gateway" (AC-9). Already asked as question ① on #177.
-- Whether public-internet egress from workers (TM-1) is an accepted MVP limit or a gap to fix.
 - Whether the caller-side negatives (SR-5, SR-7, ES-2, ES-4, RI-1, TM-5) become one E15-ID ticket after #172, or join E14 tickets.

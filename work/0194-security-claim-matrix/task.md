@@ -44,7 +44,8 @@ Out of scope:
 - Every security-relevant sentence in Authority and Credentials, Submission and Resolution, Evidence Surfaces, and Reference Installation and Bootstrap has a row, or an exclusion with a reason.
 - Every row names the configuration it applies to; no kind result is extended to EKS.
 - Every demo-relevant row names a positive control, a negative control, and an oracle outside Agenova's own evidence.
-- Rows are marked demo-shaping (`D`) or full-delivery-only (`F`), pending maintainer confirmation on #177.
+- Rows are marked demo-shaping (`D`, evidence on kind for the 5 November 2026 demo) or full-delivery-only (`F`), following the maintainer decisions on #177 (2 October 2026).
+- The spec records the maintainer decisions and the disclosure rule for high-severity findings.
 - Every row links to an owning ticket or names a planned E15 ticket.
 
 ## Negative Case
@@ -60,7 +61,8 @@ Out of scope:
 - [x] Cross-check every quoted sentence against the contract and every cited test/code line against `c56ba3a`.
 - [x] Run `./scripts/check.ps1 -Docs` and `./scripts/check.ps1 -All`.
 - [x] Review the diff for scope, regressions, and source-of-truth updates.
-- [ ] After merge: ask the maintainer on #177 to confirm the `D` rows; link planned E15 tickets into their rows when created.
+- [x] Record the maintainer decisions from #177 (2 October 2026): demo date and scope, report-only, private disclosure.
+- [ ] After merge: link planned E15 tickets into their rows when created.
 
 ## Quality Gates
 
@@ -70,7 +72,7 @@ Out of scope:
 ## Evidence Required
 
 - The merged `spec.md` with the matrix; every row links to its owning ticket.
-- A maintainer comment on #177 confirming which rows the final demo narration depends on.
+- The maintainer decisions on #177 (2 October 2026) that set the demo scope for the `D` rows.
 
 ## Constraints
 
