@@ -197,7 +197,7 @@ These are relative engineering estimates, not delivery dates.
 
 - E16 owns Tool Backend configuration, logical mapping, actual MCP transport/results, service wiring, catalog propagation and tool evidence.
 - #121 owns Worker-to-Gateway caller authentication. E16 reuses correlation-only reference binding and limits N3 to a test-only Gateway-side rejection probe.
-- E14 owns trusted identities and shared credential resolution. E16 consumes the agreed server-side token boundary for its final acceptance slice; it does not require complete SSO before the no-token slice.
+- E14 owns trusted identities and the shared credential contract (#155 stays in the backlog). E16's Slice 4 delivers its own narrow token-required path for the `mcp-http` backend: a provisional Kubernetes Secret reference in the Tool Backend config, resolved by the control plane and sent by the MCP client. It defines no general credential reference or resolver. What remains with E14 is merge order ([plan section 7](slice3-kind-acceptance-plan.md#7-coordination-with-e14-197)).
 - The existing shared service remains an assembly consumer; provider/bundled code cannot import it. Add an import-boundary check to the implementation gate, including transitive provider dependencies.
 - PR #189 remains optional reference material. Coordinate future overlapping service/worker changes, but do not cherry-pick its role policy or local console entry point into E16 by default.
 
@@ -222,5 +222,5 @@ These are relative engineering estimates, not delivery dates.
 - Catalog propagation crosses protocol, runtime, service and installed validation. Land descriptor fixtures and contract tests before consumer changes are called complete.
 - MCP data is adversarial input; labeling is not a guarantee against model persuasion. Continued server-side enforcement must block any attempted expansion.
 - Facts can fail after a real call. Distinguish pre-call zero-call guarantees from post-call evidence loss and preserve independent server records.
-- The reference fixture has no production identity/network-isolation claim; E14 token acceptance remains required for Epic closure.
+- The reference fixture has no production identity/network-isolation claim; the Slice 4 token-required path remains required for Epic closure.
 - Server/client versions and image digest are delivery outputs to pin and record, not fabricated planning facts. D1 B and D2 A are selected; the fixture image digest and real evidence remain pending. The Go-baseline chore is separate and requires maintainer approval.

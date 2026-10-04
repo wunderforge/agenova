@@ -5,7 +5,7 @@
 - Target: Platform backend/profile schema and resolution, adapterregistry tool-capability/lock/inspect/init support, bundled tool adapter, installed control plane, Tool Gateway/provider contract, controlled-worker tool catalog, shared facts/evidence and kind acceptance harness.
 - User value: A Work receives a real external observation under its own temporary authority; CLI and Portal distinguish permission, invocation, result and Work outcome.
 - PRD outcome: [claim-scoped authority](../../docs/product/prd.md#4-claim-scoped-authority), [facts and accountability](../../docs/product/prd.md#5-facts-and-accountability), and [reference installation](../../docs/product/prd.md#6-reference-installation-and-initial-policy-bootstrap).
-- Packet status: Independent packet review (2026-09-26, findings F1–F5) incorporated; assignee self-review by Tom on 2026-09-26. Slice 1 authorized on 2026-09-26 against main `c56ba3a21a43ba550185e991cecede796af4f054`. D1 B and D2 A are selected. Slice 2 is implemented with deterministic and local interoperability evidence; the kind E2E is Slice 3. Implementation and acceptance evidence are recorded per slice.
+- Packet status: Independent packet review (2026-09-26, findings F1–F5) incorporated; assignee self-review by Tom on 2026-09-26. Slice 1 authorized on 2026-09-26 against main `c56ba3a21a43ba550185e991cecede796af4f054`. D1 B and D2 A are selected. Slice 2 is implemented with deterministic and local interoperability evidence; the kind E2E is Slice 3. On 2026-10-04 Tom decided that Slice 4 no longer waits for E14: E16 delivers its own token-required path (see Decisions). Implementation and acceptance evidence are recorded per slice.
 
 ## Context to Read
 
@@ -33,13 +33,14 @@ In scope:
 - A provider contract in `internal/toolbackend` (selected location); MCP implementation below that package or another adapter package. `internal/toolgateway` continues to enforce authority. No provider types owned by `console`; bundled adapters must not import `console`.
 - A trusted logical-operation catalog intersected with each Work's effective tools and resource scopes, propagated consistently through schema, parser, prompt, runtime and installed service validation.
 - Stable attempt/outcome correlation, bounded untrusted observations, CLI/API/Portal consistency, deterministic tests and one reproducible kind E2E evidence bundle.
-- A later E14-coordinated token-required path is part of full Epic acceptance, though the first delivery may be credential-free.
+- A token-required path for the `mcp-http` backend, delivered by E16 itself (Slice 4), is part of full Epic acceptance; the first delivery may be credential-free.
 
 Out of scope:
 
 - General MCP server discovery, stdio or legacy HTTP+SSE transports, arbitrary model-selected URLs/methods, write tools, general plugin installation, memory, multi-agent orchestration, production SSO, Worker caller authentication (#121) and claims of network-enforced isolation.
 - Reimplementing #189's GitHub PR/rollback demo, adopting its local identity presets, or routing acceptance through `cmd/agenova-console`.
 - Existing runbook annotations: handled separately under [#190](https://github.com/wunderforge/agenova/issues/190).
+- A general credential reference or resolver ([#155](https://github.com/wunderforge/agenova/issues/155)), Secret Manager integration, and any change to E14's principal or credential contracts.
 
 ## Acceptance Criteria
 
@@ -50,7 +51,7 @@ Out of scope:
 5. Each of ordinary Deny, unauthorized resource, cross-claim targeting, terminal claim and pre-call recording failure has a separate test and **zero server-side tool calls**, verified from complete server logs. N3 is a test-only driver probe of the existing service/Gateway-side correlation guard (the claim-ID check in the `Service` per-Work operation handler, `internal/console/service.go:298` at `94a8481`), not proof of caller authentication; that belongs to #121. Deny-by-hidden-tool alone is insufficient evidence.
 6. Timeout, oversized response, invalid configuration and unavailable server fail explicitly without mock fallback. Bounded successful MCP text is marked untrusted and visibly marked if truncated for the observation budget.
 7. `httptest` protocol tests are deterministic; one real kind run captures image/source versions, manifests, Platform revision, Work/claim/invocation IDs, server logs, CLI/API output and rendered Portal evidence. No live result is claimed from the fake server.
-8. Full Epic completion additionally requires the E14-coordinated token case: provider-side credential use, no external secret in Worker/request/evidence, and safe failure for invalid credentials.
+8. Full Epic completion additionally requires a token-required MCP path (Slice 4). The token is held in a Kubernetes Secret in the install namespace, and the Tool Backend configuration holds only a provisional reference to it; the control plane resolves it and the MCP client sends it to the server. On kind: a valid token reads successfully; a missing or wrong token fails explicitly, with no mock fallback and no retry; the worker Pod's environment, manifest and mounts hold no token; and no token value appears in the tool catalog, facts, CLI/API/Portal evidence or any log.
 
 ## Negative Case
 
@@ -67,7 +68,7 @@ The complete case matrix is in [spec.md](spec.md#negative-cases). In particular,
 - [x] Slice 2 / S2: prevent incomplete allowed invocations. `internal/console/tool_provider.go` currently checks Catalog.Validate, context and Running after ToolDecision Allow but before ProviderAttempt; an early return leaves stage 1, which `internal/connectedclient/run.go:604` rejects as an invalid completed Work. Validate parameters and available session/Running state in `service.go` before calling Gateway. If a check can still reject after Allow (including cancellation/termination races), record ProviderAttempt plus a Failed ProviderOutcome with the same Target before returning, provided the journal is writable. Preserve explicit evidence-failure handling when recording itself fails. Add an N2 regression with zero provider calls and a completed Work that passes the real connected-client/CLI evidence validator; also cover late context/Running rejection. Do not weaken the CLI validator.
 - [x] Slice 2 / S3: enforce configured `max-concurrent-calls` in `toolbackend.Set`, shared by profiles using the same backend. Acquire capacity before entering the provider, respect context cancellation while waiting, and release capacity on every completion/failure path. Add deterministic concurrent-call tests that assert the observed maximum, cancellation without a provider call and capacity release after errors. Slice 1 only validates the configuration value.
 - [ ] Slice 3: complete deterministic negative/failure cases, CLI/API/Portal parity and the installed kind E2E bundle. Fix findings and rerun affected gates before broadening.
-- [ ] Slice 4: coordinate the token-required path with E14 and attach independent no-secret evidence before closing #178.
+- [ ] Slice 4 (Tom, 2026-10-04; no longer waits for E14): the token-required path for the `mcp-http` backend only, as acceptance criterion 8 states. The configuration key is provisional so that #155 can replace it; E16 defines no general credential reference or resolver. Design and build it before the formal campaign c6, which proves it on kind together with Slice 3.
 - [ ] Run focused gates and `./scripts/check.ps1 -All` for each remaining slice; review diff and update only evidence-owning documentation for behavior actually proven. Slice 1 results are in the review packet.
 - [ ] Deliver the Epic as one PR (#192, kept in Draft until the acceptance evidence is complete) with exact evidence. Do not close #178 on a planning-only or credential-free delivery.
 
@@ -93,7 +94,7 @@ pwsh -NoProfile -File ./scripts/check.ps1 -All
 - Positive run: two or more actual model turns, a genuine file read at the MCP server, matching invocation correlation, correct Work result and cleanup, CLI/API/Portal parity.
 - Five separate zero-call cases with test-driver receipts and complete server logs covering before/after windows, pod UID/restarts and log-continuity checks. Missing logs are insufficient evidence.
 - Failure cases: timeout, hard response limit, soft observation truncation, malformed reply, unavailability and post-call journal failure distinguished explicitly.
-- Token path: credential reference only, provider/Pod inspection and sanitized evidence; no token values in artifacts.
+- Token path: configuration holding the Secret reference only; a valid-token read and the missing- and wrong-token failures from the same campaign as Slice 3; the worker Pod's environment, manifest and mounts inspected; and a search of every artifact showing no token value.
 
 ## Constraints
 
@@ -111,9 +112,11 @@ pwsh -NoProfile -File ./scripts/check.ps1 -All
 - D2 is resolved as A (2026-09-30): an independent-module official-SDK file server rather than an existing server plus request-body logging proxy. The official filesystem server supports only stdio, so B would have needed an extra bridge. No server image has been built yet.
 - Timeline verified on 2026-09-26: `wunderforge` assigned #178 to `TIAN-TOM` at `2026-09-21T09:28:05Z` (`GET /repos/wunderforge/agenova/issues/178/timeline`). This corrects the earlier attribution to Tom's account.
 - #189 remains unmerged at `38ee951358e36f32f440fdea851a61c7ce53661d` at inspection. It does not change `cmd/agenova-control-plane`; its console-owned ToolProvider and mismatched Target behavior are not imported as a frozen contract.
-- Real E2E and E14 token acceptance remain unexecuted. Image digest/server build selection must be recorded before an integration result is accepted.
+- Real E2E and the token-required path remain unexecuted. Image digest/server build selection must be recorded before an integration result is accepted.
 - Planning validation on 2026-09-26 (before Slice 1): `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` passed; local links, scaffold-marker removal and whitespace were checked. Application code, `go.mod` and `go.sum` are unchanged. This is packet validation, not implementation evidence.
 
 - Slice 1 delivery: provider-neutral contracts and installed composition are implemented with doubles, not live MCP. `Result.ResultRef` is separate from Target; shared evidence-field projection and all dynamic worker consumers remain Slice 2. The catalog is immutable and intersection-tested. Default Go 1.22.12 linking failed on this host with `missing LC_UUID`; the focused suite passed with the same compiler and external linking. Exact full-gate results are in [review-slice1.md](review-slice1.md).
+
+- Slice 4 decided by Tom on 2026-10-04: E16 delivers its own token-required path instead of a joint verification with E14, because E14 plans nothing for E16 to integrate with. [Ticket #197](https://github.com/wunderforge/agenova/issues/197), E14's only implementation ticket, provides just the bounded host-side credential proof E14 needs and puts a general credential reference/resolver (#155) and Secret Manager integration out of scope; [Epic #176](https://github.com/wunderforge/agenova/issues/176) coordinates with E16 but does not implement its providers. The claim-bound worker JWT is #197's own acceptance; E16's N3 proves only the existing correlation guard. What remains with E14 is merge order: after #197 merges, E16 reruns N1–N5 under the worker JWT, with nothing needed from E14 ([plan section 7](slice3-kind-acceptance-plan.md#7-coordination-with-e14-197)). Recorded on [Epic #178](https://github.com/wunderforge/agenova/issues/178#issuecomment-5977720567).
 
 - Slice 2 delivery (2026-09-30): the client runs one short session per invocation (initialize, initialized, tools/call, DELETE), never replays `tools/call`, sends `X-Agenova-Correlation: <invocation ID>` on every request, rejects redirects and bounds the whole response. The service checks the installed route and allowlisted argument before the Gateway but does not decide authority: an installed route outside the grant still reaches the Gateway and is denied with evidence, which E15's Gateway-rejection probes rely on. Post-Allow rejections record an attempt plus a Failed (argument) or Cancelled (cancellation/termination race) outcome. Any provider failure, including a server `isError`, still fails the Work explicitly; letting the agent recover from a tool-level error is not in this slice. The fixture builder is `golang:1.27-alpine` pinned by digest (Go 1.27.1, a supported release); the module's minimum stays `go 1.25.0`. Tests with injected providers or local interop are not kind evidence.

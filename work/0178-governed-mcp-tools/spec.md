@@ -12,7 +12,7 @@ A Work can use an operator-configured logical tool through the installed service
 
 - One bounded read-only file operation on a reproducible dataset served by a real MCP server on kind.
 - Streamable HTTP, validated Platform configuration, trusted catalog delivery, per-invocation enforcement and shared evidence.
-- Credential-free first integration and an E14-coordinated token path before full Epic completion.
+- Credential-free first integration and a token-required path for the `mcp-http` backend (Slice 4) before full Epic completion.
 
 ## Out of Scope
 
@@ -63,7 +63,7 @@ Server logs record each received `tools/call` before handler dispatch, its corre
 
 ### R6. Token integration
 
-The first server may run without credentials. Full Epic completion requires an E14-agreed token-required server path: resolve credentials on the trusted provider side, test invalid/missing token failure, and prove Worker/request/evidence contain no external secret. Credentials are not copied into Platform config or the tool catalog. Do not independently redefine E14's principal or credential contract.
+The first server may run without credentials. Full Epic completion requires a token-required server path, which E16 delivers itself for the `mcp-http` backend (decided 2026-10-04; E14 offers no shared credential contract to integrate with). The token is held in a Kubernetes Secret in the install namespace. The Tool Backend configuration holds only a reference to it, marked provisional so that a general credential reference (#155) can replace it. The control plane resolves the token on the trusted provider side and the MCP client sends it to the server. A missing or wrong token fails explicitly, with no mock fallback and no retry. The worker, the request, the tool catalog, the facts and the CLI/API/Portal evidence never contain the token, and the worker Pod's environment, manifest and mounts hold none. The token value is never copied into Platform config or the tool catalog. E16 defines no general credential reference or resolver and does not redefine E14's principal or credential contract.
 
 ## Negative Cases
 

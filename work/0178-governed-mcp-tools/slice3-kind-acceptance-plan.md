@@ -42,8 +42,8 @@ Unchanged boundaries:
 - Backend-neutral contracts and Gateway ownership of authority. The service still checks only the installed route and allowlisted argument before the Gateway.
 - No production API, flag or route for fault injection or probing. The production binary contains one inactive append function value (G2) that always points at `journal.Append`; the API that replaces it compiles only under the `agenovaprobe` build tag.
 - No root `go.mod` or CI toolchain change. No CI job for the fixture.
-- E14 tokens and worker authentication (#197, formerly #121), hostile-worker network bypass (E15), EKS and durable storage (E18) keep their current owners.
-- PR #192 stays Draft. Slice 3 passing does not close #178; Slice 4 is still required.
+- Worker identity tokens and worker authentication (#197, formerly #121), hostile-worker network bypass (E15), EKS and durable storage (E18) keep their current owners.
+- PR #192 stays Draft. Slice 3 passing does not close #178; Slice 4, E16's own token-required MCP path, is still required, and c6 proves both (section 7).
 
 ## 3. Pass tiers
 
@@ -253,8 +253,10 @@ No token, credential or raw trusted metadata appears in any artifact.
 
 #197 adds a claim-bound worker JWT that Tool and Model Gateways verify before authority lookup and adapter invocation, on the same entry path as G2 and G3.
 
-- The initial Slice 3 campaign runs on this reviewed baseline, without #197.
-- After integration with #197, any rerun of N1–N5 must present a valid claim-bound identity and prove each probe still reached its intended rejection point. A missing-token rejection cannot stand in for N1–N5's distinct mechanisms.
+Slice 4 no longer depends on E14 (Tom, 2026-10-04, recorded on [Epic #178](https://github.com/wunderforge/agenova/issues/178#issuecomment-5977720567)): E16 delivers its own token-required path for the `mcp-http` backend ([task.md](task.md#execution-todo) Slice 4), and the formal campaign c6 proves it on kind together with Slice 3. What remains with #197 is merge order.
+
+- c6 runs on this branch, without #197.
+- After #197 merges, E16 reruns N1–N5 under the worker JWT, with nothing needed from E14. Each probe must present a valid claim-bound identity and prove it still reached its intended rejection point. A missing-token rejection cannot stand in for N1–N5's distinct mechanisms.
 - N3's correlation claim stays separate from authenticated cross-claim rejection, which #197 owns.
 - A note on #197 about overlapping paths is useful but is a separate action that needs Tom's approval. It is not a prerequisite for implementation.
 
