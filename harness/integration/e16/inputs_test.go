@@ -8,6 +8,7 @@ package e16
 import (
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -24,6 +25,30 @@ func read(t *testing.T, name string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+// kubelet can enforce runAsNonRoot only for a numeric image user; a named one
+// ("nonroot") leaves the container in CreateContainerConfigError. Every image
+// whose manifest requires it must end on a numeric, non-zero USER.
+func TestNonRootManifestsUseNumericImageUsers(t *testing.T) {
+	for manifest, dockerfile := range map[string]string{
+		"../mcpfixture/deploy.yaml": "../mcpfixture/Dockerfile",
+		"probe-job.yaml":            "probe.Dockerfile",
+	} {
+		if !strings.Contains(string(read(t, manifest)), "runAsNonRoot: true") {
+			t.Fatalf("%s no longer requires runAsNonRoot; update this test", manifest)
+		}
+		user := ""
+		for _, line := range strings.Split(string(read(t, dockerfile)), "\n") {
+			if fields := strings.Fields(line); len(fields) == 2 && strings.EqualFold(fields[0], "USER") {
+				user = fields[1]
+			}
+		}
+		uid, _, _ := strings.Cut(user, ":")
+		if n, err := strconv.Atoi(uid); err != nil || n <= 0 {
+			t.Errorf("%s ends on USER %q, but %s sets runAsNonRoot, which needs a numeric non-zero user", dockerfile, user, manifest)
+		}
+	}
 }
 
 // The positive route holds only the positive task's files and the faults route

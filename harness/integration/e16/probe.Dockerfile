@@ -16,5 +16,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOTOOLCHAIN=local go test -c -tags agenovaprobe -tr
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/e16-probe.test /e16-probe.test
-USER nonroot:nonroot
+# Numeric (the distroless nonroot user), so kubelet can enforce runAsNonRoot.
+USER 65532:65532
 ENTRYPOINT ["/e16-probe.test", "-test.run", "^TestE16Probes$", "-test.v", "-test.count=1"]

@@ -1,6 +1,6 @@
 # E16 Slice 3: installed kind acceptance plan
 
-Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Nothing in this plan has been executed on kind, and it does not change the Epic's completion state.
+Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Its first campaign stopped at the fixture on a defect (L6, section 10), and no acceptance result exists yet. The plan does not change the Epic's completion state.
 
 This plan refines the Slice 3 Todo in [task.md](task.md#execution-todo). The packet's [acceptance criteria](task.md#acceptance-criteria), [evidence requirements](task.md#evidence-required), [negative cases](spec.md#negative-cases) and [verification strategy](design.md#verification-strategy) remain authoritative. Where this plan and the packet disagree, the packet wins and this plan is corrected.
 
@@ -386,3 +386,11 @@ Re-review (2026-10-03) confirmed L2 and L3 against their counterexamples, and fo
 | L5 | P2 | Responses were checked only by count, so a missing response could be offset by a duplicate (DELETE responses replaced by repeated initialize responses still passed). | Each response is matched in log order to the earliest open request with the same HTTP method, RPC method and RPC id. Unmatched responses, unanswered requests and non-2xx statuses fail. Ordering does not require a response before the next request, because the fixture logs a response after its handler returns. Duplicate, mismatched-id and early-response logs are tested. |
 
 Third review (2026-10-04) confirmed L4 and L5 and found no new issue. It also found no regression in the archive gates, the port-forward or the `inv-42` isolation, and accepted the diff for commit and a rebuild in a new campaign directory. The kind import, the controlled read on kind and the cluster-DNS path remain to be proven.
+
+Phase 2 on kind (2026-10-04), after `protect` and `load` succeeded, found:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| L6 | P1 | The fixture Pod never started. kubelet rejected it with `container has runAsNonRoot and image has non-numeric user (nonroot), cannot verify user is non-root`, because the fixture image ends on `USER nonroot:nonroot`. The probe image ends the same way and the probe Job also sets `runAsNonRoot`, so the probe would have failed later. | Both images end on `USER 65532:65532`, the same user (`nonroot` is 65532:65532 in the distroless base), as the test worker image already does. `TestNonRootManifestsUseNumericImageUsers` fails on a named user and passes on the numeric one. The campaign that stopped is restored and a new one is built from the fix. |
+
+Review of the L6 fix (2026-10-04) found no new issue and no other Pod admission or creation blocker in the fixture or probe manifests. That covers Pod Security Restricted, seccomp, the read-only root and the ConfigMap volumes readable by UID 65532. Whether the fixed Pod starts is proven only by the next campaign on kind.
