@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 
-# Offline checks for campaign.sh: argument guards, protect/load/restore gates
-# and probe output validation. No command reaches Docker, kind or a cluster.
+# Offline checks for campaign.sh: argument guards, protect/load/restore gates,
+# the controlled read and probe output validation. No command reaches Docker,
+# kind or a cluster.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/harness/integration/e16/campaign.sh"
 # shellcheck source=campaign.sh
@@ -16,17 +17,60 @@ LOG="$TMP/calls.log"
 HEX="$(printf 'a%.0s' $(seq 1 64))"
 RECORDED="sha256:$HEX"
 
-# A fake image archive whose manifest names the recorded config.
-mkdir -p "$TMP/fake"
-printf '[{"Config":"blobs/sha256/%s"}]' "$HEX" >"$TMP/fake/manifest.json"
-tar -cf "$TMP/fake.tar" -C "$TMP/fake" manifest.json
+hex() { printf "$1%.0s" $(seq 1 64); }
+# Fake OCI image archives whose manifest.json names the recorded config. The
+# index references a platform manifest and an attestation manifest, as
+# docker save and ctr export write them; make_archive can leave one blob out.
+LAYER="$(hex 1)" MAN="$(hex 2)" ATT="$(hex 5)" IDX="$(hex 6)"
+make_archive() { # name [hex of a blob to leave out]
+  local d="$TMP/$1" b="$TMP/$1/blobs/sha256" attcfg attlayer
+  attcfg="$(hex 3)" attlayer="$(hex 4)"
+  rm -rf "$d"; mkdir -p "$b"
+  printf '{}' >"$b/$HEX"; printf 'layer' >"$b/$LAYER"; printf '{}' >"$b/$attcfg"; printf '{}' >"$b/$attlayer"
+  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:%s"},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"sha256:%s"}]}' "$HEX" "$LAYER" >"$b/$MAN"
+  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:%s"},"layers":[{"mediaType":"application/vnd.in-toto+json","digest":"sha256:%s"}]}' "$attcfg" "$attlayer" >"$b/$ATT"
+  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:%s","platform":{"architecture":"arm64","os":"linux"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:%s","platform":{"architecture":"unknown","os":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest"}}]}' "$MAN" "$ATT" >"$b/$IDX"
+  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.index.v1+json","digest":"sha256:%s"}]}' "$IDX" >"$d/index.json"
+  printf '[{"Config":"blobs/sha256/%s"}]' "$HEX" >"$d/manifest.json"
+  [ -z "${2:-}" ] || rm -f "$b/$2"
+  tar -cf "$TMP/$1.tar" -C "$d" index.json manifest.json blobs
+}
+# variant <name> <js>: the complete archive with one structural defect. The
+# script runs in the layout directory with r(hex)/w(hex, value) for blobs.
+variant() {
+  rm -rf "$TMP/$1"; cp -R "$TMP/fake" "$TMP/$1"
+  (cd "$TMP/$1" && IDX="$IDX" MAN="$MAN" HEX="$HEX" node -e 'const fs=require("fs");const {IDX,MAN,HEX}=process.env;
+    const p=d=>"blobs/sha256/"+d;const r=d=>JSON.parse(fs.readFileSync(p(d)));
+    const w=(d,v)=>fs.writeFileSync(p(d),typeof v==="string"?v:JSON.stringify(v));'"$2")
+  tar -cf "$TMP/$1.tar" -C "$TMP/$1" index.json manifest.json blobs
+}
+make_archive fake
+# ctr images export without --all-platforms leaves the attestation manifest out.
+make_archive partial "$ATT"
+make_archive nolayer "$LAYER"
+mkdir -p "$TMP/legacy"
+printf '[{"Config":"blobs/sha256/%s"}]' "$HEX" >"$TMP/legacy/manifest.json"
+tar -cf "$TMP/legacy.tar" -C "$TMP/legacy" manifest.json
+# A descriptor without a media type hides its missing config.
+variant notype 'const v=r(IDX);delete v.manifests[0].mediaType;w(IDX,v);fs.unlinkSync(p(HEX))'
+variant emptychild 'const v=r(IDX);v.manifests=[];w(IDX,v)'
+variant unknowntype 'const v=r(IDX);v.manifests[0].mediaType="application/vnd.example+json";w(IDX,v)'
+variant baddigest 'const v=JSON.parse(fs.readFileSync("index.json"));v.manifests[0].digest="sha256:../x";fs.writeFileSync("index.json",JSON.stringify(v))'
+variant attonly 'const v=r(IDX);v.manifests=v.manifests.slice(1);w(IDX,v)'
+variant garbage 'w(MAN,"not json")'
+variant nolayers 'const v=r(MAN);delete v.layers;w(MAN,v)'
+variant wrongtype 'const v=r(MAN);v.mediaType="application/vnd.oci.image.index.v1+json";w(MAN,v)'
+# The same blob named first as a manifest and then as an index.
+variant retyped 'const v=r(IDX);v.manifests.push({mediaType:"application/vnd.oci.image.index.v1+json",digest:"sha256:"+MAN});w(IDX,v)'
+# One manifest named first as an attestation and then as the image: complete.
+variant attfirst 'const v=r(IDX);const m=v.manifests[0];v.manifests=[{...m,annotations:{"vnd.docker.reference.type":"attestation-manifest"}},m];w(IDX,v)'
 
 # Stubs: every external command is logged, nothing runs.
 FAIL_ON=""
 run() {
   printf '%s\n' "$*" >>"$LOG"
   case "$*" in
-    *"cat /tmp/e16-protect.tar"*) cat "$TMP/fake.tar" ;;
+    *"cat /tmp/e16-protect.tar"*) cat "${EXPORT_TAR:-$TMP/fake.tar}" ;;
     *"kind load image-archive"*) touch "$TMP/imported" ;;
     # Any local listener answers with valid, empty Work JSON.
     *"curl "*) printf '[]' ;;
@@ -61,7 +105,7 @@ wait_ready() { return 0; }
 reset() {
   OUTPUT="$TMP/out-$1"; rm -rf "$OUTPUT" "$TMP/imported"; mkdir -p "$OUTPUT"; : >"$LOG"
   CONTEXT=kind-x INSTALL_NAMESPACE=agenova-e16-system STATE_DIR="$TMP/s" MODEL_PROFILE=coding-standard YES=1
-  OTHER_REPLICAS=1 OTHER_NONE="" OTHER_FAIL="" PODS_FAIL="" OTHER_PODS="" E16_PODS="" WORK_JSON='[]' ARCHIVE_RC=0 NODE_ID="$RECORDED" FAIL_ON=""
+  OTHER_REPLICAS=1 OTHER_NONE="" OTHER_FAIL="" PODS_FAIL="" OTHER_PODS="" E16_PODS="" WORK_JSON='[]' ARCHIVE_RC=0 NODE_ID="$RECORDED" FAIL_ON="" EXPORT_TAR=""
 }
 # expect_fail <description> <expected message> <command...>: the command must
 # fail for the stated reason, not an earlier one.
@@ -95,6 +139,29 @@ unknown flag|--context kind-x --frobnicate preflight
 EOF
 echo '[pass] context, namespace, state and output arguments are required and checked'
 
+# --- archive completeness ---
+for good in fake attfirst; do
+  archive_complete "$TMP/$good.tar" 2>/dev/null || { echo "[fail] a complete archive was rejected: $good"; exit 1; }
+done
+while IFS='|' read -r bad want; do
+  expect_fail "archive $bad" "$want" archive_complete "$TMP/$bad.tar"
+done <<'EOF'
+partial|referenced but absent
+nolayer|referenced but absent
+legacy|unreadable layout index
+notype|malformed descriptor
+emptychild|names no manifest
+unknowntype|is neither an index nor a manifest
+baddigest|malformed descriptor
+attonly|no runnable image manifest
+garbage|unreadable blob
+nolayers|has no layer list
+wrongtype|is not the
+retyped|is referenced as both
+EOF
+[ "$(archive_config_digest "$TMP/partial.tar")" = "$RECORDED" ] || { echo "[fail] partial archive must still name the recorded config"; exit 1; }
+echo '[pass] an archive counts as complete only when every blob its index reaches is in it and its structure is followable'
+
 # --- protect ---
 reset p1; YES=0
 expect_fail "protect without --yes" "rerun with --yes" protect
@@ -114,6 +181,13 @@ expect_fail "protect with an export that does not match the node image" "is inco
 not_called 'scale'; ! state_complete "$OUTPUT/protect-state.txt"
 echo '[pass] protect stops before scaling when an export does not match the node image'
 
+# The config matches the node, but the archive lacks the attestation manifest
+# its index references, so kind load --all-platforms could not restore it.
+reset p7; EXPORT_TAR="$TMP/partial.tar"
+expect_fail "protect with an export missing a referenced manifest" "lacks content its index references" protect
+not_called 'scale'; ! state_complete "$OUTPUT/protect-state.txt"
+echo '[pass] protect stops before scaling when an export could not be imported again'
+
 reset p5; OTHER_PODS='agenova-system/old Running agenova-control-plane:0.1.0'
 expect_fail "protect while old pods keep running" "protect is not complete" protect
 called 'scale deployment agenova-control-plane --replicas=0'; ! state_complete "$OUTPUT/protect-state.txt"
@@ -126,6 +200,8 @@ grep -q "^image agenova-control-plane:0.1.0 $RECORDED " "$OUTPUT/protect-state.t
 grep -q '^scale Deployment agenova-system agenova-control-plane 1$' "$OUTPUT/protect-state.txt"
 [ -s "$OUTPUT/protected-work/agenova-system-agenova-control-plane.json" ]
 [ "$(line_of 'ctr -n k8s.io images export')" -lt "$(line_of 'scale deployment')" ]
+[ "$(grep -c 'ctr -n k8s.io images export' "$LOG")" -eq "$(grep -c 'ctr -n k8s.io images export --all-platforms ' "$LOG")" ] ||
+  { echo "[fail] protect must export every platform"; exit 1; }
 expect_fail "protect twice" "run restore before protecting again" protect
 echo '[pass] protect archives history, verifies exports, stops the old install and refuses to repeat'
 
@@ -176,13 +252,13 @@ unset -f kubectl
 echo '[pass] Work history is read only through a port-forward that reported its port and stayed alive'
 
 # --- load ---
-write_build() { # source
+write_build() { # source [archive]
+  local tag src="${2:-$TMP/fake.tar}"
   mkdir -p "$OUTPUT/images"
   printf 'source %s\n' "$1" >"$OUTPUT/build-identity.txt"
-  local tag
   for tag in agenova-control-plane:0.1.0 agenova-testworker:kind agenova-e16-mcp:testsha12345 agenova-e16-probe:testsha12345; do
-    cp "$TMP/fake.tar" "$(image_archive "$tag")"
-    printf 'x tag=%s local-id=y config=%s archive-sha256=%s\n' "$tag" "$RECORDED" "$(shasum -a 256 "$TMP/fake.tar" | cut -d' ' -f1)" >>"$OUTPUT/build-identity.txt"
+    cp "$src" "$(image_archive "$tag")"
+    printf 'x tag=%s local-id=y config=%s archive-sha256=%s\n' "$tag" "$RECORDED" "$(shasum -a 256 "$src" | cut -d' ' -f1)" >>"$OUTPUT/build-identity.txt"
   done
 }
 protected_state() { printf 'image agenova-control-plane:0.1.0 %s x\ncomplete now\n' "$RECORDED" >"$OUTPUT/protect-state.txt"; }
@@ -204,7 +280,9 @@ printf 'tampered' >>"$(image_archive agenova-testworker:kind)"
 expect_fail "load a replaced archive" "does not match its recorded hash" load; not_called 'kind load'
 reset l5; write_build othersha; protected_state; OTHER_REPLICAS=0
 expect_fail "load archives built from another commit" "another commit" load; not_called 'kind load'
-echo '[pass] load refuses archives that do not match the build record for this commit'
+reset l9; write_build testsha "$TMP/partial.tar"; protected_state; OTHER_REPLICAS=0
+expect_fail "load a recorded archive missing a referenced manifest" "lacks content its index references" load; not_called 'kind load'
+echo '[pass] load refuses archives that do not match the build record for this commit or could not be imported'
 
 reset l6; write_build testsha; protected_state; OTHER_REPLICAS=0
 load >/dev/null
@@ -236,6 +314,13 @@ called 'scale deployment agenova-control-plane --replicas=1'; called 'rollout st
 [ ! -e "$OUTPUT/protect-state.txt" ]
 restore >/dev/null
 echo '[pass] restore keeps state until the old install is Ready and can be repeated safely'
+
+reset r3; cp "$TMP/partial.tar" "$TMP/protected.tar"
+printf 'image agenova-control-plane:0.1.0 %s %s\nscale Deployment agenova-system agenova-control-plane 1\ncomplete now\n' "$RECORDED" "$TMP/protected.tar" >"$OUTPUT/protect-state.txt"
+NODE_ID="sha256:$(printf 'c%.0s' $(seq 1 64))"
+expect_fail "restore from an archive missing a referenced manifest" "no valid archive to restore" restore
+not_called 'kind load image-archive'; not_called 'replicas=1'; [ -e "$OUTPUT/protect-state.txt" ]
+echo '[pass] restore imports only a complete archive and keeps its state otherwise'
 
 # --- fixture rendering and install guard ---
 reset f1
@@ -321,6 +406,105 @@ FIXTURE_LOG='{"event":"tool","correlation":"t1","outcome":"ok"}'
 settle_timeouts "$OUTPUT/show.json"
 FIXTURE_LOG=""
 echo '[pass] partial log records are not frozen, and a timed-out call settles before the next Work'
+
+# --- controlled read (Phase 2 exit) ---
+ev() { printf '{"time":"2026-10-03T01:00:00Z",%s,"correlation":"inv-42"%s}\n' "$1" "${2:+,$2}"; }
+# The interop test's three calls as the fixture logs them (the shape of a
+# real local fixture run): one session each, responses interleaved.
+good_read() {
+  local i=0 f s handler
+  for f in README.md logs/full-trace.log missing.md; do
+    i=$((i + 1)); s="\"session\":\"s$i\""; handler='"outcome":"ok"'
+    [ "$f" != missing.md ] || handler='"outcome":"error","error":"not-found"'
+    ev '"event":"receipt","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1"'
+    ev '"event":"response","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","status":200'
+    ev '"event":"receipt","httpMethod":"POST","rpcMethod":"notifications/initialized"' "$s"
+    ev '"event":"response","httpMethod":"POST","rpcMethod":"notifications/initialized","status":202'
+    ev "\"event\":\"receipt\",\"httpMethod\":\"POST\",\"rpcMethod\":\"tools/call\",\"rpcId\":\"2\",\"file\":\"$f\"" "$s"
+    ev "\"event\":\"tool\",\"file\":\"$f\",$handler"
+    ev '"event":"response","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","status":200'
+    ev '"event":"receipt","httpMethod":"DELETE"' "$s"
+    ev '"event":"response","httpMethod":"DELETE","status":204'
+  done
+}
+first_only() { awk -v pat="$1" -v rep="$2" 'index($0, pat) && !done {sub(pat, rep); done=1} {print}'; }
+reset cr1
+{ good_read; printf '{"time":"2026-10-03T01:00:00Z","event":"receipt","rpcMethod":"tools/call","file":"README.md","correlation":"other"}\n'; } >"$OUTPUT/good.jsonl"
+check_controlled_read "$OUTPUT/good.jsonl"
+good_read | grep -v '"event":"tool","file":"README.md"' >"$OUTPUT/nohandler.jsonl"
+{ good_read; ev '"event":"receipt","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","file":"README.md"' '"session":"s1"'; } >"$OUTPUT/twice.jsonl"
+{ good_read; ev '"event":"tool","file":"README.md","outcome":"error","error":"not-found"'; } >"$OUTPUT/extrahandler.jsonl"
+{ good_read; echo 'not json'; } >"$OUTPUT/garbage.jsonl"
+good_read | sed 's/"outcome":"error","error":"not-found"/"outcome":"ok"/' >"$OUTPUT/wrongmissing.jsonl"
+good_read | first_only '"file":"README.md","outcome":"ok"' '"file":"README.md","outcome":"error"' >"$OUTPUT/readmefailed.jsonl"
+good_read | awk '/"event":"receipt","httpMethod":"DELETE"/ && !n++ {next} {print}' >"$OUTPUT/unclosed.jsonl"
+good_read | sed '/"httpMethod":"DELETE"/s/"session":"s[0-9]"/"session":"s1"/' >"$OUTPUT/samedelete.jsonl"
+good_read | sed 's/"session":"s2"/"session":"s1"/' >"$OUTPUT/reused.jsonl"
+good_read | awk 'NR == 3 {held = $0; next} NR == 5 {print; print held; next} {print}' >"$OUTPUT/outoforder.jsonl"
+good_read | first_only '"status":200' '"status":500' >"$OUTPUT/badresponse.jsonl"
+good_read | awk '/"event":"response"/ && !n++ {next} {print}' >"$OUTPUT/noresponse.jsonl"
+# Twelve 2xx responses, but the DELETEs are answered by repeated initialize responses.
+good_read | awk '/"event":"response","httpMethod":"DELETE"/ {print init; next} /"event":"response","httpMethod":"POST","rpcMethod":"initialize"/ {init = $0} {print}' >"$OUTPUT/dupresponse.jsonl"
+good_read | first_only '"rpcMethod":"tools/call","rpcId":"2","status":200' '"rpcMethod":"tools/call","rpcId":"9","status":200' >"$OUTPUT/wrongid.jsonl"
+good_read | awk 'NR == 1 {held = $0; next} NR == 2 {print; print held; next} {print}' >"$OUTPUT/early.jsonl"
+while IFS='|' read -r bad want; do
+  expect_fail "controlled read log $bad" "$want" check_controlled_read "$OUTPUT/$bad.jsonl"
+done <<'EOF'
+nohandler|14 request and handler entries, want 15
+twice|16 request and handler entries, want 15
+extrahandler|16 request and handler entries, want 15
+garbage|unreadable log
+wrongmissing|call 3 (missing.md) is not
+readmefailed|call 1 (README.md) is not
+unclosed|14 request and handler entries, want 15
+samedelete|call 2 (logs/full-trace.log) is not
+reused|call 2 reuses session s1
+outoforder|call 1 (README.md) is not
+badresponse|non-2xx response POST initialize 1: 500
+noresponse|unanswered requests: POST initialize 1
+dupresponse|unmatched response POST initialize 1
+wrongid|unmatched response POST tools/call 9
+early|unmatched response POST initialize 1
+EOF
+echo '[pass] the controlled read must show the three interop calls, each in its own complete session, with exact handler outcomes'
+
+kubectl() { echo 'Forwarding from 127.0.0.1:43123 -> 8080'; command sleep 5; }
+eval "real_$(declare -f host_go)"
+cr_setup() { # name
+  reset "$1"; write_build testsha
+  command sleep 30 & fixture_pid=$!
+  echo "$fixture_pid" >"$OUTPUT/fixture-follow.pid"
+  : >"$OUTPUT/fixture-identity-start.txt"; : >"$OUTPUT/fixture-follow.jsonl"
+}
+reset cr2; write_build testsha; E16_DEPLOYED=1
+expect_fail "controlled read after install" "runs only before install" controlled_read
+E16_DEPLOYED=""
+reset cr3; write_build testsha; FAIL_ON='get deployment agenova-control-plane'
+expect_fail "controlled read when the control plane query fails" "could not query the E16 control plane" controlled_read
+reset cr4; write_build testsha; mkdir -p "$OUTPUT/controlled-read"
+expect_fail "controlled read twice" "recorded once per campaign" controlled_read
+not_called 'go test'
+cr_setup cr5; good_read >"$OUTPUT/fixture-follow.jsonl"
+expect_fail "controlled read when the log already holds its calls" "already holds inv-42 entries" controlled_read
+not_called 'go test'
+kill "$fixture_pid"; wait "$fixture_pid" 2>/dev/null || true
+echo '[pass] the controlled read runs once, before install, on a log without its calls'
+
+cr_setup cr6   # the stubbed go test prints nothing
+expect_fail "controlled read whose interop test did not pass" "did not pass against the in-cluster fixture" controlled_read
+called 'go test ./internal/adapters/bundled -run'
+kill "$fixture_pid"; wait "$fixture_pid" 2>/dev/null || true
+cr_setup cr7
+host_go() { printf -- '--- PASS: %s (0.10s)\n' "$INTEROP_TEST"; }
+expect_fail "controlled read the collector never saw" "did not capture the controlled read" controlled_read
+kill "$fixture_pid"; wait "$fixture_pid" 2>/dev/null || true
+cr_setup cr8; FIXTURE_LOG="$(good_read)"
+host_go() { printf -- '--- PASS: %s (0.10s)\n' "$INTEROP_TEST"; good_read >>"$OUTPUT/fixture-follow.jsonl"; }
+controlled_read >/dev/null
+[ -s "$OUTPUT/controlled-read/fixture-full.jsonl" ] && grep -q 'controlled-read pass' "$OUTPUT/campaign.log"
+kill "$fixture_pid"; wait "$fixture_pid" 2>/dev/null || true
+host_go() { real_host_go "$@"; }; FIXTURE_LOG=""; unset -f kubectl
+echo '[pass] the controlled read passes only when the interop test passed and the collector captured it'
 
 reset c5
 printf '{"stats":{"expected":2,"unexpected":0,"skipped":0,"flaky":0}}' >"$OUTPUT/r.json"; parity_report_ok "$OUTPUT/r.json"

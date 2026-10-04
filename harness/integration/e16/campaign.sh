@@ -45,6 +45,8 @@ Mutating (each prints its plan; protect, load and restore also need --yes):
   build              Build the control-plane, worker, fixture and probe images.
   load               Load the built images into the kind node and verify them.
   fixture            Deploy the MCP fixture and start complete log capture.
+  controlled-read    Before install: read through the real MCP client over a
+                     port-forward to the fixture and check the captured log.
   install            Install the E16 Platform, Policy and AgentTemplate.
   work <name>        Run harness/integration/e16/work-<name>.yaml, check it
                      against the server log and its answer oracle, archive parity.
@@ -182,34 +184,44 @@ wait_no_fixed_tag_pods() { # others|e16
   return 1
 }
 
-# Copy an old control plane's in-memory Work list through its private API.
-# kubectl picks a free local port; the copy counts only if this port-forward
-# reported that port and stayed alive across the request, so another local
-# listener can never answer in its place.
-archive_other_work() { # namespace deployment file
-  local log pf port="" rc _
-  log="$(mktemp)"
-  kubectl --context "$CONTEXT" -n "$1" port-forward --address 127.0.0.1 "deployment/$2" :8081 >"$log" 2>&1 &
-  pf=$!
+# Start a port-forward and wait until it reports its local port; sets PF_PID
+# and PF_PORT. kubectl picks a free local port; a request through it counts
+# only if this port-forward reported that port and is still alive afterwards,
+# so another local listener can never answer in its place.
+start_port_forward() { # namespace target remote-port log
+  local _
+  PF_PORT=""
+  kubectl --context "$CONTEXT" -n "$1" port-forward --address 127.0.0.1 "$2" ":$3" >"$4" 2>&1 &
+  PF_PID=$!
   for _ in $(seq 1 50); do
-    port="$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9][0-9]*\) -> 8081$/\1/p' "$log" | head -1)"
-    [ -n "$port" ] && break
-    kill -0 "$pf" 2>/dev/null || break
+    PF_PORT="$(sed -n "s/^Forwarding from 127\.0\.0\.1:\([0-9][0-9]*\) -> $3\$/\1/p" "$4" | head -1)"
+    [ -n "$PF_PORT" ] && break
+    kill -0 "$PF_PID" 2>/dev/null || break
     sleep 0.2
   done
-  if [ -z "$port" ] || ! kill -0 "$pf" 2>/dev/null; then
-    cat "$log" >&2
-    kill "$pf" 2>/dev/null || true
-    rm -f "$log"
+  if [ -z "$PF_PORT" ] || ! kill -0 "$PF_PID" 2>/dev/null; then
+    cat "$4" >&2
+    stop_port_forward
     return 1
   fi
+}
+
+stop_port_forward() {
+  kill "$PF_PID" 2>/dev/null || true
+  wait "$PF_PID" 2>/dev/null || true
+}
+
+# Copy an old control plane's in-memory Work list through its private API.
+archive_other_work() { # namespace deployment file
+  local log rc
+  log="$(mktemp)"
+  start_port_forward "$1" "deployment/$2" 8081 "$log" || { rm -f "$log"; return 1; }
   set +e
-  run curl -fsS --max-time 20 "http://127.0.0.1:$port/api/requests" >"$3"
+  run curl -fsS --max-time 20 "http://127.0.0.1:$PF_PORT/api/requests" >"$3"
   rc=$?
   set -e
-  kill -0 "$pf" 2>/dev/null || rc=1
-  kill "$pf" 2>/dev/null || true
-  wait "$pf" 2>/dev/null || true
+  kill -0 "$PF_PID" 2>/dev/null || rc=1
+  stop_port_forward
   rm -f "$log"
   return "$rc"
 }
@@ -256,11 +268,14 @@ protect() {
   while read -r kind image id archive; do
     [ "$kind" = image ] && [ -n "$id" ] || continue
     # The node /tmp is tmpfs, which docker cp cannot read; stream it instead.
-    run docker exec "$(node_name)" ctr -n k8s.io images export /tmp/e16-protect.tar "docker.io/library/$image"
+    # All platforms: restore imports with --all-platforms, so the archive
+    # must carry every manifest the index references.
+    run docker exec "$(node_name)" ctr -n k8s.io images export --all-platforms /tmp/e16-protect.tar "docker.io/library/$image"
     run docker exec "$(node_name)" cat /tmp/e16-protect.tar >"$archive"
     run docker exec "$(node_name)" rm -f /tmp/e16-protect.tar
     got="$(archive_config_digest "$archive" 2>/dev/null || true)"
     [ -s "$archive" ] && [ "$got" = "$id" ] || fail "export of $image is incomplete (config $got, node $id)"
+    archive_complete "$archive" || fail "export of $image lacks content its index references; restore could not import it"
   done <"$state"
   while read -r kind object namespace name replicas; do
     [ "$kind" = scale ] || continue
@@ -321,7 +336,8 @@ restore() {
     [ "$kind" = image ] && [ -n "$id" ] || continue
     now="$(node_image_id "$image")"
     [ "$now" = "$id" ] && continue
-    [ -s "$archive" ] && [ "$(archive_config_digest "$archive")" = "$id" ] || fail "no valid archive to restore $image ($id)"
+    [ -s "$archive" ] && [ "$(archive_config_digest "$archive")" = "$id" ] && archive_complete "$archive" ||
+      fail "no valid archive to restore $image ($id)"
     run kind load image-archive "$archive" --name "$(cluster_name)"
     now="$(node_image_id "$image")"
     [ "$now" = "$id" ] || fail "restored $image is $now, recorded $id"
@@ -350,6 +366,55 @@ image_archive() { printf '%s/images/%s.tar' "$OUTPUT" "${1//[:\/]/_}"; }
 # The config digest is what containerd on the node reports as the image ID.
 archive_config_digest() {
   tar -xOf "$1" manifest.json | grep -o '"Config":"blobs/sha256/[a-f0-9]*"' | head -1 | sed 's#.*blobs/sha256/#sha256:#; s#"$##'
+}
+
+# kind load imports with --all-platforms, which fails on any manifest the
+# index references but the archive lacks (an attestation manifest, for
+# example) once the node no longer holds that content. Every index, manifest,
+# config and layer reachable from index.json must be a blob in the archive.
+# Anything the walk cannot follow by role (index.json and indexes name only
+# indexes and manifests; manifests name a config and layers) fails, as does
+# an archive without a runnable, non-attestation image manifest.
+archive_complete() { # archive
+  node -e 'const {execFileSync}=require("child_process");const a=process.argv[1];
+    const fail=m=>{console.error(a+": "+m);process.exit(1)};
+    const tar=(...args)=>execFileSync("tar",args,{maxBuffer:1<<26,stdio:["ignore","pipe","ignore"]});
+    let have;try{have=new Set(tar("-tf",a).toString().split("\n"))}catch{fail("not a readable tar")}
+    const read=(name,what)=>{try{return JSON.parse(tar("-xOf",a,name))}catch{return fail("unreadable "+what+" "+name)}};
+    const blob=d=>"blobs/"+d.replace(":","/");
+    const lists=["application/vnd.oci.image.index.v1+json","application/vnd.docker.distribution.manifest.list.v2+json"];
+    const images=["application/vnd.oci.image.manifest.v1+json","application/vnd.docker.distribution.manifest.v2+json"];
+    // A digest names one blob, so every descriptor of it must give the same type.
+    const types=new Map();
+    const present=(d,where)=>{
+      if(!d||typeof d!=="object"||typeof d.mediaType!=="string"||!/^sha256:[a-f0-9]{64}$/.test(String(d.digest)))fail("malformed descriptor in "+where);
+      if(!have.has(blob(d.digest)))fail("referenced but absent: "+d.digest+" in "+where);
+      const known=types.get(d.digest);
+      if(known!==undefined&&known!==d.mediaType)fail("blob "+d.digest+" is referenced as both "+known+" and "+d.mediaType);
+      types.set(d.digest,d.mediaType);
+    };
+    const walked=new Set();let runnable=0;
+    const walk=(d,where)=>{
+      present(d,where);
+      const list=lists.includes(d.mediaType);
+      if(!list&&!images.includes(d.mediaType))fail("descriptor "+d.digest+" in "+where+" is neither an index nor a manifest ("+d.mediaType+")");
+      if(!list&&(d.annotations||{})["vnd.docker.reference.type"]!=="attestation-manifest")runnable++;
+      if(walked.has(d.digest))return;
+      walked.add(d.digest);
+      const v=read(blob(d.digest),"blob");
+      if(!v||v.schemaVersion!==2||(v.mediaType!==undefined&&v.mediaType!==d.mediaType))fail("blob "+d.digest+" is not the "+d.mediaType+" its descriptor names");
+      if(list){
+        if(!Array.isArray(v.manifests)||v.manifests.length===0)fail("index "+d.digest+" names no manifest");
+        v.manifests.forEach(m=>walk(m,"index "+d.digest));
+      }else{
+        if(!Array.isArray(v.layers))fail("manifest "+d.digest+" has no layer list");
+        [v.config,...v.layers].forEach(b=>present(b,"manifest "+d.digest));
+      }
+    };
+    const top=read("index.json","layout index");
+    if(!top||top.schemaVersion!==2||!Array.isArray(top.manifests)||top.manifests.length===0)fail("no OCI index.json naming an image");
+    top.manifests.forEach(m=>walk(m,"index.json"));
+    if(runnable===0)fail("no runnable image manifest")' "$1"
 }
 
 image_line() { # name tag build-tags
@@ -435,6 +500,7 @@ verify_recorded_archive() { # tag
   [ -s "$archive" ] || fail "no recorded archive for $1"
   [ "$(shasum -a 256 "$archive" | cut -d' ' -f1)" = "$want_sha" ] || fail "archive for $1 does not match its recorded hash"
   [ "$(archive_config_digest "$archive")" = "$want_config" ] || fail "archive for $1 does not match its recorded config"
+  archive_complete "$archive" || fail "archive for $1 lacks content its index references; kind load would fail"
 }
 
 load() {
@@ -583,6 +649,97 @@ fixture() {
   kctl -n "$FIXTURE_NAMESPACE" get events -o wide >"$OUTPUT/fixture-events-start.txt" 2>&1 || true
   record "fixture $(fixture_image)"
   pass "fixture running on the recorded image; log capture pid $(cat "$OUTPUT/fixture-follow.pid")"
+}
+
+# Phase 2 exit: the Slice 2 interop test reads through the real MCP client
+# (README.md, then the oversized and missing-file rejections), each call
+# under the test's fixed correlation.
+INTEROP_TEST="TestMCPClientInteroperatesWithFixtureServer"
+INTEROP_CORRELATION="inv-42"
+
+# The captured log must show exactly the interop test's three calls, in
+# order, each in its own session: initialize (before a session exists), then
+# the initialized notification, tools/call for its file, the handler with the
+# expected outcome and the closing DELETE, all in that one session. Every
+# request must have exactly one successful response.
+check_controlled_read() { # log
+  node -e 'const fs=require("fs");const id=process.argv[2];let all;
+    try{all=fs.readFileSync(process.argv[1],"utf8").split("\n").filter(Boolean).map(l=>JSON.parse(l))}catch(e){console.error("unreadable log: "+e.message);process.exit(1)}
+    const mine=all.filter(e=>e&&e.correlation===id);
+    const steps=mine.filter(e=>e.event!=="response");
+    const want=[["README.md","ok",undefined],["logs/full-trace.log","ok",undefined],["missing.md","error","not-found"]];
+    const receipt=(e,method,rpc)=>e.event==="receipt"&&e.httpMethod===method&&e.rpcMethod===rpc&&!e.error;
+    const problems=[];const sessions=new Set();
+    if(steps.length!==5*want.length)problems.push(steps.length+" request and handler entries, want "+5*want.length);
+    else want.forEach(([file,outcome,code],i)=>{
+      const [init,note,call,tool,del]=steps.slice(5*i,5*i+5);const s=note.session;
+      const ok=receipt(init,"POST","initialize")&&!init.session&&
+        receipt(note,"POST","notifications/initialized")&&typeof s==="string"&&s!==""&&
+        receipt(call,"POST","tools/call")&&call.session===s&&call.file===file&&
+        tool.event==="tool"&&tool.file===file&&tool.outcome===outcome&&tool.error===code&&
+        receipt(del,"DELETE",undefined)&&del.session===s;
+      if(!ok)problems.push("call "+(i+1)+" ("+file+") is not initialize, initialized, tools/call, handler "+outcome+" and DELETE in one session");
+      if(sessions.has(s))problems.push("call "+(i+1)+" reuses session "+s);
+      sessions.add(s);
+    });
+    // Each response answers the earliest open request with the same HTTP
+    // method, RPC method and RPC id, logged before it. The server logs a
+    // response only after its handler returns, so the client may already have
+    // sent the next request; matching by order alone would race.
+    const key=e=>[e.httpMethod,e.rpcMethod||"-",e.rpcId||"-"].join(" ");
+    const open=[];
+    for(const e of mine){
+      if(e.event==="receipt"){open.push(e);continue}
+      if(e.event!=="response")continue;
+      const i=open.findIndex(r=>key(r)===key(e));
+      if(i<0){problems.push("unmatched response "+key(e));continue}
+      open.splice(i,1);
+      if(!(Number.isInteger(e.status)&&e.status>=200&&e.status<300))problems.push("non-2xx response "+key(e)+": "+e.status);
+    }
+    if(open.length)problems.push("unanswered requests: "+open.map(key).join(", "));
+    if(problems.length){console.error(problems.join("; "));process.exit(1)}' "$1" "$INTEROP_CORRELATION"
+}
+
+# One controlled read against the in-cluster fixture through a port-forward,
+# captured end to end by the fixture log collector. It runs only before
+# install, so its entries precede every Work and probe window, and its
+# correlation never names a real invocation.
+controlled_read() {
+  local out="$OUTPUT/controlled-read" existing rc _
+  [ ! -e "$out" ] || fail "$out exists; the controlled read is recorded once per campaign"
+  existing="$(kctl -n "$INSTALL_NAMESPACE" get deployment agenova-control-plane -o name --ignore-not-found)" ||
+    fail "could not query the E16 control plane; not reading"
+  [ -z "$existing" ] || fail "the E16 control plane is installed; the controlled read runs only before install"
+  mkdir -p "$out"
+  info "plan: port-forward service/e16-mcp in $FIXTURE_NAMESPACE, run $INTEROP_TEST through it, check the captured fixture log"
+  require_collector fixture
+  verify_node_tag "$(fixture_image)"
+  check_fixture_identity "$out/fixture-identity-before.txt"
+  freeze_complete_lines "$OUTPUT/fixture-follow.jsonl" "$out/fixture-follow-before-read.jsonl"
+  ! grep -qF "\"correlation\":\"$INTEROP_CORRELATION\"" "$out/fixture-follow-before-read.jsonl" ||
+    fail "the fixture log already holds $INTEROP_CORRELATION entries"
+  start_port_forward "$FIXTURE_NAMESPACE" service/e16-mcp 8080 "$out/port-forward.log" || fail "could not port-forward to the fixture"
+  set +e
+  (cd "$ROOT" && AGENOVA_MCP_INTEROP_ENDPOINT="http://127.0.0.1:$PF_PORT/mcp" \
+    host_go test ./internal/adapters/bundled -run "^$INTEROP_TEST\$" -count=1 -v) >"$out/interop.log" 2>&1
+  rc=$?
+  set -e
+  kill -0 "$PF_PID" 2>/dev/null || rc=1
+  stop_port_forward
+  [ "$rc" -eq 0 ] && grep -q -- "--- PASS: $INTEROP_TEST " "$out/interop.log" && ! grep -q -- '--- SKIP' "$out/interop.log" ||
+    fail "the interop read did not pass against the in-cluster fixture; see $out/interop.log"
+  # The collector streams with a short delay; wait until it has the read.
+  for _ in $(seq 1 30); do
+    freeze_complete_lines "$OUTPUT/fixture-follow.jsonl" "$out/fixture-follow-poll.jsonl"
+    check_controlled_read "$out/fixture-follow-poll.jsonl" 2>/dev/null && break
+    sleep 1
+  done
+  rm -f "$out/fixture-follow-poll.jsonl"
+  snapshot_fixture "$out"
+  check_controlled_read "$out/fixture-follow-before-snapshot.jsonl" ||
+    fail "the fixture log collector did not capture the controlled read; see $out"
+  record "controlled-read pass"
+  pass "one controlled read captured end to end in $out"
 }
 
 install() {
@@ -818,6 +975,7 @@ main() {
     build) build ;;
     load) load ;;
     fixture) fixture ;;
+    controlled-read) controlled_read ;;
     install) install ;;
     work) work "$@" ;;
     probe) probe ;;
