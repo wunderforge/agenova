@@ -1,7 +1,7 @@
 # Copyright 2026 Agenova contributors.
 # SPDX-License-Identifier: Apache-2.0
 
-# E16 acceptance Platform: one revision for the whole Slice 3 campaign.
+# E16 acceptance Platform: one revision for the whole kind campaign (Slices 3 and 4).
 # Installed in its own namespace so an existing reference install is untouched.
 apiVersion: agenova.io/v1alpha1
 kind: Platform
@@ -64,6 +64,46 @@ spec:
           max-response-bytes: "65536"
           max-observation-bytes: "4096"
           max-concurrent-calls: "4"
+      # Slice 4: the same server's token-required path. Each backend names its
+      # own Secret in the install namespace. The runner creates e16-mcp-token
+      # (the fixture's value) and e16-mcp-token-wrong (another value), and
+      # never creates e16-mcp-token-absent.
+      - name: e16-mcp-token
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+      - name: e16-mcp-token-missing
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token-absent/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+      - name: e16-mcp-token-wrong
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token-wrong/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
     toolProfiles:
       # Positive task files only, so the model never sees a fault file.
       - name: e16-fixture
@@ -91,6 +131,37 @@ spec:
             logs/slow.log
             logs/full-trace.log
             notes/incident-timeline.md
+      # Slice 4 token cases: one profile and scope per token backend, README.md only.
+      - name: e16-token
+        backendRef: e16-mcp-token
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+      - name: e16-token-missing
+        backendRef: e16-mcp-token-missing
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token-missing
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+      - name: e16-token-wrong
+        backendRef: e16-mcp-token-wrong
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token-wrong
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
   # The reference install seeds this Policy; the E16 Policy is registered and
   # activated afterwards with `agenova policy`.
   initialPolicyRef:

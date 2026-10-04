@@ -48,6 +48,9 @@ spec:
               value: logs/slow.log
             - name: FIXTURE_SLOW_DELAY
               value: 35s
+            # Serves /mcp-token. Read once at startup; only its SHA-256 is kept.
+            - name: FIXTURE_TOKEN_FILE
+              value: /var/run/e16-token/token
           readinessProbe:
             httpGet:
               path: /healthz
@@ -67,6 +70,9 @@ spec:
             - name: data
               mountPath: /data
               readOnly: true
+            - name: token
+              mountPath: /var/run/e16-token
+              readOnly: true
       volumes:
         - name: data
           configMap:
@@ -84,6 +90,18 @@ spec:
                 path: src/retry.txt
               - key: incident-timeline.md
                 path: notes/incident-timeline.md
+        # The campaign runner creates Secret e16-mcp-token (from stdin, with
+        # kubectl create) before it applies this manifest. Neither the Secret
+        # nor its value is part of this directory, because the rendered
+        # manifest is archived as evidence. The Pod does not start without it.
+        # The default file mode lets the image's UID 65532 read the token.
+        - name: token
+          secret:
+            secretName: e16-mcp-token
+            optional: false
+            items:
+              - key: token
+                path: token
 ---
 apiVersion: v1
 kind: Service

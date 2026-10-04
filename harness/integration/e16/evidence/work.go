@@ -27,6 +27,9 @@ type workCase struct {
 	required     []string // files that must each have a successful correlated read
 	truncated    string   // file whose successful call must be truncated
 	denied       bool     // admission denial: no claim, no tool activity
+	path         string   // endpoint path of every server entry the Work's calls cause
+	auth         string   // credential class of every receipt the Work's calls cause
+	credential   string   // Slice 4 token case: one invocation of exactly this shape
 }
 
 const (
@@ -34,13 +37,38 @@ const (
 	faultsScope  = "repo:agenova/e16-faults"
 )
 
+// The fixture serves the credential-free backend on /mcp and the
+// token-required one on /mcp-token. A receipt on /mcp must have no token
+// ("missing"): a token sent to the credential-free backend is a leak.
+const (
+	freePath  = "/mcp"
+	tokenPath = "/mcp-token"
+)
+
+// The token cases (Slice 4) each make exactly one call.
+const (
+	tokenValid       = "valid"       // read README.md; every request carries the token
+	tokenUnavailable = "unavailable" // the token cannot be resolved; no request is sent
+	tokenRejected    = "rejected"    // the server answers initialize 401; nothing else is sent
+)
+
+// configuredTool is the reason code of every configured provider attempt and
+// of its successful outcome (internal/console/tool_provider.go).
+const configuredTool = "configured-tool"
+
 var workCases = map[string]workCase{
 	"positive": {status: "Succeeded", scope: fixtureScope, files: []string{"README.md", "logs/timeout.log", "src/retry.txt"},
-		required: []string{"logs/timeout.log", "src/retry.txt"}},
-	"n6-timeout":     {status: "Failed", scope: faultsScope, failedReason: "tool-timeout", failedFile: "logs/slow.log", files: []string{"logs/slow.log"}},
-	"n7-oversize":    {status: "Failed", scope: faultsScope, failedReason: "tool-response-too-large", failedFile: "logs/full-trace.log", files: []string{"logs/full-trace.log"}},
-	"n8-truncation":  {status: "Succeeded", scope: faultsScope, truncated: "notes/incident-timeline.md", files: []string{"notes/incident-timeline.md"}},
+		required: []string{"logs/timeout.log", "src/retry.txt"}, path: freePath, auth: "missing"},
+	"n6-timeout":     {status: "Failed", scope: faultsScope, failedReason: "tool-timeout", failedFile: "logs/slow.log", files: []string{"logs/slow.log"}, path: freePath, auth: "missing"},
+	"n7-oversize":    {status: "Failed", scope: faultsScope, failedReason: "tool-response-too-large", failedFile: "logs/full-trace.log", files: []string{"logs/full-trace.log"}, path: freePath, auth: "missing"},
+	"n8-truncation":  {status: "Succeeded", scope: faultsScope, truncated: "notes/incident-timeline.md", files: []string{"notes/incident-timeline.md"}, path: freePath, auth: "missing"},
 	"admission-deny": {status: "Deny", denied: true},
+	"token-valid": {status: "Succeeded", scope: "repo:agenova/e16-token", credential: tokenValid, files: []string{"README.md"},
+		required: []string{"README.md"}, path: tokenPath, auth: "ok"},
+	// Nothing may reach the server, so no path or credential class applies.
+	"token-missing": {status: "Failed", scope: "repo:agenova/e16-token-missing", credential: tokenUnavailable, failedReason: "tool-credential-unavailable"},
+	"token-wrong": {status: "Failed", scope: "repo:agenova/e16-token-wrong", credential: tokenRejected, failedReason: "tool-credential-rejected",
+		path: tokenPath, auth: "invalid"},
 }
 
 // Answer facts are judged from a fixed facts block the Work objective asks
@@ -228,10 +256,11 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		fail("outcome %v, want %s", view.Outcome, c.status)
 	}
 	type invocation struct {
-		decision, outcome, reason, resultRef string
-		attempted                            bool
-		attemptAt, outcomeAt                 time.Time
-		truncated                            bool
+		decision, outcome, reason, resultRef, attemptReason string
+		decisions, attempts, outcomes                       int
+		attempted                                           bool
+		attemptAt, outcomeAt                                time.Time
+		truncated                                           bool
 	}
 	calls := map[string]*invocation{}
 	var first, last time.Time
@@ -253,10 +282,13 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		switch f.Kind {
 		case "ToolDecision":
 			in.decision = string(f.Result)
+			in.decisions++
 		case "ProviderAttempt":
-			in.attempted, in.attemptAt = true, f.Timestamp
+			in.attempted, in.attemptAt, in.attemptReason = true, f.Timestamp, f.ReasonCode
+			in.attempts++
 		case "ProviderOutcome":
 			in.outcome, in.reason, in.resultRef, in.truncated, in.outcomeAt = f.ProviderStatus, f.ReasonCode, f.ResultRef, f.Truncated, f.Timestamp
+			in.outcomes++
 		}
 	}
 	if c.denied {
@@ -266,14 +298,20 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 	} else if len(calls) == 0 {
 		fail("no tool invocation was recorded")
 	}
+	if c.credential != "" && len(calls) > 1 {
+		fail("a token case makes exactly one tool invocation, got %d", len(calls))
+	}
 
 	// Server side, per invocation: everything it caused falls inside its own
 	// attempt-to-outcome window (a timed-out call may complete later on the
-	// server); denied invocations caused nothing; a successful read has one
-	// session, one tools/call and one successful handler for the same file.
+	// server) and on the case's endpoint path, with the case's credential
+	// class on every receipt; denied invocations caused nothing; a successful
+	// read has one session, one tools/call and one successful handler for the
+	// same file.
 	type session struct {
 		entries, initialize, calls, handled int
 		files, handledFiles                 []string
+		log                                 []Entry
 	}
 	seen := map[string]*session{}
 	unknown := 0
@@ -298,6 +336,7 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 			seen[e.Correlation] = ss
 		}
 		ss.entries++
+		ss.log = append(ss.log, e)
 		if !in.attempted {
 			continue // reported below as traffic from a call that was never attempted
 		}
@@ -310,6 +349,15 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		}
 		if at.Before(in.attemptAt) || in.outcomeAt.IsZero() || at.After(latest) {
 			fail("server entry for invocation %s at %s is outside its attempt window", e.Correlation, e.Time)
+		}
+		// Any entry at all fails a call that had no token to send (below).
+		if c.credential != tokenUnavailable {
+			if e.Path != c.path {
+				fail("server %s entry for invocation %s at %s has path %q, want %q", e.Event, e.Correlation, e.Time, e.Path, c.path)
+			}
+			if e.Event == "receipt" && e.Auth != c.auth {
+				fail("receipt for invocation %s at %s has auth %q, want %q", e.Correlation, e.Time, e.Auth, c.auth)
+			}
 		}
 		switch {
 		case e.Event == "receipt" && e.RPCMethod == "initialize":
@@ -337,9 +385,40 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		if ss == nil {
 			ss = &session{}
 		}
+		// A token case's one invocation has exactly these facts and reason
+		// codes, so a denial or a different failure never stands in for it.
+		if c.credential != "" {
+			outcome := "Succeeded"
+			want := configuredTool
+			if c.failedReason != "" {
+				outcome, want = "Failed", c.failedReason
+			}
+			if in.decisions != 1 || in.decision != "Allow" || in.attempts != 1 || in.attemptReason != configuredTool ||
+				in.outcomes != 1 || in.outcome != outcome || in.reason != want {
+				fail("invocation %s must have one ToolDecision Allow, one ProviderAttempt %q and one ProviderOutcome %s %q; got %d decisions (%s), %d attempts (%q), %d outcomes (%s %q)",
+					id, configuredTool, outcome, want, in.decisions, in.decision, in.attempts, in.attemptReason, in.outcomes, in.outcome, in.reason)
+			}
+		}
 		if !in.attempted {
 			if ss.entries != 0 {
 				fail("invocation %s was not attempted but caused %d server entries", id, ss.entries)
+			}
+			continue
+		}
+		// A call that failed on its credential never reached tools/call, so
+		// it is judged by its exact server shape before the session rules.
+		if c.credential == tokenUnavailable || c.credential == tokenRejected {
+			if c.credential == tokenUnavailable && ss.entries != 0 {
+				fail("invocation %s had no token to send but caused %s", id, describe(ss.log))
+			}
+			if c.credential == tokenRejected && !rejectedOnce(ss.log) {
+				fail("invocation %s must show one initialize answered 401 and nothing else, got %s", id, describe(ss.log))
+			}
+			if in.outcome == "Failed" {
+				failed++
+			}
+			if in.resultRef != "" || in.truncated {
+				fail("failed invocation %s carries a result", id)
 			}
 			continue
 		}
@@ -401,7 +480,14 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 	if view.Outcome != nil {
 		answer = view.Outcome.Text
 	}
-	if want, err := expectedFacts(name, dataDir); err != nil {
+	// A token case proves the credential path; its answer has no facts block
+	// and is not judged.
+	var want map[string]string
+	var err error
+	if c.credential == "" {
+		want, err = expectedFacts(name, dataDir)
+	}
+	if err != nil {
 		fail("%v", err)
 	} else if want != nil {
 		keys := make([]string, 0, len(want))
@@ -423,6 +509,31 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// rejectedOnce reports whether an invocation's server entries are exactly
+// one initialize request and its 401 response: same HTTP method, RPC method
+// and id, so nothing was retried or sent after the rejection.
+func rejectedOnce(log []Entry) bool {
+	if len(log) != 2 {
+		return false
+	}
+	req, resp := log[0], log[1]
+	return req.Event == "receipt" && req.HTTPMethod == "POST" && req.RPCMethod == "initialize" && req.RPCID != "" && req.Error == "" &&
+		resp.Event == "response" && resp.HTTPMethod == req.HTTPMethod && resp.RPCMethod == req.RPCMethod && resp.RPCID == req.RPCID && resp.Status == 401
+}
+
+// describe summarises server entries for a failure message.
+func describe(log []Entry) string {
+	parts := make([]string, 0, len(log))
+	for _, e := range log {
+		part := strings.Join(strings.Fields(e.Event+" "+e.HTTPMethod+" "+e.RPCMethod), " ")
+		if e.Status != 0 {
+			part += fmt.Sprintf(" %d", e.Status)
+		}
+		parts = append(parts, part)
+	}
+	return fmt.Sprintf("%d server entries [%s]", len(log), strings.Join(parts, ", "))
 }
 
 func contains(list []string, value string) bool {

@@ -1,8 +1,11 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
 import type { Fact } from './contracts.generated';
+import { WorkerActivity } from './WorkerActivity';
 import { workerActions, demoWorkerActions, groupWorkerTurns } from './worker-activity-model';
+afterEach(cleanup);
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
   it('retains format-retry evidence without marking successful inference as failed',()=>{
@@ -37,10 +40,29 @@ describe('recorded worker calls',()=>{
     expect(mixed[0].calls.map(a=>a.label)).toEqual(['Model request']);
   });
   it('shows actual loop turns and mock tool completion without treating it as model inference',()=>{
-    const facts:Fact[]=[{...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'}, {...fact('d',2,'ToolDecision','tool-1'),result:'Allow'}, {...fact('a',3,'ProviderAttempt','tool-1'),operation:'tool.invoke'}, {...fact('o',4,'ProviderOutcome','tool-1','Succeeded'),operation:'tool.invoke'}];
+    const facts:Fact[]=[{...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 2'}, {...fact('d',2,'ToolDecision','tool-1'),result:'Allow'}, {...fact('a',3,'ProviderAttempt','tool-1'),operation:'tool.invoke',reasonCode:'mock-tool'}, {...fact('o',4,'ProviderOutcome','tool-1','Succeeded'),operation:'tool.invoke',reasonCode:'mock-tool'}];
     const actions=workerActions(facts,'Running','#/activity');
     expect(actions[0]).toMatchObject({label:'Agent turn',target:'Turn 2',state:'Started'});
     expect(actions[2]).toMatchObject({label:'Tool call (mock)',active:false,state:'Succeeded'});
+  });
+  it('labels only synthetic adapter tool calls as mock',()=>{
+    const call=(id:string,start:number,attempt:string,outcome:string,status:string):Fact[]=>[{...fact(`${id}-d`,start,'ToolDecision',id),operation:'tool.invoke',result:'Allow'},{...fact(`${id}-a`,start+1,'ProviderAttempt',id,'Attempted'),operation:'tool.invoke',reasonCode:attempt},{...fact(`${id}-o`,start+2,'ProviderOutcome',id,status),operation:'tool.invoke',reasonCode:outcome}];
+    const configured=[...call('read',1,'configured-tool','configured-tool','Succeeded'),...call('rejected',4,'configured-tool','tool-credential-rejected','Failed')];
+    // A configured call is a recorded execution call, so its access decision is not listed again.
+    expect(groupWorkerTurns(workerActions(configured,'Failed','#/activity')).map(g=>[g.id,g.calls.map(a=>[a.id,a.label,a.state])])).toEqual([['Recorded calls',[['read-a','Tool call','Succeeded'],['rejected-a','Tool call','Failed']]]]);
+    const mock=workerActions(call('mock',7,'mock-tool','mock-artifact-not-found','Failed'),'Failed','#/activity');
+    expect(mock.map(a=>[a.id,a.label,a.state])).toEqual([['mock-d','Tool access','Allow'],['mock-a','Tool call (mock)','Failed']]);
+  });
+  it('renders a configured tool call as a tool row without the mock label',()=>{
+    const facts:Fact[]=[{...fact('a',1,'ProviderAttempt','tool-1','Attempted'),operation:'tool.invoke',reasonCode:'configured-tool',target:'repo.read'}];
+    const rows=(container:HTMLElement)=>[...container.querySelectorAll('.portal-worker-actions li')].map(li=>[li.getAttribute('data-kind'),li.querySelector('a')?.textContent]);
+    const view=render(<WorkerActivity actions={workerActions(facts,'Running','#/activity')} status="Running" activityHref="#/activity"/>);
+    expect(view.container.querySelector('.portal-activity-help')?.textContent).toBe('Recorded model and tool calls.');
+    expect(view.container.querySelector('.portal-worker-current')?.textContent).toBe('Waiting for tool observation');
+    expect(rows(view.container)).toEqual([['tool','Tool call']]);
+    expect(view.container.textContent).not.toContain('(mock)');
+    view.rerender(<WorkerActivity actions={workerActions([{...facts[0],reasonCode:'mock-tool'}],'Running','#/activity')} status="Running" activityHref="#/activity"/>);
+    expect(rows(view.container)).toEqual([['tool','Tool call (mock)']]);
   });
   it('only an unresolved correlated attempt is active',()=>{
     const actions=workerActions([fact('a',1,'ProviderAttempt','call-1','Attempted')],'Running','#/work/1/activity');

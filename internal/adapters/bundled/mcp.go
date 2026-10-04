@@ -4,6 +4,7 @@
 package bundled
 
 import (
+	"context"
 	"net/url"
 	"path"
 	"regexp"
@@ -39,6 +40,7 @@ func mcpHTTPToolRegistration() adapterregistry.Registration {
 			field("max-response-bytes", "Wire response byte ceiling (1 to 1048576)", "65536"),
 			field("max-observation-bytes", "Worker observation byte ceiling (1 to 16384)", "4096"),
 			field("max-concurrent-calls", "Backend concurrency ceiling (1 to 16)", "4"),
+			{Path: "provisional-token-secret", Kind: adapterregistry.ValueString, Description: "Provisional Secret reference <name>/<key> in the install namespace, sent as a bearer token; empty means none. Replaced by #155", Default: ""},
 		}}, ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			field("logical-operation", "Public logical operation", "repo.read"), field("resource-scope", "One bounded logical resource", "repo:agenova/e16-fixture"),
 			field("mcp-tool", "Fixed server-native tool name", "read_file"), field("parameter-name", "One required string argument", "file"),
@@ -50,7 +52,7 @@ func mcpHTTPToolRegistration() adapterregistry.Registration {
 
 func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[string]any, error) {
 	keys := []string{"transport", "protocol-version", "endpoint", "timeout", "max-request-bytes", "max-response-bytes", "max-observation-bytes", "max-concurrent-calls"}
-	if err := onlyKeys(input, keys...); err != nil {
+	if err := onlyKeys(input, append(keys, mcpTokenSecretKey)...); err != nil {
 		return nil, err
 	}
 	out := map[string]any{}
@@ -60,6 +62,20 @@ func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[s
 			return nil, err
 		}
 		out[key] = value
+	}
+	// The optional token reference is dropped when empty, so credential-free
+	// configuration keeps its earlier canonical form, revision and lock.
+	if raw, present := input[mcpTokenSecretKey]; present {
+		value, ok := raw.(string)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-token-secret", mcpTokenSecretKey)
+		}
+		if value != "" {
+			if _, _, ok := parseMCPTokenSecret(value); !ok {
+				return nil, platform.NewAdapterConfigError("invalid-token-secret", mcpTokenSecretKey)
+			}
+			out[mcpTokenSecretKey] = value
+		}
 	}
 	if out["transport"] != "streamable-http" {
 		return nil, platform.NewAdapterConfigError("unsupported-transport", "transport")
@@ -72,7 +88,9 @@ func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[s
 	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.Opaque != "" || parsed.RawPath != "" || parsed.Path == "" || parsed.Path == "/" || strings.Contains(raw, "#") || strings.Contains(raw, "\\") {
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
 	}
-	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && parsed.Path == "/mcp") {
+	// Cleartext is allowed only for the two exact fixture URLs: /mcp is
+	// credential-free and /mcp-token requires the synthetic campaign token.
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && (parsed.Path == "/mcp" || parsed.Path == "/mcp-token")) {
 		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}
 	if parsed.Hostname() == "" {
@@ -187,9 +205,72 @@ func describeMCPTool(backend, profile map[string]any) (toolbackend.Descriptor, i
 	return mcpDescriptor(profile), limit, nil
 }
 
+// mcpTokenSecretKey names the provisional token reference. It is
+// adapter-scoped and authorised by E16 R6 only until the general credential
+// reference (#155) replaces it; it is not a shared credential contract.
+const mcpTokenSecretKey = "provisional-token-secret"
+
+var (
+	secretNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	secretKeyPattern  = regexp.MustCompile(`^[-._a-zA-Z0-9]+$`)
+)
+
+// parseMCPTokenSecret splits "<secret-name>/<key>". The Secret is always in
+// the install namespace, so the reference cannot name another namespace.
+func parseMCPTokenSecret(value string) (string, string, bool) {
+	name, key, ok := strings.Cut(value, "/")
+	if !ok || len(name) > 253 || !secretNamePattern.MatchString(name) ||
+		len(key) > 253 || !secretKeyPattern.MatchString(key) || key == "." || key == ".." || strings.HasPrefix(key, "..") {
+		return "", "", false
+	}
+	return name, key, true
+}
+
+// mcpTokenSecretNames lists the Secrets that mcp-http backends reference, for
+// the reference installer's name-scoped Role rule. Sorted and unique.
+func mcpTokenSecretNames(resolved *platform.ResolvedPlatform) []string {
+	if resolved == nil {
+		return nil
+	}
+	ids := map[string]string{}
+	for _, adapter := range resolved.Adapters {
+		ids[adapter.Name] = adapter.ID
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, instance := range resolved.Instances {
+		if instance.Category != platform.CapabilityTool || ids[instance.AdapterRef] != MCPHTTPToolID {
+			continue
+		}
+		value, _ := instance.Config[mcpTokenSecretKey].(string)
+		if name, _, ok := parseMCPTokenSecret(value); ok && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ProvisionalSecretReader reads one key of a named Secret in the install
+// namespace. It exists only so the installed control plane can resolve the
+// mcp-http provisional token reference on each call (E16 Slice 4); the general
+// credential resolver (#155) replaces it, so nothing else should use it.
+// Errors must not contain the value or raw command output.
+type ProvisionalSecretReader interface {
+	ReadSecretKey(ctx context.Context, name, key string) ([]byte, error)
+}
+
 // NewToolProvider validates the configuration and returns the bounded
-// Streamable HTTP client. Construction never contacts the server.
-func (*MCPHTTPTool) NewToolProvider(instance map[string]any, profiles []map[string]any) (toolbackend.Provider, error) {
+// Streamable HTTP client. Construction never contacts the server. A backend
+// with a token reference but no reader fails every call without sending it.
+func (t *MCPHTTPTool) NewToolProvider(instance map[string]any, profiles []map[string]any) (toolbackend.Provider, error) {
+	return t.NewToolProviderWithSecrets(instance, profiles, nil)
+}
+
+// NewToolProviderWithSecrets is NewToolProvider with the reader that resolves
+// this backend's own token reference on each call. Construction never reads.
+func (*MCPHTTPTool) NewToolProviderWithSecrets(instance map[string]any, profiles []map[string]any, secrets ProvisionalSecretReader) (toolbackend.Provider, error) {
 	backend, err := canonicalizeMCPInstance(platform.CapabilityTool, instance)
 	if err != nil {
 		return nil, err
@@ -211,5 +292,10 @@ func (*MCPHTTPTool) NewToolProvider(instance map[string]any, profiles []map[stri
 	maxResponse, _ := strconv.Atoi(backend["max-response-bytes"].(string))
 	client := newMCPClient(backend["endpoint"].(string), timeout, maxRequest, maxResponse, routes)
 	client.concurrency, _ = strconv.Atoi(backend["max-concurrent-calls"].(string))
+	if value, ok := backend[mcpTokenSecretKey].(string); ok {
+		name, key, _ := parseMCPTokenSecret(value)
+		client.token = &mcpTokenRef{name: name, key: key}
+		client.secrets = secrets
+	}
 	return client, nil
 }

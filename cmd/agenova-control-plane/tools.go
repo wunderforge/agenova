@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 )
@@ -18,9 +19,17 @@ type toolRegistry interface {
 	Construct(string, string, platform.Capability) (any, error)
 }
 
+// provisionalTokenFactory is implemented by the mcp-http adapter, whose
+// backends may carry a provisional token reference (E16 Slice 4).
+type provisionalTokenFactory interface {
+	NewToolProviderWithSecrets(map[string]any, []map[string]any, bundled.ProvisionalSecretReader) (toolbackend.Provider, error)
+}
+
 // buildInstalledTools consumes the applied revision using the same registry
-// descriptors/factories as Platform resolution. It never contacts a server.
-func buildInstalledTools(resolved *platform.ResolvedPlatform, registry toolRegistry) (*toolbackend.Set, error) {
+// descriptors/factories as Platform resolution. It never contacts a server or
+// reads a Secret. secrets resolves token references on each call; without it
+// (the probe composition) a backend with a reference fails every call.
+func buildInstalledTools(resolved *platform.ResolvedPlatform, registry toolRegistry, secrets bundled.ProvisionalSecretReader) (*toolbackend.Set, error) {
 	if resolved == nil || registry == nil {
 		return nil, fmt.Errorf("installed tool configuration is unavailable")
 	}
@@ -98,7 +107,12 @@ func buildInstalledTools(resolved *platform.ResolvedPlatform, registry toolRegis
 			configs = append(configs, config)
 			backendRoutes = append(backendRoutes, platform.ToolRoute{Profile: profile.Name, BackendRef: name, Tool: tool, MaxObservationBytes: limit})
 		}
-		provider, err := factory.NewToolProvider(backend, configs)
+		var provider toolbackend.Provider
+		if credentialed, ok := implementation.(provisionalTokenFactory); ok && secrets != nil {
+			provider, err = credentialed.NewToolProviderWithSecrets(backend, configs, secrets)
+		} else {
+			provider, err = factory.NewToolProvider(backend, configs)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("installed tool provider cannot be configured")
 		}

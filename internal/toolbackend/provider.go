@@ -18,6 +18,12 @@ var ErrTimeout = errors.New("tool provider timed out")
 var ErrResponseTooLarge = errors.New("tool response exceeds the byte limit")
 var ErrProtocol = errors.New("tool provider returned an unsupported or malformed response")
 
+// ErrCredentialUnavailable means a configured credential could not be
+// resolved, so no request was sent. ErrCredentialRejected means the server
+// refused the credential that was sent. Neither carries the credential.
+var ErrCredentialUnavailable = errors.New("tool provider credential is unavailable")
+var ErrCredentialRejected = errors.New("tool provider rejected the credential")
+
 // Invocation is issued by the host after Gateway authorization and recording.
 // ClaimID is correlation only; this type does not authenticate a caller.
 type Invocation struct {
@@ -138,7 +144,7 @@ func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {
 		return Result{}, ctx.Err()
 	}
 	if err != nil {
-		for _, safe := range []error{ErrUnavailable, ErrTimeout, ErrResponseTooLarge, ErrProtocol} {
+		for _, safe := range []error{ErrUnavailable, ErrTimeout, ErrResponseTooLarge, ErrProtocol, ErrCredentialUnavailable, ErrCredentialRejected} {
 			if errors.Is(err, safe) {
 				return Result{}, safe
 			}

@@ -26,6 +26,11 @@ const MCPCorrelationHeader = "X-Agenova-Correlation"
 
 const mcpProtocolVersion = "2025-06-18"
 
+// mcpTokenTimeout bounds one token resolution. It runs before the call's own
+// deadline, so a slow Secret read never reads as a tool timeout. A variable
+// only so tests can shorten it.
+var mcpTokenTimeout = 5 * time.Second
+
 type mcpRoute struct {
 	tool      string
 	parameter string
@@ -42,7 +47,17 @@ type mcpClient struct {
 	concurrency int
 	routes      map[string]mcpRoute
 	http        *http.Client
+	// token is this backend's own provisional Secret reference, resolved by
+	// secrets on every call; nil means the backend is credential-free.
+	token   *mcpTokenRef
+	secrets ProvisionalSecretReader
 }
+
+type mcpTokenRef struct{ name, key string }
+
+// bearer returns an Authorization value. It is a function so that
+// formatting a session with any verb prints an address, never the token.
+type bearer func() string
 
 // MaxConcurrentCalls exposes the configured ceiling; toolbackend.Set enforces it.
 func (c *mcpClient) MaxConcurrentCalls() int { return c.concurrency }
@@ -67,9 +82,17 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 	if !ok || !present || len(call.Parameters) != 1 {
 		return toolbackend.Result{}, toolbackend.ErrArguments
 	}
+	var authorization bearer
+	if c.token != nil {
+		token, err := c.resolveToken(ctx)
+		if err != nil {
+			return toolbackend.Result{}, err
+		}
+		authorization = func() string { return "Bearer " + token }
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	session := &mcpSession{client: c, correlation: call.ID}
+	session := &mcpSession{client: c, correlation: call.ID, authorization: authorization}
 	defer session.close()
 	result, err := session.run(ctx, route.tool, route.parameter, value)
 	if err != nil {
@@ -82,6 +105,29 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 	return toolbackend.Result{Text: result, ResultRef: ref}, nil
 }
 
+// resolveToken reads this backend's token for one call. A missing reader,
+// Secret or key, a read failure or a value that is not 1 to 4096 bytes of
+// visible ASCII all fail before any request is sent; nothing is cached or
+// retried, and no reader detail is passed on.
+func (c *mcpClient) resolveToken(ctx context.Context) (string, error) {
+	if c.secrets == nil {
+		return "", toolbackend.ErrCredentialUnavailable
+	}
+	readCtx, cancel := context.WithTimeout(ctx, mcpTokenTimeout)
+	defer cancel()
+	value, err := c.secrets.ReadSecretKey(readCtx, c.token.name, c.token.key)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", toolbackend.ErrCredentialUnavailable
+	}
+	if len(value) == 0 || !visibleASCII(string(value), 4096) {
+		return "", toolbackend.ErrCredentialUnavailable
+	}
+	return string(value), nil
+}
+
 // classifyMCPError maps transport details to the neutral safe errors. Raw
 // server text never leaves this package.
 func classifyMCPError(ctx context.Context, err error) error {
@@ -91,7 +137,8 @@ func classifyMCPError(ctx context.Context, err error) error {
 	case errors.Is(err, context.Canceled):
 		return context.Canceled
 	case errors.Is(err, toolbackend.ErrResponseTooLarge), errors.Is(err, toolbackend.ErrProtocol),
-		errors.Is(err, toolbackend.ErrUnavailable), errors.Is(err, toolbackend.ErrProvider), errors.Is(err, toolbackend.ErrArguments):
+		errors.Is(err, toolbackend.ErrUnavailable), errors.Is(err, toolbackend.ErrProvider), errors.Is(err, toolbackend.ErrArguments),
+		errors.Is(err, toolbackend.ErrCredentialRejected), errors.Is(err, toolbackend.ErrCredentialUnavailable):
 		return err
 	}
 	var netErr net.Error
@@ -102,11 +149,12 @@ func classifyMCPError(ctx context.Context, err error) error {
 }
 
 type mcpSession struct {
-	client      *mcpClient
-	correlation string
-	id          string
-	initialized bool
-	nextID      int
+	client        *mcpClient
+	correlation   string
+	authorization bearer
+	id            string
+	initialized   bool
+	nextID        int
 }
 
 func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (string, error) {
@@ -155,8 +203,13 @@ func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (st
 	return strings.Join(parts, "\n"), nil
 }
 
+// headers sets what every request of the session carries, including the
+// DELETE, so a token-required server sees the token on each one.
 func (s *mcpSession) headers(req *http.Request) {
 	req.Header.Set(MCPCorrelationHeader, s.correlation)
+	if s.authorization != nil {
+		req.Header.Set("Authorization", s.authorization())
+	}
 	if s.initialized {
 		req.Header.Set("MCP-Protocol-Version", mcpProtocolVersion)
 	}
@@ -249,6 +302,9 @@ func (s *mcpSession) close() {
 func statusError(status int) error {
 	if status >= 500 {
 		return toolbackend.ErrUnavailable
+	}
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		return toolbackend.ErrCredentialRejected
 	}
 	return toolbackend.ErrProtocol // Includes 3xx redirects, 404 session expiry and 4xx rejections.
 }

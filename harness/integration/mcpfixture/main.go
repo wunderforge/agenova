@@ -7,12 +7,19 @@
 //
 // Every POST is logged as a "receipt" before the SDK dispatches it, so a
 // complete pod log proves which tools/call requests reached the server.
+//
+// /mcp is credential-free. When FIXTURE_TOKEN_FILE names a token file, the
+// same process also serves /mcp-token through its own SDK handler and session
+// table, and answers every request there without the configured bearer token
+// with 401 before the SDK sees it. Receipts on both paths record how the
+// Authorization header compares with the token, never the header itself.
 package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -37,6 +44,10 @@ const (
 	maxRequestBytes   = 16 << 10
 	maxArgumentBytes  = 4096
 	maxLoggedValue    = 256
+	maxTokenBytes     = 4096
+	openPath          = "/mcp"
+	tokenPath         = "/mcp-token"
+	bearerChallenge   = `Bearer realm="agenova-e16-fixture"`
 )
 
 type config struct {
@@ -46,6 +57,9 @@ type config struct {
 	maxFileBytes int64
 	slowFile     string
 	slowDelay    time.Duration
+	// tokenDigest is the SHA-256 of the token file, nil when none is set. The
+	// token itself is never kept.
+	tokenDigest []byte
 }
 
 func main() {
@@ -95,7 +109,47 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if (cfg.slowFile == "") != (cfg.slowDelay == 0) {
 		return config{}, errors.New("FIXTURE_SLOW_FILE and FIXTURE_SLOW_DELAY must be set together")
 	}
+	if v := getenv("FIXTURE_TOKEN_FILE"); v != "" {
+		digest, err := loadTokenDigest(v)
+		if err != nil {
+			return config{}, err
+		}
+		cfg.tokenDigest = digest
+	}
 	return cfg, nil
+}
+
+// loadTokenDigest reads the token file once and returns only its SHA-256.
+// The bytes are taken as they are: a trailing newline is invalid, not
+// trimmed. Errors are constant, so main never prints the file's content.
+func loadTokenDigest(name string) ([]byte, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, errors.New("FIXTURE_TOKEN_FILE is unreadable")
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxTokenBytes+1))
+	if err != nil {
+		return nil, errors.New("FIXTURE_TOKEN_FILE is unreadable")
+	}
+	if len(data) > maxTokenBytes || !visibleASCII(data) {
+		return nil, errors.New("FIXTURE_TOKEN_FILE must hold 1..4096 visible ASCII bytes and no newline")
+	}
+	sum := sha256.Sum256(data)
+	return sum[:], nil
+}
+
+// visibleASCII reports whether value is non-empty and every byte is 0x21..0x7e.
+func visibleASCII[T ~string | ~[]byte](value T) bool {
+	if len(value) == 0 {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < 0x21 || value[i] > 0x7e {
+			return false
+		}
+	}
+	return true
 }
 
 type readInput struct {
@@ -103,6 +157,22 @@ type readInput struct {
 }
 
 func newHandler(root *os.Root, cfg config, log *logger) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle(openPath, receipts(newStream(root, cfg, log, openPath), log, openPath, cfg.tokenDigest, false))
+	// Without a token file the path is not served at all, so no request can
+	// ever be accepted on it.
+	if cfg.tokenDigest != nil {
+		mux.Handle(tokenPath, receipts(newStream(root, cfg, log, tokenPath), log, tokenPath, cfg.tokenDigest, true))
+	}
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok\n"))
+	})
+	return mux
+}
+
+// newStream builds one SDK server and Streamable HTTP handler for path. Each
+// path gets its own, so a session opened on one is unknown on the other.
+func newStream(root *os.Root, cfg config, log *logger, path string) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: "agenova-e16-fixture", Version: version}, nil)
 	closedWorld := false
 	mcp.AddTool(server, &mcp.Tool{
@@ -115,7 +185,7 @@ func newHandler(root *os.Root, cfg config, log *logger) http.Handler {
 			correlation = bounded(req.Extra.Header.Get(correlationHeader))
 		}
 		text, code := readFile(ctx, root, cfg, in.File)
-		record := entry{Event: "tool", Tool: toolName, File: bounded(in.File), Correlation: correlation, Outcome: "ok", Bytes: len(text)}
+		record := entry{Event: "tool", Path: path, Tool: toolName, File: bounded(in.File), Correlation: correlation, Outcome: "ok", Bytes: len(text)}
 		if code != "" {
 			record.Outcome, record.Error, record.Bytes = "error", code, 0
 			log.write(record)
@@ -124,16 +194,10 @@ func newHandler(root *os.Root, cfg config, log *logger) http.Handler {
 		log.write(record)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 	})
-	stream := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		SessionTimeout:      5 * time.Minute,
 		MaxRequestBodyBytes: maxRequestBytes,
 	})
-	mux := http.NewServeMux()
-	mux.Handle("/mcp", receipts(stream, log))
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("ok\n"))
-	})
-	return mux
 }
 
 // readFile returns file text or a stable error code. os.Root refuses paths
@@ -187,11 +251,14 @@ type rpcEnvelope struct {
 }
 
 // receipts logs each request before the SDK sees it, then logs the response
-// size and status after it returns.
-func receipts(next http.Handler, log *logger) http.Handler {
+// size and status after it returns. With requireToken, a request whose auth
+// class is not ok gets its receipt and then 401 here; it never reaches next,
+// so it can open no session. Without it the class is only logged.
+func receipts(next http.Handler, log *logger, path string, digest []byte, requireToken bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		in := entry{Event: "receipt", HTTPMethod: r.Method, Correlation: bounded(r.Header.Get(correlationHeader)), Session: sessionHash(r.Header.Get("Mcp-Session-Id"))}
+		in := entry{Event: "receipt", Path: path, HTTPMethod: r.Method, Correlation: bounded(r.Header.Get(correlationHeader)), Session: sessionHash(r.Header.Get("Mcp-Session-Id")), Auth: authClass(r.Header, digest)}
+		bodyRejected := false
 		if r.Method == http.MethodPost {
 			body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBytes+1))
 			if err != nil || len(body) > maxRequestBytes {
@@ -199,28 +266,71 @@ func receipts(next http.Handler, log *logger) http.Handler {
 				if err != nil {
 					in.Error = "request-read-failed"
 				}
-				log.write(in)
-				http.Error(w, "request rejected", http.StatusRequestEntityTooLarge)
-				return
-			}
-			var envelope rpcEnvelope
-			if json.Unmarshal(body, &envelope) != nil {
-				in.Error = "unparseable"
-			}
-			in.RPCMethod, in.RPCID = bounded(envelope.Method), bounded(string(envelope.ID))
-			if envelope.Method == "tools/call" {
-				in.Tool = bounded(envelope.Params.Name)
-				if file, ok := envelope.Params.Arguments["file"].(string); ok {
-					in.File = bounded(file)
+				bodyRejected = true
+			} else {
+				var envelope rpcEnvelope
+				if json.Unmarshal(body, &envelope) != nil {
+					in.Error = "unparseable"
 				}
+				in.RPCMethod, in.RPCID = bounded(envelope.Method), bounded(string(envelope.ID))
+				if envelope.Method == "tools/call" {
+					in.Tool = bounded(envelope.Params.Name)
+					if file, ok := envelope.Params.Arguments["file"].(string); ok {
+						in.File = bounded(file)
+					}
+				}
+				r.Body = io.NopCloser(bytes.NewReader(body))
 			}
-			r.Body = io.NopCloser(bytes.NewReader(body))
 		}
 		log.write(in)
 		counter := &countingWriter{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(counter, r)
-		log.write(entry{Event: "response", HTTPMethod: r.Method, RPCMethod: in.RPCMethod, RPCID: in.RPCID, Correlation: in.Correlation, Status: counter.status, Bytes: counter.bytes, DurationMS: time.Since(start).Milliseconds()})
+		switch {
+		case requireToken && in.Auth != "ok":
+			// The token check wins over the body check, so every request
+			// without the token on this path is answered 401.
+			challenge(counter, in.Auth)
+		case bodyRejected:
+			http.Error(w, "request rejected", http.StatusRequestEntityTooLarge)
+			return
+		default:
+			next.ServeHTTP(counter, r)
+		}
+		log.write(entry{Event: "response", Path: path, HTTPMethod: r.Method, RPCMethod: in.RPCMethod, RPCID: in.RPCID, Correlation: in.Correlation, Status: counter.status, Bytes: counter.bytes, DurationMS: time.Since(start).Milliseconds()})
 	})
+}
+
+// authClass compares the Authorization header with the configured token by
+// SHA-256 digest, in constant time over equal 32-byte values. The form is
+// checked first, so a malformed header stays malformed with or without a
+// token; with no token configured, a well-formed one is invalid, never ok.
+func authClass(header http.Header, digest []byte) string {
+	values := header.Values("Authorization")
+	if len(values) == 0 {
+		return "missing"
+	}
+	token, ok := strings.CutPrefix(values[0], "Bearer ")
+	if len(values) > 1 || !ok || !visibleASCII(token) {
+		return "malformed"
+	}
+	sum := sha256.Sum256([]byte(token))
+	if digest == nil || subtle.ConstantTimeCompare(sum[:], digest) != 1 {
+		return "invalid"
+	}
+	return "ok"
+}
+
+// challenge answers a token-path request whose auth class is not ok, with the
+// RFC 6750 error code for a malformed or wrong token and none when missing.
+func challenge(w http.ResponseWriter, class string) {
+	value := bearerChallenge
+	switch class {
+	case "malformed":
+		value += `, error="invalid_request"`
+	case "invalid":
+		value += `, error="invalid_token"`
+	}
+	w.Header().Set("WWW-Authenticate", value)
+	http.Error(w, "bearer token required", http.StatusUnauthorized)
 }
 
 type countingWriter struct {
@@ -250,11 +360,14 @@ func (c *countingWriter) Flush() {
 func (c *countingWriter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 // entry is one JSON log line. It never carries file contents, authorization
-// headers or raw session IDs.
+// headers, tokens or any hash of them, or raw session IDs. Auth holds only
+// the receipt's class (ok, missing, malformed or invalid); it is kept out of
+// Error, which evidence checks read as a failure.
 type entry struct {
 	Time        string `json:"time"`
 	Pod         string `json:"pod,omitempty"`
 	Event       string `json:"event"`
+	Path        string `json:"path,omitempty"`
 	HTTPMethod  string `json:"httpMethod,omitempty"`
 	RPCMethod   string `json:"rpcMethod,omitempty"`
 	RPCID       string `json:"rpcId,omitempty"`
@@ -262,6 +375,7 @@ type entry struct {
 	File        string `json:"file,omitempty"`
 	Correlation string `json:"correlation,omitempty"`
 	Session     string `json:"session,omitempty"`
+	Auth        string `json:"auth,omitempty"`
 	Outcome     string `json:"outcome,omitempty"`
 	Status      int    `json:"status,omitempty"`
 	Bytes       int    `json:"bytes,omitempty"`

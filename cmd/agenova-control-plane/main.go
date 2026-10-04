@@ -94,7 +94,12 @@ func configuredService(path string) (*console.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	tools, err := buildInstalledTools(&resolved, registry)
+	_, namespace, err := app.DeploymentCoordinates(&resolved)
+	if err != nil {
+		return nil, err
+	}
+	// Token references resolve in the install namespace only, on each call.
+	tools, err := buildInstalledTools(&resolved, registry, kubectlSecretReader{namespace: namespace})
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +113,6 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
 	}
 	if err := setInClusterKubeconfig(); err != nil {
-		return nil, err
-	}
-	_, namespace, err := app.DeploymentCoordinates(&resolved)
-	if err != nil {
 		return nil, err
 	}
 	store := registration.KubernetesStore{Namespace: namespace}

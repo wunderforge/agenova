@@ -22,6 +22,7 @@ import (
 type toolDouble struct {
 	calls  atomic.Int32
 	fail   bool
+	err    error // returned instead of ErrUnavailable when set
 	before func()
 }
 
@@ -29,6 +30,9 @@ func (p *toolDouble) Invoke(context.Context, toolbackend.Invocation) (toolbacken
 	p.calls.Add(1)
 	if p.before != nil {
 		p.before()
+	}
+	if p.err != nil {
+		return toolbackend.Result{}, p.err
 	}
 	if p.fail {
 		return toolbackend.Result{}, toolbackend.ErrUnavailable
@@ -81,6 +85,43 @@ func TestConfiguredServiceUsesProviderAndPreservesAttemptTarget(t *testing.T) {
 			}
 			if !fail && (outcome.ProviderStatus != "Succeeded" || view.Outcome.Status != "Succeeded") {
 				t.Fatal("provider double did not complete composition")
+			}
+		})
+	}
+}
+
+// Each credential failure keeps its own reason code, fails the Work after one
+// provider call and never reads as a mock or transport fault.
+func TestConfiguredServiceRecordsCredentialFailures(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{err: toolbackend.ErrCredentialUnavailable, code: "tool-credential-unavailable"},
+		{err: toolbackend.ErrCredentialRejected, code: "tool-credential-rejected"},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			provider := &toolDouble{err: tc.err}
+			service, err := NewServiceWithOptions(&verticalBackend{}, reactExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{ToolBackend: boundTools(t, provider, "git.read", "repo:acme/payments")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer service.Close()
+			if _, err := service.Submit(verticalRequest(t, "credential")); err != nil {
+				t.Fatal(err)
+			}
+			view := awaitVertical(t, service, "credential")
+			var outcomes []facts.Fact
+			for _, f := range view.Facts {
+				if f.Operation == "tool.invoke" && f.Kind == "ProviderOutcome" {
+					outcomes = append(outcomes, f)
+				}
+			}
+			if provider.calls.Load() != 1 || len(outcomes) != 1 || outcomes[0].ProviderStatus != "Failed" || outcomes[0].ReasonCode != tc.code || outcomes[0].ResultRef != "" || outcomes[0].Truncated {
+				t.Fatalf("calls=%d outcomes=%+v", provider.calls.Load(), outcomes)
+			}
+			if view.Outcome.Status != "Failed" {
+				t.Fatalf("credential failure did not fail the Work: %+v", view.Outcome)
 			}
 		})
 	}

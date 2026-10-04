@@ -92,6 +92,12 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		case errors.Is(invokeErr, toolbackend.ErrProtocol):
 			fact.ReasonCode = "tool-protocol-error"
 			fact.Reason = "Configured tool provider returned an unsupported or malformed response."
+		case errors.Is(invokeErr, toolbackend.ErrCredentialUnavailable):
+			fact.ReasonCode = "tool-credential-unavailable"
+			fact.Reason = "Configured tool credential could not be resolved; no request was sent and no fallback was used."
+		case errors.Is(invokeErr, toolbackend.ErrCredentialRejected):
+			fact.ReasonCode = "tool-credential-rejected"
+			fact.Reason = "Configured tool server rejected the credential; no retry or fallback was used."
 		}
 	}
 	if _, err := a.appendFact(fact); err != nil {

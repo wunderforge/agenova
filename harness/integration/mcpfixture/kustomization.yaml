@@ -3,6 +3,8 @@
 
 # Apply with an explicit context only:
 #   kubectl --context <kind-context> apply -k harness/integration/mcpfixture
+# The Deployment also needs Secret e16-mcp-token, which the campaign runner
+# creates; it is deliberately not generated here (see deploy.yaml).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: agenova-e16

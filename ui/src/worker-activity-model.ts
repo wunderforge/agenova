@@ -7,6 +7,7 @@ export interface WorkerAction {
   id: string; label: string; target: string; href: string;
   state: string; active: boolean; turn?: string;
 }
+export const toolCallLabels = ['Tool call', 'Tool call (mock)'];
 // Correlate calls independently. Allow/Deny is not evidence of tool execution.
 export function workerActions(facts: Fact[], status: string, activityHref: string): WorkerAction[] {
   const ordered = [...facts].sort((a, b) => a.sequence - b.sequence);
@@ -27,9 +28,12 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
       const active = f.kind === 'ProviderAttempt' && !!f.invocationId && !outcome && status === 'Running';
       const decision = f.kind === 'ModelDecision' || f.kind === 'ToolDecision';
       const toolCall = f.operation === 'tool.invoke';
+      // Only the synthetic adapter records mock-* reason codes (as in
+      // record-presentation.ts); a configured provider call is never mock.
+      const mock = toolCall && [f, outcome].some(r => r?.reasonCode?.startsWith('mock-'));
       const step = f.kind === 'WorkerActivity';
       return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
-        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? 'Tool call (mock)' : 'Model request',
+        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? mock ? 'Tool call (mock)' : 'Tool call' : 'Model request',
         target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
         state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? f.result || 'Recorded'
           : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || 'No completion recorded',
@@ -45,7 +49,7 @@ export function demoWorkerActions(events: WorkEvent[], activityHref: string): Wo
 export interface WorkerTurn { id: string; calls: WorkerAction[]; observations: number; active: boolean }
 export function groupWorkerTurns(actions: WorkerAction[]): WorkerTurn[] {
   const recordedTurns = actions.some(a => a.turn);
-  const recordedCalls = actions.some(a => ['Model request', 'Tool call (mock)'].includes(a.label));
+  const recordedCalls = actions.some(a => ['Model request', ...toolCallLabels].includes(a.label));
   const groups = new Map<string, WorkerTurn>();
   for (const action of actions) {
     // Access decisions remain inspectable records, not redundant execution rows.

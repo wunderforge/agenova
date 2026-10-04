@@ -146,7 +146,9 @@ func loadProbeEnv(t *testing.T) probeEnv {
 		env.provider, env.double = "double", &probeDouble{}
 		tools = doubleRegistry{Registry: registry, provider: env.double}
 	}
-	if env.tools, err = buildInstalledTools(&resolved, tools); err != nil || env.tools == nil {
+	// No Secret reader: the probe never calls a token route, and one with a
+	// reference would fail closed without sending a request.
+	if env.tools, err = buildInstalledTools(&resolved, tools, nil); err != nil || env.tools == nil {
 		t.Fatalf("installed tools: %v", err)
 	}
 	return env

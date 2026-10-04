@@ -41,18 +41,22 @@ const goodN8 = "The timeline was cut off after the first part, so later events a
 const (
 	positiveScope = "repo:agenova/e16-fixture"
 	faultScope    = "repo:agenova/e16-faults"
+	tokenScope    = "repo:agenova/e16-token"
 )
 
+// path and auth are what the fixture logs for the backend a Work's calls
+// use: every line carries the path, every receipt the auth class.
 type workBuilder struct {
-	view     evidence.View
-	log      []Entry
-	clock    time.Time
-	scope    string
-	sessions int
+	view       evidence.View
+	log        []Entry
+	clock      time.Time
+	scope      string
+	path, auth string
+	sessions   int
 }
 
 func newWork(status, answer, scope string) *workBuilder {
-	w := &workBuilder{clock: time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC), scope: scope}
+	w := &workBuilder{clock: time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC), scope: scope, path: "/mcp", auth: "missing"}
 	w.view = evidence.View{RequestRef: "e16-case", State: &v0.IssuedState{Decision: v0.Decision{Result: "Allow"}, Claim: &v0.SandboxClaim{ID: "claim"}},
 		Outcome: &evidence.Outcome{Status: status, Text: answer}}
 	w.fact(facts.Fact{Kind: "RequestReceived"})
@@ -97,24 +101,41 @@ func (w *workBuilder) session(id, file string) {
 	w.sessions++
 	s := fmt.Sprintf("%012x", w.sessions)
 	type m = map[string]any
-	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id})
-	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "status": 200, "bytes": 210, "durationMs": 1})
-	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "session": s})
-	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "status": 202})
-	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "tool": "read_file", "file": file, "correlation": id, "session": s})
-	w.fixture(m{"event": "tool", "tool": "read_file", "file": file, "correlation": id, "outcome": "ok", "bytes": 490})
-	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "correlation": id, "status": 200, "bytes": 598})
-	w.fixture(m{"event": "receipt", "httpMethod": "DELETE", "correlation": id, "session": s})
-	w.fixture(m{"event": "response", "httpMethod": "DELETE", "correlation": id, "status": 204})
+	p, a := w.path, w.auth
+	w.fixture(m{"event": "receipt", "path": p, "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "auth": a})
+	w.fixture(m{"event": "response", "path": p, "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "status": 200, "bytes": 210, "durationMs": 1})
+	w.fixture(m{"event": "receipt", "path": p, "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "session": s, "auth": a})
+	w.fixture(m{"event": "response", "path": p, "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "status": 202})
+	w.fixture(m{"event": "receipt", "path": p, "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "tool": "read_file", "file": file, "correlation": id, "session": s, "auth": a})
+	w.fixture(m{"event": "tool", "path": p, "tool": "read_file", "file": file, "correlation": id, "outcome": "ok", "bytes": 490})
+	w.fixture(m{"event": "response", "path": p, "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "correlation": id, "status": 200, "bytes": 598})
+	w.fixture(m{"event": "receipt", "path": p, "httpMethod": "DELETE", "correlation": id, "session": s, "auth": a})
+	w.fixture(m{"event": "response", "path": p, "httpMethod": "DELETE", "correlation": id, "status": 204})
+}
+
+// rejected logs what the fixture writes for a request on /mcp-token without
+// the right token: the receipt with its auth class, then a 401 response
+// written before the SDK handler.
+func (w *workBuilder) rejected(id string) {
+	type m = map[string]any
+	w.fixture(m{"event": "receipt", "path": w.path, "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "auth": w.auth})
+	w.fixture(m{"event": "response", "path": w.path, "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "status": 401, "bytes": 22})
+}
+
+// attempt records the decision and attempt of an allowed invocation as the
+// configured provider does.
+func (w *workBuilder) attempt(id string) {
+	w.fact(facts.Fact{Kind: "ToolDecision", InvocationID: id, Operation: "tool.invoke", Result: "Allow"})
+	w.fact(facts.Fact{Kind: "ProviderAttempt", InvocationID: id, Operation: "tool.invoke", ReasonCode: "configured-tool", ProviderStatus: "Attempted"})
 }
 
 // call records one invocation and, when attempted, its server session.
 func (w *workBuilder) call(id, decision, file, outcome, reason string, truncated bool) {
-	w.fact(facts.Fact{Kind: "ToolDecision", InvocationID: id, Operation: "tool.invoke", Result: v0.DecisionResult(decision)})
 	if decision != "Allow" {
+		w.fact(facts.Fact{Kind: "ToolDecision", InvocationID: id, Operation: "tool.invoke", Result: v0.DecisionResult(decision)})
 		return
 	}
-	w.fact(facts.Fact{Kind: "ProviderAttempt", InvocationID: id, Operation: "tool.invoke", ProviderStatus: "Attempted"})
+	w.attempt(id)
 	w.session(id, file)
 	ref := ""
 	if outcome == "Succeeded" {
@@ -153,6 +174,64 @@ func truncationWork(answer string, truncated bool) *workBuilder {
 	w := newWork("Succeeded", answer, faultScope)
 	w.call("a", "Allow", "notes/incident-timeline.md", "Succeeded", "configured-tool", truncated)
 	w.end()
+	return w
+}
+
+// tokenValidWork reads README.md through the token-required backend.
+func tokenValidWork() *workBuilder {
+	w := newWork("Succeeded", "README.md describes the payment retry incident.", tokenScope)
+	w.path, w.auth = "/mcp-token", "ok"
+	w.call("a", "Allow", "README.md", "Succeeded", "configured-tool", false)
+	w.end()
+	return w
+}
+
+// failedTokenWork records one allowed call that fails with reason; during
+// runs between its attempt and its outcome, where the server would log.
+func failedTokenWork(scope, auth, reason string, during func(w *workBuilder)) *workBuilder {
+	w := newWork("Failed", "", scope)
+	w.path, w.auth = "/mcp-token", auth
+	w.attempt("a")
+	if during != nil {
+		during(w)
+	}
+	w.fact(facts.Fact{Kind: "ProviderOutcome", InvocationID: "a", Operation: "tool.invoke", ProviderStatus: "Failed", ReasonCode: reason})
+	w.end()
+	return w
+}
+
+// tokenMissingWork could not resolve its token, so it sent nothing.
+func tokenMissingWork(during func(w *workBuilder)) *workBuilder {
+	return failedTokenWork(tokenScope+"-missing", "", "tool-credential-unavailable", during)
+}
+
+// tokenWrongWork sent a wrong token; the server answered initialize 401.
+func tokenWrongWork(more func(w *workBuilder)) *workBuilder {
+	return failedTokenWork(tokenScope+"-wrong", "invalid", "tool-credential-rejected", func(w *workBuilder) {
+		w.rejected("a")
+		if more != nil {
+			more(w)
+		}
+	})
+}
+
+// edit changes every logged entry that matches.
+func (w *workBuilder) edit(match func(Entry) bool, change func(*Entry)) *workBuilder {
+	for i := range w.log {
+		if match(w.log[i]) {
+			change(&w.log[i])
+		}
+	}
+	return w
+}
+
+// setFact changes every fact of kind.
+func (w *workBuilder) setFact(kind string, change func(*facts.Fact)) *workBuilder {
+	for i := range w.view.Facts {
+		if w.view.Facts[i].Kind == kind {
+			change(&w.view.Facts[i])
+		}
+	}
 	return w
 }
 
@@ -198,6 +277,9 @@ func TestWorkCasesPass(t *testing.T) {
 		"n7-oversize":    oversize,
 		"n8-truncation":  truncationWork(goodN8, true),
 		"admission-deny": denied,
+		"token-valid":    tokenValidWork(),
+		"token-missing":  tokenMissingWork(nil),
+		"token-wrong":    tokenWrongWork(nil),
 	} {
 		if err := CheckWork(name, w.view, w.log, dataset, nil); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -222,9 +304,20 @@ func TestWorkCasesReject(t *testing.T) {
 		}},
 		"replayed call": {"positive", "made 2 tools/call", func() *workBuilder {
 			w := positive()
-			w.server(Entry{Event: "receipt", RPCMethod: "tools/call", Correlation: "a", File: "logs/timeout.log"})
+			w.server(Entry{Event: "receipt", RPCMethod: "tools/call", Correlation: "a", File: "logs/timeout.log", Path: "/mcp", Auth: "missing"})
 			w.end()
 			return w
+		}},
+		// The fixture logs the path on every line; a token sent to the
+		// credential-free backend is a leak, not a harmless extra header.
+		"credential-free call sent a token": {"positive", `has auth "ok", want "missing"`, func() *workBuilder {
+			return positive().edit(func(e Entry) bool { return e.Correlation == "a" && e.RPCMethod == "initialize" && e.Event == "receipt" }, func(e *Entry) { e.Auth = "ok" })
+		}},
+		"credential-free entry without a path": {"positive", `has path "", want "/mcp"`, func() *workBuilder {
+			return positive().edit(func(e Entry) bool { return e.Correlation == "b" && e.Event == "tool" }, func(e *Entry) { e.Path = "" })
+		}},
+		"credential-free call on the token path": {"n8-truncation", `has path "/mcp-token", want "/mcp"`, func() *workBuilder {
+			return truncationWork(goodN8, true).edit(func(e Entry) bool { return e.HTTPMethod == "DELETE" }, func(e *Entry) { e.Path = "/mcp-token" })
 		}},
 		"unknown traffic during the Work": {"positive", "belong to none of its invocations", func() *workBuilder {
 			w := positive()
@@ -247,6 +340,88 @@ func TestWorkCasesReject(t *testing.T) {
 		}},
 		"answer claims a complete timeline": {"n8-truncation", "timeline_complete", func() *workBuilder {
 			return truncationWork("Summary.\ntimeline_complete: yes", true)
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := tc.build()
+			err := CheckWork(tc.work, w.view, w.log, dataset, nil)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("want rejection containing %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+// Each token case has one invocation of an exact shape: the valid token on
+// every request of one session on /mcp-token, nothing sent without a token,
+// and one initialize answered 401 for a wrong one.
+func TestTokenCasesReject(t *testing.T) {
+	type m = map[string]any
+	receipt := func(e Entry) bool { return e.Event == "receipt" }
+	response := func(e Entry) bool { return e.Event == "response" }
+	for name, tc := range map[string]struct {
+		work, want string
+		build      func() *workBuilder
+	}{
+		"valid token missing from one request": {"token-valid", `has auth "missing", want "ok"`, func() *workBuilder {
+			return tokenValidWork().edit(func(e Entry) bool { return receipt(e) && e.RPCMethod == "tools/call" }, func(e *Entry) { e.Auth = "missing" })
+		}},
+		"valid session closed on the credential-free path": {"token-valid", `has path "/mcp", want "/mcp-token"`, func() *workBuilder {
+			return tokenValidWork().edit(func(e Entry) bool { return receipt(e) && e.HTTPMethod == "DELETE" }, func(e *Entry) { e.Path = "/mcp" })
+		}},
+		"valid handler without a path": {"token-valid", `has path "", want "/mcp-token"`, func() *workBuilder {
+			return tokenValidWork().edit(func(e Entry) bool { return e.Event == "tool" }, func(e *Entry) { e.Path = "" })
+		}},
+		"valid case with two invocations": {"token-valid", "a token case makes exactly one tool invocation, got 2", func() *workBuilder {
+			w := newWork("Succeeded", "", tokenScope)
+			w.path, w.auth = "/mcp-token", "ok"
+			w.call("a", "Allow", "README.md", "Succeeded", "configured-tool", false)
+			w.call("b", "Allow", "README.md", "Succeeded", "configured-tool", false)
+			w.end()
+			return w
+		}},
+		"missing token case denied by the Gateway": {"token-missing", `must have one ToolDecision Allow, one ProviderAttempt "configured-tool" and one ProviderOutcome Failed "tool-credential-unavailable"; got 1 decisions (Deny), 0 attempts`, func() *workBuilder {
+			w := newWork("Failed", "", tokenScope+"-missing")
+			w.call("a", "Deny", "", "", "", false)
+			w.end()
+			return w
+		}},
+		"valid attempt without the configured-tool reason": {"token-valid", `one ProviderAttempt "configured-tool" and one ProviderOutcome Succeeded "configured-tool"; got 1 decisions (Allow), 1 attempts ("")`, func() *workBuilder {
+			return tokenValidWork().setFact("ProviderAttempt", func(f *facts.Fact) { f.ReasonCode = "" })
+		}},
+		"missing token followed by a lone response": {"token-missing", "invocation a had no token to send but caused 1 server entries [response POST initialize 401]", func() *workBuilder {
+			return tokenMissingWork(func(w *workBuilder) {
+				w.fixture(m{"event": "response", "path": "/mcp-token", "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": "a", "status": 401, "bytes": 22})
+			})
+		}},
+		"missing token sent without a header": {"token-missing", "invocation a had no token to send but caused 2 server entries", func() *workBuilder {
+			return tokenMissingWork(func(w *workBuilder) {
+				w.auth = "missing"
+				w.rejected("a")
+			})
+		}},
+		"missing token recorded as rejected": {"token-missing", `one ProviderOutcome Failed "tool-credential-unavailable"; got 1 decisions (Allow), 1 attempts ("configured-tool"), 1 outcomes (Failed "tool-credential-rejected")`, func() *workBuilder {
+			return tokenMissingWork(nil).setFact("ProviderOutcome", func(f *facts.Fact) { f.ReasonCode = "tool-credential-rejected" })
+		}},
+		"wrong token retried": {"token-wrong", "invocation a must show one initialize answered 401 and nothing else, got 4 server entries", func() *workBuilder {
+			return tokenWrongWork(func(w *workBuilder) { w.rejected("a") })
+		}},
+		"wrong token accepted": {"token-wrong", "must show one initialize answered 401 and nothing else, got 2 server entries [receipt POST initialize, response POST initialize 200]", func() *workBuilder {
+			return tokenWrongWork(nil).edit(response, func(e *Entry) { e.Status = 200 })
+		}},
+		"wrong token answered for another request": {"token-wrong", "must show one initialize answered 401 and nothing else", func() *workBuilder {
+			return tokenWrongWork(nil).edit(response, func(e *Entry) { e.RPCID = "2" })
+		}},
+		"wrong token went on to tools/call": {"token-wrong", "must show one initialize answered 401 and nothing else, got 3 server entries", func() *workBuilder {
+			return tokenWrongWork(func(w *workBuilder) {
+				w.fixture(m{"event": "receipt", "path": "/mcp-token", "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "tool": "read_file", "file": "README.md", "correlation": "a", "auth": "invalid"})
+			})
+		}},
+		"wrong token sent as no header": {"token-wrong", `has auth "missing", want "invalid"`, func() *workBuilder {
+			return tokenWrongWork(nil).edit(receipt, func(e *Entry) { e.Auth = "missing" })
+		}},
+		"wrong token recorded as a provider failure": {"token-wrong", `one ProviderOutcome Failed "tool-credential-rejected"; got 1 decisions (Allow), 1 attempts ("configured-tool"), 1 outcomes (Failed "tool-provider-failed")`, func() *workBuilder {
+			return tokenWrongWork(nil).setFact("ProviderOutcome", func(f *facts.Fact) { f.ReasonCode = "tool-provider-failed" })
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -364,7 +539,7 @@ func TestWorkCaseScopesMatchWorkInputs(t *testing.T) {
 			t.Errorf("work-%s.yaml does not request %q", name, want)
 		}
 	}
-	if workCases["positive"].scope != positiveScope || workCases["n8-truncation"].scope != faultScope {
+	if workCases["positive"].scope != positiveScope || workCases["n8-truncation"].scope != faultScope || workCases["token-valid"].scope != tokenScope {
 		t.Fatal("the checker's scopes differ from the MCP client's result references used in these tests")
 	}
 }
@@ -501,13 +676,13 @@ func TestWorkServerProofIsComplete(t *testing.T) {
 	// request after the outcome may not.
 	w0 := positive()
 	outcome := w0.view.Facts[len(w0.view.Facts)-2].Timestamp
-	w0.log = append(w0.log, Entry{Time: outcome.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "response", HTTPMethod: "DELETE", Correlation: "b"})
+	w0.log = append(w0.log, Entry{Time: outcome.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "response", HTTPMethod: "DELETE", Correlation: "b", Path: "/mcp", Status: 204})
 	if err := CheckWork("positive", w0.view, w0.log, dataset, nil); err != nil {
 		t.Fatalf("delayed session cleanup: %v", err)
 	}
-	w0.log = append(w0.log, Entry{Time: outcome.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "receipt", HTTPMethod: "POST", RPCMethod: "tools/call", Correlation: "b"})
-	if err := CheckWork("positive", w0.view, w0.log, dataset, nil); err == nil {
-		t.Fatal("a new request after the outcome was accepted")
+	w0.log = append(w0.log, Entry{Time: outcome.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "receipt", HTTPMethod: "POST", RPCMethod: "tools/call", Correlation: "b", Path: "/mcp", Auth: "missing"})
+	if err := CheckWork("positive", w0.view, w0.log, dataset, nil); err == nil || !strings.Contains(err.Error(), "outside its attempt window") {
+		t.Fatalf("a new request after the outcome: %v", err)
 	}
 	// A previous Work's timed-out call may complete during this Work, but may
 	// not start anything new.
@@ -525,10 +700,26 @@ func TestWorkServerProofIsComplete(t *testing.T) {
 	if err := CheckWork("positive", w1.view, w1.log, dataset, priorOf("earlier-timeout", w1.view.Facts[0].Timestamp.Add(-time.Second), "tool-timeout")); err == nil || !strings.Contains(err.Error(), "caused a new server entry") {
 		t.Fatalf("an earlier invocation's new request: %v", err)
 	}
+	// An earlier call that failed on its credential has no session to close:
+	// even the session close a completed call may log is new activity after
+	// its end. (A rejected token's one late 401 is admitted; see
+	// TestPriorRecordsSeparateHistoryFromNewEntries.)
+	for _, state := range []string{"tool-credential-unavailable", "tool-credential-rejected"} {
+		w := positive()
+		during := w.view.Facts[1].Timestamp.Add(time.Millisecond).Format(time.RFC3339Nano)
+		w.log = append(w.log, Entry{Time: during, Event: "receipt", HTTPMethod: "DELETE", Correlation: "earlier-token", Path: "/mcp-token", Auth: "invalid"})
+		end := w.view.Facts[0].Timestamp.Add(-time.Second)
+		if err := CheckWork("positive", w.view, w.log, dataset, priorOf("earlier-token", end, "configured-tool")); err != nil {
+			t.Fatalf("a completed call's session close: %v", err)
+		}
+		if err := CheckWork("positive", w.view, w.log, dataset, priorOf("earlier-token", end, state)); err == nil || !strings.Contains(err.Error(), "earlier invocation earlier-token ("+state+") caused a new server entry (receipt DELETE ") {
+			t.Fatalf("a late DELETE after %s: %v", state, err)
+		}
+	}
 	// A timed-out call's server handler may finish after the client gave up.
 	w := timeoutWork("logs/slow.log")
 	late := w.view.Facts[len(w.view.Facts)-1].Timestamp.Add(30 * time.Second)
-	w.log = append(w.log, Entry{Time: late.Format(time.RFC3339Nano), Event: "tool", Correlation: "a", Outcome: "ok", File: "logs/slow.log"})
+	w.log = append(w.log, Entry{Time: late.Format(time.RFC3339Nano), Event: "tool", Correlation: "a", Outcome: "ok", File: "logs/slow.log", Path: "/mcp"})
 	if err := CheckWork("n6-timeout", w.view, w.log, dataset, nil); err != nil {
 		t.Fatalf("late completion of a timed-out call: %v", err)
 	}

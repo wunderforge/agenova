@@ -7,6 +7,7 @@ package e16
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,9 +52,11 @@ func TestNonRootManifestsUseNumericImageUsers(t *testing.T) {
 	}
 }
 
-// The positive route holds only the positive task's files and the faults route
-// only the fault files, so no Work can reach a file meant for another case.
-func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
+// Each route reaches only its own case's files through its own backend: the
+// positive route holds only the positive task's files, the faults route only
+// the fault files, and each Slice 4 token route only README.md through its own
+// token backend. No Work can reach a file or backend meant for another case.
+func TestAcceptanceInputsResolveToSeparateRoutes(t *testing.T) {
 	input, verr := v0.ParsePlatformYAML(read(t, "platform.yaml"))
 	if verr != nil {
 		t.Fatal(verr)
@@ -66,26 +69,39 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	routes := map[string][]string{}
-	for _, route := range resolved.ToolRoutes {
-		if route.Tool.Operation != "repo.read" || route.BackendRef != "e16-mcp" {
-			t.Fatalf("unexpected route %+v", route)
-		}
-		routes[route.Tool.ResourceScope] = route.Tool.AllowedValues
+	type route struct {
+		backend string
+		files   []string
 	}
-	want := map[string][]string{
-		"repo:agenova/e16-fixture": {"README.md", "logs/timeout.log", "src/retry.txt"},
-		"repo:agenova/e16-faults":  {"logs/slow.log", "logs/full-trace.log", "notes/incident-timeline.md"},
+	routes := map[string]route{}
+	for _, r := range resolved.ToolRoutes {
+		if r.Tool.Operation != "repo.read" {
+			t.Fatalf("unexpected route %+v", r)
+		}
+		if _, ok := routes[r.Tool.ResourceScope]; ok {
+			t.Fatalf("two routes for %s", r.Tool.ResourceScope)
+		}
+		routes[r.Tool.ResourceScope] = route{backend: r.BackendRef, files: r.Tool.AllowedValues}
+	}
+	want := map[string]route{
+		"repo:agenova/e16-fixture":       {backend: "e16-mcp", files: []string{"README.md", "logs/timeout.log", "src/retry.txt"}},
+		"repo:agenova/e16-faults":        {backend: "e16-mcp", files: []string{"logs/slow.log", "logs/full-trace.log", "notes/incident-timeline.md"}},
+		"repo:agenova/e16-token":         {backend: "e16-mcp-token", files: []string{"README.md"}},
+		"repo:agenova/e16-token-missing": {backend: "e16-mcp-token-missing", files: []string{"README.md"}},
+		"repo:agenova/e16-token-wrong":   {backend: "e16-mcp-token-wrong", files: []string{"README.md"}},
 	}
 	if len(routes) != len(want) {
 		t.Fatalf("routes %v, want %v", routes, want)
 	}
-	for scope, files := range want {
-		got := slices.Clone(routes[scope])
+	for scope, w := range want {
+		got := slices.Clone(routes[scope].files)
 		slices.Sort(got)
-		slices.Sort(files)
-		if !slices.Equal(got, files) {
-			t.Fatalf("%s allows %v, want %v", scope, routes[scope], files)
+		slices.Sort(w.files)
+		if !slices.Equal(got, w.files) {
+			t.Fatalf("%s allows %v, want %v", scope, routes[scope].files, w.files)
+		}
+		if routes[scope].backend != w.backend {
+			t.Fatalf("%s uses backend %q, want %q", scope, routes[scope].backend, w.backend)
 		}
 	}
 	// evidence/work.go judges N8 against this cap.
@@ -99,12 +115,77 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		t.Fatalf("control plane namespace %q", namespace)
 	}
 
+	// e16-mcp stays credential-free on /mcp. Each token backend names its own
+	// Secret, is otherwise configured exactly like e16-mcp and uses the
+	// token-required path. The runner creates and checks these Secret names.
+	const endpoint = "http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp"
+	const reference = "provisional-token-secret"
+	backends := map[string]struct{ endpoint, secret string }{
+		"e16-mcp":               {endpoint: endpoint},
+		"e16-mcp-token":         {endpoint: endpoint + "-token", secret: "e16-mcp-token/token"},
+		"e16-mcp-token-missing": {endpoint: endpoint + "-token", secret: "e16-mcp-token-absent/token"},
+		"e16-mcp-token-wrong":   {endpoint: endpoint + "-token", secret: "e16-mcp-token-wrong/token"},
+	}
+	configs := map[string]map[string]any{}
+	for _, backend := range input.Spec.Services.ToolBackends {
+		configs[backend.Name] = backend.Config
+	}
+	if len(configs) != len(backends) || len(input.Spec.Services.ToolBackends) != len(backends) {
+		t.Fatalf("tool backends %v, want exactly %v", configs, backends)
+	}
+	base := configs["e16-mcp"]
+	for name, w := range backends {
+		config, ok := configs[name]
+		if !ok {
+			t.Fatalf("no tool backend %s", name)
+		}
+		if got, _ := config["endpoint"].(string); got != w.endpoint {
+			t.Fatalf("%s endpoint %q, want %q", name, got, w.endpoint)
+		}
+		secret, has := config[reference]
+		if w.secret == "" && has {
+			t.Fatalf("%s must stay credential-free, has %s %v", name, reference, secret)
+		}
+		if got, _ := secret.(string); w.secret != "" && got != w.secret {
+			t.Fatalf("%s %s %q, want %q", name, reference, got, w.secret)
+		}
+		for key, value := range base {
+			if key != "endpoint" && config[key] != value {
+				t.Fatalf("%s %s is %v, e16-mcp has %v", name, key, config[key], value)
+			}
+		}
+		for key := range config {
+			if _, ok := base[key]; !ok && key != reference {
+				t.Fatalf("%s sets %s, which e16-mcp does not", name, key)
+			}
+		}
+	}
+	// Resolution keeps each reference on its own backend and adds none to e16-mcp.
+	instances := 0
+	for _, instance := range resolved.Instances {
+		if instance.Category != platform.CapabilityTool {
+			continue
+		}
+		instances++
+		w, ok := backends[instance.Name]
+		if !ok {
+			t.Fatalf("unexpected resolved tool backend %s", instance.Name)
+		}
+		secret, has := instance.Config[reference]
+		if got, _ := secret.(string); has != (w.secret != "") || got != w.secret {
+			t.Fatalf("resolved %s %s %v, want %q", instance.Name, reference, secret, w.secret)
+		}
+	}
+	if instances != len(backends) {
+		t.Fatalf("%d resolved tool backends, want %d", instances, len(backends))
+	}
+
 	template, verr := v0.ParseAgentTemplateYAML(read(t, "template.yaml"))
 	if verr != nil {
 		t.Fatal(verr)
 	}
 	ceiling := template.Spec.CapabilityCeiling
-	if !slices.Equal(ceiling.Tools, []string{"repo.read"}) || !slices.Equal(ceiling.ResourceScopes, []string{"repo:agenova/e16-fixture", "repo:agenova/e16-faults"}) {
+	if !slices.Equal(ceiling.Tools, []string{"repo.read"}) || !slices.Equal(ceiling.ResourceScopes, []string{"repo:agenova/e16-fixture", "repo:agenova/e16-faults", "repo:agenova/e16-token", "repo:agenova/e16-token-missing", "repo:agenova/e16-token-wrong"}) {
 		t.Fatalf("template ceiling %+v", ceiling)
 	}
 	bundle, err := policy.ParseDocumentYAML(read(t, "policy.yaml"))
@@ -115,7 +196,7 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		t.Fatalf("policy rules %+v", bundle.Rules)
 	}
 
-	for name, tc := range map[string]struct {
+	works := map[string]struct {
 		scope   string
 		project string
 		file    string
@@ -128,7 +209,20 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		"work-n7-oversize.yaml":    {scope: "repo:agenova/e16-faults", project: "payments", file: "logs/full-trace.log"},
 		"work-n8-truncation.yaml":  {scope: "repo:agenova/e16-faults", project: "payments", file: "notes/incident-timeline.md", facts: []string{"timeline_complete"}},
 		"work-admission-deny.yaml": {scope: "repo:agenova/e16-fixture", project: "billing"},
-	} {
+		"work-token-valid.yaml":    {scope: "repo:agenova/e16-token", project: "payments", file: "README.md"},
+		"work-token-missing.yaml":  {scope: "repo:agenova/e16-token-missing", project: "payments", file: "README.md"},
+		"work-token-wrong.yaml":    {scope: "repo:agenova/e16-token-wrong", project: "payments", file: "README.md"},
+	}
+	// The runner runs any work-<case>.yaml, so every one is checked here.
+	files, err := filepath.Glob("work-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != len(works) {
+		t.Fatalf("work files %v, want exactly the %d checked here", files, len(works))
+	}
+	tokenObjectives := map[string]bool{}
+	for name, tc := range works {
 		request, verr := v0.ParseClaimRequestYAML(read(t, name))
 		if verr != nil {
 			t.Fatalf("%s: %v", name, verr)
@@ -136,6 +230,13 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 		access := request.Spec.RequestedAccess
 		if request.Spec.TemplateRef != template.Metadata.Name || request.Spec.ProjectRef != tc.project || !slices.Equal(access.ResourceScopes, []string{tc.scope}) {
 			t.Fatalf("%s: %+v", name, request.Spec)
+		}
+		// campaign.sh render_work renames exactly this request name per attempt.
+		if want := "e16-" + strings.TrimSuffix(strings.TrimPrefix(name, "work-"), ".yaml"); request.Metadata.Name != want {
+			t.Fatalf("%s names its request %q, want %q", name, request.Metadata.Name, want)
+		}
+		if !slices.Equal(access.Tools, []string{"repo.read"}) {
+			t.Fatalf("%s requests tools %v", name, access.Tools)
 		}
 		objective, _ := request.Spec.Task.Input["objective"].(string)
 		if tc.file != "" && !strings.Contains(objective, tc.file) {
@@ -146,5 +247,12 @@ func TestAcceptanceInputsResolveToTwoSeparateRoutes(t *testing.T) {
 				t.Fatalf("%s objective does not ask for the %s fact line", name, key)
 			}
 		}
+		if strings.HasPrefix(name, "work-token-") {
+			tokenObjectives[objective] = true
+		}
+	}
+	// The token cases differ only in their backend, never in their task.
+	if len(tokenObjectives) != 1 {
+		t.Fatalf("the token Works ask %d different objectives, want one", len(tokenObjectives))
 	}
 }

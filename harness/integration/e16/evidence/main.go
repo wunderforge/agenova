@@ -13,6 +13,11 @@
 //
 //	go run ./harness/integration/e16/evidence work -case positive -ref e16-positive-a1 \
 //	  -view work-show.json -server-log fixture-full.jsonl -fixture-data harness/integration/mcpfixture/data
+//
+// Archived evidence is searched for the Slice 4 token values, read on stdin,
+// with:
+//
+//	go run ./harness/integration/e16/evidence scan <root>... < tokens
 package main
 
 import (
@@ -43,16 +48,23 @@ type Receipt struct {
 	Pass          bool     `json:"pass"`
 }
 
-// Entry is one fixture log line.
+// Entry is one fixture log line. Path is the endpoint path the request came
+// in on ("/mcp" or "/mcp-token"); Auth is a receipt's credential class
+// ("ok", "missing", "malformed" or "invalid"); Status is a response's HTTP
+// status.
 type Entry struct {
 	Time        string `json:"time"`
 	Event       string `json:"event"`
 	HTTPMethod  string `json:"httpMethod"`
 	RPCMethod   string `json:"rpcMethod"`
+	RPCID       string `json:"rpcId"`
 	Correlation string `json:"correlation"`
 	Outcome     string `json:"outcome"`
 	File        string `json:"file"`
 	Error       string `json:"error"`
+	Status      int    `json:"status"`
+	Path        string `json:"path"`
+	Auth        string `json:"auth"`
 }
 
 // Expected maps every case/step one probe run must report to the number of
@@ -218,6 +230,11 @@ func Check(receipts []Receipt, log []Entry, prior *priorRecords) ([]Result, erro
 				add(key, false, "server entry for this step's invocation at %s is outside its window", e.Time)
 				continue
 			}
+			// The probe composition has no Secret reader and calls only the
+			// credential-free route, so no request may carry a token.
+			if e.Path != "/mcp" || (e.Event == "receipt" && e.Auth != "missing") {
+				add(key, false, "server %s entry at %s has path %q and auth %q, want /mcp without a token", e.Event, e.Time, e.Path, e.Auth)
+			}
 			c := counts[key]
 			if c == nil {
 				c = &tally{}
@@ -265,6 +282,9 @@ func Check(receipts []Receipt, log []Entry, prior *priorRecords) ([]Result, erro
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "work" {
 		os.Exit(workMain(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "scan" {
+		os.Exit(scanMain(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	receiptsPath := flag.String("receipts", "", "probe Job output containing E16_PROBE lines")
 	logPath := flag.String("server-log", "", "complete MCP fixture log for the probe Pod lifetime")
@@ -314,7 +334,7 @@ func main() {
 
 func workMain(args []string) int {
 	flags := flag.NewFlagSet("work", flag.ContinueOnError)
-	name := flags.String("case", "", "Work case: positive, n6-timeout, n7-oversize, n8-truncation, admission-deny")
+	name := flags.String("case", "", "Work case: positive, n6-timeout, n7-oversize, n8-truncation, admission-deny, token-valid, token-missing, token-wrong")
 	ref := flags.String("ref", "", "request name of this attempt of the Work")
 	viewPath := flags.String("view", "", "agenova work show --json output for the Work")
 	logPath := flags.String("server-log", "", "complete MCP fixture log covering the Work")
@@ -366,7 +386,7 @@ func workMain(args []string) int {
 // priorCall is an invocation recorded by an earlier Work: when its evidence
 // ended and its final state ("denied" when it never reached a provider,
 // "no-outcome" when the attempt has no outcome, otherwise the outcome's
-// reason code).
+// reason code, such as "tool-timeout" or "tool-credential-rejected").
 type priorCall struct {
 	end   time.Time
 	state string
@@ -389,16 +409,32 @@ func lateKind(e Entry) string {
 		return "tools/call response"
 	case e.HTTPMethod == "DELETE" && (e.Event == "response" || e.Event == "receipt"):
 		return "session close " + e.Event
+	case e.Event == "response" && e.HTTPMethod == "POST" && e.RPCMethod == "initialize" && e.Status == 401:
+		return "token rejection"
 	}
 	return ""
 }
 
+// silentAfterEnd reports the prior states whose invocation has nothing left
+// to complete after its end: it never reached a provider, or its token could
+// not be resolved so no request was sent.
+func silentAfterEnd(state string) bool {
+	switch state {
+	case "denied", "tool-credential-unavailable":
+		return true
+	}
+	return false
+}
+
 // admit decides one server entry carrying an earlier Work's invocation ID.
 // Entries up to its end are history, already judged with that Work. After
-// it, a call that never reached a provider may log nothing; any other call
-// may log each completion kind at most once: its session close within 2s,
-// and, for a timed-out call only, its handler, tools/call response and
-// session close within a minute while the slow handler finishes.
+// it, a call that never reached a provider or had no token to send may log
+// nothing. A call whose token the server rejected may log only that 401
+// response within 2s: the server logs it after answering, so it can follow
+// the recorded outcome. Any other call may log each completion kind at most
+// once: its session close within 2s, and, for a timed-out call only, its
+// handler, tools/call response and session close within a minute while the
+// slow handler finishes.
 func (p *priorRecords) admit(e Entry, at time.Time) error {
 	call := p.calls[e.Correlation]
 	if !at.After(call.end) {
@@ -406,8 +442,10 @@ func (p *priorRecords) admit(e Entry, at time.Time) error {
 	}
 	kind := lateKind(e)
 	timeout := call.state == "tool-timeout"
-	allowed := call.state != "denied" && kind != "" && ((timeout && !at.After(call.end.Add(lateCompletion))) ||
-		(strings.HasPrefix(kind, "session close") && !at.After(call.end.Add(cleanupCompletion))))
+	rejected := call.state == "tool-credential-rejected"
+	allowed := !silentAfterEnd(call.state) && kind != "" && (rejected == (kind == "token rejection")) &&
+		((timeout && !at.After(call.end.Add(lateCompletion))) ||
+			((strings.HasPrefix(kind, "session close") || kind == "token rejection") && !at.After(call.end.Add(cleanupCompletion))))
 	if !allowed {
 		return fmt.Errorf("earlier invocation %s (%s) caused a new server entry (%s %s %s) at %s", e.Correlation, call.state, e.Event, e.HTTPMethod, e.RPCMethod, e.Time)
 	}

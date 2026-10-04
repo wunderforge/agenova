@@ -19,6 +19,13 @@ import (
 
 func resolvedTools(t *testing.T) (*platform.ResolvedPlatform, *adapterregistry.Registry) {
 	t.Helper()
+	return resolvedToolsWith(t, nil)
+}
+
+// resolvedToolsWith lets a test change the initialised tool backend config
+// before resolution.
+func resolvedToolsWith(t *testing.T, backend func(map[string]any)) (*platform.ResolvedPlatform, *adapterregistry.Registry) {
+	t.Helper()
 	registry, err := bundled.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
@@ -47,6 +54,9 @@ func resolvedTools(t *testing.T) (*platform.ResolvedPlatform, *adapterregistry.R
 			input.Spec.Services.ToolBackends = append(input.Spec.Services.ToolBackends, services.ToolBackends...)
 			input.Spec.Services.ToolProfiles = append(input.Spec.Services.ToolProfiles, services.ToolProfiles...)
 		}
+	}
+	if backend != nil {
+		backend(input.Spec.Services.ToolBackends[0].Config)
 	}
 	resolved, _, failure := platform.Resolve(input, registry)
 	if failure != nil {
@@ -89,7 +99,7 @@ func (p *installedDouble) Invoke(_ context.Context, call toolbackend.Invocation)
 func TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory(t *testing.T) {
 	resolved, registry := resolvedTools(t)
 	provider := &installedDouble{}
-	tools, err := buildInstalledTools(resolved, doubleRegistry{Registry: registry, provider: provider})
+	tools, err := buildInstalledTools(resolved, doubleRegistry{Registry: registry, provider: provider}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,13 +166,13 @@ func TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resolved, registry := resolvedTools(t)
 			tc.change(resolved)
-			if _, err := buildInstalledTools(resolved, registry); err == nil {
+			if _, err := buildInstalledTools(resolved, registry, nil); err == nil {
 				t.Fatal("invalid installed config accepted")
 			}
 		})
 	}
 	resolved, registry := resolvedTools(t)
-	tools, err := buildInstalledTools(resolved, registry)
+	tools, err := buildInstalledTools(resolved, registry, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,8 +183,62 @@ func TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock(t *testing.T) {
 	if _, err = tools.Invoke(ctx, toolbackend.Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: "repo:agenova/e16-fixture", Parameters: map[string]string{"file": "README.md"}}); !errors.Is(err, toolbackend.ErrUnavailable) && !errors.Is(err, toolbackend.ErrTimeout) && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("unreachable configured server did not fail explicitly: %v", err)
 	}
-	empty, err := buildInstalledTools(&platform.ResolvedPlatform{}, registry)
+	empty, err := buildInstalledTools(&platform.ResolvedPlatform{}, registry, nil)
 	if err != nil || empty != nil {
 		t.Fatal("legacy fixture selection changed")
+	}
+}
+
+// tokenReader records each read and fails, so a call stops at resolution.
+type tokenReader struct{ reads []string }
+
+func (r *tokenReader) ReadSecretKey(_ context.Context, name, key string) ([]byte, error) {
+	r.reads = append(r.reads, name+"/"+key)
+	return nil, errors.New("secrets \"" + name + "\" not found")
+}
+
+// The installed builder hands the reader to the mcp-http backend, which reads
+// its own reference on each call; without a reader (the probe composition) a
+// backend with a reference fails closed before any request.
+func TestInstalledToolBuilderResolvesTokenReferencesPerCall(t *testing.T) {
+	resolved, registry := resolvedToolsWith(t, func(config map[string]any) {
+		config["provisional-token-secret"] = "e16-mcp-token/token"
+		config["endpoint"] = "http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token"
+	})
+	call := toolbackend.Invocation{ID: "call", ClaimID: "claim", Operation: "repo.read", ResourceScope: "repo:agenova/e16-fixture", Parameters: map[string]string{"file": "README.md"}}
+	reader := &tokenReader{}
+	tools, err := buildInstalledTools(resolved, registry, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reader.reads) != 0 {
+		t.Fatal("construction read a Secret")
+	}
+	for i := 1; i <= 2; i++ {
+		if _, err := tools.Invoke(context.Background(), call); !errors.Is(err, toolbackend.ErrCredentialUnavailable) {
+			t.Fatalf("unresolved token: %v", err)
+		}
+		if len(reader.reads) != i || reader.reads[i-1] != "e16-mcp-token/token" {
+			t.Fatalf("reads %v after %d calls", reader.reads, i)
+		}
+	}
+	probe, err := buildInstalledTools(resolved, registry, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := probe.Invoke(context.Background(), call); !errors.Is(err, toolbackend.ErrCredentialUnavailable) {
+		t.Fatalf("a token reference without a reader did not fail closed: %v", err)
+	}
+	// A credential-free backend never consults the reader.
+	plain, registry := resolvedTools(t)
+	reader = &tokenReader{}
+	tools, err = buildInstalledTools(plain, registry, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := tools.Invoke(ctx, call); errors.Is(err, toolbackend.ErrCredentialUnavailable) || len(reader.reads) != 0 {
+		t.Fatalf("credential-free backend read a Secret: %v %v", err, reader.reads)
 	}
 }

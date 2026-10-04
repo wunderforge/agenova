@@ -273,3 +273,90 @@ func TestToolRoutesAcrossResourcesAndBackends(t *testing.T) {
 		t.Fatal("same operation advertised incompatible argument shapes")
 	}
 }
+
+// The provisional token reference is optional, dropped when empty, bound into
+// the revision when set, validated without echoing its value and never
+// projected into the neutral catalog. Reserved credential keys stay rejected.
+func TestToolTokenReferenceIsOptionalValidatedAndKeptOutOfRoutes(t *testing.T) {
+	input, registry := toolPlatform(t)
+	if _, ok := input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey]; ok {
+		t.Fatal("init emitted a token reference")
+	}
+	for _, field := range mcpHTTPToolRegistration().Manifest.InstanceSchema.Fields {
+		if field.Path == mcpTokenSecretKey && (field.Required || field.Default != "" || field.Kind != adapterregistry.ValueString) {
+			t.Fatalf("token reference field %+v", field)
+		}
+	}
+	absent, absentLock, failure := platform.Resolve(input, registry)
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey] = ""
+	empty, emptyLock, failure := platform.Resolve(input, registry)
+	if failure != nil || empty.Revision != absent.Revision || !reflect.DeepEqual(emptyLock, absentLock) {
+		t.Fatal("an empty token reference changed the credential-free revision")
+	}
+	input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey] = "e16-mcp-token/token"
+	input.Spec.Services.ToolBackends[0].Config["endpoint"] = "http://" + fixtureMCPHost + ":8080/mcp-token"
+	set, _, failure := platform.Resolve(input, registry)
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	if set.Revision == absent.Revision || !hasTokenReference(set) {
+		t.Fatal("token reference is not revision bound")
+	}
+	routes, _ := json.Marshal(set.ToolRoutes)
+	if strings.Contains(string(routes), "e16-mcp-token") || strings.Contains(string(routes), "mcp-token") {
+		t.Fatal("token reference or endpoint leaked into the neutral catalog")
+	}
+	for _, value := range []any{"e16-mcp-token", "a/b/c", "UPPER/token", "e16-mcp-token/", "/token", "e16-mcp-token/to ken", " e16-mcp-token/token",
+		"e16-mcp-token/..", "e16-mcp-token/..token", "-bad/token", "e16-mcp-token/token\n", strings.Repeat("a", 254) + "/token", "e16/" + strings.Repeat("k", 254), 123} {
+		input, registry := toolPlatform(t)
+		input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey] = value
+		_, _, failure := platform.Resolve(input, registry)
+		if failure == nil {
+			t.Fatalf("token reference %q accepted", value)
+		}
+		if text, ok := value.(string); ok && len(text) > 3 && strings.Contains(failure.Error(), text) {
+			t.Fatalf("rejected reference echoed: %v", failure)
+		}
+	}
+	for _, key := range []string{"token-ref", "secret-ref", "credential-ref", "token"} {
+		input, registry := toolPlatform(t)
+		input.Spec.Services.ToolBackends[0].Config[key] = "e16-mcp-token/token"
+		if _, _, failure := platform.Resolve(input, registry); failure == nil {
+			t.Fatalf("reserved credential key %s accepted", key)
+		}
+	}
+}
+
+func hasTokenReference(resolved *platform.ResolvedPlatform) bool {
+	for _, instance := range resolved.Instances {
+		if instance.Config[mcpTokenSecretKey] == "e16-mcp-token/token" {
+			return true
+		}
+	}
+	return false
+}
+
+// Cleartext stays limited to the two exact fixture URLs.
+func TestToolEndpointExceptionIsTwoExactFixtureURLs(t *testing.T) {
+	for endpoint, ok := range map[string]bool{
+		"http://" + fixtureMCPHost + ":8080/mcp":                    true,
+		"http://" + fixtureMCPHost + ":8080/mcp-token":              true,
+		"https://mcp.example.invalid/mcp-token":                     true,
+		"http://" + fixtureMCPHost + ":8080/mcp-token/":             false,
+		"http://" + fixtureMCPHost + ":8080/mcp-tokens":             false,
+		"http://" + fixtureMCPHost + ":8080/MCP-TOKEN":              false,
+		"http://" + fixtureMCPHost + ":8080/mcp/token":              false,
+		"http://" + fixtureMCPHost + ":8081/mcp-token":              false,
+		"http://" + fixtureMCPHost + "/mcp-token":                   false,
+		"http://other.agenova-e16.svc.cluster.local:8080/mcp-token": false,
+	} {
+		input, registry := toolPlatform(t)
+		input.Spec.Services.ToolBackends[0].Config["endpoint"] = endpoint
+		if _, _, failure := platform.Resolve(input, registry); (failure == nil) != ok {
+			t.Fatalf("endpoint %s accepted=%v, want %v", endpoint, failure == nil, ok)
+		}
+	}
+}

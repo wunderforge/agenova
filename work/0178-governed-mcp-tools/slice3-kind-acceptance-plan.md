@@ -1,6 +1,6 @@
 # E16 Slice 3: installed kind acceptance plan
 
-Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. No acceptance result exists yet. The plan does not change the Epic's completion state.
+Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. Slice 4, E16's token-required path, is built offline (section 4, G7) and c6 proves it together with Slice 3. No acceptance result exists yet. The plan does not change the Epic's completion state.
 
 This plan refines the Slice 3 Todo in [task.md](task.md#execution-todo). The packet's [acceptance criteria](task.md#acceptance-criteria), [evidence requirements](task.md#evidence-required), [negative cases](spec.md#negative-cases) and [verification strategy](design.md#verification-strategy) remain authoritative. Where this plan and the packet disagree, the packet wins and this plan is corrected.
 
@@ -10,7 +10,7 @@ Goal: move Slice 2 from local interoperability to installed acceptance. The unmo
 
 - Branch `codex/e16-slice1`, HEAD `94a8481949be40ec0ec35cbb903414ee51c2c55c`, synced with origin. PR #192 is Draft with green CI. `main` is still `c56ba3a`.
 - Slice 2 delivered the Streamable HTTP client, the D2 fixture (`harness/integration/mcpfixture/`), the per-Work catalog, `resultRef`, S2 attempt/outcome completion and S3 concurrency limits. Focused and local interop logs exist in `docs/evidence/178/`. None of that is installed evidence.
-- Fixed endpoint: `http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp` (`fixtureMCPHost`, `internal/adapters/bundled/mcp.go:23`). Fixture namespace is `agenova-e16`. The exact-host exception stays as is.
+- Fixed endpoint: `http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp` (`fixtureMCPHost`, `internal/adapters/bundled/mcp.go:23`). Fixture namespace is `agenova-e16`. Slice 4 adds exactly one more cleartext URL on the same host and port, `.../mcp-token` (G7); nothing else changes in the exception.
 - Fixture dataset: `README.md`, `logs/timeout.log`, `src/retry.txt`, `logs/slow.log` (35s server delay, above the 30s timeout ceiling), `logs/full-trace.log` (73,744 bytes, above the 65,536-byte response cap), `notes/incident-timeline.md` (11,239 bytes, above the 4,096-byte observation cap).
 - Relevant code paths at this HEAD:
   - Per-Work operation handler in `Service` (`internal/console/service.go:297-330`): claim-ID and call-context check, then `app.RequireRunningClaim`, then `toolParameter`, then the Tool Gateway.
@@ -63,6 +63,11 @@ The packet requires real-server proof for the five zero-call cases and an explic
 | N11 server-backed: outcome append fails after a successful call; exactly one `tools/call` receipt with a successful handler result, no replay | kind, probe composition | Required |
 | N12 injected instruction text | deterministic forged-action probe; a real run only shows the text is labelled untrusted | Required (deterministic) |
 | Admission Deny (no claim, no worker, no calls) | kind, CLI/UI regression | Required, never a substitute for N1 |
+| Token valid (`token-valid`): read through `/mcp-token`, every request `auth=ok` | kind | Required (criterion 8) |
+| N13 token missing (`token-missing`): reference resolves to nothing, zero server entries | kind + deterministic | Required (criterion 8) |
+| N14 token wrong (`token-wrong`): one `initialize` with `auth=invalid` answered 401, no retry | kind + deterministic | Required (criterion 8) |
+| N14 header-less request on `/mcp-token` answered 401 with `auth=missing` (controlled read) | kind + deterministic | Required |
+| Worker Pod env, manifest and mounts hold no token; no token in any artifact (scan) | kind | Required (criterion 8) |
 
 ### Deterministic coverage map
 
@@ -75,6 +80,8 @@ The packet requires real-server proof for the five zero-call cases and an explic
 | N10 | `TestMCPClientUnreachableServerIsUnavailable`, `TestMCPClientFailuresAreClassifiedWithoutReplay`, `TestMCPClientHandshakeFailuresStopBeforeToolCall` |
 | N11 | `TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow/outcome-record` (returns the tool evidence error), `TestProbeAppendWrapperFailsBeforeProviderCall` (Work outcome `tool-evidence-failed`); server-backed in the probe Job, which asserts the refused outcome was `Succeeded` |
 | N12 | `TestInjectedToolTextCannotWidenAuthority` |
+| N13 | `TestMCPClientUnresolvableTokenSendsNothing`, `TestKubectlSecretReaderFailsWithOneConstantError`, `TestInstalledToolBuilderResolvesTokenReferencesPerCall`, `TestConfiguredServiceRecordsCredentialFailures` |
+| N14 | `TestMCPClientCredentialRejectionIsExplicitAndNotRetried`, fixture `TestTokenPathRejectsWithoutTheTokenBeforeAnySession`, `TestConfiguredServiceRecordsCredentialFailures` |
 
 Recording failures are explicit. A ToolDecision, ProviderAttempt or ProviderOutcome that cannot be recorded returns `tool evidence recording failed` to the worker and ends the Work with reason `tool-evidence-failed`, never an ordinary tool failure. The Tool Gateway now wraps its decision-observer error with `%w` (`internal/toolgateway/gateway.go`), the only change in that package; E14 (#197) and E18 also touch it.
 
@@ -105,7 +112,7 @@ All of these land on `codex/e16-slice1` as separate commits.
 - **N11 server-backed.** Runs in the in-cluster probe Job against the deployed fixture, because the MCP adapter accepts plain HTTP only at the fixed cluster DNS endpoint (`mcp.go:75`) and production endpoint validation is not relaxed. The call succeeds and the G2 bridge fails only the ProviderOutcome append. Pass requires an explicit evidence failure, exactly one `tools/call` receipt for the invocation with a successful handler result, and no replay. The `initialize`, `notifications/initialized` and session `DELETE` receipts of that one session (`mcp_client.go:113` onwards) are expected and recorded, not counted as calls.
 - The evidence manifest records the probe binary SHA, build tag, replaced seam and exact command, and keeps probe results separate from the production positive run.
 
-### G4 One Platform revision with two routes
+### G4 One Platform revision with five routes
 
 `spec.md` R1 allows one profile per (operation, resource scope) pair and forbids duplicates, and `toolParameter` rejects any file outside the profile's allowlist before MCP. One profile therefore cannot serve both the positive task and the fault files. Use one backend and two `repo.read` profiles in a single Platform revision for the whole campaign:
 
@@ -120,6 +127,7 @@ Backend config: `timeout` 5s, `max-response-bytes` 65536, `max-observation-bytes
 - The positive Work requests only `repo:agenova/e16-fixture`, so its catalog never shows a fault file. Fault Works (N6, N7, N8) each request only `repo:agenova/e16-faults`. Each Work has a unique `requestRef`.
 - Fault Works advertise all three fault files. Each fault case asserts the intended file in its tool call and the expected failure or truncation result; a run where the model reads a different file fails its check and is rerun as a new recorded attempt (section 5).
 - N2a uses a claim granted only `e16-fixture` and nominates the configured `e16-faults` route with an argument valid for that route (`notes/incident-timeline.md`), so `toolParameter` passes and the rejection comes from the Gateway scope check (`internal/toolgateway/gateway.go:242`). N2b nominates a file outside the granted route's allowlist.
+- Slice 4 adds three backends on `/mcp-token`, each with one profile and its own scope allowing only `README.md` (G7). `e16-mcp` and its two profiles are unchanged, so the Slice 3 Works keep their catalogs. The template ceiling gains the three token scopes.
 - No configuration transition is needed between phases, so no Work history is lost to a Platform change. If execution shows a transition is unavoidable, Phase 6 parity for every earlier case is completed first (see section 5).
 
 ### G5 Opt-in runner
@@ -147,6 +155,25 @@ The evidence checker (`harness/integration/e16/evidence`) decides calls from the
 
 Add `ui/installed/mcp.spec.ts`, run on its own with a file filter, so the reference `installed.spec.ts` keeps its assertions unchanged. It checks one Work attempt per run: `AGENOVA_E16_CASE` selects the case and `AGENOVA_E16_REF` the attempt's request name, and the runner passes `--grep '@setup$|@<case>$'` and requires the JSON report to show exactly two passed tests with nothing skipped, failed or flaky. It also reads `AGENOVA_CLI_PATH` and `AGENOVA_CLI_STATE_DIR`. The positive test requires a successful outcome for both `logs/timeout.log` and `src/retry.txt`, each `resultRef` exactly the scope plus a route file, and checks both records in the Portal with their exact `resultRef`; joining each result to the server's file is the evidence checker's job. N6 and N7 each have their own test with an exact reason code. The Portal also labelled every `tool.invoke` attempt and outcome as "Mock tool call", including configured provider calls; only facts with a `mock-*` reason code (the synthetic adapter) keep that label, and the spec asserts a real MCP record never shows it.
 
+### G7 Token-required path (Slice 4)
+
+Design: [design.md Slice 4](design.md#slice-4-token-required-mcp-path). Product side: the `provisional-token-secret` reference, the per-call Secret read through a name-scoped Role rule, `Authorization: Bearer` on every request of the session, `tool-credential-unavailable` and `tool-credential-rejected`. Built offline on this branch:
+
+| Backend | Reference | Scope | Work | Pass on kind |
+| --- | --- | --- | --- | --- |
+| `e16-mcp-token` | `e16-mcp-token/token` | `repo:agenova/e16-token` | `token-valid` | Succeeded; one session on `/mcp-token`, every receipt `auth=ok`, one ok handler, `resultRef` `repo:agenova/e16-token/README.md` |
+| `e16-mcp-token-missing` | `e16-mcp-token-absent/token` | `repo:agenova/e16-token-missing` | `token-missing` | Failed, `tool-credential-unavailable`; no server entry carries the invocation |
+| `e16-mcp-token-wrong` | `e16-mcp-token-wrong/token` | `repo:agenova/e16-token-wrong` | `token-wrong` | Failed, `tool-credential-rejected`; exactly one `initialize` receipt with `auth=invalid` and its 401 response, nothing else |
+
+- **Fixture.** `/mcp-token` has its own SDK handler and requires the token from `FIXTURE_TOKEN_FILE` (Secret `e16-mcp-token` in `agenova-e16`). Every receipt on either path carries `path` and an `auth` class (`ok`, `missing`, `malformed`, `invalid`); a non-`ok` request on `/mcp-token` is answered 401 before the SDK. The log never holds the header, the token or any hash of it.
+- **Secrets.** Tokens are 64 lowercase hex characters from `openssl rand -hex 32`, validated in the pipeline and created with `kubectl create secret generic --from-file=token=/dev/stdin`: never argv, never `apply`, never a file, never regenerated. `fixture` creates the namespace and the fixture Secret before applying and then restarts the fixture onto it; `install` copies the value into the install namespace (or compares an existing copy), creates `e16-mcp-token-wrong` and asserts `e16-mcp-token-absent` is absent. `secrets.txt` keeps each Secret's uid and resourceVersion, nothing derived from the value. A traced run (`-x` or `SHELLOPTS=xtrace`) is refused, because tracing would print the values.
+- **Who can read it.** After install the runner archives the control-plane Pod and Role JSON and three access reviews: the control-plane service account may `get secret/e16-mcp-token`, may not get an unlisted name, and the namespace `default` service account, which the worker runs as, may not get it.
+- **Worker.** While each Work runs, the watcher keeps the worker Pod list and, once per started Pod UID, the Pod JSON, `/proc/1/environ` and `/proc/1/mountinfo` read inside the agent container. The claimed worker needs all three, from the same UID as its running identity line, and must show automount off, no volumes, no volume mounts, no env `valueFrom` or `envFrom` in any container kind, and no mount under `/var/run/secrets` or `/run/secrets`.
+- **Controlled read.** One extra header-less `initialize` to `/mcp-token` (correlation `inv-m2`) must be answered 401 and logged as one receipt with `auth=missing` and one 401 response. The `inv-42` calls must all be on `/mcp` with `auth=missing`.
+- **Checker.** Slice 3 Works and the probe must show `path=/mcp` and `auth=missing` on every entry, so a token sent to the credential-free backend fails. After a token-failed invocation nothing may follow except, for a rejected token, its one 401 response within 2s (the fixture logs it after answering).
+- **Scan.** `scan [extra-root...]` is the last step before restore. It checks the three Secrets are the recorded objects, takes final complete control-plane and fixture logs, then pipes the three values (`valid-fixture`, `valid`, `wrong`) to `evidence scan`, which requires valid to equal valid-fixture and searches `$OUTPUT`, `$STATE_DIR` and each extra root by real path for the raw value, each half and the base64 core at all three alignments, inside zip entries too, and prints only file names and counts. A run stopped before the search can be repeated; a search cannot. The sanitised `docs/evidence` export is an extra root, scanned while the Secrets still exist. Images and binaries are built before any Secret exists; PNG screenshots cannot be searched, so the Portal spec saves each token page as HTML beside its screenshot.
+- **Portal.** `@token-valid`, `@token-missing` and `@token-wrong` assert the exact facts and reason codes, an exact "Tool call finished" heading and no "Mock tool call". The Work page now labels a call "(mock)" only for `mock-` reason codes, and the token tests assert it shows no "(mock)".
+
 ## 5. Execution phases
 
 Each phase passes before the next starts. A failure is fixed and the phase rerun; nothing is bypassed by widening authority, relaxing parsers or hiding errors.
@@ -157,7 +184,7 @@ Each phase passes before the next starts. A failure is fixed and the phase rerun
 
 ### Phase 0 Environment and ownership
 
-Start Docker, confirm the kind cluster is live and Tom's, check for active Work or other installs in the target namespaces, select Go 1.22.12 and Node 24, and confirm Ollama is reachable from inside the cluster. If ownership cannot be confirmed, stop and record why.
+Start Docker, confirm the kind cluster is live and Tom's, check for active Work or other installs in the target namespaces, select Go 1.22.12 and Node 24, and confirm Ollama is reachable from inside the cluster. If ownership cannot be confirmed, stop and record why. Since Slice 4, `preflight` refuses unless both the install namespace and `agenova-e16` are absent: the registration store refuses a changed template body under an existing name, and the token Secrets must be generated for this campaign.
 
 Exit: environment table fully green, ownership recorded.
 
@@ -181,7 +208,7 @@ Local loading satisfies `spec.md` R5 when each chain maps to the recorded conten
 
 Start log capture before any request: full MCP JSONL, Pod UID, container ID, restartCount, deployment events, control-plane logs and campaign start time. Health checks on `/healthz` bypass the receipt log, so they are not counted; `initialize` and `tools/call` receipts are counted separately.
 
-Exit: one controlled read is captured end to end; readiness alone is not accepted as proof.
+Exit: one controlled read is captured end to end; readiness alone is not accepted as proof. Since Slice 4 the `fixture` step first creates the fixture namespace and token Secret, and the controlled read includes the header-less `/mcp-token` request (G7).
 
 Controlled read (decided 2026-10-03): after `fixture` and before `install`, the runner's `controlled-read` port-forwards to `service/e16-mcp` and runs the Slice 2 interop test (`TestMCPClientInteroperatesWithFixtureServer`) through the real Agenova MCP client. It makes one successful `README.md` read plus the oversized and missing-file rejections, all with correlation `inv-42`. It passes only when the test passes and the port-forward stayed alive. The fixture log collector must also have captured the three calls in order, each in its own distinct session. Each call runs `initialize`, then the initialized notification, `tools/call` for its file, the handler and the closing DELETE in that session. The handler outcomes must be exactly `ok`, `ok` and `error` (`not-found`), with no other request or handler entries. Every request must have exactly one 2xx response. A response answers the earliest open request logged before it with the same HTTP method, RPC method and RPC id, so a missing, duplicated or mismatched response fails. The log snapshot must also pass the continuity and Pod identity checks. The port-forward bypasses cluster DNS; the in-cluster path is proven by the Phase 3 positive Work. The read's entries come before every Work and probe window and never match a real invocation ID, so later checks do not count them.
 
@@ -201,7 +228,7 @@ Pass when all hold:
 - Control-plane and worker image identity chains completed (Phase 2), the worker chain captured before cleanup.
 - Per-run parity archived.
 
-Run admission Deny next, with its parity archived.
+Run admission Deny next, with its parity archived. `install` also copies the token into the install namespace, creates the wrong token and archives the access reviews (G7).
 
 ### Phase 4 Failure cases on kind
 
@@ -211,6 +238,7 @@ Run N6, N7 and N8 as Works on `e16-faults`, archiving parity after each. The add
 - N7: `tool-response-too-large`, no successful observation, judged on full wire bytes.
 - N8: valid wire reply, observation capped at 4,096 bytes with intact UTF-8, untrusted and truncated markers reach the worker and, through G1, the CLI/API/Portal evidence; the answer admits incomplete data.
 - N11 (server-backed): run through the probe Job as specified in G3. It makes one real call, so it belongs here rather than in the zero-call campaign.
+- Token Works (G7), after N8 and before the zero-call campaign: `token-valid`, `token-missing` (its absent Secret re-asserted just before submission) and `token-wrong`, each with its worker captures checked and parity archived.
 
 ### Phase 5 Zero-call campaign (N1–N5)
 
@@ -235,7 +263,7 @@ Review the archived per-run parity for success, admission Deny, truncation and t
 
 ### Phase 7 Gates and evidence review
 
-Run the focused Go suite from [task.md](task.md#quality-gates) on Go 1.22.12, the fixture module tests separately, `npm --prefix ui test`, then `pwsh -NoProfile -File ./scripts/check.ps1 -All` on Go 1.22.12 and Node 24. The known `console.spec.ts:99` keyboard failure is reported as-is, not skipped. Docs changes also pass `-Docs` and `git diff --check`. Review the full diff for scope, secrets and debug leftovers, then update the Slice 3 Todo and evidence summary in task.md.
+Before `restore`, run `scan` (G7) over the output, the CLI state and the sanitised export. Run the focused Go suite from [task.md](task.md#quality-gates) on Go 1.22.12, the fixture module tests separately, `npm --prefix ui test`, then `pwsh -NoProfile -File ./scripts/check.ps1 -All` on Go 1.22.12 and Node 24. The known `console.spec.ts:99` keyboard failure is reported as-is, not skipped. Docs changes also pass `-Docs` and `git diff --check`. Review the full diff for scope, secrets and debug leftovers, then update the Slice 3 Todo and evidence summary in task.md.
 
 ## 6. Evidence bundle
 
@@ -247,7 +275,7 @@ Raw local output goes to `.tmp/e16-slice3/<campaign>/` (gitignored). Sanitised r
 - `probes.jsonl`, complete MCP server logs, positive controls, per-case counts and a log-continuity report. Uncorrelated malformed or oversized receipts are kept, not filtered out.
 - Focused, fixture, UI and full-gate output, and a final summary.
 
-No token, credential or raw trusted metadata appears in any artifact.
+No token, credential or raw trusted metadata appears in any artifact. Since Slice 4 this is enforced: `scan` searches every artifact, the CLI state and the export for the campaign's token values before restore (G7), and the export is committed only after that scan passes.
 
 ## 7. Coordination with E14 (#197)
 
@@ -286,6 +314,15 @@ Resolved after c4 (2026-10-04):
 Resolved after c5 (2026-10-04):
 
 9. Scope of the post-c5 fix: L11, L9 and L10 (section 10), each with regression tests, in one commit. L12 is measured off-cluster after the L11 fix before c6's rules for model answers (objective wording, attempts per case, model profile) are set. L13, L14 and the five items carried over from the post-c4 fix are not in this round.
+
+Resolved for Slice 4 (Tom, 2026-10-04):
+
+10. The fixture serves a second path, `/mcp-token`, rather than requiring the token everywhere, so Slice 3's inputs, controlled read and probe stay unchanged; the cleartext exception becomes two exact URLs.
+11. The control plane reads the Secret through the Kubernetes API on every call, with a Role rule restricted by `resourceNames`; no Secret volume or env.
+12. On kind, "missing" is a reference that resolves to nothing (a Work), and the server's refusal of a header-less request is shown once in the controlled read.
+13. The Portal Work page's "Tool call (mock)" label is fixed in Slice 4, so token-failure screenshots do not contradict "no mock fallback".
+
+c6 order: preflight, build, protect, load, fixture, controlled-read, install, Works (positive, admission-deny, n6-timeout, n7-oversize, n8-truncation, token-valid, token-missing, token-wrong), probe, scan, restore. The three token Works add roughly 2–3 minutes to c5's 15, with parity per run unmeasured; every image is rebuilt uncached. The rules for model answers (L12) still wait for Tom.
 
 Open items, recommended by Codex after c4 and not yet decided:
 
@@ -451,3 +488,21 @@ L11 cause. Since Slice 2 (`94a8481`), `ActionSchema` built the schema by marshal
 L12 measurement after the L11 fix (2026-10-04, host only, not kind evidence): 30 whole worker loops per Work against the same Ollama model, judged with the checker's own code. Tool-grammar turns were rejected 9 of 221 times. N6 and N7 read their named file first in every run. The positive Work read both required files every time, but none of its 30 answers passed the facts-block rules; the yes/no facts were mostly wrong as well as malformed. N8 went on to a second fault file after the timeline in 29 of 30 runs, which fails the Work; with only the timeline in its catalog (a diagnostic variant), none of 30 answers ended with the `timeline_complete` line. c6's rules for model answers are Tom's decision on this result.
 
 Codex's review of the post-c5 fix (2026-10-04) found no loosened check and no P1, and one P2 in L9: `work` recorded the submission's exit status but accepted any successful `work show`. If the service already held a Work under the attempt's name (for example from another output directory), the submission was refused with a conflict and `work show` returned the old Work; Codex reproduced an old Deny accepted as attempt 2. Fixed as above: the runner keeps `run --json` and requires the queried Work to continue this submission's own facts, request, decision and outcome, so a conflict, which prints no evidence, stops the attempt. Expected nonzero exits (Deny, N6, N7) still pass. The stale-Deny regression fails against the fix without that check. Codex's re-review confirmed the P2 closed with no new or reopened finding, and accepted the diff for commit and the c6 build; that is not c6 acceptance.
+
+Slice 4 design review (2026-10-04, three lenses before Tom's decision): the per-call API read was confirmed over a Secret volume. The runner rules came out of that review: create Secrets only when absent and never regenerate, generate hex without a newline, capture the worker while it runs because cleanup deletes it, and build the Role rule as `[]any` so an identical reapply matches. So did the scan's handling of empty input, links, zips and base64 alignment, and the spec amendments for R1, R6 and N13/N14.
+
+Slice 4 implementation review (2026-10-04, seven dimensions, each finding checked by a separate verifier) found no P1. Dispositions:
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| S4-1 | P2 | `secrets_test.go` was not gofmt-clean, which fails `check.ps1` | Formatted |
+| S4-2 | P2 | The plan did not describe the token Works, the five routes or the final scan | This revision (G4, G7, sections 3, 5, 6 and 9) |
+| S4-3 | P3 | `scan` created its directory before its preparation, so a transient kubectl failure blocked any rerun | Preparation runs in `scan.partial`, replaced on a rerun; only the search is once. Test s10 fails against the old order |
+| S4-4 | P3 | A scan root that is itself a link was refused by the checker | Roots are resolved with `pwd -P` and extra roots must be absolute; tests s12 and s13 |
+| S4-5 | P3 | `bash -x` or `SHELLOPTS=xtrace` would print token values | The runner refuses a traced run before any step; tested for both |
+| S4-6 | P3 | Design and spec said 401/403 "at any request", but the closing DELETE's status is ignored | Wording corrected |
+| S4-7 | P3 | Design understated the Secret key rule | The Kubernetes key rules are stated |
+
+Found while integrating the parallel work (2026-10-04): the checker had made a rejected-token invocation silent after its end, but the fixture logs its 401 after answering, so that line can follow the recorded outcome and would have failed the next Work. A prior rejected token may now log exactly that 401 response within 2s and nothing else; a prior unresolved token still logs nothing. The probe-mode checker did not yet require `path=/mcp` and `auth=missing`; it does now.
+
+Codex's review of the Slice 4 diff (2026-10-05) found no P1, P2 or P3 against criterion 8 and R1, R6, N13 and N14, found no token leakage path, and accepted the diff for commit and the c6 build. That is not kind acceptance, which c6 still has to show.

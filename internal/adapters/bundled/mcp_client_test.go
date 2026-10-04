@@ -23,6 +23,7 @@ import (
 type seenRequest struct {
 	httpMethod, rpcMethod        string
 	correlation, session, protov string
+	authorization                string
 }
 
 // fakeMCP is a deterministic Streamable HTTP server. Each hook may override
@@ -34,6 +35,9 @@ type fakeMCP struct {
 	version  string
 	initNote int
 	onCall   func(w http.ResponseWriter, id json.RawMessage)
+	// reject answers requests of this RPC (or HTTP) method with status.
+	reject       string
+	rejectStatus int
 }
 
 func (f *fakeMCP) calls(method string) int {
@@ -63,9 +67,11 @@ func (f *fakeMCP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	f.mu.Lock()
-	f.seen = append(f.seen, seenRequest{httpMethod: r.Method, rpcMethod: message.Method, correlation: r.Header.Get(MCPCorrelationHeader), session: r.Header.Get("Mcp-Session-Id"), protov: r.Header.Get("MCP-Protocol-Version")})
+	f.seen = append(f.seen, seenRequest{httpMethod: r.Method, rpcMethod: message.Method, correlation: r.Header.Get(MCPCorrelationHeader), session: r.Header.Get("Mcp-Session-Id"), protov: r.Header.Get("MCP-Protocol-Version"), authorization: r.Header.Get("Authorization")})
 	f.mu.Unlock()
 	switch {
+	case f.reject != "" && (message.Method == f.reject || r.Method == f.reject):
+		w.WriteHeader(f.rejectStatus)
 	case r.Method == http.MethodDelete:
 		w.WriteHeader(http.StatusNoContent)
 	case message.Method == "initialize":
@@ -140,6 +146,11 @@ func TestMCPClientJSONSessionCarriesCorrelationAndClosesSession(t *testing.T) {
 	}
 	if fake.seen[0].session != "" || fake.seen[0].protov != "" {
 		t.Fatal("initialize must not carry session or negotiated version headers")
+	}
+	for i, r := range fake.seen {
+		if r.authorization != "" {
+			t.Fatalf("credential-free backend sent Authorization on request %d", i)
+		}
 	}
 }
 
@@ -336,5 +347,216 @@ func TestMCPClientInteroperatesWithFixtureServer(t *testing.T) {
 	}
 	if _, err := client.Invoke(context.Background(), readCall("missing.md")); !errors.Is(err, toolbackend.ErrProvider) {
 		t.Fatalf("missing file: %v", err)
+	}
+}
+
+const testToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+// secretDouble records each read; it fails with err (whose text must never
+// surface) or returns value.
+type secretDouble struct {
+	mu    sync.Mutex
+	reads []string
+	value []byte
+	err   error
+	block bool
+}
+
+func (s *secretDouble) ReadSecretKey(ctx context.Context, name, key string) ([]byte, error) {
+	s.mu.Lock()
+	s.reads = append(s.reads, name+"/"+key)
+	s.mu.Unlock()
+	if s.block {
+		<-ctx.Done()
+		return nil, errors.New("kubectl output: " + testToken)
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]byte(nil), s.value...), nil
+}
+
+func tokenClient(endpoint string, secrets ProvisionalSecretReader) *mcpClient {
+	client := testClient(endpoint, 65536)
+	client.token = &mcpTokenRef{name: "e16-mcp-token", key: "token"}
+	client.secrets = secrets
+	return client
+}
+
+func TestMCPClientSendsResolvedTokenOnEveryRequestAndRereadsPerCall(t *testing.T) {
+	fake, server := startFake(t, jsonResult("payment notes"))
+	secrets := &secretDouble{value: []byte(testToken)}
+	client := tokenClient(server.URL, secrets)
+	for i := 0; i < 2; i++ {
+		if _, err := client.Invoke(context.Background(), readCall("README.md")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(fake.seen) != 8 {
+		t.Fatalf("requests %+v", fake.seen)
+	}
+	for i, r := range fake.seen {
+		if r.authorization != "Bearer "+testToken {
+			t.Fatalf("request %d (%s %s) did not carry the bearer token", i, r.httpMethod, r.rpcMethod)
+		}
+	}
+	if len(secrets.reads) != 2 || secrets.reads[0] != "e16-mcp-token/token" {
+		t.Fatalf("token must be read once per call from the backend's own reference: %v", secrets.reads)
+	}
+	session := &mcpSession{client: client, correlation: "inv-42", authorization: func() string { return "Bearer " + testToken }}
+	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x"} {
+		if strings.Contains(fmt.Sprintf(format, session), testToken) || strings.Contains(fmt.Sprintf(format, *session), testToken) || strings.Contains(fmt.Sprintf(format, session.authorization), testToken) {
+			t.Fatalf("session formatting with %s exposed the token", format)
+		}
+	}
+}
+
+// An unresolvable token fails before any request: no header-less fallback,
+// no retry, and nothing from the reader reaches the error.
+func TestMCPClientUnresolvableTokenSendsNothing(t *testing.T) {
+	previous := mcpTokenTimeout
+	mcpTokenTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { mcpTokenTimeout = previous })
+	for name, secrets := range map[string]ProvisionalSecretReader{
+		"no reader":        nil,
+		"read failure":     &secretDouble{err: errors.New("secrets \"e16-mcp-token\" not found: " + testToken)},
+		"slow reader":      &secretDouble{block: true},
+		"empty value":      &secretDouble{value: []byte{}},
+		"trailing newline": &secretDouble{value: []byte(testToken + "\n")},
+		"inner space":      &secretDouble{value: []byte("abc def")},
+		"non-ascii":        &secretDouble{value: []byte("tok\xc3\xa9n")},
+		"oversized":        &secretDouble{value: []byte(strings.Repeat("a", 4097))},
+		"header injection": &secretDouble{value: []byte("abc\r\nX-Evil: 1")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake, server := startFake(t, jsonResult("x"))
+			_, err := tokenClient(server.URL, secrets).Invoke(context.Background(), readCall("README.md"))
+			if !errors.Is(err, toolbackend.ErrCredentialUnavailable) {
+				t.Fatalf("error %v, want credential unavailable", err)
+			}
+			if strings.Contains(err.Error(), testToken) || strings.Contains(err.Error(), "not found") {
+				t.Fatal("reader detail leaked into the error")
+			}
+			if len(fake.seen) != 0 {
+				t.Fatalf("an unresolved token still sent %d requests", len(fake.seen))
+			}
+			if double, ok := secrets.(*secretDouble); ok && len(double.reads) != 1 {
+				t.Fatalf("token read %d times, want once", len(double.reads))
+			}
+		})
+	}
+	// Cancelling the Work while the token is read is a cancellation, not a
+	// credential failure.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, server := startFake(t, jsonResult("x"))
+	if _, err := tokenClient(server.URL, &secretDouble{block: true}).Invoke(ctx, readCall("README.md")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled read returned %v", err)
+	}
+}
+
+// 401 and 403 are credential rejections at any request of the session. At
+// initialize no session exists, so nothing else is sent; later, tools/call is
+// never replayed and the session close still carries the token.
+func TestMCPClientCredentialRejectionIsExplicitAndNotRetried(t *testing.T) {
+	for _, tc := range []struct {
+		method   string
+		status   int
+		requests []string
+	}{
+		{"initialize", http.StatusUnauthorized, []string{"initialize"}},
+		{"initialize", http.StatusForbidden, []string{"initialize"}},
+		{"notifications/initialized", http.StatusUnauthorized, []string{"initialize", "notifications/initialized", http.MethodDelete}},
+		{"tools/call", http.StatusUnauthorized, []string{"initialize", "notifications/initialized", "tools/call", http.MethodDelete}},
+	} {
+		t.Run(fmt.Sprintf("%s %d", tc.method, tc.status), func(t *testing.T) {
+			fake, server := startFake(t, jsonResult("x"))
+			fake.reject, fake.rejectStatus = tc.method, tc.status
+			_, err := tokenClient(server.URL, &secretDouble{value: []byte(testToken)}).Invoke(context.Background(), readCall("README.md"))
+			if !errors.Is(err, toolbackend.ErrCredentialRejected) {
+				t.Fatalf("error %v, want credential rejected", err)
+			}
+			if len(fake.seen) != len(tc.requests) {
+				t.Fatalf("requests %+v, want %v", fake.seen, tc.requests)
+			}
+			for i, r := range fake.seen {
+				if (r.rpcMethod != tc.requests[i] && r.httpMethod != tc.requests[i]) || r.authorization != "Bearer "+testToken {
+					t.Fatalf("request %d was %+v, want %s with the token", i, r, tc.requests[i])
+				}
+			}
+		})
+	}
+	// A credential-free backend rejected by a token-required server is a
+	// rejection too, never a protocol or transport fault.
+	fake, server := startFake(t, jsonResult("x"))
+	fake.reject, fake.rejectStatus = "initialize", http.StatusUnauthorized
+	if _, err := testClient(server.URL, 65536).Invoke(context.Background(), readCall("README.md")); !errors.Is(err, toolbackend.ErrCredentialRejected) || len(fake.seen) != 1 {
+		t.Fatalf("error %v after %d requests", err, len(fake.seen))
+	}
+}
+
+// NewToolProvider binds the backend's own reference; without a reader every
+// call fails closed, and the reference reaches only that backend's reader.
+func TestMCPProviderBindsTokenReferencePerBackend(t *testing.T) {
+	input, _ := toolPlatform(t)
+	backend := input.Spec.Services.ToolBackends[0].Config
+	backend[mcpTokenSecretKey] = "e16-mcp-token-wrong/token"
+	profiles := []map[string]any{input.Spec.Services.ToolProfiles[0].Config}
+	secrets := &secretDouble{value: []byte(testToken)}
+	provider, err := (&MCPHTTPTool{}).NewToolProviderWithSecrets(backend, profiles, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := provider.(*mcpClient)
+	if client.token == nil || client.token.name != "e16-mcp-token-wrong" || client.token.key != "token" || client.secrets != secrets {
+		t.Fatalf("reference not bound: %+v", client.token)
+	}
+	if len(secrets.reads) != 0 {
+		t.Fatal("construction read the Secret")
+	}
+	plain, err := (&MCPHTTPTool{}).NewToolProvider(backend, profiles)
+	if err != nil || plain.(*mcpClient).secrets != nil || plain.(*mcpClient).token == nil {
+		t.Fatal("a provider without a reader must keep the reference and fail closed")
+	}
+	delete(backend, mcpTokenSecretKey)
+	free, err := (&MCPHTTPTool{}).NewToolProviderWithSecrets(backend, profiles, secrets)
+	if err != nil || free.(*mcpClient).token != nil {
+		t.Fatal("a credential-free backend gained a token reference")
+	}
+}
+
+// fileSecret reads a local token file, standing in for the installed reader.
+type fileSecret string
+
+func (f fileSecret) ReadSecretKey(context.Context, string, string) ([]byte, error) {
+	return os.ReadFile(string(f))
+}
+
+// Token-path interoperability with the fixture's /mcp-token. Opt-in: run
+// harness/integration/mcpfixture with FIXTURE_TOKEN_FILE, then set the
+// endpoint and the same token file. Never used by the kind campaign.
+func TestMCPClientInteroperatesWithTokenFixture(t *testing.T) {
+	endpoint, tokenFile := os.Getenv("AGENOVA_MCP_INTEROP_TOKEN_ENDPOINT"), os.Getenv("AGENOVA_MCP_INTEROP_TOKEN_FILE")
+	if endpoint == "" || tokenFile == "" {
+		t.Skip("set AGENOVA_MCP_INTEROP_TOKEN_ENDPOINT and AGENOVA_MCP_INTEROP_TOKEN_FILE for a running mcpfixture /mcp-token")
+	}
+	call := func(id string) toolbackend.Invocation {
+		c := readCall("README.md")
+		c.ID = id
+		return c
+	}
+	valid := tokenClient(endpoint, fileSecret(tokenFile))
+	if result, err := valid.Invoke(context.Background(), call("inv-token-valid")); err != nil || !strings.Contains(result.Text, "payment-client") {
+		t.Fatalf("valid token read failed: %+v %v", result, err)
+	}
+	wrong := tokenClient(endpoint, &secretDouble{value: []byte(strings.Repeat("0", 64))})
+	if _, err := wrong.Invoke(context.Background(), call("inv-token-wrong")); !errors.Is(err, toolbackend.ErrCredentialRejected) {
+		t.Fatalf("wrong token: %v", err)
+	}
+	if _, err := tokenClient(endpoint, nil).Invoke(context.Background(), call("inv-token-missing")); !errors.Is(err, toolbackend.ErrCredentialUnavailable) {
+		t.Fatalf("unresolved token: %v", err)
+	}
+	if _, err := testClient(endpoint, 65536).Invoke(context.Background(), call("inv-token-none")); !errors.Is(err, toolbackend.ErrCredentialRejected) {
+		t.Fatalf("credential-free client on the token path: %v", err)
 	}
 }

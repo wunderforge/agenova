@@ -108,6 +108,8 @@ func TestSetDoesNotLeakProviderErrorsOrUnsafeReferences(t *testing.T) {
 		{name: "bounded response", err: fmt.Errorf("private endpoint: %w", ErrResponseTooLarge), errorWanted: ErrResponseTooLarge},
 		{name: "timeout", err: fmt.Errorf("private endpoint: %w", ErrTimeout), errorWanted: ErrTimeout},
 		{name: "malformed", err: ErrProtocol, errorWanted: ErrProtocol},
+		{name: "credential unavailable", err: fmt.Errorf("secret e16/token: %w", ErrCredentialUnavailable), errorWanted: ErrCredentialUnavailable},
+		{name: "credential rejected", err: fmt.Errorf("Bearer abc: %w", ErrCredentialRejected), errorWanted: ErrCredentialRejected},
 		{name: "url", result: Result{ResultRef: "https://private.invalid"}, errorWanted: ErrResult},
 		{name: "oversize", result: Result{Text: strings.Repeat("a", (1<<20)+1)}, errorWanted: ErrResult},
 	} {

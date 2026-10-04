@@ -23,16 +23,17 @@ func (f *fixture) tick() string {
 	return f.clock.Format(time.RFC3339Nano)
 }
 
-// session appends one complete, successful MCP session for id.
+// session appends one complete, successful MCP session for id on the
+// credential-free path, as the fixture logs it.
 func (f *fixture) session(id string) {
 	f.log = append(f.log,
-		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "initialize", Correlation: id},
-		Entry{Time: f.tick(), Event: "response", RPCMethod: "initialize", Correlation: id},
-		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "notifications/initialized", Correlation: id},
-		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "tools/call", Correlation: id},
-		Entry{Time: f.tick(), Event: "tool", Correlation: id, Outcome: "ok", File: "README.md"},
-		Entry{Time: f.tick(), Event: "response", RPCMethod: "tools/call", Correlation: id},
-		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "DELETE", Correlation: id},
+		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "initialize", Correlation: id, Path: "/mcp", Auth: "missing"},
+		Entry{Time: f.tick(), Event: "response", RPCMethod: "initialize", Correlation: id, Path: "/mcp"},
+		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "notifications/initialized", Correlation: id, Path: "/mcp", Auth: "missing"},
+		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "POST", RPCMethod: "tools/call", Correlation: id, Path: "/mcp", Auth: "missing"},
+		Entry{Time: f.tick(), Event: "tool", Correlation: id, Outcome: "ok", File: "README.md", Path: "/mcp"},
+		Entry{Time: f.tick(), Event: "response", RPCMethod: "tools/call", Correlation: id, Path: "/mcp"},
+		Entry{Time: f.tick(), Event: "receipt", HTTPMethod: "DELETE", Correlation: id, Path: "/mcp", Auth: "missing"},
 	)
 }
 
@@ -95,7 +96,7 @@ func TestCheckerAllowsLegitimateLateCompletion(t *testing.T) {
 	f := complete()
 	r := f.find(t, "N11/probe")
 	end, _ := parseTime(r.EndedAt)
-	f.log = append(f.log, Entry{Time: end.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "response", HTTPMethod: "DELETE", Correlation: r.InvocationIDs[0]})
+	f.log = append(f.log, Entry{Time: end.Add(time.Millisecond).Format(time.RFC3339Nano), Event: "response", HTTPMethod: "DELETE", Correlation: r.InvocationIDs[0], Path: "/mcp"})
 	mid := within(f.find(t, "N3/control-before"))
 	f.log = append(f.log, Entry{Time: mid, Event: "tool", Correlation: "earlier-timeout", Outcome: "ok"})
 	before, _ := parseTime(f.receipts[0].StartedAt)
@@ -176,6 +177,30 @@ func TestCheckerRejects(t *testing.T) {
 		"duplicate receipt": {"duplicate receipt", func(t *testing.T, f *fixture) { f.receipts = append(f.receipts, f.receipts[0]) }},
 		"double provider":   {"not the real MCP server", func(t *testing.T, f *fixture) { f.find(t, "N2a/probe").Provider = "double" }},
 		"probe failure":     {"probe reported failure", func(t *testing.T, f *fixture) { f.find(t, "N5a/probe").Pass = false }},
+		"control sent a token": {`has path "/mcp" and auth "ok"`, func(t *testing.T, f *fixture) {
+			id := f.find(t, "N1/control-before").InvocationIDs[0]
+			for i := range f.log {
+				if f.log[i].Correlation == id && f.log[i].RPCMethod == "tools/call" && f.log[i].Event == "receipt" {
+					f.log[i].Auth = "ok"
+				}
+			}
+		}},
+		"control on the token path": {`has path "/mcp-token"`, func(t *testing.T, f *fixture) {
+			id := f.find(t, "N11/probe").InvocationIDs[0]
+			for i := range f.log {
+				if f.log[i].Correlation == id && f.log[i].Event == "tool" {
+					f.log[i].Path = "/mcp-token"
+				}
+			}
+		}},
+		"entry without a path": {`has path ""`, func(t *testing.T, f *fixture) {
+			id := f.find(t, "N3/control-matched-a").InvocationIDs[0]
+			for i := range f.log {
+				if f.log[i].Correlation == id && f.log[i].Event == "response" {
+					f.log[i].Path = ""
+				}
+			}
+		}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := complete()
@@ -241,6 +266,34 @@ func TestPriorRecordsSeparateHistoryFromNewEntries(t *testing.T) {
 		at := end.Add(d)
 		return p.admit(Entry{Time: at.Format(time.RFC3339Nano), Correlation: "x", Event: event, HTTPMethod: method, RPCMethod: rpc}, at)
 	}
+	rejection := func(p *priorRecords, d time.Duration, status int) error {
+		at := end.Add(d)
+		return p.admit(Entry{Time: at.Format(time.RFC3339Nano), Correlation: "x", Event: "response", HTTPMethod: "POST", RPCMethod: "initialize", Status: status, Path: "/mcp-token"}, at)
+	}
+	// The fixture logs its 401 after answering, so it may follow the
+	// recorded outcome; once, within the cleanup window, and nothing else.
+	rejected := priorOf("x", end, "tool-credential-rejected")
+	if err := rejection(rejected, time.Millisecond, 401); err != nil {
+		t.Fatalf("late 401 of a rejected token: %v", err)
+	}
+	if err := rejection(rejected, 2*time.Millisecond, 401); err == nil {
+		t.Fatal("a second 401 of a rejected token was accepted")
+	}
+	for name, tc := range map[string]struct {
+		p      *priorRecords
+		at     time.Duration
+		status int
+	}{
+		"401 after the cleanup window":      {priorOf("x", end, "tool-credential-rejected"), 3 * time.Second, 401},
+		"initialize answered 200 after end": {priorOf("x", end, "tool-credential-rejected"), time.Millisecond, 200},
+		"401 for an unresolved token":       {priorOf("x", end, "tool-credential-unavailable"), time.Millisecond, 401},
+		"401 for a completed call":          {priorOf("x", end, "configured-tool"), time.Millisecond, 401},
+		"401 for a denied call":             {priorOf("x", end, "denied"), time.Millisecond, 401},
+	} {
+		if err := rejection(tc.p, tc.at, tc.status); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
 	ok := priorOf("x", end, "configured-tool")
 	for _, entry := range [][3]string{{"receipt", "POST", "initialize"}, {"receipt", "POST", "tools/call"}, {"tool", "", ""}, {"response", "POST", "tools/call"}} {
 		if err := check(ok, 0, entry[0], entry[1], entry[2]); err != nil {
@@ -261,6 +314,8 @@ func TestPriorRecordsSeparateHistoryFromNewEntries(t *testing.T) {
 		"session close after the cleanup window":  {priorOf("x", end, "configured-tool"), 3 * time.Second, "response", "DELETE", ""},
 		"handler for a denied call":               {priorOf("x", end, "denied"), time.Nanosecond, "tool", "", ""},
 		"timed-out call after a minute":           {priorOf("x", end, "tool-timeout"), 2 * time.Minute, "response", "POST", "tools/call"},
+		"session close of an unresolved token":    {priorOf("x", end, "tool-credential-unavailable"), time.Nanosecond, "receipt", "DELETE", ""},
+		"session close of a rejected token":       {priorOf("x", end, "tool-credential-rejected"), time.Nanosecond, "response", "DELETE", ""},
 	} {
 		if err := check(tc.p, tc.at, tc.event, tc.method, tc.rpc); err == nil {
 			t.Errorf("%s was accepted", name)
