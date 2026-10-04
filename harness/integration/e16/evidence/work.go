@@ -20,18 +20,26 @@ import (
 // in the server log. Files are relative to the fixture dataset.
 type workCase struct {
 	status       string   // Work outcome status
+	scope        string   // the resource scope the Work requests (work-<case>.yaml)
 	failedReason string   // the single failed tool outcome's reason code, if any
 	failedFile   string   // the file that failed call asked for
 	files        []string // every file any attempted call may ask for
+	required     []string // files that must each have a successful correlated read
 	truncated    string   // file whose successful call must be truncated
 	denied       bool     // admission denial: no claim, no tool activity
 }
 
+const (
+	fixtureScope = "repo:agenova/e16-fixture"
+	faultsScope  = "repo:agenova/e16-faults"
+)
+
 var workCases = map[string]workCase{
-	"positive":       {status: "Succeeded", files: []string{"README.md", "logs/timeout.log", "src/retry.txt"}},
-	"n6-timeout":     {status: "Failed", failedReason: "tool-timeout", failedFile: "logs/slow.log", files: []string{"logs/slow.log"}},
-	"n7-oversize":    {status: "Failed", failedReason: "tool-response-too-large", failedFile: "logs/full-trace.log", files: []string{"logs/full-trace.log"}},
-	"n8-truncation":  {status: "Succeeded", truncated: "notes/incident-timeline.md", files: []string{"notes/incident-timeline.md"}},
+	"positive": {status: "Succeeded", scope: fixtureScope, files: []string{"README.md", "logs/timeout.log", "src/retry.txt"},
+		required: []string{"logs/timeout.log", "src/retry.txt"}},
+	"n6-timeout":     {status: "Failed", scope: faultsScope, failedReason: "tool-timeout", failedFile: "logs/slow.log", files: []string{"logs/slow.log"}},
+	"n7-oversize":    {status: "Failed", scope: faultsScope, failedReason: "tool-response-too-large", failedFile: "logs/full-trace.log", files: []string{"logs/full-trace.log"}},
+	"n8-truncation":  {status: "Succeeded", scope: faultsScope, truncated: "notes/incident-timeline.md", files: []string{"notes/incident-timeline.md"}},
 	"admission-deny": {status: "Deny", denied: true},
 }
 
@@ -318,6 +326,7 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 		fail("%d server entries during the Work belong to none of its invocations", unknown)
 	}
 	failed, truncatedOK := 0, c.truncated == ""
+	read := map[string]bool{} // files with a successful correlated read
 	ids := make([]string, 0, len(calls))
 	for id := range calls {
 		ids = append(ids, id)
@@ -352,8 +361,18 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 				fail("failed invocation %s carries a result", id)
 			}
 		case "Succeeded":
-			if ss.handled != 1 || ss.handledFiles[0] != file {
+			handled := ss.handled == 1 && ss.handledFiles[0] == file
+			if !handled {
 				fail("successful invocation %s has %d successful server handler entries for %q", id, ss.handled, file)
+			}
+			// The result must name the file the server actually read, not
+			// just any file the route allows.
+			want := c.scope + "/" + file
+			if in.resultRef != want {
+				fail("successful invocation %s has resultRef %q, but its tools/call read %q (want %q)", id, in.resultRef, file, want)
+			}
+			if handled && in.resultRef == want {
+				read[file] = true
 			}
 			if in.truncated && file == c.truncated {
 				truncatedOK = true
@@ -370,6 +389,12 @@ func CheckWork(name string, view evidence.View, log []Entry, dataDir string, pri
 	}
 	if !truncatedOK {
 		fail("no successful call on %s was marked truncated", c.truncated)
+	}
+	// Correct answers alone do not show the investigation used the files.
+	for _, file := range c.required {
+		if !read[file] {
+			fail("no successful correlated read of %s", file)
+		}
 	}
 
 	answer := ""

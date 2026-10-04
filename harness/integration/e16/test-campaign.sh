@@ -4,8 +4,9 @@
 set -euo pipefail
 
 # Offline checks for campaign.sh: argument guards, protect/load/restore gates,
-# the controlled read and probe output validation. No command reaches Docker,
-# kind or a cluster.
+# identity and install records, the controlled read, parity cleanup and probe
+# output validation. No command reaches Docker, kind or a cluster; the parity
+# checks start local stand-in listeners on free loopback ports.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/harness/integration/e16/campaign.sh"
 # shellcheck source=campaign.sh
@@ -76,6 +77,12 @@ run() {
     *"curl "*) printf '[]' ;;
     *"logs deployment/e16-mcp"*) printf '%s' "${FIXTURE_LOG:-}" ;;
     *"get deployment agenova-control-plane -o name"*) [ -z "${E16_DEPLOYED:-}" ] || echo deployment.apps/agenova-control-plane ;;
+    *"crictl images -o json"*) printf '%s' "${NODE_IMAGES:-}" ;;
+    *"get pods -l app.kubernetes.io/name=agenova-control-plane"*) [ -z "${CP_POD:-}" ] || printf '%s\n' "$CP_POD" ;;
+    *"platform validate"*) echo "validate output on stderr" >&2 ;;
+    *"platform plan"*) echo "plan: 9 changes" ;;
+    *"playwright test"*) [ -z "${PLAYWRIGHT_BLOCK:-}" ] || command sleep "$PLAYWRIGHT_BLOCK"
+      [ -z "${PLAYWRIGHT_JSON_OUTPUT_NAME:-}" ] || printf '{"stats":{"expected":2,"unexpected":0,"skipped":0,"flaky":0}}' >"$PLAYWRIGHT_JSON_OUTPUT_NAME" ;;
   esac
   if [ -n "$FAIL_ON" ] && [[ "$*" == *"$FAIL_ON"* ]]; then return 1; fi
   return 0
@@ -106,6 +113,7 @@ reset() {
   OUTPUT="$TMP/out-$1"; rm -rf "$OUTPUT" "$TMP/imported"; mkdir -p "$OUTPUT"; : >"$LOG"
   CONTEXT=kind-x INSTALL_NAMESPACE=agenova-e16-system STATE_DIR="$TMP/s" MODEL_PROFILE=coding-standard YES=1
   OTHER_REPLICAS=1 OTHER_NONE="" OTHER_FAIL="" PODS_FAIL="" OTHER_PODS="" E16_PODS="" WORK_JSON='[]' ARCHIVE_RC=0 NODE_ID="$RECORDED" FAIL_ON="" EXPORT_TAR=""
+  NODE_IMAGES="" CP_POD="" PLAYWRIGHT_BLOCK=""
 }
 # expect_fail <description> <expected message> <command...>: the command must
 # fail for the stated reason, not an earlier one.
@@ -340,6 +348,28 @@ not_called 'platform apply'
 echo '[pass] install never applies while E16 Work is active or unknown'
 
 # --- identity chain, log continuity and per-Work gates ---
+# The real resolver against a saved node image list, and the mapping archive
+# each identity check keeps next to its identity file.
+reset c0; write_build testsha
+IMPORT="docker.io/library/import-2026-10-04@sha256:$(hex 7)"
+SHARED="docker.io/library/import-2026-10-04@sha256:$(hex 9)"
+NODE_IMAGES="{\"images\":[{\"id\":\"$RECORDED\",\"repoTags\":[\"docker.io/library/agenova-control-plane:0.1.0\"],\"repoDigests\":[\"$IMPORT\",\"$SHARED\"]},{\"id\":\"sha256:$(hex 8)\",\"repoTags\":[],\"repoDigests\":[\"$SHARED\"]}]}"
+printf 'cp-1 uid=1 restarts=0 container=containerd://c imageID=%s\n' "$IMPORT" >"$OUTPUT/cp.txt"
+verify_identity_lines agenova-control-plane:0.1.0 "$OUTPUT/cp.txt"
+[ "$(cat "$OUTPUT/cp.txt.node-images.json")" = "$NODE_IMAGES" ] || { echo "[fail] the node image list was not archived"; exit 1; }
+grep -qx "tag agenova-control-plane:0.1.0 recorded-config $RECORDED" "$OUTPUT/cp.txt.mapping"
+grep -qx "node-images cp.txt.node-images.json sha256 $(shasum -a 256 "$OUTPUT/cp.txt.node-images.json" | cut -d' ' -f1)" "$OUTPUT/cp.txt.mapping"
+grep -qx "pod $(cat "$OUTPUT/cp.txt")" "$OUTPUT/cp.txt.mapping"
+grep -qx "  resolves to $RECORDED" "$OUTPUT/cp.txt.mapping" || { echo "[fail] the resolution was not archived"; exit 1; }
+printf 'cp-2 uid=2 restarts=0 container=containerd://c imageID=%s\n' "$SHARED" >"$OUTPUT/shared.txt"
+expect_fail "a Pod image two node images carry" "resolves to nothing" verify_identity_lines agenova-control-plane:0.1.0 "$OUTPUT/shared.txt"
+grep -qx "  resolves to nothing" "$OUTPUT/shared.txt.mapping" || { echo "[fail] a failed resolution was not archived"; exit 1; }
+printf 'cp-3 uid=3 restarts=0 container= imageID=\n' >"$OUTPUT/empty.txt"
+expect_fail "a Pod without an image" "resolves to nothing" verify_identity_lines agenova-control-plane:0.1.0 "$OUTPUT/empty.txt"
+FAIL_ON='crictl images'
+expect_fail "a node image list that cannot be read" "could not list the node images" verify_identity_lines agenova-control-plane:0.1.0 "$OUTPUT/cp.txt"
+echo '[pass] each identity check resolves against one saved node image list and archives it with every resolution'
+
 reset c1; write_build testsha
 image_ref_id() { case "$1" in good) printf '%s' "$RECORDED" ;; *) printf 'sha256:other' ;; esac; }
 printf 'pod-a uid=1 restarts=0 container=c imageID=good\n' >"$OUTPUT/ok.txt"
@@ -374,6 +404,19 @@ printf 'agenova-pool-other uid=1 restarts=0 container=c imageID=good\n' >"$OUTPU
 expect_fail "claimed worker never captured" "was never captured" verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/workers.txt"
 printf 'agenova-pool-x uid=1 restarts=0 container=c imageID=good\n' >>"$OUTPUT/workers.txt"
 verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/workers.txt"
+# L7: the first Work creates the warm pool, so its worker can be captured
+# Pending or ContainerCreating, with no container and no image yet.
+printf 'agenova-pool-x uid=1 restarts= container= imageID=\nagenova-pool-x uid=1 restarts=0 container= imageID=\n' >"$OUTPUT/prestart.txt"
+{ cat "$OUTPUT/prestart.txt"; printf 'agenova-pool-x uid=1 restarts=0 container=c imageID=good\n'; } >"$OUTPUT/started.txt"
+verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/started.txt"
+[ "$(cat "$OUTPUT/started.txt.running")" = 'agenova-pool-x uid=1 restarts=0 container=c imageID=good' ] && [ -s "$OUTPUT/started.txt.running.mapping" ] ||
+  { echo "[fail] the started worker capture and its mapping were not kept"; exit 1; }
+expect_fail "claimed worker captured only before its container started" "never captured with a started container" verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/prestart.txt"
+# Skipping a capture without a container never excuses a started one.
+{ cat "$OUTPUT/started.txt"; printf 'agenova-pool-x uid=1 restarts=1 container=c2 imageID=replaced\n'; } >"$OUTPUT/replaced.txt"
+expect_fail "a started worker capture on another image" "resolves to sha256:other" verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/replaced.txt"
+{ cat "$OUTPUT/started.txt"; printf 'agenova-pool-x uid=1 restarts=0 container=c imageID=\n'; } >"$OUTPUT/noimage.txt"
+expect_fail "a worker capture with a container but no image" "resolves to sha256:other" verify_claimed_worker "$OUTPUT/show.json" "$OUTPUT/noimage.txt"
 reset c4
 expect_fail "work while the fixture collector is down" "is not running" work positive
 not_called "run -f"
@@ -384,7 +427,39 @@ printf 'agenova-control-plane-1 uid=1 restarts=0 container=c imageID=good\n' >"$
 expect_fail "work after the control plane Pod changed" "changed since install" work positive
 not_called "run -f"
 kill "$fixture_pid" "$cp_pid"; wait "$fixture_pid" "$cp_pid" 2>/dev/null || true
-echo '[pass] each Work needs live collectors and its claimed worker on the recorded image'
+echo '[pass] each Work needs live collectors and its claimed worker on the recorded image; captures before its container started are skipped'
+
+# --- install transcript (Codex finding 1) ---
+INSTALL_STEPS="adapters-install-deployment-kubernetes adapters-install-runtime-agent-sandbox adapters-install-model-openai-compatible adapters-install-tool-mcp-http platform-validate platform-plan platform-apply platform-status policy-apply agent-template-apply platform-reapply platform-status-after-reapply rollout-status"
+reset i3; write_build testsha; CP_POD='cp-1 uid=1 restarts=0 container=c imageID=good'
+( start_collector() { :; }; install >/dev/null )
+dirs="$(ls -d "$OUTPUT"/install/*/)"
+[ "$(printf '%s\n' "$dirs" | grep -c .)" = 1 ] || { echo "[fail] install did not keep exactly one attempt directory"; exit 1; }
+dir="${dirs%/}"
+for step in $INSTALL_STEPS; do
+  [ -e "$dir/$step.txt" ] && grep -q "^command $step " "$dir/commands.txt" && grep -qx "exit $step 0" "$dir/commands.txt" ||
+    { echo "[fail] install step $step has no transcript or exit status"; exit 1; }
+done
+[ "$(grep -c '^command ' "$dir/commands.txt")" = 13 ] || { echo "[fail] install recorded unexpected commands"; exit 1; }
+grep -qx 'plan: 9 changes' "$dir/platform-plan.txt" && grep -qx 'validate output on stderr' "$dir/platform-validate.txt" ||
+  { echo "[fail] install transcripts lost stdout or stderr"; exit 1; }
+grep -q "^command platform-plan .* --state-dir $STATE_DIR platform plan -f $SCRIPT_DIR/platform.yaml\$" "$dir/commands.txt"
+grep -q "^command rollout-status kubectl --context kind-x -n agenova-e16-system rollout status " "$dir/commands.txt"
+[ -s "$OUTPUT/control-plane-identity.txt.mapping" ] || { echo "[fail] the control-plane mapping was not archived"; exit 1; }
+reset i4; write_build testsha; FAIL_ON='platform apply'
+expect_fail "install whose first apply fails" "install step platform-apply exited 1" install
+dir="$(ls -d "$OUTPUT"/install/*/)"; dir="${dir%/}"
+grep -qx 'exit platform-apply 1' "$dir/commands.txt" && ! grep -q '^command policy-apply' "$dir/commands.txt" ||
+  { echo "[fail] a failed install step was not recorded, or install went on"; exit 1; }
+not_called 'policy apply'
+reset i5; write_build testsha; CP_POD='cp-1 uid=1 restarts=0 container=c imageID=good'
+date() { echo 20261004T000000Z; }
+( start_collector() { :; }; install >/dev/null )
+cp "$OUTPUT/install/20261004T000000Z/commands.txt" "$OUTPUT/first-commands.txt"
+expect_fail "a second install attempt in the same directory" "exists; wait a second and rerun" install
+cmp -s "$OUTPUT/install/20261004T000000Z/commands.txt" "$OUTPUT/first-commands.txt" || { echo "[fail] a rerun overwrote an install transcript"; exit 1; }
+unset -f date
+echo '[pass] install keeps every command, its output and exit status per attempt, and stops at the first failure'
 
 reset c7
 printf '{"a":1}\n{"b":2}\n{"c":' >"$OUTPUT/live"
@@ -513,6 +588,74 @@ for bad in '{"stats":{"expected":1,"unexpected":0,"skipped":1,"flaky":0}}' '{"st
   if parity_report_ok "$OUTPUT/r.json"; then echo "[fail] accepted parity report: $bad"; exit 1; fi
 done
 echo '[pass] parity counts only a run of exactly the setup and case tests'
+
+# --- parity servers (L8) ---
+# Stand-ins on free loopback ports: api connect runs like the real CLI, whose
+# kubectl port-forward child keeps the port when its parent is terminated;
+# npm keeps a Vite stand-in below it.
+free_port() { node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'; }
+API_PORT="$(free_port)" UI_PORT="$(free_port)"
+while [ "$UI_PORT" = "$API_PORT" ]; do UI_PORT="$(free_port)"; done
+export API_PORT UI_PORT
+LISTEN_JS='require("net").createServer(c=>c.destroy()).listen(Number(process.argv[1]),"127.0.0.1",()=>{if(process.argv[2])console.log(process.argv[2])})'
+fake_cli() { # mode: forward | exit
+  mkdir -p "$OUTPUT/bin"
+  if [ "$1" = forward ]; then
+    printf '#!/bin/bash\nnode -e %q "$API_PORT" "Forwarding from 127.0.0.1:$API_PORT -> 8081" &\nwait\n' "$LISTEN_JS" >"$OUTPUT/bin/agenova"
+  else
+    printf '#!/bin/bash\necho "error: unable to listen on port $API_PORT" >&2\nexit 1\n' >"$OUTPUT/bin/agenova"
+  fi
+  chmod +x "$OUTPUT/bin/agenova"
+}
+npm() { node -e "$LISTEN_JS" "$UI_PORT"; }
+# Polling loops need real (short) pauses here.
+sleep() { command sleep 0.05; }
+no_listeners() {
+  ! port_listening "$API_PORT" && ! port_listening "$UI_PORT" || { echo "[fail] $1: a parity port still has a listener"; exit 1; }
+}
+
+reset pa1; fake_cli forward
+parity positive >/dev/null
+no_listeners "after a passing parity run"
+grep -q "^Forwarding from 127.0.0.1:$API_PORT -> 8081\$" "$OUTPUT/work/positive/parity/api-connect.log"
+called 'npx playwright test'
+reset pa2; fake_cli forward
+node -e "$LISTEN_JS" "$API_PORT" >/dev/null 2>&1 & blocker=$!
+for _ in $(seq 1 50); do port_listening "$API_PORT" && break; sleep; done
+expect_fail "parity while the API port is taken" "port $API_PORT is already in use" parity positive
+not_called 'playwright'; [ ! -e "$OUTPUT/work/positive/parity" ]
+kill "$blocker"; wait "$blocker" 2>/dev/null || true
+for _ in $(seq 1 50); do port_listening "$API_PORT" || break; sleep; done
+node -e "$LISTEN_JS" "$UI_PORT" >/dev/null 2>&1 & blocker=$!
+for _ in $(seq 1 50); do port_listening "$UI_PORT" && break; sleep; done
+expect_fail "parity while the UI port is taken" "port $UI_PORT is already in use" parity positive
+kill "$blocker"; wait "$blocker" 2>/dev/null || true
+for _ in $(seq 1 50); do port_listening "$UI_PORT" || break; sleep; done
+reset pa3; fake_cli forward; FAIL_ON='playwright'
+expect_fail "parity whose tests fail" "parity failed for positive" parity positive
+no_listeners "after a failing parity run"
+reset pa4; fake_cli exit
+expect_fail "parity whose api connect never forwards" "did not forward 127.0.0.1:$API_PORT" parity positive
+not_called 'playwright'
+no_listeners "after api connect failed"
+# SIGTERM while the tests run, after both servers are up, stops them too.
+reset pa5; fake_cli forward; PLAYWRIGHT_BLOCK=31.7
+( parity positive >/dev/null 2>&1 ) & runner=$!
+for _ in $(seq 1 100); do called 'playwright test' && port_listening "$UI_PORT" && break; sleep; done
+called 'playwright test' && port_listening "$API_PORT" && port_listening "$UI_PORT" || { echo "[fail] parity never reached its tests"; exit 1; }
+kill -TERM "$runner"
+set +e; wait "$runner"; rc=$?; set -e
+[ "$rc" = 143 ] || { echo "[fail] parity stopped by SIGTERM exited $rc, want 143"; exit 1; }
+no_listeners "after SIGTERM during the parity tests"
+! pgrep -f "sleep 31.7" >/dev/null || { echo "[fail] the interrupted test run was left behind"; exit 1; }
+# A passing run restores the traps it replaced.
+reset pa6; fake_cli forward
+trap 'rm -rf "$TMP"' EXIT
+parity positive >/dev/null
+[ "$(trap -p EXIT)" = "trap -- 'rm -rf \"\$TMP\"' EXIT" ] && [ -z "$(trap -p TERM)" ] || { echo "[fail] parity did not restore the traps: $(trap -p EXIT TERM)"; exit 1; }
+no_listeners "after a passing run with traps"
+sleep() { :; }; unset -f npm
+echo '[pass] parity needs both ports free, uses only its own tunnel and leaves nothing listening on any exit, including SIGTERM and kubectl below api connect'
 
 # --- host binaries actually run ---
 if [ "$(uname -s)" = Darwin ]; then

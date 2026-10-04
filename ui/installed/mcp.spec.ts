@@ -36,6 +36,12 @@ async function parity(request: APIRequestContext): Promise<View> {
 
 const toolFacts = (view: View) => view.facts.filter(fact => fact.operation === 'tool.invoke');
 
+// The positive Work's scope and route files (harness/integration/e16/work-positive.yaml,
+// platform.yaml); a successful read's resultRef is the scope, "/" and the file.
+const positiveScope = 'repo:agenova/e16-fixture';
+const positiveRoute = ['README.md', 'logs/timeout.log', 'src/retry.txt'];
+const diagnosticFiles = ['logs/timeout.log', 'src/retry.txt'];
+
 function invocations(view: View): Map<string, Fact[]> {
   const out = new Map<string, Fact[]>();
   for (const fact of toolFacts(view)) {
@@ -71,19 +77,26 @@ test('positive Work: real MCP reads, two model turns, matching CLI, API and Port
   expect(toolFacts(view).some(f => f.reasonCode?.startsWith('mock-'))).toBe(false);
   const calls = invocations(view);
   expect(calls.size).toBeGreaterThan(0);
+  const outcomes: Fact[] = [];
   for (const [, facts] of calls) {
     expect(facts.map(f => `${f.kind}:${f.result || f.providerStatus}`)).toEqual(['ToolDecision:Allow', 'ProviderAttempt:Attempted', 'ProviderOutcome:Succeeded']);
     const [, attempt, outcome] = facts;
     expect(attempt.target).toBe('repo.read');
     expect(outcome.target).toBe(attempt.target);
-    expect(outcome.resultRef).toMatch(/^repo:agenova\/e16-fixture\/(README\.md|logs\/timeout\.log|src\/retry\.txt)$/);
+    expect(positiveRoute.map(file => `${positiveScope}/${file}`)).toContain(outcome.resultRef);
+    outcomes.push(outcome);
   }
-  const outcome = [...calls.values()][0][2];
-  await openRecord(page, outcome);
-  await expect(page.getByText('Tool call finished').first()).toBeVisible();
-  await expect(page.getByText('Mock tool call', { exact: false })).toHaveCount(0);
-  await expect(page.getByText(outcome.resultRef!, { exact: true })).toBeVisible();
-  await page.screenshot({ path: info.outputPath('e16-positive-tool-record.png'), fullPage: true });
+  // Both diagnostic files must have been read, each shown with its own
+  // result; the evidence checker joins each result to the server's file.
+  for (const file of diagnosticFiles) {
+    const outcome = outcomes.find(f => f.resultRef === `${positiveScope}/${file}`);
+    expect(outcome, `a successful read of ${file}`).toBeDefined();
+    await openRecord(page, outcome!);
+    await expect(page.getByText('Tool call finished').first()).toBeVisible();
+    await expect(page.getByText('Mock tool call', { exact: false })).toHaveCount(0);
+    await expect(page.getByText(outcome!.resultRef!, { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`e16-positive-tool-record-${file.replace(/[^a-z0-9]+/gi, '-')}.png`), fullPage: true });
+  }
   await page.goto(`/?mode=connected#/work/${encodeURIComponent(ref!)}`);
   await expect(page.getByText('Succeeded', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: info.outputPath('e16-positive-work.png'), fullPage: true });

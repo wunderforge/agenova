@@ -534,16 +534,17 @@ recorded_config() { # tag
   printf '%s' "$line" | sed -n 's/.* config=\([^ ]*\).*/\1/p'
 }
 
+node_images() { run docker exec "$(node_name)" crictl images -o json; }
+
 # Resolve an image reference the node knows (image ID, tag or repo digest) to
-# its containerd image ID, which is the config digest. kind-loaded images
-# appear in Pod status as docker.io/library/import-<date>@sha256:..., which
-# only the image list maps back; anything but exactly one match resolves to
-# nothing.
-image_ref_id() {
-  run docker exec "$(node_name)" crictl images -o json 2>/dev/null |
-    node -e 'const ref=process.argv[1];let v;try{v=JSON.parse(require("fs").readFileSync(0,"utf8"))}catch{process.exit(0)}
-      const hits=(v.images||[]).filter(i=>i.id===ref||(i.repoDigests||[]).includes(ref)||(i.repoTags||[]).includes(ref));
-      if(hits.length===1)process.stdout.write(hits[0].id)' "$1" || true
+# its containerd image ID, which is the config digest, using a saved node image
+# list. kind-loaded images appear in Pod status as
+# docker.io/library/import-<date>@sha256:..., which only the image list maps
+# back; anything but exactly one match resolves to nothing.
+image_ref_id() { # reference node-images.json
+  node -e 'const ref=process.argv[1];let v;try{v=JSON.parse(require("fs").readFileSync(process.argv[2],"utf8"))}catch{process.exit(0)}
+    const hits=(v.images||[]).filter(i=>i.id===ref||(i.repoDigests||[]).includes(ref)||(i.repoTags||[]).includes(ref));
+    if(hits.length===1)process.stdout.write(hits[0].id)' "$1" "$2" || true
 }
 
 # The tag on the node must still be the image build recorded.
@@ -554,15 +555,21 @@ verify_node_tag() { # tag
   [ -n "$want" ] && [ "$want" = "$got" ] || fail "node tag $1 is $got, recorded config is ${want:-missing}; the image changed after load"
 }
 
-# Every running Pod's image must resolve to the recorded config.
+# Every running Pod's image must resolve to the recorded config. The node
+# image list the lines are resolved against (<file>.node-images.json) and each
+# line's resolution (<file>.mapping) are kept, so the chain can be checked again
+# from the archive alone.
 verify_identity_lines() { # tag file
-  local want line image got n=0
+  local want line image got n=0 images="$2.node-images.json" mapping="$2.mapping"
   want="$(recorded_config "$1")"
   [ -n "$want" ] || fail "no recorded config for $1"
+  node_images >"$images" || fail "could not list the node images to resolve $1"
+  printf 'tag %s recorded-config %s\nnode-images %s sha256 %s\n' "$1" "$want" "${images##*/}" "$(shasum -a 256 "$images" | cut -d' ' -f1)" >"$mapping"
   while read -r line; do
     [ -n "$line" ] || continue
     image="$(printf '%s' "$line" | sed -n 's/.* imageID=\([^ ]*\).*/\1/p')"
-    got="$(image_ref_id "$image")"
+    got="$(image_ref_id "$image" "$images")"
+    printf 'pod %s\n  resolves to %s\n' "$line" "${got:-nothing}" >>"$mapping"
     [ "$got" = "$want" ] || fail "Pod image $image resolves to ${got:-nothing}, recorded config for $1 is $want"
     n=$((n + 1))
   done <"$2"
@@ -742,39 +749,59 @@ controlled_read() {
   pass "one controlled read captured end to end in $out"
 }
 
+# Run one install command. Its combined output is shown and kept in
+# <dir>/<step>.txt; its command line and exit status are appended to
+# <dir>/commands.txt. A failing command stops install.
+install_step() { # dir step command...
+  local dir="$1" step="$2" codes
+  shift 2
+  printf 'command %s %s\n' "$step" "$*" >>"$dir/commands.txt"
+  set +e
+  run "$@" 2>&1 | tee "$dir/$step.txt"
+  codes=("${PIPESTATUS[@]}")
+  set -e
+  printf 'exit %s %s\n' "$step" "${codes[0]}" >>"$dir/commands.txt"
+  [ "${codes[1]}" -eq 0 ] || fail "could not keep the output of $step in $dir/$step.txt"
+  [ "${codes[0]}" -eq 0 ] || fail "install step $step exited ${codes[0]}; see $dir/$step.txt"
+}
+
 install() {
-  local id existing
+  local id existing dir
   check_platform_targets
   verify_node_tag "$CONTROL_PLANE_IMAGE"
   verify_node_tag "$WORKER_IMAGE"
+  # Each attempt keeps its own transcript; a rerun never overwrites one.
+  mkdir -p "$OUTPUT/install"
+  dir="$OUTPUT/install/$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir "$dir" || fail "$dir exists; wait a second and rerun"
   # Never apply while the E16 control plane is running Work. A failed query is
   # not "absent"; only a successful empty answer is.
   existing="$(kctl -n "$INSTALL_NAMESPACE" get deployment agenova-control-plane -o name --ignore-not-found)" ||
     fail "could not query the E16 control plane; not applying"
   if [ -n "$existing" ]; then
-    archive_other_work "$INSTALL_NAMESPACE" agenova-control-plane "$OUTPUT/e16-work-before-install.json" ||
+    archive_other_work "$INSTALL_NAMESPACE" agenova-control-plane "$dir/e16-work-before-install.json" ||
       fail "could not read the E16 Work list; not applying"
-    [ "$(active_work_count "$OUTPUT/e16-work-before-install.json")" = 0 ] || fail "E16 Work is active; not applying"
+    [ "$(active_work_count "$dir/e16-work-before-install.json")" = 0 ] || fail "E16 Work is active; not applying"
   fi
-  info "plan: adapters install, platform validate/plan/apply/status, policy and template apply, identical reapply"
+  info "plan: adapters install, platform validate/plan/apply/status, policy and template apply, identical reapply; transcript in $dir"
   for id in agenova.io/deployment/kubernetes agenova.io/runtime/agent-sandbox agenova.io/model/openai-compatible agenova.io/tool/mcp-http; do
-    run "$(cli)" --state-dir "$STATE_DIR" adapters install "$id"
+    install_step "$dir" "adapters-install-$(printf '%s' "${id#agenova.io/}" | tr / -)" "$(cli)" --state-dir "$STATE_DIR" adapters install "$id"
   done
-  run "$(cli)" --state-dir "$STATE_DIR" platform validate -f "$SCRIPT_DIR/platform.yaml"
-  run "$(cli)" --state-dir "$STATE_DIR" platform plan -f "$SCRIPT_DIR/platform.yaml"
-  run "$(cli)" --state-dir "$STATE_DIR" platform apply -f "$SCRIPT_DIR/platform.yaml" --yes
-  run "$(cli)" --state-dir "$STATE_DIR" platform status
-  run "$(cli)" --state-dir "$STATE_DIR" policy apply -f "$SCRIPT_DIR/policy.yaml"
-  run "$(cli)" --state-dir "$STATE_DIR" agent-template apply -f "$SCRIPT_DIR/template.yaml"
+  install_step "$dir" platform-validate "$(cli)" --state-dir "$STATE_DIR" platform validate -f "$SCRIPT_DIR/platform.yaml"
+  install_step "$dir" platform-plan "$(cli)" --state-dir "$STATE_DIR" platform plan -f "$SCRIPT_DIR/platform.yaml"
+  install_step "$dir" platform-apply "$(cli)" --state-dir "$STATE_DIR" platform apply -f "$SCRIPT_DIR/platform.yaml" --yes
+  install_step "$dir" platform-status "$(cli)" --state-dir "$STATE_DIR" platform status
+  install_step "$dir" policy-apply "$(cli)" --state-dir "$STATE_DIR" policy apply -f "$SCRIPT_DIR/policy.yaml"
+  install_step "$dir" agent-template-apply "$(cli)" --state-dir "$STATE_DIR" agent-template apply -f "$SCRIPT_DIR/template.yaml"
   # Identical reapply: a second apply of the same revision, recorded for idempotence.
-  run "$(cli)" --state-dir "$STATE_DIR" platform apply -f "$SCRIPT_DIR/platform.yaml" --yes | tee "$OUTPUT/reapply.txt"
-  run "$(cli)" --state-dir "$STATE_DIR" platform status | tee "$OUTPUT/status-after-reapply.txt"
-  kctl -n "$INSTALL_NAMESPACE" rollout status deployment/agenova-control-plane --timeout=180s
+  install_step "$dir" platform-reapply "$(cli)" --state-dir "$STATE_DIR" platform apply -f "$SCRIPT_DIR/platform.yaml" --yes
+  install_step "$dir" platform-status-after-reapply "$(cli)" --state-dir "$STATE_DIR" platform status
+  install_step "$dir" rollout-status kubectl --context "$CONTEXT" -n "$INSTALL_NAMESPACE" rollout status deployment/agenova-control-plane --timeout=180s
   pod_identity "$INSTALL_NAMESPACE" app.kubernetes.io/name=agenova-control-plane >"$OUTPUT/control-plane-identity.txt"
   verify_identity_lines "$CONTROL_PLANE_IMAGE" "$OUTPUT/control-plane-identity.txt"
   start_collector control-plane "$INSTALL_NAMESPACE" agenova-control-plane
   kctl -n "$INSTALL_NAMESPACE" get events -o wide >"$OUTPUT/install-events.txt" 2>&1 || true
-  record "install"
+  record "install ${dir#"$OUTPUT"/}"
 }
 
 # The control plane serving Work must still be the Pod install verified.
@@ -823,13 +850,17 @@ settle_timeouts() { # work-show.json
 }
 
 # The worker that the claim names must have been seen running the recorded
-# worker image while the Work ran.
+# worker image while the Work ran. The first Work creates the warm pool, so
+# its worker Pod can be captured before its container starts, with no
+# container and no image yet. Such a capture says nothing about the image and
+# is skipped; every other capture must resolve to the recorded config.
 verify_claimed_worker() { # work-show.json worker-identity.txt
   local worker
   worker="$(node -e 'const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(v.state?.claim?.backendIdentity?.workerId||"")' "$1")"
   [ -n "$worker" ] || fail "the Work evidence names no worker"
   grep "^$worker " "$2" >"$2.claimed" || fail "worker $worker was never captured while the Work ran"
-  verify_identity_lines "$WORKER_IMAGE" "$2.claimed"
+  grep -v ' container= imageID=$' "$2.claimed" >"$2.running" || fail "worker $worker was never captured with a started container while the Work ran"
+  verify_identity_lines "$WORKER_IMAGE" "$2.running"
 }
 
 work() {
@@ -918,31 +949,127 @@ parity_report_ok() { # playwright.json
     if(!s||s.expected!==2||s.unexpected||s.skipped||s.flaky)process.exit(1)' "$1"
 }
 
+# Parity ports: agenova api connect forwards its default 8088, which the UI dev
+# server proxies to (ui/local-api-target.ts), and the installed Playwright
+# config expects the UI on 5177. Variables only so the offline tests can use
+# free ports.
+API_PORT=8088
+UI_PORT=5177
+
+# Succeeds when anything accepts connections on the loopback port, IPv4 or IPv6.
+port_listening() { # port
+  node -e 'const net=require("net");const port=Number(process.argv[1]);
+    const probe=host=>new Promise(done=>{const s=net.connect({host,port});const end=ok=>{s.destroy();done(ok)};
+      s.setTimeout(1000,()=>end(false));s.once("connect",()=>end(true));s.once("error",()=>end(false))});
+    Promise.all(["127.0.0.1","::1"].map(probe)).then(v=>process.exit(v.some(Boolean)?0:1))' "$1"
+}
+
+# A process and its descendants, collected before any is signalled, so a child
+# cannot escape by being reparented when its parent exits.
+process_tree() { # pid
+  local child
+  printf '%s\n' "$1"
+  for child in $(pgrep -P "$1" 2>/dev/null); do process_tree "$child"; done
+}
+
+process_alive() { # pid; a zombie counts as gone
+  local state
+  state="$(ps -o stat= -p "$1" 2>/dev/null)" || return 1
+  case "$state" in Z*) return 1 ;; esac
+}
+
+# Stop a background process and everything it started. agenova api connect
+# runs kubectl port-forward as a child that outlives its parent's SIGTERM, and
+# npm runs Vite below a shell.
+stop_tree() { # pid
+  local pids pid left _
+  pids="$(process_tree "$1")"
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 50); do
+    left=""
+    for pid in $pids; do process_alive "$pid" && left="$left $pid"; done
+    [ -n "$left" ] || break
+    sleep 0.1
+  done
+  # shellcheck disable=SC2086
+  [ -z "$left" ] || kill -9 $left 2>/dev/null || true
+  wait "$1" 2>/dev/null || true
+}
+
+# Processes parity started and has not stopped yet.
+PARITY_PIDS=""
+
+# Stop every parity process with all its descendants; fail if anything still
+# listens on either port, so a later parity run can never reach this run's
+# tunnel or dev server. Safe to call again.
+stop_parity_servers() {
+  local pid port _
+  for pid in $PARITY_PIDS; do stop_tree "$pid"; done
+  PARITY_PIDS=""
+  for port in "$API_PORT" "$UI_PORT"; do
+    for _ in $(seq 1 20); do port_listening "$port" || continue 2; sleep 0.2; done
+    fail "port $port still has a listener after parity stopped its servers"
+  done
+}
+
+# Our api connect must report its own tunnel on the port and still be running.
+wait_api_connected() { # api-pid log
+  local _
+  for _ in $(seq 1 50); do
+    grep -q "^Forwarding from 127\.0\.0\.1:$API_PORT -> 8081\$" "$2" 2>/dev/null && process_alive "$1" && return 0
+    process_alive "$1" || return 1
+    sleep 0.2
+  done
+  return 1
+}
+
 # parity <case>: compare CLI, API and Portal for one recorded Work. Exactly the
 # setup test and that Work's test must run and pass; nothing may be skipped.
+# Both ports must be free before it starts, and nothing listens on them after.
 parity() {
-  local name="${1:-}" out api ui rc report
+  local name="${1:-}" out api tests rc report port traps
   case "$name" in positive|n6-timeout|n7-oversize|n8-truncation|admission-deny) ;; *) fail "parity needs a Work case" ;; esac
   out="$OUTPUT/work/$name/parity"
   [ ! -e "$out" ] || fail "$out exists; parity is archived once per Work"
+  for port in "$API_PORT" "$UI_PORT"; do
+    ! port_listening "$port" || fail "port $port is already in use (an earlier parity run's tunnel or dev server?); stop it before parity"
+  done
   mkdir -p "$out"
-  info "plan: agenova api connect, UI dev server on 5177, run the @setup and @$name tests"
+  info "plan: agenova api connect on $API_PORT, UI dev server on $UI_PORT, run the @setup and @$name tests"
+  # Every exit stops what parity started: a failure, Ctrl-C or SIGTERM. A
+  # trapped signal would otherwise resume the runner, so its handler exits.
+  traps="$(trap -p EXIT INT TERM)"
+  trap 'stop_parity_servers' EXIT
+  trap 'trap - EXIT; stop_parity_servers; exit 130' INT
+  trap 'trap - EXIT; stop_parity_servers; exit 143' TERM
   "$(cli)" --state-dir "$STATE_DIR" api connect >"$out/api-connect.log" 2>&1 &
   api=$!
-  npm --prefix "$ROOT/ui" run dev -- --port 5177 --strictPort >"$out/ui-dev.log" 2>&1 &
-  ui=$!
+  PARITY_PIDS="$api"
+  npm --prefix "$ROOT/ui" run dev -- --port "$UI_PORT" --strictPort >"$out/ui-dev.log" 2>&1 &
+  PARITY_PIDS="$PARITY_PIDS $!"
+  wait_api_connected "$api" "$out/api-connect.log" || fail "agenova api connect did not forward 127.0.0.1:$API_PORT; see $out/api-connect.log"
   sleep 5
   report="$out/playwright.json"
-  set +e
+  # In the background so that a signal stops the run at once, not after the tests.
   (cd "$ROOT/ui" && AGENOVA_CLI_PATH="$(cli)" AGENOVA_CLI_STATE_DIR="$STATE_DIR" AGENOVA_E16_CASE="$name" AGENOVA_E16_REF="e16-$name" \
     PLAYWRIGHT_JSON_OUTPUT_NAME="$report" \
     run npx playwright test --config playwright.installed.config.ts installed/mcp.spec.ts --grep "@setup\$|@$name\$" \
-      --reporter=list,json --output "$out/playwright") >"$out/playwright.log" 2>&1
+      --reporter=list,json --output "$out/playwright") >"$out/playwright.log" 2>&1 &
+  tests=$!
+  PARITY_PIDS="$PARITY_PIDS $tests"
+  set +e
+  wait "$tests"
   rc=$?
   set -e
-  kill "$api" "$ui" 2>/dev/null || true
+  PARITY_PIDS="${PARITY_PIDS% *}"
+  # The tests count only through this run's own tunnel, alive to the end.
+  process_alive "$api" || rc=1
+  trap - EXIT INT TERM
+  eval "$traps"
+  stop_parity_servers
   record "parity $name exit $rc"
-  [ "$rc" -eq 0 ] || fail "CLI, API and Portal parity failed for $name; see $out/playwright.log"
+  [ "$rc" -eq 0 ] || fail "CLI, API and Portal parity failed for $name; see $out/playwright.log and $out/api-connect.log"
   parity_report_ok "$report" || fail "parity for $name did not run exactly its two tests; see $report"
   pass "CLI, API and Portal agree for $name"
 }

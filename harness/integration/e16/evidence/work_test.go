@@ -4,6 +4,9 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,14 +35,24 @@ const goodAnswer = "Each retry starts a fresh 5 second deadline, so the 4s attem
 
 const goodN8 = "The timeline was cut off after the first part, so later events are not summarised.\ntimeline_complete: no"
 
+// The resource scopes the Work inputs request (work-<case>.yaml). The MCP
+// client returns resultRef as the scope, "/" and the file it asked the server
+// for (internal/adapters/bundled/mcp_client.go).
+const (
+	positiveScope = "repo:agenova/e16-fixture"
+	faultScope    = "repo:agenova/e16-faults"
+)
+
 type workBuilder struct {
-	view  evidence.View
-	log   []Entry
-	clock time.Time
+	view     evidence.View
+	log      []Entry
+	clock    time.Time
+	scope    string
+	sessions int
 }
 
-func newWork(status, answer string) *workBuilder {
-	w := &workBuilder{clock: time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)}
+func newWork(status, answer, scope string) *workBuilder {
+	w := &workBuilder{clock: time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC), scope: scope}
 	w.view = evidence.View{RequestRef: "e16-case", State: &v0.IssuedState{Decision: v0.Decision{Result: "Allow"}, Claim: &v0.SandboxClaim{ID: "claim"}},
 		Outcome: &evidence.Outcome{Status: status, Text: answer}}
 	w.fact(facts.Fact{Kind: "RequestReceived"})
@@ -53,9 +66,46 @@ func (w *workBuilder) fact(f facts.Fact) {
 	w.view.Facts = append(w.view.Facts, f)
 }
 
+// server adds an entry the fixture would not write on its own, for tests
+// that inject unexpected traffic.
 func (w *workBuilder) server(e Entry) {
 	e.Time = w.now().Format(time.RFC3339Nano)
 	w.log = append(w.log, e)
+}
+
+// fixture adds one line in the fixture's own log format (every field it
+// writes, harness/integration/mcpfixture/main.go), read back through ReadLog
+// as the runner reads the real log.
+func (w *workBuilder) fixture(fields map[string]any) {
+	fields["time"] = w.now().Format(time.RFC3339Nano)
+	fields["pod"] = "e16-mcp-7d9c5b8f6-x2k4q"
+	line, err := json.Marshal(fields)
+	if err != nil {
+		panic(err)
+	}
+	entries, err := ReadLog(bytes.NewReader(line))
+	if err != nil || len(entries) != 1 {
+		panic(fmt.Sprintf("fixture line %s: %v", line, err))
+	}
+	w.log = append(w.log, entries[0])
+}
+
+// session logs one MCP client session for an invocation as the fixture
+// does: initialize, the initialized notification, tools/call and its handler
+// for the file, then the closing DELETE, each request with its response.
+func (w *workBuilder) session(id, file string) {
+	w.sessions++
+	s := fmt.Sprintf("%012x", w.sessions)
+	type m = map[string]any
+	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id})
+	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "initialize", "rpcId": "1", "correlation": id, "status": 200, "bytes": 210, "durationMs": 1})
+	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "session": s})
+	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "notifications/initialized", "correlation": id, "status": 202})
+	w.fixture(m{"event": "receipt", "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "tool": "read_file", "file": file, "correlation": id, "session": s})
+	w.fixture(m{"event": "tool", "tool": "read_file", "file": file, "correlation": id, "outcome": "ok", "bytes": 490})
+	w.fixture(m{"event": "response", "httpMethod": "POST", "rpcMethod": "tools/call", "rpcId": "2", "correlation": id, "status": 200, "bytes": 598})
+	w.fixture(m{"event": "receipt", "httpMethod": "DELETE", "correlation": id, "session": s})
+	w.fixture(m{"event": "response", "httpMethod": "DELETE", "correlation": id, "status": 204})
 }
 
 // call records one invocation and, when attempted, its server session.
@@ -65,20 +115,27 @@ func (w *workBuilder) call(id, decision, file, outcome, reason string, truncated
 		return
 	}
 	w.fact(facts.Fact{Kind: "ProviderAttempt", InvocationID: id, Operation: "tool.invoke", ProviderStatus: "Attempted"})
-	w.server(Entry{Event: "receipt", RPCMethod: "initialize", Correlation: id})
-	w.server(Entry{Event: "receipt", RPCMethod: "tools/call", Correlation: id, File: file})
-	w.server(Entry{Event: "tool", Correlation: id, Outcome: "ok", File: file})
+	w.session(id, file)
 	ref := ""
 	if outcome == "Succeeded" {
-		ref = "repo:agenova/e16/" + file
+		ref = w.scope + "/" + file
 	}
 	w.fact(facts.Fact{Kind: "ProviderOutcome", InvocationID: id, Operation: "tool.invoke", ProviderStatus: outcome, ReasonCode: reason, ResultRef: ref, Truncated: truncated})
 }
 
 func (w *workBuilder) end() { w.fact(facts.Fact{Kind: "RunOutcome"}) }
 
+// setResultRef replaces the recorded resultRef of every successful outcome.
+func (w *workBuilder) setResultRef(ref string) {
+	for i, f := range w.view.Facts {
+		if f.Kind == "ProviderOutcome" && f.ProviderStatus == "Succeeded" {
+			w.view.Facts[i].ResultRef = ref
+		}
+	}
+}
+
 func positive() *workBuilder {
-	w := newWork("Succeeded", goodAnswer)
+	w := newWork("Succeeded", goodAnswer, positiveScope)
 	w.call("a", "Allow", "logs/timeout.log", "Succeeded", "configured-tool", false)
 	w.call("b", "Allow", "src/retry.txt", "Succeeded", "configured-tool", false)
 	w.end()
@@ -86,24 +143,24 @@ func positive() *workBuilder {
 }
 
 func timeoutWork(file string) *workBuilder {
-	w := newWork("Failed", "")
+	w := newWork("Failed", "", faultScope)
 	w.call("a", "Allow", file, "Failed", "tool-timeout", false)
 	w.end()
 	return w
 }
 
 func truncationWork(answer string, truncated bool) *workBuilder {
-	w := newWork("Succeeded", answer)
+	w := newWork("Succeeded", answer, faultScope)
 	w.call("a", "Allow", "notes/incident-timeline.md", "Succeeded", "configured-tool", truncated)
 	w.end()
 	return w
 }
 
 func TestWorkCasesPass(t *testing.T) {
-	oversize := newWork("Failed", "")
+	oversize := newWork("Failed", "", faultScope)
 	oversize.call("a", "Allow", "logs/full-trace.log", "Failed", "tool-response-too-large", false)
 	oversize.end()
-	denied := newWork("Deny", "")
+	denied := newWork("Deny", "", "")
 	denied.view.State = &v0.IssuedState{Decision: v0.Decision{Result: "Deny"}}
 	denied.end()
 	for name, w := range map[string]*workBuilder{
@@ -170,6 +227,116 @@ func TestWorkCasesReject(t *testing.T) {
 				t.Fatalf("want rejection containing %q, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+// Correct answers do not prove the investigation read the diagnostic files,
+// and a result reference must name the file the server actually read.
+func TestWorkReadsAreCorrelatedWithTheServer(t *testing.T) {
+	for name, tc := range map[string]struct {
+		work  string
+		want  []string
+		build func() *workBuilder
+	}{
+		// Codex counterexample 1: README.md reads only, with a correct answer.
+		"README-only reads with correct answers": {"positive", []string{"no successful correlated read of logs/timeout.log", "no successful correlated read of src/retry.txt"}, func() *workBuilder {
+			w := newWork("Succeeded", goodAnswer, positiveScope)
+			w.call("a", "Allow", "README.md", "Succeeded", "configured-tool", false)
+			w.call("b", "Allow", "README.md", "Succeeded", "configured-tool", false)
+			w.end()
+			return w
+		}},
+		// Codex counterexample 2: real timeout/retry reads whose results name README.md.
+		"README resultRefs on real reads": {"positive", []string{
+			`invocation a has resultRef "repo:agenova/e16-fixture/README.md", but its tools/call read "logs/timeout.log"`,
+			`invocation b has resultRef "repo:agenova/e16-fixture/README.md", but its tools/call read "src/retry.txt"`,
+			"no successful correlated read of logs/timeout.log",
+		}, func() *workBuilder {
+			w := positive()
+			w.setResultRef(positiveScope + "/README.md")
+			return w
+		}},
+		"result in another scope": {"positive", []string{`want "repo:agenova/e16-fixture/logs/timeout.log"`}, func() *workBuilder {
+			w := positive()
+			w.setResultRef("repo:agenova/e16/logs/timeout.log")
+			return w
+		}},
+		"successful result without a reference": {"positive", []string{`invocation a has resultRef ""`}, func() *workBuilder {
+			w := positive()
+			w.setResultRef("")
+			return w
+		}},
+		"retry file never read": {"positive", []string{"no successful correlated read of src/retry.txt"}, func() *workBuilder {
+			w := newWork("Succeeded", goodAnswer, positiveScope)
+			w.call("a", "Allow", "logs/timeout.log", "Succeeded", "configured-tool", false)
+			w.call("b", "Allow", "README.md", "Succeeded", "configured-tool", false)
+			w.end()
+			return w
+		}},
+		"failed read does not count": {"positive", []string{"no successful correlated read of src/retry.txt"}, func() *workBuilder {
+			w := newWork("Succeeded", goodAnswer, positiveScope)
+			w.call("a", "Allow", "logs/timeout.log", "Succeeded", "configured-tool", false)
+			w.call("b", "Allow", "src/retry.txt", "Failed", "tool-timeout", false)
+			w.end()
+			return w
+		}},
+		"read without a server handler does not count": {"positive", []string{"no successful correlated read of src/retry.txt"}, func() *workBuilder {
+			w := positive()
+			kept := w.log[:0]
+			for _, e := range w.log {
+				if e.Event != "tool" || e.File != "src/retry.txt" {
+					kept = append(kept, e)
+				}
+			}
+			w.log = kept
+			return w
+		}},
+		"truncated read names the fixture scope": {"n8-truncation", []string{`want "repo:agenova/e16-faults/notes/incident-timeline.md"`}, func() *workBuilder {
+			w := truncationWork(goodN8, true)
+			w.setResultRef(positiveScope + "/notes/incident-timeline.md")
+			return w
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := tc.build()
+			err := CheckWork(tc.work, w.view, w.log, dataset, nil)
+			if err == nil {
+				t.Fatal("accepted")
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("want rejection containing %q, got %v", want, err)
+				}
+			}
+		})
+	}
+	// README.md reads beside both diagnostic reads are allowed.
+	w := newWork("Succeeded", goodAnswer, positiveScope)
+	w.call("r", "Allow", "README.md", "Succeeded", "configured-tool", false)
+	w.call("a", "Allow", "logs/timeout.log", "Succeeded", "configured-tool", false)
+	w.call("b", "Allow", "src/retry.txt", "Succeeded", "configured-tool", false)
+	w.end()
+	if err := CheckWork("positive", w.view, w.log, dataset, nil); err != nil {
+		t.Fatalf("an extra README.md read: %v", err)
+	}
+}
+
+// The checker's scopes must be the ones the Work inputs request.
+func TestWorkCaseScopesMatchWorkInputs(t *testing.T) {
+	for name, c := range workCases {
+		if c.denied {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join("..", "work-"+name+".yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "resourceScopes: [" + c.scope + "]"; !strings.Contains(string(data), want) {
+			t.Errorf("work-%s.yaml does not request %q", name, want)
+		}
+	}
+	if workCases["positive"].scope != positiveScope || workCases["n8-truncation"].scope != faultScope {
+		t.Fatal("the checker's scopes differ from the MCP client's result references used in these tests")
 	}
 }
 
