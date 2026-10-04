@@ -127,6 +127,7 @@ run() {
     *"/bin/e16-evidence scan "*) cat >"$TMP/scan-stdin"; echo 'scanned 3 files, 0 matches'; return "${SCAN_RC:-0}" ;;
     *"go build -o "*"/bin/e16-evidence "*) printf 'go-env GOTOOLCHAIN=%s GOFLAGS=%s\n' "${GOTOOLCHAIN:-}" "${GOFLAGS:-}" >>"$LOG" ;;
     *"curl "*"/mcp-token") printf '%s\n' "${TOKEN_PROBE_STATUS-401}" ;;
+    *"curl "*"127.0.0.1:11434/api/tags") printf '%s' "${OLLAMA_TAGS-}" ;;
     *"cat /tmp/e16-protect.tar"*) cat "${EXPORT_TAR:-$TMP/fake.tar}" ;;
     *"kind load image-archive"*) touch "$TMP/imported" ;;
     # Any local listener answers with valid, empty Work JSON.
@@ -183,8 +184,13 @@ reset() {
   NODE_IMAGES="" CP_POD="" PLAYWRIGHT_BLOCK="" WORK_SHOW="" RUN_JSON="" WORKER_FAIL=""
   CAN_I_CP=yes CAN_I_UNLISTED=no CAN_I_DEFAULT=no TOKEN_PROBE_STATUS=401 SCAN_RC=0 CP_LOG="" KIND_CLUSTERS=x
   WORKER_PODS="" WORKER_ENVIRON="" WORKER_MOUNTINFO="" WORKER_LISTS=0 CAPTURES="" WORKER_LINE="" WAIT_FOR=""
+  OLLAMA_TAGS="{\"models\":[{\"name\":\"$PLATFORM_MODEL\",\"digest\":\"sha256-test\"}]}"
   unset OPENSSL_OUT
 }
+# The model platform.yaml's coding-standard profile names, read without the
+# runner's own parser.
+PLATFORM_MODEL="$(sed -n '/- name: coding-standard$/,/model:/s/^ *model: //p' "$SCRIPT_DIR/platform.yaml")"
+[ -n "$PLATFORM_MODEL" ] || { echo "[fail] platform.yaml names no coding-standard model"; exit 1; }
 # expect_fail <description> <expected message> <command...>: the command must
 # fail for the stated reason, not an earlier one.
 expect_fail() {
@@ -425,6 +431,8 @@ preflight_stubbed >/dev/null
 grep -qx 'namespace agenova-e16-system: absent' "$OUTPUT/preflight.txt" && grep -qx 'namespace agenova-e16: absent' "$OUTPUT/preflight.txt" &&
   called 'get namespace agenova-e16-system -o name --ignore-not-found' && called 'get namespace agenova-e16 -o name --ignore-not-found' ||
   { echo "[fail] preflight did not record both namespaces as absent"; exit 1; }
+grep -qx "model $PLATFORM_MODEL sha256-test" "$OUTPUT/preflight.txt" && called 'curl -fsS --max-time 10 http://127.0.0.1:11434/api/tags' ||
+  { echo "[fail] preflight did not record the installed model and its digest"; exit 1; }
 FRESH="c6 needs a fresh install namespace and fixture namespace because the template ceiling changed and Secrets must be generated for this campaign"
 reset pf2; touch "$NAMESPACES/agenova-e16-system"
 expect_fail "preflight with an existing install namespace" "namespace agenova-e16-system exists; $FRESH" preflight_stubbed
@@ -437,6 +445,54 @@ reset pf5; FAIL_ON='get namespace agenova-e16 '
 expect_fail "preflight when the fixture namespace query fails" "could not query namespace agenova-e16; not starting" preflight_stubbed
 [ ! -e "$OUTPUT/preflight.txt" ] || { echo "[fail] a refused preflight was recorded"; exit 1; }
 echo '[pass] preflight refuses an existing install or fixture namespace, and a failed namespace query'
+
+# --- preflight: the model is installed in the host Ollama (L12) ---
+NO_MODEL="the host Ollama has no model $PLATFORM_MODEL (model profile coding-standard); pull it before the campaign"
+for tags in '{"models":[]}' '{"models":[{"name":"llama3.1:latest","digest":"sha256-other"}]}' \
+  "{\"models\":[{\"name\":\"$PLATFORM_MODEL-instruct\",\"digest\":\"sha256-near\"}]}" \
+  "{\"models\":[{\"name\":\"$PLATFORM_MODEL\"}]}" 'not json' ''; do
+  reset pf6; OLLAMA_TAGS="$tags"
+  expect_fail "preflight with Ollama models $tags" "$NO_MODEL" preflight_stubbed
+  [ ! -e "$OUTPUT/preflight.txt" ] || { echo "[fail] a preflight without the model was recorded"; exit 1; }
+done
+reset pf7; FAIL_ON='11434/api/tags'
+expect_fail "preflight when the host Ollama does not answer" "the host Ollama at 127.0.0.1:11434 did not answer" preflight_stubbed
+[ ! -e "$OUTPUT/preflight.txt" ] || { echo "[fail] a preflight without Ollama was recorded"; exit 1; }
+# The named profile's model, not the first model line: a Platform with
+# several profiles, and one without a model.
+PROFILES="$TMP/profiles"; mkdir -p "$PROFILES"
+cat >"$PROFILES/platform.yaml" <<'YAML'
+spec:
+  services:
+    modelProfiles:
+      - name: other
+        backendRef: local-ollama
+        config:
+          model: other-model:1b
+      - name: coding-standard
+        backendRef: local-ollama
+        config:
+          model: wanted-model:7b
+      - name: bare
+        backendRef: local-ollama
+    toolBackends:
+      - name: e16-mcp
+        config:
+          model: not-a-model
+YAML
+# Locals shadow SCRIPT_DIR and MODEL_PROFILE for this check only. Callers
+# run it in a subshell, because a refusal exits.
+model_check_in() { # profile
+  local SCRIPT_DIR="$PROFILES" MODEL_PROFILE="$1"
+  check_model_installed
+}
+reset pf8; : >"$LOG"
+OLLAMA_TAGS='{"models":[{"name":"other-model:1b","digest":"sha-other"},{"name":"wanted-model:7b","digest":"sha-wanted"}]}'
+[ "$(model_check_in coding-standard)" = 'wanted-model:7b sha-wanted' ] && [ "$(model_check_in other)" = 'other-model:1b sha-other' ] ||
+  { echo "[fail] preflight did not check the named profile's own model"; exit 1; }
+expect_fail "a model profile without a model" "platform.yaml model profile bare names no model" model_check_in bare
+expect_fail "a model profile that does not exist" "platform.yaml model profile absent names no model" model_check_in absent
+echo '[pass] preflight records the model and digest of the model profile from the host Ollama, and refuses when it is missing, misnamed or unreachable'
 
 # --- fixture token Secret (Slice 4) ---
 fixture_stubbed() {
@@ -1124,12 +1180,18 @@ stubbed_work() { # work arguments
   )
 }
 last_failure() { printf '%s\n' "$1" | grep '^\[fail\] ' | tail -1; }
-for args in "--attempt 0" "--attempt 01" "--attempt x" "--attempt" "2" "--attempt 2 extra"; do
+for args in "--attempt 0" "--attempt 01" "--attempt x" "--attempt" "2" "--attempt 2 extra" "--attempt 6"; do
   reset wa0
   # shellcheck disable=SC2086
   expect_fail "work positive $args" "attempt" stubbed_work positive $args
   [ ! -s "$LOG" ] && [ ! -e "$OUTPUT/work" ] || { echo "[fail] 'work positive $args' ran commands or created directories"; exit 1; }
 done
+reset wa0
+expect_fail "a sixth attempt" "a case gets at most 5 attempts; positive has no attempt 6" stubbed_work positive --attempt 6
+reset wa5; fake_cli forward
+WORK_SHOW="$TMP/view-a5.json"; work_view "$WORK_SHOW" e16-positive-a5 inv-a5; RUN_JSON="$WORK_SHOW"
+out="$( (stubbed_work positive --attempt 5) 2>&1 )" && grep -q 'work positive attempt 5 (e16-positive-a5) pass' "$OUTPUT/campaign.log" ||
+  { echo "[fail] the fifth attempt, the last one allowed, did not run: $out"; exit 1; }
 reset wa1; fake_cli forward
 WORK_SHOW="$TMP/view-a1.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-a1; RUN_JSON="$WORK_SHOW"
 out="$( (stubbed_work positive) 2>&1 )" || { echo "[fail] attempt 1 of a passing Work failed: $out"; exit 1; }
@@ -1142,20 +1204,44 @@ called "run -f $a1/work.yaml" && called "work show e16-positive-a1 --json" && ca
 [ ! -s "$OUTPUT/prior-at-check.txt" ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt")" = inv-a1 ] && grep -q 'work positive attempt 1 (e16-positive-a1) pass' "$OUTPUT/campaign.log" ||
   { echo "[fail] attempt 1 was not checked and recorded on its own"; exit 1; }
 cp -R "$a1" "$TMP/a1-before"; : >"$LOG"
+# The first passing attempt counts (L12): a passed case takes no attempt at all.
+for n in 1 2; do
+  expect_fail "attempt $n after attempt 1 passed" "positive passed in attempt 1, and its first passing attempt counts; no further attempt runs" stubbed_work positive --attempt "$n"
+done
+not_called 'run -f'; [ ! -e "$OUTPUT/work/positive/attempt-2" ]
+diff -r "$TMP/a1-before" "$a1" >/dev/null || { echo "[fail] a refused attempt changed the passed one"; exit 1; }
+# The rule is per case: another case still runs after positive passed, and
+# only its own pass stops its next attempt.
+WORK_SHOW="$TMP/view-d1.json"; work_view "$WORK_SHOW" e16-admission-deny-a1 inv-d1; RUN_JSON="$WORK_SHOW"
+out="$( (stubbed_work admission-deny) 2>&1 )" || { echo "[fail] another case was refused after positive passed: $out"; exit 1; }
+grep -q 'work admission-deny attempt 1 (e16-admission-deny-a1) pass' "$OUTPUT/campaign.log" || { echo "[fail] the other case's pass was not recorded"; exit 1; }
+expect_fail "admission-deny attempt 2 after its pass" "admission-deny passed in attempt 1, and its first passing attempt counts" stubbed_work admission-deny --attempt 2
+expect_fail "positive attempt 2 after both passes" "positive passed in attempt 1," stubbed_work positive --attempt 2
+# After a failed attempt, the same attempt is never rerun and the next one is
+# checked against the failed attempt's records.
+reset wa2; fake_cli forward; FAIL_ON='evidence work'
+WORK_SHOW="$TMP/view-b1.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-b1; RUN_JSON="$WORK_SHOW"
+if out="$( (stubbed_work positive) 2>&1 )"; then echo "[fail] attempt 1 passed although its evidence check failed"; exit 1; fi
+b1="$OUTPUT/work/positive/attempt-1"
+cp -R "$b1" "$TMP/b1-before"; : >"$LOG"; FAIL_ON=''
 expect_fail "rerunning a recorded attempt" "each attempt is recorded once" stubbed_work positive --attempt 1
 not_called 'run -f'
-diff -r "$TMP/a1-before" "$a1" >/dev/null || { echo "[fail] a rerun changed a recorded attempt"; exit 1; }
+diff -r "$TMP/b1-before" "$b1" >/dev/null || { echo "[fail] a rerun changed a recorded attempt"; exit 1; }
 WORK_SHOW="$TMP/view-a2.json"; work_view "$WORK_SHOW" e16-positive-a2 inv-a2; RUN_JSON="$WORK_SHOW"
-out="$( (stubbed_work positive --attempt 2) 2>&1 )" || { echo "[fail] attempt 2 of a passing Work failed: $out"; exit 1; }
+out="$( (stubbed_work positive --attempt 2) 2>&1 )" || { echo "[fail] attempt 2 after a failed attempt 1 failed: $out"; exit 1; }
 a2="$OUTPUT/work/positive/attempt-2"
 grep -qx '  name: e16-positive-a2' "$a2/work.yaml" && called "run -f $a2/work.yaml" && called "work show e16-positive-a2 --json" &&
   called "evidence work -case positive -ref e16-positive-a2 " && called "playwright-env case=positive ref=e16-positive-a2" && [ -s "$a2/parity/playwright.json" ] ||
   { echo "[fail] attempt 2 did not carry its own name and ref throughout"; exit 1; }
-[ "$(cut -d' ' -f1 "$OUTPUT/prior-at-check.txt")" = inv-a1 ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt" | tr '\n' ' ')" = "inv-a1 inv-a2 " ] ||
+[ "$(cut -d' ' -f1 "$OUTPUT/prior-at-check.txt")" = inv-b1 ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt" | tr '\n' ' ')" = "inv-b1 inv-a2 " ] ||
   { echo "[fail] attempt 2 was not checked against attempt 1's records, or the records were not kept"; exit 1; }
-diff -r "$TMP/a1-before" "$a1" >/dev/null || { echo "[fail] attempt 2 changed attempt 1"; exit 1; }
+grep -q 'work positive attempt 2 (e16-positive-a2) pass' "$OUTPUT/campaign.log" && ! grep -q 'work positive attempt 1 .* pass' "$OUTPUT/campaign.log" ||
+  { echo "[fail] the passing attempt 2 was not the recorded pass"; exit 1; }
+diff -r "$TMP/b1-before" "$b1" >/dev/null || { echo "[fail] attempt 2 changed attempt 1"; exit 1; }
+expect_fail "attempt 3 after attempt 2 passed" "positive passed in attempt 2" stubbed_work positive --attempt 3
+[ ! -e "$OUTPUT/work/positive/attempt-3" ] || { echo "[fail] an attempt after the pass created its directory"; exit 1; }
 no_listeners "after two attempts"
-echo '[pass] each attempt of a Work has its own request name, ref, directory and parity; a recorded attempt is never rerun or changed'
+echo '[pass] each attempt of a Work has its own request name, ref, directory and parity; a recorded attempt is never rerun or changed; a case gets at most 5 attempts and none after its first pass'
 
 # A failed check after work show still archives the prior records and parity;
 # the step fails with the attempt's first failure, reported last.

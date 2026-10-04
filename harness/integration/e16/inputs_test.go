@@ -8,6 +8,7 @@ package e16
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -255,4 +256,99 @@ func TestAcceptanceInputsResolveToSeparateRoutes(t *testing.T) {
 	if len(tokenObjectives) != 1 {
 		t.Fatalf("the token Works ask %d different objectives, want one", len(tokenObjectives))
 	}
+}
+
+// L12: the E16 model profile names qwen2.5:7b, and the installed Portal spec
+// asserts the model that answered is the one the Platform configures.
+func TestModelProfileMatchesThePortalSpec(t *testing.T) {
+	input, verr := v0.ParsePlatformYAML(read(t, "platform.yaml"))
+	if verr != nil {
+		t.Fatal(verr)
+	}
+	model := ""
+	for _, profile := range input.Spec.Services.ModelProfiles {
+		if profile.Name == "coding-standard" {
+			model, _ = profile.Config["model"].(string)
+		}
+	}
+	if model != "qwen2.5:7b" {
+		t.Fatalf("coding-standard model %q, want qwen2.5:7b", model)
+	}
+	spec := string(read(t, filepath.Join("..", "..", "..", "ui", "installed", "mcp.spec.ts")))
+	want := "expect(view.outcome?.model?.model).toBe('" + model + "');"
+	if strings.Count(spec, "model?.model).toBe(") != 1 || !strings.Contains(spec, want) {
+		t.Fatalf("ui/installed/mcp.spec.ts must assert the configured model once: %s", want)
+	}
+}
+
+// Plan Phase 3: an objective names the facts block's keys, never their
+// values. Each fact line is "key: <placeholder>". A placeholder may say what
+// its key means but holds no digit, and a yes/no placeholder names both
+// answers, so no fact line carries a value. The lines before the block hold
+// no key and no digit, except the positive task's premise that payments
+// exceed the 5 second total deadline (Phase 3), which states the incident
+// rather than a fact the agent must find.
+func TestObjectivesNameFactKeysNotValues(t *testing.T) {
+	keys := map[string][]string{
+		"work-positive.yaml": {"deadline_resets_each_attempt", "first_attempt_seconds", "backoff_seconds", "total_deadline_seconds",
+			"budget_exceeded", "stable_idempotency_key_needed", "fix_shares_one_deadline_across_attempts", "fix_reuses_one_idempotency_key_across_retries"},
+		"work-n8-truncation.yaml": {"timeline_complete"},
+	}
+	numeric := map[string]bool{"first_attempt_seconds": true, "backoff_seconds": true, "total_deadline_seconds": true}
+	const premise = "Investigate why payment retries exceed the 5 second total deadline."
+	for name, want := range keys {
+		objective := objectiveOf(t, name)
+		lines := strings.Split(objective, "\n")
+		block := lines[len(lines)-len(want):]
+		for i, key := range want {
+			value, ok := strings.CutPrefix(block[i], key+": ")
+			if !ok || !strings.HasPrefix(value, "<") || !strings.HasSuffix(value, ">") || strings.ContainsAny(value, "0123456789") ||
+				(!numeric[key] && !(yesWord.MatchString(value) && noWord.MatchString(value))) {
+				t.Fatalf("%s: fact line %d is %q, want %q followed by a placeholder in angle brackets with no digit that, for a yes/no key, names both answers", name, i+1, block[i], key+": ")
+			}
+		}
+		for _, line := range lines[:len(lines)-len(want)] {
+			for _, key := range want {
+				if strings.Contains(line, key) {
+					t.Fatalf("%s: key %s also appears before the fact lines: %q", name, key, line)
+				}
+			}
+			if strings.ContainsAny(strings.Replace(line, premise, "", 1), "0123456789") {
+				t.Fatalf("%s: an instruction line holds a digit: %q", name, line)
+			}
+		}
+	}
+}
+
+// The objective wording measured off-cluster in L12 (plan section 9): the
+// positive task names both files, reads both before finishing and writes
+// sentences before a newline-separated block; N8 reads the timeline alone,
+// one sentence per line, then the fact line on its own line.
+func TestObjectivesKeepTheMeasuredWording(t *testing.T) {
+	for name, phrases := range map[string][]string{
+		"work-positive.yaml": {"logs/timeout.log", "src/retry.txt", "Read both files before you finish.",
+			"First, two to four plain sentences", "Do not write any of the underscore names from the lines below in these sentences.",
+			"separated by a newline, never by a comma", "the last two record what the fix you recommend would do, not what the code does now"},
+		"work-n8-truncation.yaml": {"Read notes/incident-timeline.md", "Read no other file, and finish on the turn after you read it.",
+			"each on its own line", "the line below on its own line", "and nothing after it"},
+	} {
+		objective := objectiveOf(t, name)
+		for _, phrase := range phrases {
+			if !strings.Contains(objective, phrase) {
+				t.Fatalf("%s objective lost %q", name, phrase)
+			}
+		}
+	}
+}
+
+var yesWord, noWord = regexp.MustCompile(`\byes\b`), regexp.MustCompile(`\bno\b`)
+
+func objectiveOf(t *testing.T, name string) string {
+	t.Helper()
+	request, verr := v0.ParseClaimRequestYAML(read(t, name))
+	if verr != nil {
+		t.Fatalf("%s: %v", name, verr)
+	}
+	objective, _ := request.Spec.Task.Input["objective"].(string)
+	return objective
 }

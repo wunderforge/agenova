@@ -48,10 +48,13 @@ spec:
         config:
           endpoint: http://host.docker.internal:11434/v1
     modelProfiles:
+      # L12 (plan section 9): llama3.1:latest never passed the positive answer
+      # check off-cluster, so E16 uses qwen2.5:7b, a model of the same size.
+      # The reference install keeps its own Platform and model.
       - name: coding-standard
         backendRef: local-ollama
         config:
-          model: llama3.1:latest
+          model: qwen2.5:7b
     toolBackends:
       - name: e16-mcp
         adapterRef: mcp-http-tool

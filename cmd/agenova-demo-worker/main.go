@@ -123,9 +123,17 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			Observation workerprotocol.Reply `json:"observation"`
 		}{action.Tool, action.Resource, action.Input, observation})
 		transcript += "\n" + string(data)
+		// A local model reads past the [TRUNCATED] marker in the text (L12), so
+		// the host's truncated flag is also said in words. It comes from the
+		// host's reply, never from tool text.
+		if observation.Allowed && observation.Error == "" && observation.Truncated {
+			transcript += "\nObservation: " + truncatedNote
+		}
 	}
 	return workerprotocol.ErrTurnLimit
 }
+
+const truncatedNote = "the text above was cut off at its size limit, so only its beginning was shown and rereading it cannot show more. Say so in the answer."
 
 func readLine(scanner *bufio.Scanner, value any) error {
 	if !scanner.Scan() {

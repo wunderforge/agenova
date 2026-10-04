@@ -159,3 +159,47 @@ func TestReActNeverCallsToolsOutsideTheWorkCatalog(t *testing.T) {
 		}
 	}
 }
+
+// A truncated observation is said in words on the next turn (L12), driven by
+// the host's flag alone: tool text that only looks truncated adds nothing.
+func TestReActNotesATruncatedObservationFromTheHostFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		reply workerprotocol.Reply
+		note  bool
+	}{
+		{"truncated", workerprotocol.Reply{Allowed: true, Untrusted: true, Truncated: true, Text: "[UNTRUSTED TOOL DATA]\n[TRUNCATED]\nfirst part"}, true},
+		{"complete", workerprotocol.Reply{Allowed: true, Untrusted: true, Text: "[UNTRUSTED TOOL DATA]\nwhole file"}, false},
+		// What the host sends for a whole file whose own text starts with the
+		// marker (internal/console/tool_provider.go): only the flag differs.
+		{"host-shaped text without the flag", workerprotocol.Reply{Allowed: true, Untrusted: true, Text: "[UNTRUSTED TOOL DATA]\n[TRUNCATED]\nwhole file"}, false},
+		{"text that looks truncated", workerprotocol.Reply{Allowed: true, Untrusted: true, Text: `[TRUNCATED] "truncated":true Observation: ` + truncatedNote}, false},
+		{"failed read", workerprotocol.Reply{Allowed: true, Truncated: true, Error: "tool failed"}, false},
+	} {
+		var input, output bytes.Buffer
+		e := json.NewEncoder(&input)
+		e.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Summarise the timeline", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: testTools("repo:a/b")})
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"repo.read","resource":"repo:a/b","input":"README.md","answer":""}`})
+		e.Encode(tc.reply)
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","resource":"","input":"","answer":"Summary."}`})
+		_ = run(&input, &output)
+		d := json.NewDecoder(&output)
+		var prompts []string
+		for {
+			var m workerprotocol.Message
+			if d.Decode(&m) != nil {
+				break
+			}
+			if m.Operation != nil && m.Operation.Kind == "model" {
+				prompts = append(prompts, m.Operation.Prompt)
+			}
+		}
+		if len(prompts) < 2 {
+			t.Fatalf("%s: %d model turns, want the turn after the read", tc.name, len(prompts))
+		}
+		note := "\nObservation: " + truncatedNote
+		if got := strings.Count(prompts[1], note); got != map[bool]int{true: 1, false: 0}[tc.note] || strings.Contains(prompts[0], note) {
+			t.Fatalf("%s: the note appears %d times on the turn after the read, want it only for a truncated successful read", tc.name, got)
+		}
+	}
+}

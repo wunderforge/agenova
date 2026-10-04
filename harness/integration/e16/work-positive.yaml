@@ -12,10 +12,11 @@ spec:
     type: investigation
     input:
       objective: |-
-        Investigate why payment retries exceed the 5 second total deadline. Read logs/timeout.log and src/retry.txt, identify the cause, and recommend a specific fix.
-        End your answer with exactly these eight lines and nothing after them, each value taken from the files (yes or no, or a number of seconds). The last two lines state your fix:
-        deadline_resets_each_attempt: <yes or no>
-        first_attempt_seconds: <number>
+        Investigate why payment retries exceed the 5 second total deadline. Read logs/timeout.log and src/retry.txt, identify the cause, and recommend a specific fix. Read both files before you finish.
+        Write your answer in two parts. First, two to four plain sentences that explain the cause with the times from the files and state your fix. Do not write any of the underscore names from the lines below in these sentences.
+        Then start a new line and end your answer with exactly the eight lines below, in this order, and nothing after them. Put each line on its own line, separated by a newline, never by a comma, in plain text with no bullets, bold or code block. Copy each name exactly as written. Each value is only yes, no or a number of seconds, with nothing else on the line. Of these eight lines, the first six record what the files show and the last two record what the fix you recommend would do, not what the code does now.
+        deadline_resets_each_attempt: <yes if each attempt starts its own new deadline, otherwise no>
+        first_attempt_seconds: <how many seconds the first attempt took>
         backoff_seconds: <number>
         total_deadline_seconds: <number>
         budget_exceeded: <yes or no>

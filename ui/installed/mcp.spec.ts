@@ -102,7 +102,7 @@ test('installed E16 setup reports the configured MCP tool and E16 registrations 
 test('positive Work: real MCP reads, two model turns, matching CLI, API and Portal @positive', async ({ page, request }, info) => {
   const view = await parity(request);
   expect(view.outcome?.status).toBe('Succeeded');
-  expect(view.outcome?.model?.model).toBe('llama3.1:latest');
+  expect(view.outcome?.model?.model).toBe('qwen2.5:7b');
   expect(view.facts.filter(f => f.kind === 'ProviderOutcome' && f.operation === 'model.invoke' && f.providerStatus === 'Succeeded').length).toBeGreaterThanOrEqual(2);
   expect(view.facts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'Runtime', operation: 'CleanupSucceeded' })]));
   expect(toolFacts(view).some(f => f.reasonCode?.startsWith('mock-'))).toBe(false);

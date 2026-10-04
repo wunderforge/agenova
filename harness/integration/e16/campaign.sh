@@ -81,6 +81,8 @@ Mutating (each prints its plan; protect, load and restore also need --yes):
                      server log and its answer oracle, archive parity. Each attempt keeps work/<name>/attempt-<N>/; a
                      rerun is a new attempt. Once work show succeeds, parity and
                      the prior records are archived even if a check fails.
+                     A case gets at most 5 attempts and its first passing
+                     attempt counts: once it has passed, no attempt runs.
   probe              Run the probe Job and check it against the server log.
   parity <case> [--attempt N]
                      Compare CLI, API and Portal for one recorded attempt (work
@@ -141,6 +143,31 @@ check_platform_targets() {
     fail "template.yaml does not allow model profile $MODEL_PROFILE"
 }
 
+# The model that platform.yaml's model profile names.
+profile_model() {
+  awk -v want="$MODEL_PROFILE" '
+    $0 ~ "^[[:space:]]+- name: " want "$" {found = 1; next}
+    found && /^[[:space:]]+- name: / {exit}
+    found && /^[[:space:]]+model: / {print $2; exit}' "$SCRIPT_DIR/platform.yaml"
+}
+
+# kind reaches the host Ollama through host.docker.internal, so the profile's
+# model must be installed there before any Work runs; otherwise the first
+# model-driven Work fails mid-campaign. Prints "<model> <digest>".
+check_model_installed() {
+  local model tags
+  model="$(profile_model)"
+  [ -n "$model" ] || fail "platform.yaml model profile $MODEL_PROFILE names no model"
+  tags="$(run curl -fsS --max-time 10 http://127.0.0.1:11434/api/tags)" ||
+    fail "the host Ollama at 127.0.0.1:11434 did not answer; start it before the campaign"
+  printf '%s' "$tags" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      let models=[];try{models=JSON.parse(s).models||[]}catch{}
+      const m=models.find(x=>x&&x.name===process.argv[1]);
+      if(!m||typeof m.digest!=="string"||!m.digest)process.exit(1);
+      console.log(m.name+" "+m.digest)})' "$model" ||
+    fail "the host Ollama has no model $model (model profile $MODEL_PROFILE); pull it before the campaign"
+}
+
 # Objects outside the E16 namespaces that run the fixed tags, as
 # "kind namespace name replicas" lines.
 other_installs() {
@@ -163,12 +190,14 @@ node_image_id() {
 }
 
 preflight() {
-  local cmd installs namespace found
-  for cmd in docker kind kubectl go git openssl base64; do command -v "$cmd" >/dev/null 2>&1 || fail "missing prerequisite: $cmd"; done
+  local cmd installs namespace found model
+  for cmd in docker kind kubectl go git openssl base64 curl node; do command -v "$cmd" >/dev/null 2>&1 || fail "missing prerequisite: $cmd"; done
   run docker info >/dev/null 2>&1 || fail "Docker daemon is unreachable"
   run kind get clusters | grep -qx "$(cluster_name)" || fail "kind cluster $(cluster_name) does not exist"
   kctl get nodes >/dev/null || fail "context $CONTEXT is unreachable"
   check_platform_targets
+  # check_model_installed reports its own failure.
+  model="$(check_model_installed)" || exit 1
   [ -z "$(git -C "$ROOT" status --porcelain)" ] || fail "working tree is not clean; evidence must name one source commit"
   # Only a successful empty answer means a namespace is absent.
   for namespace in "$INSTALL_NAMESPACE" "$FIXTURE_NAMESPACE"; do
@@ -181,6 +210,7 @@ preflight() {
     echo "context $CONTEXT"
     echo "install-namespace $INSTALL_NAMESPACE"
     echo "model-profile $MODEL_PROFILE"
+    echo "model $model"
     echo "node $(node_name) created $(docker inspect -f '{{.Created}}' "$(node_name)")"
     echo "node-image $CONTROL_PLANE_IMAGE $(node_image_id "$CONTROL_PLANE_IMAGE")"
     echo "node-image $WORKER_IMAGE $(node_image_id "$WORKER_IMAGE")"
@@ -1239,6 +1269,16 @@ parse_attempt() { # [--attempt N]; sets ATTEMPT
 work_ref() { printf 'e16-%s-a%s' "$1" "$2"; } # case attempt
 attempt_dir() { printf '%s/work/%s/attempt-%s' "$OUTPUT" "$1" "$2"; } # case attempt
 
+# Answers from a local model vary between runs (L12), so a case may take up to
+# MAX_ATTEMPTS recorded attempts and its first passing attempt counts. Once a
+# case has passed it takes no further attempt, so a pass is never picked from
+# several. Every attempt, failed ones included, stays on record.
+MAX_ATTEMPTS=5
+passed_attempt() { # case: the attempt that passed, if any (sed stops at the first)
+  [ ! -f "$OUTPUT/campaign.log" ] ||
+    sed -n "/^[^ ]* work $1 attempt [0-9][0-9]* (e16-$1-a[0-9][0-9]*) pass\$/{s/^[^ ]* work $1 attempt \([0-9][0-9]*\) .*/\1/p;q;}" "$OUTPUT/campaign.log"
+}
+
 # The case's request under the attempt's name; nothing else changes.
 render_work() { # case ref output
   local file="$SCRIPT_DIR/work-$1.yaml"
@@ -1298,7 +1338,7 @@ append_prior_records() { # attempt-dir
 }
 
 work() {
-  local name="${1:-}" attempt ref out watcher failure
+  local name="${1:-}" attempt ref out watcher failure passed
   WORK_FAILURE=""
   [ -n "$name" ] || fail "work needs a name, for example: work positive"
   shift
@@ -1307,6 +1347,9 @@ work() {
   attempt="$ATTEMPT"
   ref="$(work_ref "$name" "$attempt")"
   out="$(attempt_dir "$name" "$attempt")"
+  [ "$attempt" -le "$MAX_ATTEMPTS" ] || fail "a case gets at most $MAX_ATTEMPTS attempts; $name has no attempt $attempt"
+  passed="$(passed_attempt "$name")"
+  [ -z "$passed" ] || fail "$name passed in attempt $passed, and its first passing attempt counts; no further attempt runs"
   [ ! -e "$out" ] || fail "$out exists; each attempt is recorded once, so a rerun needs a new --attempt"
   require_collector fixture
   require_collector control-plane
