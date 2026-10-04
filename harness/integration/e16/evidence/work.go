@@ -215,8 +215,8 @@ func completion(e Entry) bool {
 
 // CheckWork decides one production Work from its CLI evidence and the
 // complete server log. dataDir is the fixture dataset used by the oracle;
-// prior holds invocation IDs of Works recorded earlier in the campaign, whose
-// late completion entries may appear during this Work.
+// prior holds the invocations of every earlier attempt in the campaign, failed
+// ones included, whose late completion entries may appear during this Work.
 func CheckWork(name string, view evidence.View, log []Entry, dataDir string, prior *priorRecords) error {
 	c, ok := workCases[name]
 	if !ok {

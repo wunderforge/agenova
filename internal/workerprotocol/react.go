@@ -28,6 +28,29 @@ var ErrToolCatalog = errors.New("worker tool catalog is invalid or exceeds the s
 // The finishing phase must not advertise stale tool choices in the grammar.
 const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"tool":{"type":"string","enum":[""]},"resource":{"type":"string","enum":[""]},"input":{"type":"string","enum":[""]},"answer":{"type":"string"}},"required":["action","tool","resource","input","answer"],"additionalProperties":false}`
 
+// Structs, not maps, so the schema keeps FinishSchema's key order. Local
+// models generate keys in schema order; with alphabetical keys llama3.1
+// writes "answer":"" first and then leaves resource empty.
+type stringSchema struct {
+	Type string   `json:"type"`
+	Enum []string `json:"enum,omitempty"`
+}
+
+type actionProperties struct {
+	Action   stringSchema `json:"action"`
+	Tool     stringSchema `json:"tool"`
+	Resource stringSchema `json:"resource"`
+	Input    stringSchema `json:"input"`
+	Answer   stringSchema `json:"answer"`
+}
+
+type actionSchema struct {
+	Type                 string           `json:"type"`
+	Properties           actionProperties `json:"properties"`
+	Required             []string         `json:"required"`
+	AdditionalProperties bool             `json:"additionalProperties"`
+}
+
 // ActionSchema derives the demo-edge output grammar from the Work's catalog.
 // It uses only flat enums (the locally verified grammar subset); ParseAction
 // checks that the chosen tool, resource and input belong to one catalog entry.
@@ -51,21 +74,20 @@ func ActionSchema(tools []Tool) ([]byte, error) {
 	sort.Strings(scopes)
 	sort.Strings(inputs)
 	for _, withInputs := range []bool{true, false} {
-		input := map[string]any{"type": "string"}
+		input := stringSchema{Type: "string"}
 		if withInputs {
-			input["enum"] = inputs
+			input.Enum = inputs
 		}
-		schema, err := json.Marshal(map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"action":   map[string]any{"type": "string", "enum": []string{"tool", "finish"}},
-				"tool":     map[string]any{"type": "string", "enum": operations},
-				"resource": map[string]any{"type": "string", "enum": scopes},
-				"input":    input,
-				"answer":   map[string]any{"type": "string"},
+		schema, err := json.Marshal(actionSchema{
+			Type: "object",
+			Properties: actionProperties{
+				Action:   stringSchema{Type: "string", Enum: []string{"tool", "finish"}},
+				Tool:     stringSchema{Type: "string", Enum: operations},
+				Resource: stringSchema{Type: "string", Enum: scopes},
+				Input:    input,
+				Answer:   stringSchema{Type: "string"},
 			},
-			"required":             []string{"action", "tool", "resource", "input", "answer"},
-			"additionalProperties": false,
+			Required: []string{"action", "tool", "resource", "input", "answer"},
 		})
 		if err == nil && len(schema) <= MaxSchemaBytes {
 			return schema, nil

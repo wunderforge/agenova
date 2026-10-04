@@ -24,9 +24,17 @@ OUTPUT=""
 MODEL_PROFILE=""
 YES=0
 
+# The first failure of a Work attempt whose evidence is on record. work goes on
+# to archive that attempt, and a later failure (parity) still reports it last.
+WORK_FAILURE=""
+
 info() { printf '[info] %s\n' "$*"; }
 pass() { printf '[pass] %s\n' "$*"; }
-fail() { printf '[fail] %s\n' "$*" >&2; exit 1; }
+fail() {
+  printf '[fail] %s\n' "$*" >&2
+  [ -z "$WORK_FAILURE" ] || printf '[fail] %s\n' "$WORK_FAILURE" >&2
+  exit 1
+}
 run() { "$@"; }
 
 usage() {
@@ -48,10 +56,16 @@ Mutating (each prints its plan; protect, load and restore also need --yes):
   controlled-read    Before install: read through the real MCP client over a
                      port-forward to the fixture and check the captured log.
   install            Install the E16 Platform, Policy and AgentTemplate.
-  work <name>        Run harness/integration/e16/work-<name>.yaml, check it
-                     against the server log and its answer oracle, archive parity.
+  work <name> [--attempt N]
+                     Run harness/integration/e16/work-<name>.yaml as attempt N
+                     (default 1) under the request name e16-<name>-a<N>, require
+                     work show to return this submission, check it against the
+                     server log and its answer oracle, archive parity. Each attempt keeps work/<name>/attempt-<N>/; a
+                     rerun is a new attempt. Once work show succeeds, parity and
+                     the prior records are archived even if a check fails.
   probe              Run the probe Job and check it against the server log.
-  parity <case>      Compare CLI, API and Portal for one recorded Work (work
+  parity <case> [--attempt N]
+                     Compare CLI, API and Portal for one recorded attempt (work
                      runs it automatically right after the Work).
   restore            Stop E16 pods on the fixed tags, re-import protected images,
                      restart other installs and wait until they are Ready.
@@ -863,19 +877,98 @@ verify_claimed_worker() { # work-show.json worker-identity.txt
   verify_identity_lines "$WORKER_IMAGE" "$2.running"
 }
 
+# A Work runs as numbered attempts: the control plane refuses a reused request
+# name, so each attempt has its own name and ref (e16-<case>-a<N>) and its own
+# directory, which nothing overwrites. The checker case stays the case name.
+ATTEMPT=""
+parse_attempt() { # [--attempt N]; sets ATTEMPT
+  ATTEMPT=1
+  case "$#:${1:-}" in
+    0:) ;;
+    2:--attempt) ATTEMPT="$2" ;;
+    *) fail "unexpected arguments: $*; the only option is --attempt N" ;;
+  esac
+  case "$ATTEMPT" in ''|0*|*[!0-9]*) fail "--attempt needs a positive whole number, for example: --attempt 2" ;; esac
+}
+work_ref() { printf 'e16-%s-a%s' "$1" "$2"; } # case attempt
+attempt_dir() { printf '%s/work/%s/attempt-%s' "$OUTPUT" "$1" "$2"; } # case attempt
+
+# The case's request under the attempt's name; nothing else changes.
+render_work() { # case ref output
+  local file="$SCRIPT_DIR/work-$1.yaml"
+  [ "$(grep -c "^  name: e16-$1\$" "$file")" -eq 1 ] || fail "$file must name its Work e16-$1 exactly once"
+  sed "s/^  name: e16-$1\$/  name: $2/" "$file" >"$3"
+  [ "$(grep -c "^  name: $2\$" "$3")" -eq 1 ] && [ "$(diff "$file" "$3" | grep -c '^[<>]')" -eq 2 ] ||
+    fail "could not render $file as $2"
+}
+
+# One check after work show succeeded, in a subshell: a failure becomes the
+# attempt's first failure (if it has none yet) and the runner goes on. A check
+# stopped by a signal (Ctrl-C) stops the runner. WORK_FAILURE is cleared only
+# inside the subshell, so the check's own fail does not repeat an earlier one.
+# shellcheck disable=SC2030,SC2031
+work_check() { # command...
+  local err rc
+  set +e
+  err="$(WORK_FAILURE=""; set -e; "$@" 2>&1 >&3)"
+  rc=$?
+  set -e
+  [ -z "$err" ] || printf '%s\n' "$err" >&2
+  [ "$rc" -le 128 ] || exit "$rc"
+  [ "$rc" -eq 0 ] || [ -n "$WORK_FAILURE" ] || WORK_FAILURE="$(printf '%s\n' "$err" | sed -n 's/^\[fail\] //p' | tail -1)"
+  [ "$rc" -eq 0 ] || [ -n "$WORK_FAILURE" ] || WORK_FAILURE="$1 exited $rc"
+} 3>&1
+
+# work show must return the Work this invocation submitted. run --json prints
+# its own submission's evidence, and nothing when the submission is refused,
+# as a reused request name is. Facts are append-only, so this submission's
+# facts must be the first facts of the queried Work, with the same request
+# and decision, and the same outcome once it has one. A Work left under the
+# same name by another output directory has other fact IDs and times.
+check_submission() { # run.json work-show.json ref
+  node -e 'const fs=require("fs");const [runPath,showPath,ref]=process.argv.slice(1);
+    const read=p=>{try{return JSON.parse(fs.readFileSync(p,"utf8"))}catch{return null}};
+    const run=read(runPath),show=read(showPath),same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+    const rf=Array.isArray(run&&run.facts)?run.facts:[],sf=Array.isArray(show&&show.facts)?show.facts:[];
+    const ok=run&&show&&run.requestRef===ref&&show.requestRef===ref&&same(run.request,show.request)&&
+      run.state&&run.state.decision&&show.state&&same(run.state.decision,show.state.decision)&&
+      rf.length>0&&rf.length<=sf.length&&rf.every((f,i)=>same(f,sf[i]))&&(!run.outcome||same(run.outcome,show.outcome));
+    process.exit(ok?0:1)' "$@" ||
+    fail "work show for $3 did not return the Work this attempt submitted; see $(dirname "$1")/run.err"
+}
+
+check_work_evidence() { # case ref attempt-dir
+  (cd "$ROOT" && host_go run ./harness/integration/e16/evidence work -case "$1" -ref "$2" \
+    -view "$3/work-show.json" -server-log "$3/fixture-full.jsonl" -fixture-data "$ROOT/harness/integration/mcpfixture/data" \
+    -prior "$OUTPUT/work-invocations.txt") \
+    >"$3/evidence.txt" 2>&1 || fail "Work $1 ($2) does not meet its acceptance; see $3/evidence.txt"
+}
+
+# Every attempt's invocations, failed attempts included, so their late
+# completions are never read as unattributed traffic in a later window.
+append_prior_records() { # attempt-dir
+  work_prior_records "$1/work-show.json" >"$1/prior-records.txt" || fail "could not read the invocations in $1/work-show.json"
+  cat "$1/prior-records.txt" >>"$OUTPUT/work-invocations.txt"
+}
+
 work() {
-  local name="${1:-}" file ref out watcher
+  local name="${1:-}" attempt ref out watcher failure
+  WORK_FAILURE=""
   [ -n "$name" ] || fail "work needs a name, for example: work positive"
-  file="$SCRIPT_DIR/work-$name.yaml"
-  [ -f "$file" ] || fail "no $file"
-  ref="e16-$name"
-  out="$OUTPUT/work/$name"
-  [ ! -e "$out" ] || fail "$out exists; each Work is recorded once per campaign"
-  mkdir -p "$out"
+  shift
+  [ -f "$SCRIPT_DIR/work-$name.yaml" ] || fail "no $SCRIPT_DIR/work-$name.yaml"
+  parse_attempt "$@"
+  attempt="$ATTEMPT"
+  ref="$(work_ref "$name" "$attempt")"
+  out="$(attempt_dir "$name" "$attempt")"
+  [ ! -e "$out" ] || fail "$out exists; each attempt is recorded once, so a rerun needs a new --attempt"
   require_collector fixture
   require_collector control-plane
   verify_node_tag "$CONTROL_PLANE_IMAGE"
   verify_node_tag "$WORKER_IMAGE"
+  mkdir -p "$(dirname "$out")"
+  mkdir "$out" || fail "could not create $out"
+  render_work "$name" "$ref" "$out/work.yaml"
   check_control_plane_identity "$out/control-plane-before.txt"
   # Capture worker identity while the Work runs, before cleanup.
   (for _ in $(seq 1 600); do
@@ -884,7 +977,7 @@ work() {
   done) &
   watcher=$!
   set +e
-  run "$(cli)" --state-dir "$STATE_DIR" run -f "$file" >"$out/run.txt" 2>&1
+  run "$(cli)" --state-dir "$STATE_DIR" run -f "$out/work.yaml" --json >"$out/run.json" 2>"$out/run.err"
   echo "run-exit $?" >"$out/exit-codes.txt"
   run "$(cli)" --state-dir "$STATE_DIR" work show "$ref" --json >"$out/work-show.json" 2>"$out/work-show.err"
   echo "show-exit $?" >>"$out/exit-codes.txt"
@@ -892,21 +985,24 @@ work() {
   kill "$watcher" 2>/dev/null || true
   sort -u "$out/worker-identity.txt" -o "$out/worker-identity.txt" 2>/dev/null || true
   grep -q '^show-exit 0$' "$out/exit-codes.txt" || fail "work show failed for $ref; see $out"
-  check_control_plane_identity "$out/control-plane-after.txt"
-  [ "$name" = admission-deny ] || verify_claimed_worker "$out/work-show.json" "$out/worker-identity.txt"
-  settle_timeouts "$out/work-show.json"
-  snapshot_fixture "$out"
-  require_collector control-plane
+  check_submission "$out/run.json" "$out/work-show.json" "$ref"
+  # From here the attempt is on record. Whatever fails, its invocations go to
+  # the prior records and its parity is archived before the step fails.
+  work_check check_control_plane_identity "$out/control-plane-after.txt"
+  [ "$name" = admission-deny ] || work_check verify_claimed_worker "$out/work-show.json" "$out/worker-identity.txt"
+  work_check settle_timeouts "$out/work-show.json"
+  work_check snapshot_fixture "$out"
+  work_check require_collector control-plane
   kctl -n "$INSTALL_NAMESPACE" get events -o wide >"$out/install-events.txt" 2>&1 || true
-  (cd "$ROOT" && host_go run ./harness/integration/e16/evidence work -case "$name" \
-    -view "$out/work-show.json" -server-log "$out/fixture-full.jsonl" -fixture-data "$ROOT/harness/integration/mcpfixture/data" \
-    -prior "$OUTPUT/work-invocations.txt") \
-    >"$out/evidence.txt" 2>&1 || fail "Work $name does not meet its acceptance; see $out/evidence.txt"
-  work_prior_records "$out/work-show.json" >>"$OUTPUT/work-invocations.txt"
+  work_check check_work_evidence "$name" "$ref" "$out"
+  work_check append_prior_records "$out"
   # Per-run parity, while this Work's in-memory evidence still exists.
-  parity "$name"
-  record "work $name pass"
-  pass "Work $name accepted and its CLI, API and Portal evidence archived"
+  parity "$name" --attempt "$attempt"
+  failure="$WORK_FAILURE"
+  WORK_FAILURE=""
+  [ -z "$failure" ] || fail "$failure"
+  record "work $name attempt $attempt ($ref) pass"
+  pass "Work $name attempt $attempt accepted and its CLI, API and Portal evidence archived"
 }
 
 # A Job that exits 0 can still have skipped or emitted nothing.
@@ -1024,19 +1120,26 @@ wait_api_connected() { # api-pid log
   return 1
 }
 
-# parity <case>: compare CLI, API and Portal for one recorded Work. Exactly the
-# setup test and that Work's test must run and pass; nothing may be skipped.
-# Both ports must be free before it starts, and nothing listens on them after.
+# parity <case> [--attempt N]: compare CLI, API and Portal for one recorded
+# attempt. Exactly the setup test and that Work's test must run and pass;
+# nothing may be skipped. Both ports must be free before it starts, and
+# nothing listens on them after.
 parity() {
-  local name="${1:-}" out api tests rc report port traps
+  local name="${1:-}" attempt ref out api tests rc report port traps
   case "$name" in positive|n6-timeout|n7-oversize|n8-truncation|admission-deny) ;; *) fail "parity needs a Work case" ;; esac
-  out="$OUTPUT/work/$name/parity"
-  [ ! -e "$out" ] || fail "$out exists; parity is archived once per Work"
+  shift
+  parse_attempt "$@"
+  attempt="$ATTEMPT"
+  ref="$(work_ref "$name" "$attempt")"
+  out="$(attempt_dir "$name" "$attempt")"
+  [ -d "$out" ] || fail "no recorded attempt $attempt of $name ($out)"
+  out="$out/parity"
+  [ ! -e "$out" ] || fail "$out exists; parity is archived once per attempt"
   for port in "$API_PORT" "$UI_PORT"; do
     ! port_listening "$port" || fail "port $port is already in use (an earlier parity run's tunnel or dev server?); stop it before parity"
   done
   mkdir -p "$out"
-  info "plan: agenova api connect on $API_PORT, UI dev server on $UI_PORT, run the @setup and @$name tests"
+  info "plan: agenova api connect on $API_PORT, UI dev server on $UI_PORT, run the @setup and @$name tests for $ref"
   # Every exit stops what parity started: a failure, Ctrl-C or SIGTERM. A
   # trapped signal would otherwise resume the runner, so its handler exits.
   traps="$(trap -p EXIT INT TERM)"
@@ -1052,7 +1155,7 @@ parity() {
   sleep 5
   report="$out/playwright.json"
   # In the background so that a signal stops the run at once, not after the tests.
-  (cd "$ROOT/ui" && AGENOVA_CLI_PATH="$(cli)" AGENOVA_CLI_STATE_DIR="$STATE_DIR" AGENOVA_E16_CASE="$name" AGENOVA_E16_REF="e16-$name" \
+  (cd "$ROOT/ui" && AGENOVA_CLI_PATH="$(cli)" AGENOVA_CLI_STATE_DIR="$STATE_DIR" AGENOVA_E16_CASE="$name" AGENOVA_E16_REF="$ref" \
     PLAYWRIGHT_JSON_OUTPUT_NAME="$report" \
     run npx playwright test --config playwright.installed.config.ts installed/mcp.spec.ts --grep "@setup\$|@$name\$" \
       --reporter=list,json --output "$out/playwright") >"$out/playwright.log" 2>&1 &
@@ -1068,10 +1171,10 @@ parity() {
   trap - EXIT INT TERM
   eval "$traps"
   stop_parity_servers
-  record "parity $name exit $rc"
-  [ "$rc" -eq 0 ] || fail "CLI, API and Portal parity failed for $name; see $out/playwright.log and $out/api-connect.log"
-  parity_report_ok "$report" || fail "parity for $name did not run exactly its two tests; see $report"
-  pass "CLI, API and Portal agree for $name"
+  record "parity $name attempt $attempt ($ref) exit $rc"
+  [ "$rc" -eq 0 ] || fail "CLI, API and Portal parity failed for $name attempt $attempt; see $out/playwright.log and $out/api-connect.log"
+  parity_report_ok "$report" || fail "parity for $name attempt $attempt did not run exactly its two tests; see $report"
+  pass "CLI, API and Portal agree for $name attempt $attempt"
 }
 
 status() { ls -la "$OUTPUT"; [ -f "$OUTPUT/campaign.log" ] && cat "$OUTPUT/campaign.log"; }

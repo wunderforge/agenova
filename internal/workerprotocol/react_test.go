@@ -3,6 +3,7 @@
 package workerprotocol
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -90,13 +91,75 @@ func TestActionSchemaIsDerivedFromCatalogAndBounded(t *testing.T) {
 		t.Fatal("an empty catalog must produce the finish-only schema")
 	}
 	// Many long inputs drop the input enum but keep the schema in budget.
+	schema, err = ActionSchema(longInputCatalog())
+	if err != nil || len(schema) > MaxSchemaBytes || strings.Contains(string(schema), "00000000063") {
+		t.Fatalf("oversized input enum was not dropped: %d bytes, %v", len(schema), err)
+	}
+}
+
+// longInputCatalog has more input bytes than the schema budget allows.
+func longInputCatalog() []Tool {
 	large := []Tool{{Operation: "repo.read", Description: "d", ResourceScope: "repo:a/b", Parameter: "file"}}
 	for i := 0; i < 64; i++ {
 		large[0].AllowedValues = append(large[0].AllowedValues, fmt.Sprintf("%0200d", i))
 	}
-	schema, err = ActionSchema(large)
-	if err != nil || len(schema) > MaxSchemaBytes || strings.Contains(string(schema), "00000000063") {
-		t.Fatalf("oversized input enum was not dropped: %d bytes, %v", len(schema), err)
+	return large
+}
+
+// objectKeys returns a JSON object's keys in document order and its values.
+func objectKeys(t *testing.T, raw []byte) ([]string, map[string]json.RawMessage) {
+	t.Helper()
+	d := json.NewDecoder(bytes.NewReader(raw))
+	if token, err := d.Token(); err != nil || token != json.Delim('{') {
+		t.Fatalf("not a JSON object: %s", raw)
+	}
+	var keys []string
+	values := map[string]json.RawMessage{}
+	for d.More() {
+		token, err := d.Token()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value json.RawMessage
+		if err := d.Decode(&value); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, token.(string))
+		values[token.(string)] = value
+	}
+	return keys, values
+}
+
+// Local models generate keys in schema order. The tool grammar must keep the
+// order of FinishSchema and of the prompt's examples: with alphabetical keys
+// llama3.1 wrote "answer":"" first and then left resource empty (c5, L11).
+func TestActionSchemaKeepsThePromptKeyOrder(t *testing.T) {
+	want := "action,tool,resource,input,answer"
+	finishTop, finish := objectKeys(t, []byte(FinishSchema))
+	if finishProperties, _ := objectKeys(t, finish["properties"]); strings.Join(finishProperties, ",") != want {
+		t.Fatalf("FinishSchema properties %v, want %s", finishProperties, want)
+	}
+	for name, tools := range map[string][]Tool{"catalog": catalog(), "input enum dropped": longInputCatalog()} {
+		schema, err := ActionSchema(tools)
+		if err != nil {
+			t.Fatal(err)
+		}
+		top, fields := objectKeys(t, schema)
+		properties, _ := objectKeys(t, fields["properties"])
+		if strings.Join(top, ",") != strings.Join(finishTop, ",") || strings.Join(properties, ",") != want {
+			t.Fatalf("%s: schema keys %v, properties %v; want %v and %s", name, top, properties, finishTop, want)
+		}
+	}
+	prompt := LoopPrompt(Task{Objective: "Inspect retries.", Tools: catalog()}, "")
+	for _, example := range []string{`{"action":"finish"`, `{"action":"tool"`} {
+		at := strings.Index(prompt, example)
+		var raw json.RawMessage
+		if at < 0 || json.NewDecoder(strings.NewReader(prompt[at:])).Decode(&raw) != nil {
+			t.Fatalf("prompt has no %s example", example)
+		}
+		if keys, _ := objectKeys(t, raw); strings.Join(keys, ",") != want {
+			t.Fatalf("prompt example %s has keys %v, want %s", raw, keys, want)
+		}
 	}
 }
 

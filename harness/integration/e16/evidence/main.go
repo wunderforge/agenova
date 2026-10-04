@@ -11,8 +11,8 @@
 //
 // A production Work is checked with:
 //
-//	go run ./harness/integration/e16/evidence work -case positive -view work-show.json \
-//	  -server-log fixture-full.jsonl -fixture-data harness/integration/mcpfixture/data
+//	go run ./harness/integration/e16/evidence work -case positive -ref e16-positive-a1 \
+//	  -view work-show.json -server-log fixture-full.jsonl -fixture-data harness/integration/mcpfixture/data
 package main
 
 import (
@@ -315,12 +315,13 @@ func main() {
 func workMain(args []string) int {
 	flags := flag.NewFlagSet("work", flag.ContinueOnError)
 	name := flags.String("case", "", "Work case: positive, n6-timeout, n7-oversize, n8-truncation, admission-deny")
+	ref := flags.String("ref", "", "request name of this attempt of the Work")
 	viewPath := flags.String("view", "", "agenova work show --json output for the Work")
 	logPath := flags.String("server-log", "", "complete MCP fixture log covering the Work")
 	dataDir := flags.String("fixture-data", "", "fixture dataset directory")
-	priorPath := flags.String("prior", "", "invocation IDs of earlier Works in this campaign, one per line")
-	if err := flags.Parse(args); err != nil || *name == "" || *viewPath == "" || *logPath == "" || *dataDir == "" {
-		fmt.Fprintln(os.Stderr, "usage: evidence work -case <name> -view <file> -server-log <file> -fixture-data <dir>")
+	priorPath := flags.String("prior", "", "invocation records of every earlier attempt in this campaign, failed ones included")
+	if err := flags.Parse(args); err != nil || *name == "" || *ref == "" || *viewPath == "" || *logPath == "" || *dataDir == "" {
+		fmt.Fprintln(os.Stderr, "usage: evidence work -case <name> -ref <request name> -view <file> -server-log <file> -fixture-data <dir>")
 		return 2
 	}
 	data, err := os.ReadFile(*viewPath)
@@ -331,6 +332,11 @@ func workMain(args []string) int {
 	var view evidence.View
 	if err := json.Unmarshal(data, &view); err != nil {
 		fmt.Fprintln(os.Stderr, "unreadable Work evidence:", err)
+		return 1
+	}
+	// A case can have several attempts; the evidence must be this one's.
+	if view.RequestRef != *ref {
+		fmt.Fprintf(os.Stderr, "[fail] %s: the evidence is for %q, not this attempt %q\n", *name, view.RequestRef, *ref)
 		return 1
 	}
 	lf, err := os.Open(*logPath)

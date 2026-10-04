@@ -4,8 +4,8 @@
 set -euo pipefail
 
 # Offline checks for campaign.sh: argument guards, protect/load/restore gates,
-# identity and install records, the controlled read, parity cleanup and probe
-# output validation. No command reaches Docker, kind or a cluster; the parity
+# identity and install records, the controlled read, parity cleanup, Work
+# attempts and probe output validation. No command reaches Docker, kind or a cluster; the parity
 # checks start local stand-in listeners on free loopback ports.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/harness/integration/e16/campaign.sh"
@@ -81,7 +81,12 @@ run() {
     *"get pods -l app.kubernetes.io/name=agenova-control-plane"*) [ -z "${CP_POD:-}" ] || printf '%s\n' "$CP_POD" ;;
     *"platform validate"*) echo "validate output on stderr" >&2 ;;
     *"platform plan"*) echo "plan: 9 changes" ;;
-    *"playwright test"*) [ -z "${PLAYWRIGHT_BLOCK:-}" ] || command sleep "$PLAYWRIGHT_BLOCK"
+    *" run -f "*) [ -z "${RUN_JSON:-}" ] || cat "$RUN_JSON" ;;
+    *" work show "*) [ -z "${WORK_SHOW:-}" ] || cat "$WORK_SHOW" ;;
+    # What the checker would read as earlier attempts' records.
+    *"evidence work "*) cat "$OUTPUT/work-invocations.txt" >"$OUTPUT/prior-at-check.txt" 2>/dev/null || : >"$OUTPUT/prior-at-check.txt" ;;
+    *"playwright test"*) printf 'playwright-env case=%s ref=%s\n' "${AGENOVA_E16_CASE:-}" "${AGENOVA_E16_REF:-}" >>"$LOG"
+      [ -z "${PLAYWRIGHT_BLOCK:-}" ] || command sleep "$PLAYWRIGHT_BLOCK"
       [ -z "${PLAYWRIGHT_JSON_OUTPUT_NAME:-}" ] || printf '{"stats":{"expected":2,"unexpected":0,"skipped":0,"flaky":0}}' >"$PLAYWRIGHT_JSON_OUTPUT_NAME" ;;
   esac
   if [ -n "$FAIL_ON" ] && [[ "$*" == *"$FAIL_ON"* ]]; then return 1; fi
@@ -113,7 +118,7 @@ reset() {
   OUTPUT="$TMP/out-$1"; rm -rf "$OUTPUT" "$TMP/imported"; mkdir -p "$OUTPUT"; : >"$LOG"
   CONTEXT=kind-x INSTALL_NAMESPACE=agenova-e16-system STATE_DIR="$TMP/s" MODEL_PROFILE=coding-standard YES=1
   OTHER_REPLICAS=1 OTHER_NONE="" OTHER_FAIL="" PODS_FAIL="" OTHER_PODS="" E16_PODS="" WORK_JSON='[]' ARCHIVE_RC=0 NODE_ID="$RECORDED" FAIL_ON="" EXPORT_TAR=""
-  NODE_IMAGES="" CP_POD="" PLAYWRIGHT_BLOCK=""
+  NODE_IMAGES="" CP_POD="" PLAYWRIGHT_BLOCK="" WORK_SHOW="" RUN_JSON="" WORKER_FAIL=""
 }
 # expect_fail <description> <expected message> <command...>: the command must
 # fail for the stated reason, not an earlier one.
@@ -608,22 +613,23 @@ fake_cli() { # mode: forward | exit
   chmod +x "$OUTPUT/bin/agenova"
 }
 npm() { node -e "$LISTEN_JS" "$UI_PORT"; }
+recorded() { mkdir -p "$(attempt_dir "$1" "$2")"; } # case attempt: a Work attempt on record
 # Polling loops need real (short) pauses here.
 sleep() { command sleep 0.05; }
 no_listeners() {
   ! port_listening "$API_PORT" && ! port_listening "$UI_PORT" || { echo "[fail] $1: a parity port still has a listener"; exit 1; }
 }
 
-reset pa1; fake_cli forward
+reset pa1; fake_cli forward; recorded positive 1
 parity positive >/dev/null
 no_listeners "after a passing parity run"
-grep -q "^Forwarding from 127.0.0.1:$API_PORT -> 8081\$" "$OUTPUT/work/positive/parity/api-connect.log"
+grep -q "^Forwarding from 127.0.0.1:$API_PORT -> 8081\$" "$OUTPUT/work/positive/attempt-1/parity/api-connect.log"
 called 'npx playwright test'
-reset pa2; fake_cli forward
+reset pa2; fake_cli forward; recorded positive 1
 node -e "$LISTEN_JS" "$API_PORT" >/dev/null 2>&1 & blocker=$!
 for _ in $(seq 1 50); do port_listening "$API_PORT" && break; sleep; done
 expect_fail "parity while the API port is taken" "port $API_PORT is already in use" parity positive
-not_called 'playwright'; [ ! -e "$OUTPUT/work/positive/parity" ]
+not_called 'playwright'; [ ! -e "$OUTPUT/work/positive/attempt-1/parity" ]
 kill "$blocker"; wait "$blocker" 2>/dev/null || true
 for _ in $(seq 1 50); do port_listening "$API_PORT" || break; sleep; done
 node -e "$LISTEN_JS" "$UI_PORT" >/dev/null 2>&1 & blocker=$!
@@ -631,15 +637,15 @@ for _ in $(seq 1 50); do port_listening "$UI_PORT" && break; sleep; done
 expect_fail "parity while the UI port is taken" "port $UI_PORT is already in use" parity positive
 kill "$blocker"; wait "$blocker" 2>/dev/null || true
 for _ in $(seq 1 50); do port_listening "$UI_PORT" || break; sleep; done
-reset pa3; fake_cli forward; FAIL_ON='playwright'
+reset pa3; fake_cli forward; recorded positive 1; FAIL_ON='playwright'
 expect_fail "parity whose tests fail" "parity failed for positive" parity positive
 no_listeners "after a failing parity run"
-reset pa4; fake_cli exit
+reset pa4; fake_cli exit; recorded positive 1
 expect_fail "parity whose api connect never forwards" "did not forward 127.0.0.1:$API_PORT" parity positive
 not_called 'playwright'
 no_listeners "after api connect failed"
 # SIGTERM while the tests run, after both servers are up, stops them too.
-reset pa5; fake_cli forward; PLAYWRIGHT_BLOCK=31.7
+reset pa5; fake_cli forward; recorded positive 1; PLAYWRIGHT_BLOCK=31.7
 ( parity positive >/dev/null 2>&1 ) & runner=$!
 for _ in $(seq 1 100); do called 'playwright test' && port_listening "$UI_PORT" && break; sleep; done
 called 'playwright test' && port_listening "$API_PORT" && port_listening "$UI_PORT" || { echo "[fail] parity never reached its tests"; exit 1; }
@@ -649,13 +655,153 @@ set +e; wait "$runner"; rc=$?; set -e
 no_listeners "after SIGTERM during the parity tests"
 ! pgrep -f "sleep 31.7" >/dev/null || { echo "[fail] the interrupted test run was left behind"; exit 1; }
 # A passing run restores the traps it replaced.
-reset pa6; fake_cli forward
+reset pa6; fake_cli forward; recorded positive 1
 trap 'rm -rf "$TMP"' EXIT
 parity positive >/dev/null
 [ "$(trap -p EXIT)" = "trap -- 'rm -rf \"\$TMP\"' EXIT" ] && [ -z "$(trap -p TERM)" ] || { echo "[fail] parity did not restore the traps: $(trap -p EXIT TERM)"; exit 1; }
 no_listeners "after a passing run with traps"
-sleep() { :; }; unset -f npm
+reset pa7; fake_cli forward; recorded positive 1
+expect_fail "parity for an attempt never recorded" "no recorded attempt 2 of positive" parity positive --attempt 2
+not_called 'playwright'; [ ! -e "$OUTPUT/work/positive/attempt-2" ]
 echo '[pass] parity needs both ports free, uses only its own tunnel and leaves nothing listening on any exit, including SIGTERM and kubectl below api connect'
+
+# --- Work attempts (L9) and archiving after a failed check (L10) ---
+# work runs with the real attempt handling, checks after work show, prior
+# records and parity (stand-ins as above); cluster-facing checks are stubbed.
+# A Work view as run --json and work show print it. The decision ID depends
+# only on the request, so two submissions under one name share it; their
+# facts differ.
+work_view() { # file ref invocation-id
+  printf '{"requestRef":"%s","request":{"metadata":{"name":"%s"}},"state":{"decision":{"id":"decision:%s","result":"Allow"}},"facts":[{"id":"fact:%s-1","kind":"ToolDecision","operation":"tool.invoke","invocationId":"%s","timestamp":"2026-10-04T01:00:00Z"},{"id":"fact:%s-2","kind":"ProviderAttempt","operation":"tool.invoke","invocationId":"%s","timestamp":"2026-10-04T01:00:01Z"},{"id":"fact:%s-3","kind":"ProviderOutcome","operation":"tool.invoke","invocationId":"%s","reasonCode":"configured-tool","timestamp":"2026-10-04T01:00:02Z"}],"outcome":{"status":"Succeeded"}}' \
+    "$2" "$2" "$2" "$3" "$3" "$3" "$3" "$3" "$3" >"$1"
+}
+stubbed_work() { # work arguments
+  (
+    require_collector() { :; }; verify_node_tag() { :; }; check_control_plane_identity() { :; }
+    pod_identity() { :; }; snapshot_fixture() { :; }
+    verify_claimed_worker() {
+      case "$WORKER_FAIL" in
+        "") ;;
+        signal) sh -c 'kill -INT $$' ;;
+        *) fail "worker agenova-pool-x was never captured while the Work ran" ;;
+      esac
+    }
+    work "$@"
+  )
+}
+last_failure() { printf '%s\n' "$1" | grep '^\[fail\] ' | tail -1; }
+for args in "--attempt 0" "--attempt 01" "--attempt x" "--attempt" "2" "--attempt 2 extra"; do
+  reset wa0
+  # shellcheck disable=SC2086
+  expect_fail "work positive $args" "attempt" stubbed_work positive $args
+  [ ! -s "$LOG" ] && [ ! -e "$OUTPUT/work" ] || { echo "[fail] 'work positive $args' ran commands or created directories"; exit 1; }
+done
+reset wa1; fake_cli forward
+WORK_SHOW="$TMP/view-a1.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-a1; RUN_JSON="$WORK_SHOW"
+out="$( (stubbed_work positive) 2>&1 )" || { echo "[fail] attempt 1 of a passing Work failed: $out"; exit 1; }
+a1="$OUTPUT/work/positive/attempt-1"
+grep -qx '  name: e16-positive-a1' "$a1/work.yaml" && [ "$(diff "$SCRIPT_DIR/work-positive.yaml" "$a1/work.yaml" | grep -c '^[<>]')" = 2 ] ||
+  { echo "[fail] attempt 1 was not submitted as e16-positive-a1 with nothing else changed"; exit 1; }
+called "run -f $a1/work.yaml" && called "work show e16-positive-a1 --json" && called "evidence work -case positive -ref e16-positive-a1 -view $a1/work-show.json " &&
+  called "playwright-env case=positive ref=e16-positive-a1" && [ -s "$a1/parity/playwright.json" ] ||
+  { echo "[fail] the attempt's ref did not reach run, work show, the checker and parity"; exit 1; }
+[ ! -s "$OUTPUT/prior-at-check.txt" ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt")" = inv-a1 ] && grep -q 'work positive attempt 1 (e16-positive-a1) pass' "$OUTPUT/campaign.log" ||
+  { echo "[fail] attempt 1 was not checked and recorded on its own"; exit 1; }
+cp -R "$a1" "$TMP/a1-before"; : >"$LOG"
+expect_fail "rerunning a recorded attempt" "each attempt is recorded once" stubbed_work positive --attempt 1
+not_called 'run -f'
+diff -r "$TMP/a1-before" "$a1" >/dev/null || { echo "[fail] a rerun changed a recorded attempt"; exit 1; }
+WORK_SHOW="$TMP/view-a2.json"; work_view "$WORK_SHOW" e16-positive-a2 inv-a2; RUN_JSON="$WORK_SHOW"
+out="$( (stubbed_work positive --attempt 2) 2>&1 )" || { echo "[fail] attempt 2 of a passing Work failed: $out"; exit 1; }
+a2="$OUTPUT/work/positive/attempt-2"
+grep -qx '  name: e16-positive-a2' "$a2/work.yaml" && called "run -f $a2/work.yaml" && called "work show e16-positive-a2 --json" &&
+  called "evidence work -case positive -ref e16-positive-a2 " && called "playwright-env case=positive ref=e16-positive-a2" && [ -s "$a2/parity/playwright.json" ] ||
+  { echo "[fail] attempt 2 did not carry its own name and ref throughout"; exit 1; }
+[ "$(cut -d' ' -f1 "$OUTPUT/prior-at-check.txt")" = inv-a1 ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt" | tr '\n' ' ')" = "inv-a1 inv-a2 " ] ||
+  { echo "[fail] attempt 2 was not checked against attempt 1's records, or the records were not kept"; exit 1; }
+diff -r "$TMP/a1-before" "$a1" >/dev/null || { echo "[fail] attempt 2 changed attempt 1"; exit 1; }
+no_listeners "after two attempts"
+echo '[pass] each attempt of a Work has its own request name, ref, directory and parity; a recorded attempt is never rerun or changed'
+
+# A failed check after work show still archives the prior records and parity;
+# the step fails with the attempt's first failure, reported last.
+reset wf1; fake_cli forward; FAIL_ON='evidence work'
+WORK_SHOW="$TMP/view-f1.json"; work_view "$WORK_SHOW" e16-n8-truncation-a1 inv-f1; RUN_JSON="$WORK_SHOW"
+if out="$( (stubbed_work n8-truncation) 2>&1 )"; then echo "[fail] accepted a Work whose evidence check failed"; exit 1; fi
+f1="$OUTPUT/work/n8-truncation/attempt-1"
+[[ "$(last_failure "$out")" == "[fail] Work n8-truncation (e16-n8-truncation-a1) does not meet its acceptance; see $f1/evidence.txt" ]] ||
+  { echo "[fail] the step did not fail with the evidence check: $out"; exit 1; }
+[ -s "$f1/parity/playwright.json" ] && called "playwright-env case=n8-truncation ref=e16-n8-truncation-a1" && grep -q '^inv-f1 ' "$OUTPUT/work-invocations.txt" ||
+  { echo "[fail] a failed evidence check stopped parity or the prior records"; exit 1; }
+! grep -q 'work n8-truncation .* pass' "$OUTPUT/campaign.log" || { echo "[fail] a failed attempt was recorded as a pass"; exit 1; }
+no_listeners "after a failed attempt"
+reset wf2; fake_cli forward; FAIL_ON='evidence work'; WORKER_FAIL=1
+WORK_SHOW="$TMP/view-f2.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-f2; RUN_JSON="$WORK_SHOW"
+if out="$( (stubbed_work positive) 2>&1 )"; then echo "[fail] accepted a Work whose worker was never captured"; exit 1; fi
+[ "$(last_failure "$out")" = "[fail] worker agenova-pool-x was never captured while the Work ran" ] && [ -e "$OUTPUT/work/positive/attempt-1/evidence.txt" ] ||
+  { echo "[fail] the first failure was not kept, or the later checks did not run: $out"; exit 1; }
+[ -s "$OUTPUT/work/positive/attempt-1/parity/playwright.json" ] && grep -q '^inv-f2 ' "$OUTPUT/work-invocations.txt" ||
+  { echo "[fail] a failed worker check stopped parity or the prior records"; exit 1; }
+reset wf3; fake_cli forward; FAIL_ON='playwright'; WORKER_FAIL=1
+WORK_SHOW="$TMP/view-f3.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-f3; RUN_JSON="$WORK_SHOW"
+if out="$( (stubbed_work positive) 2>&1 )"; then echo "[fail] accepted a Work whose worker and parity failed"; exit 1; fi
+[[ "$out" == *"[fail] CLI, API and Portal parity failed for positive attempt 1"* ]] &&
+  [ "$(last_failure "$out")" = "[fail] worker agenova-pool-x was never captured while the Work ran" ] && grep -q '^inv-f3 ' "$OUTPUT/work-invocations.txt" ||
+  { echo "[fail] a parity failure replaced the attempt's own failure: $out"; exit 1; }
+no_listeners "after a failed attempt and parity"
+# A check stopped by a signal stops the runner instead of being archived.
+reset wf5; fake_cli forward; WORKER_FAIL=signal
+WORK_SHOW="$TMP/view-f5.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-f5; RUN_JSON="$WORK_SHOW"
+set +e; stubbed_work positive >/dev/null 2>&1; rc=$?; set -e
+[ "$rc" = 130 ] && not_called 'playwright' && [ ! -e "$OUTPUT/work-invocations.txt" ] ||
+  { echo "[fail] an interrupted check exited $rc and the runner went on"; exit 1; }
+reset wf4; fake_cli forward; FAIL_ON=' work show '
+expect_fail "work show fails" "work show failed for e16-positive-a1" stubbed_work positive
+not_called 'playwright'; [ ! -e "$OUTPUT/work-invocations.txt" ]
+echo '[pass] once work show succeeds, a failed check still archives the prior records and parity, and the step fails with its first failure'
+
+# work show must return the Work this invocation submitted (Codex review of
+# the L9 fix). Each refusal stops before any check, record or parity.
+not_this_submission() { # description
+  expect_fail "$1" "did not return the Work this attempt submitted" stubbed_work "${2:-positive}" ${3:+--attempt "$3"}
+  not_called 'evidence work'; not_called 'playwright'
+  [ ! -e "$OUTPUT/work-invocations.txt" ] && ! grep -q ' pass$' "$OUTPUT/campaign.log" 2>/dev/null ||
+    { echo "[fail] $1: the attempt was archived or recorded as a pass"; exit 1; }
+}
+# The service already holds a Deny under this attempt's name, for example
+# from another output directory: the submission is refused with a conflict and
+# prints no evidence, and work show returns the old Deny.
+reset ws1; fake_cli forward; FAIL_ON=' run -f '
+WORK_SHOW="$TMP/view-ws1.json"; work_view "$WORK_SHOW" e16-admission-deny-a2 inv-old
+not_this_submission "a refused submission whose name already has a Deny" admission-deny 2
+# Evidence under the same name with other facts is another submission.
+reset ws2; fake_cli forward
+WORK_SHOW="$TMP/view-ws2.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-old
+RUN_JSON="$TMP/run-ws2.json"; work_view "$RUN_JSON" e16-positive-a1 inv-new
+not_this_submission "a queried Work with other facts than this submission"
+reset ws3; fake_cli forward
+WORK_SHOW="$TMP/view-ws3.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-ws3
+RUN_JSON="$TMP/run-ws3.json"; node -e 'const fs=require("fs");const v=JSON.parse(fs.readFileSync(process.argv[1]));v.outcome={status:"Failed"};fs.writeFileSync(process.argv[2],JSON.stringify(v))' "$WORK_SHOW" "$RUN_JSON"
+not_this_submission "a queried Work with another outcome"
+reset ws4; fake_cli forward
+WORK_SHOW="$TMP/view-ws4.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-ws4
+RUN_JSON="$TMP/run-ws4.json"; node -e 'const fs=require("fs");const v=JSON.parse(fs.readFileSync(process.argv[1]));v.facts=[];fs.writeFileSync(process.argv[2],JSON.stringify(v))' "$WORK_SHOW" "$RUN_JSON"
+not_this_submission "submission evidence without facts"
+# A legitimate Deny exits 1 and is accepted on its own evidence.
+reset ws5; fake_cli forward; FAIL_ON=' run -f '
+WORK_SHOW="$TMP/view-ws5.json"; work_view "$WORK_SHOW" e16-admission-deny-a1 inv-ws5; RUN_JSON="$WORK_SHOW"
+out="$( (stubbed_work admission-deny) 2>&1 )" || { echo "[fail] a Deny on its own evidence was refused: $out"; exit 1; }
+grep -qx 'run-exit 1' "$OUTPUT/work/admission-deny/attempt-1/exit-codes.txt" && grep -q 'work admission-deny attempt 1 (e16-admission-deny-a1) pass' "$OUTPUT/campaign.log" ||
+  { echo "[fail] the Deny was not recorded with its nonzero run exit"; exit 1; }
+# A submission that returned before the Work finished, and a Work with later
+# facts, are still this submission.
+reset ws6; fake_cli forward
+WORK_SHOW="$TMP/view-ws6.json"; work_view "$WORK_SHOW" e16-positive-a1 inv-ws6
+RUN_JSON="$TMP/run-ws6.json"; node -e 'const fs=require("fs");const v=JSON.parse(fs.readFileSync(process.argv[1]));v.facts=v.facts.slice(0,2);delete v.outcome;fs.writeFileSync(process.argv[2],JSON.stringify(v))' "$WORK_SHOW" "$RUN_JSON"
+out="$( (stubbed_work positive) 2>&1 )" || { echo "[fail] a submission whose facts lead the queried Work was refused: $out"; exit 1; }
+no_listeners "after the submission checks"
+echo '[pass] an attempt is judged only on the Work it submitted: a refused submission, other facts or another outcome stop it; a Deny and later facts do not'
+sleep() { :; }; unset -f npm
 
 # --- host binaries actually run ---
 if [ "$(uname -s)" = Darwin ]; then

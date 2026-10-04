@@ -156,6 +156,35 @@ func truncationWork(answer string, truncated bool) *workBuilder {
 	return w
 }
 
+// The runner names each attempt of a case with its own request name. Evidence
+// of another attempt, or no named attempt at all, is never judged.
+func TestWorkModeJudgesOnlyTheNamedAttempt(t *testing.T) {
+	denied := newWork("Deny", "", "")
+	denied.view.State = &v0.IssuedState{Decision: v0.Decision{Result: "Deny"}}
+	denied.end()
+	dir := t.TempDir()
+	view, log := filepath.Join(dir, "work-show.json"), filepath.Join(dir, "fixture-full.jsonl")
+	data, err := json.Marshal(denied.view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(view, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(log, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"-case", "admission-deny", "-view", view, "-server-log", log, "-fixture-data", dataset}
+	for ref, want := range map[string]int{"e16-case": 0, "e16-case-a2": 1, "": 2} {
+		if got := workMain(append([]string{"-ref", ref}, args...)); got != want {
+			t.Errorf("-ref %q exited %d, want %d", ref, got, want)
+		}
+	}
+	if got := workMain(args); got != 2 {
+		t.Errorf("no -ref exited %d, want 2", got)
+	}
+}
+
 func TestWorkCasesPass(t *testing.T) {
 	oversize := newWork("Failed", "", faultScope)
 	oversize.call("a", "Allow", "logs/full-trace.log", "Failed", "tool-response-too-large", false)
