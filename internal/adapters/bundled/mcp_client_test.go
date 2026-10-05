@@ -562,3 +562,29 @@ func TestMCPClientInteroperatesWithTokenFixture(t *testing.T) {
 		t.Fatalf("credential-free client on the token path: %v", err)
 	}
 }
+
+// A configured file whose reference would break the shared result-reference
+// contract still reads successfully through the Set; only the optional
+// reference is omitted.
+func TestMCPClientOmitsAResultRefTheContractRejects(t *testing.T) {
+	_, server := startFake(t, jsonResult("payment notes"))
+	scope := "repo:agenova/e16-fixture"
+	files := map[string]string{"README.md": scope + "/README.md", "notes/incident timeline.md": "", "a?b.md": "", "a#b.md": "", "a@b.md": ""}
+	allowed := make([]string, 0, len(files))
+	for file := range files {
+		allowed = append(allowed, file)
+	}
+	tools, err := toolbackend.NewSet([]toolbackend.Binding{{
+		Descriptor: toolbackend.Descriptor{Description: "Read one allowlisted file.", Operation: "repo.read", ResourceScope: scope, Parameter: "file", MaxBytes: 128, AllowedValues: allowed},
+		Provider:   testClient(server.URL, 65536), Backend: "e16-mcp", MaxObservationBytes: 4096, MaxConcurrentCalls: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for file, want := range files {
+		result, err := tools.Invoke(context.Background(), toolbackend.Invocation{ID: "inv-42", ClaimID: "claim-1", Operation: "repo.read", ResourceScope: scope, Parameters: map[string]string{"file": file}})
+		if err != nil || result.Text != "payment notes" || result.ResultRef != want {
+			t.Fatalf("%q: result %+v, err %v; want reference %q", file, result, err, want)
+		}
+	}
+}

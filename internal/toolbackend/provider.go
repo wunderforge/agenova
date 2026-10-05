@@ -111,6 +111,16 @@ func (s *Set) Catalog() Catalog {
 	}
 	return s.catalog
 }
+
+// ValidResultRef reports whether an optional result reference meets the
+// shared contract: bounded, on one line, and never a fetchable URL or one
+// carrying whitespace, a query, a fragment or userinfo. A provider omits a
+// reference that does not, rather than turning a successful call into a
+// failed one.
+func ValidResultRef(ref string) bool {
+	return bounded(ref, 256) && !strings.ContainsAny(ref, " \t?#@") && !strings.Contains(ref, "://")
+}
+
 func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {
 	if s == nil {
 		return Result{}, ErrUnavailable
@@ -154,7 +164,7 @@ func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {
 	if !utf8.ValidString(result.Text) || strings.ContainsRune(result.Text, 0) || len(result.Text) > 1<<20 {
 		return Result{}, ErrResult
 	}
-	if result.ResultRef != "" && (!bounded(result.ResultRef, 256) || strings.ContainsAny(result.ResultRef, " \t?#@") || strings.Contains(result.ResultRef, "://")) {
+	if result.ResultRef != "" && !ValidResultRef(result.ResultRef) {
 		return Result{}, ErrResult
 	}
 	if len(result.Text) > binding.MaxObservationBytes {

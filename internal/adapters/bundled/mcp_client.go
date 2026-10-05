@@ -98,8 +98,10 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 	if err != nil {
 		return toolbackend.Result{}, classifyMCPError(ctx, err)
 	}
+	// The reference is optional: omit it when the scope or file would break
+	// the shared contract, so a successful read is never reported as failed.
 	ref := call.ResourceScope + "/" + value
-	if len(ref) > 256 {
+	if !toolbackend.ValidResultRef(ref) {
 		ref = ""
 	}
 	return toolbackend.Result{Text: result, ResultRef: ref}, nil
