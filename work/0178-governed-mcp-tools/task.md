@@ -76,7 +76,7 @@ The complete case matrix is in [spec.md](spec.md#negative-cases). In particular,
 
 Planning gate (run now): `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` and `git diff --check`.
 
-Implementation gates (planned, not yet executed for E16):
+Implementation gates (run for every slice; the latest run, at `fd08ac0`, is in [docs/evidence/178/slice3/c6/gates](../../docs/evidence/178/slice3/c6/gates/)):
 
 ```sh
 go test ./api/v1alpha1 ./internal/platform ./internal/adapterregistry ./internal/adapters/bundled ./internal/cli ./cmd/agenova ./cmd/agenova-control-plane
@@ -85,7 +85,7 @@ go test ./internal/toolbackend/...
 pwsh -NoProfile -File ./scripts/check.ps1 -All
 ```
 
-`internal/toolbackend` is a planned package, not an existing successful gate. Since Slice 3 and 4 the harness has its own gates: `go test ./harness/integration/e16/...` (root module), `GOTOOLCHAIN=local go -C harness/integration/mcpfixture test ./...` and `bash harness/integration/e16/test-campaign.sh`; none of them runs in CI. Add an opt-in installed-MCP E2E runner with mandatory explicit context/namespace and exact CLI invocation documented in the implementation PR; it must not default to a current/production cluster. Retain the supported Node 24 gate. D1 retains Go 1.22: run the focused suite and full build with an actual Go 1.22 toolchain, not just the developer's newer Go installation. Slice 1 must prove tool AdapterLock round-trip and idempotent install, inspect static string schemas, init a valid backend+profile fragment, reject duplicate operation/resource routes and preserve model/runtime adapters. Any D2 SDK server is built/tested separately in its own module and image.
+`internal/toolbackend` has existed since Slice 1, and its tests pass. Since Slices 3 and 4 the harness has its own gates: `go test ./harness/integration/e16/...` (root module), `GOTOOLCHAIN=local go -C harness/integration/mcpfixture test ./...` and `bash harness/integration/e16/test-campaign.sh`; none of them runs in CI. `check.ps1 -All` passes every stage except the macOS keyboard smoke `ui/smoke/console.spec.ts:74`. That test fails on main as well, its cause is not confirmed, and Linux CI passes. The opt-in installed-MCP E2E runner is `harness/integration/e16/campaign.sh`. It requires an explicit context, install namespace, state directory, output directory and model profile, and never defaults to the current cluster; its invocation is in the [c6 evidence](../../docs/evidence/178/slice3/c6/summary.md). Retain the supported Node 24 gate. D1 retains Go 1.22: run the focused suite and full build with an actual Go 1.22 toolchain, not just the developer's newer Go installation. Slice 1 must prove tool AdapterLock round-trip and idempotent install, inspect static string schemas, init a valid backend+profile fragment, reject duplicate operation/resource routes and preserve model/runtime adapters. Any D2 SDK server is built/tested separately in its own module and image.
 
 ## Evidence Required
 
