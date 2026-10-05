@@ -48,7 +48,7 @@ func PrepareReferenceAssignment(data []byte, preset ReferencePrincipalPreset) (P
 // PrepareAssignment is shared by connected and reference compositions. The
 // caller supplies trusted identity, active policy and registered templates;
 // the request can supply none of those authorities.
-func PrepareAssignment(data []byte, principals PrincipalSource, policies authorization.BundleSource, templates TemplateSource) (PreparedAssignment, error) {
+func PrepareAssignment(data []byte, principals PrincipalSource, policies policy.SnapshotSource, templates TemplateSource) (PreparedAssignment, error) {
 	request, validationErr := v0.ParseClaimRequestYAML(data)
 	if validationErr != nil {
 		return PreparedAssignment{}, validationErr
