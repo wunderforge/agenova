@@ -520,6 +520,8 @@ Found while integrating the parallel work (2026-10-04): the checker had made a r
 
 Codex's review of the Slice 4 diff (2026-10-05) found no P1, P2 or P3 against criterion 8 and R1, R6, N13 and N14, found no token leakage path, and accepted the diff for commit and the c6 build. That is not kind acceptance, which c6 still has to show.
 
+Codex's review of the L12 change (`3e33fd4..fd08ac0`, 2026-10-05) found no P1, P2 or P3. It found that the checker, the Go 1.22 baseline, the dependencies and the G4 routes are unchanged, and that the objectives add key meanings without expected values. The five-attempt cap, the first-pass rule and the model preflight passed its adversarial checks. Each new test failed when its fix was reverted. Re-judging the saved measurements gave identical verdicts.
+
 Campaign c6 on kind (2026-10-05) is the formal campaign. It ran at `fd08ac0` with a clean tree.
 - Every step passed on its first run, in the section 9 order, with no workaround and no deviation from the runner's procedure:
   - preflight, which recorded `qwen2.5:7b`;
