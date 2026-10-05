@@ -125,3 +125,5 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
 
 - Owner requested a visible logout entry: add a demo-perimeter Portal link to
   the existing CSRF-protected logout confirmation form; preserve session checks.
+
+- 2026-10-05: Owner requests restoring the same EKS/Bedrock/ALB demo and checking E14 availability. Reuse validated images, verify fresh positive/negative Work and HTTPS session checks. Accept the verified operator AK profile for deployment and cleanup; no application identity expansion.

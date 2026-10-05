@@ -1,5 +1,18 @@
 # E13 AWS / Bedrock 交接
 
+## 最新覆盖记录：2026-10-05
+
+以下旧章节保留历史背景；本节和 `cleanup-deadline.txt` 覆盖旧访问方式、profile 和期限。
+
+- 10月2日已销毁旧演示栈；10月5日按用户要求重新创建 27 个 EKS 基础资源和 9 个 ALB 入口资源。
+- 当前使用 `AWS_PROFILE=agenova-demo-ak`，STS 已核验为同一 operator；专用 kubeconfig 也绑定该 profile。不要使用旧的过期网页登录会话。
+- 入口 https://demo.agenova.app/ 已恢复，HTML 共享演示登录 → ALB → EKS；不依赖本机端口转发或 Cloudflare。根路径自动跳转登录页。
+- Nova Micro 真实 Work 成功；拒绝前后 provider 计数 4→4；21 项 HTTPS 检查通过。新证据：[恢复记录](../0175-shared-eks-bedrock/evidence/restore-20261005/summary.md)。
+- 清理不早于 UTC 2026-10-05T17:35:32Z，即悉尼 2026-10-06 04:35 AEDT；保留至少十小时。最新用户期限优先。
+- 清理顺序：先审查并 destroy `infra/demo/edge`，删除 Kubernetes 公网入口，再按更新后的精确镜像清单清理 ECR，最后审查并 destroy `infra/demo/aws`。保留 `infra/domain`、注册域名、hosted zone、证书与验证记录、IAM 用户/admin 组和默认 VPC。
+- 自动化 `agenova-eks` 已恢复为每小时检查，使用 AK profile；仍依赖本机在线。域名和证书不能随演示清理。
+- PR #196 对应交付子任务 #200；E14 #197 仅有规划文档，无实现 PR 可用。不得宣称完整 E13 已完成。
+
 更新：2026-09-28 Sydney。先读 AGENTS → PRD → [当前 E13 任务](../0175-shared-eks-bedrock/task.md)。
 
 ## 当前结果

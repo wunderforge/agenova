@@ -1,4 +1,4 @@
-Ready verified UTC: 2026-09-28T04:11:13.072349+00:00
-Destroy no earlier than UTC: 2026-09-28T15:00:00Z
-Sydney: 2026-09-29T01:00:00+10:00
-User authorizes at least ten hours retention. This deadline supersedes the earlier four-hour tag.
+Restore ready 2026-10-05T06:52:00Z.
+Destroy no earlier than UTC: 2026-10-05T17:35:32Z
+Sydney: 2026-10-06 04:35:32 AEDT. Retains the verified deployment for at least ten hours.
+Use AWS profile agenova-demo-ak and verify operator identity. Latest Owner instructions override this deadline.

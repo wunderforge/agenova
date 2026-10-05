@@ -61,7 +61,7 @@ resource "aws_lb" "demo" {
   subnets                    = data.aws_eks_node_group.demo.subnet_ids
   idle_timeout               = 300
   drop_invalid_header_fields = true
-  tags                       = { Project = "agenova-demo", ManagedBy = "terraform", ExpiresAt = "2026-09-28T15:00:00Z" }
+  tags                       = { Project = "agenova-demo", ManagedBy = "terraform", ExpiresAt = data.aws_eks_cluster.demo.tags["ExpiresAt"] }
 }
 resource "aws_lb_target_group" "demo" {
   provider             = aws.sydney

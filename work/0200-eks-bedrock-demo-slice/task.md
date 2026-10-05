@@ -36,8 +36,8 @@ Denied Work creates no claim/provider call; invalid provider configuration never
 - [x] Assignee self-review against #200 and PRD: this separates the Owner-approved delivered slice from incomplete parent Epic acceptance.
 - [x] Implement remote images, Bedrock and authenticated demo perimeter in PR #196.
 - [x] Capture initial cloud positive/negative and teardown evidence.
-- [ ] Complete the requested fresh restore and focused checks.
-- [ ] Run final full gate and review the diff.
+- [x] Complete the requested fresh restore and focused checks.
+- [x] Run final full gate and review the diff.
 
 ## Quality Gates
 

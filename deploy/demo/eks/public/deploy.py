@@ -12,8 +12,8 @@ def kube(*args):
 def resource(kind, name=NAME, **kw):
     version = 'rbac.authorization.k8s.io/v1' if kind in ('Role','RoleBinding') else 'apps/v1' if kind == 'Deployment' else 'v1'
     return dict(apiVersion=version, kind=kind, metadata=dict(name=name, namespace=NS), **kw)
-if os.environ.get('AWS_PROFILE') != 'agenova-demo':
-    raise SystemExit('Set explicit AWS_PROFILE=agenova-demo and dedicated KUBECONFIG')
+if os.environ.get('AWS_PROFILE') not in ('agenova-demo', 'agenova-demo-ak'):
+    raise SystemExit('Set explicit AWS_PROFILE=agenova-demo or agenova-demo-ak and dedicated KUBECONFIG')
 identity=json.loads(run(['aws','sts','get-caller-identity']))
 if identity['Account'] != '931228356546' or not identity['Arn'].endswith(':user/agenova-demo-operator'):
     raise SystemExit('Unexpected AWS identity')
