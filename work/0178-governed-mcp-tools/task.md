@@ -76,7 +76,7 @@ The complete case matrix is in [spec.md](spec.md#negative-cases). In particular,
 
 Planning gate (run now): `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` and `git diff --check`.
 
-Implementation gates (run for every slice; the c6 run at `fd08ac0` is archived in [c6 gates](../../docs/evidence/178/slice3/c6/gates/), and the full gate on the current code, at `a40775d` (after the console smoke fix and the review fixes), is in [full-gate.log](../../docs/evidence/178/full-gate.log)):
+Implementation gates (run for every slice; the c6 run at `fd08ac0` is archived in [c6 gates](../../docs/evidence/178/slice3/c6/gates/), and the full gate on the current code, at `94d9c28` (after the console smoke fix and the review fixes), is in [full-gate.log](../../docs/evidence/178/full-gate.log)):
 
 ```sh
 go test ./api/v1alpha1 ./internal/platform ./internal/adapterregistry ./internal/adapters/bundled ./internal/cli ./cmd/agenova ./cmd/agenova-control-plane
