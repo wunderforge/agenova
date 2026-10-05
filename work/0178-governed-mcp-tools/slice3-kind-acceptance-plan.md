@@ -534,6 +534,5 @@ Campaign c6 on kind (2026-10-05) is the formal campaign. It ran at `fd08ac0` wit
 - From protect to restore took about 22 minutes, most of it the export and its review.
 - Tom approved protect and chose a reduced export. The worker captures, access reviews, Secret records and the reference install's records stay in the local campaign directory ([MANIFEST](../../docs/evidence/178/slice3/c6/MANIFEST.md)), and the scan searched them.
 - Three Slice 4 assumptions that only kind could prove held: `kubectl exec` read `/proc/1/environ` as UID 65532, `auth can-i --as` worked under Tom's context, and the agent-sandbox controller added no env, volume or mount to worker Pods.
-- Left after c6:
-  - both E16 namespaces and their three Secrets still exist (there is no teardown subcommand), and deleting them waits for Tom;
-  - L13, L14 and the earlier open items stand.
+- Teardown: with Tom's approval, `agenova-e16-system` and `agenova-e16` were deleted at 02:06 UTC with their three Secrets, the fixture and the E16 sandbox template and warm pool. The fixture log collector exited, and ports 8088 and 5177 are free. The reference install stayed Running and Ready.
+- Left after c6: there is still no teardown subcommand; L13, L14 and the earlier open items stand.
