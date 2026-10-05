@@ -93,6 +93,20 @@ func (l *Loader) Current() (PolicyBundle, bool) {
 	return clone(*l.current), true
 }
 
+// Snapshot returns an evaluator bound to the currently loaded immutable bundle.
+// Later Loader updates cannot change the returned evaluator's decisions.
+func (l *Loader) Snapshot() (Evaluator, bool) {
+	bundle, ok := l.Current()
+	if !ok {
+		return nil, false
+	}
+	evaluator, err := NewReferenceEvaluator(bundle)
+	if err != nil {
+		return nil, false
+	}
+	return evaluator, true
+}
+
 // Allows reports whether an exact trusted team, action, project, and template rule exists.
 func (b PolicyBundle) Allows(match Match) bool {
 	if strings.TrimSpace(match.Team) == "" || strings.TrimSpace(match.Action) == "" || strings.TrimSpace(match.Project) == "" || strings.TrimSpace(match.TemplateRef) == "" {
