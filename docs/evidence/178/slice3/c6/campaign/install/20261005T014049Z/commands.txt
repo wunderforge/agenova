@@ -1,0 +1,26 @@
+command adapters-install-deployment-kubernetes <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state adapters install agenova.io/deployment/kubernetes
+exit adapters-install-deployment-kubernetes 0
+command adapters-install-runtime-agent-sandbox <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state adapters install agenova.io/runtime/agent-sandbox
+exit adapters-install-runtime-agent-sandbox 0
+command adapters-install-model-openai-compatible <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state adapters install agenova.io/model/openai-compatible
+exit adapters-install-model-openai-compatible 0
+command adapters-install-tool-mcp-http <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state adapters install agenova.io/tool/mcp-http
+exit adapters-install-tool-mcp-http 0
+command platform-validate <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform validate -f <repo>/harness/integration/e16/platform.yaml
+exit platform-validate 0
+command platform-plan <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform plan -f <repo>/harness/integration/e16/platform.yaml
+exit platform-plan 0
+command platform-apply <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform apply -f <repo>/harness/integration/e16/platform.yaml --yes
+exit platform-apply 0
+command platform-status <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform status
+exit platform-status 0
+command policy-apply <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state policy apply -f <repo>/harness/integration/e16/policy.yaml
+exit policy-apply 0
+command agent-template-apply <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state agent-template apply -f <repo>/harness/integration/e16/template.yaml
+exit agent-template-apply 0
+command platform-reapply <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform apply -f <repo>/harness/integration/e16/platform.yaml --yes
+exit platform-reapply 0
+command platform-status-after-reapply <repo>/.tmp/e16-c6/bin/agenova --state-dir <repo>/.tmp/e16-c6-state platform status
+exit platform-status-after-reapply 0
+command rollout-status kubectl --context kind-agenova-k8s-lab -n agenova-e16-system rollout status deployment/agenova-control-plane --timeout=180s
+exit rollout-status 0

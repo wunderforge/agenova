@@ -1,6 +1,6 @@
 # E16 Slice 3: installed kind acceptance plan
 
-Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. Slice 4, E16's token-required path, is built offline (section 4, G7) and c6 proves it together with Slice 3. No acceptance result exists yet. The plan does not change the Epic's completion state.
+Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. Slice 4, E16's token-required path, is built offline (section 4, G7) and c6 proves it together with Slice 3. L12 set the rules for model answers on 2026-10-05 (decisions 14–19). Campaign c6, the formal campaign, passed every step on its first run at `fd08ac0` on 2026-10-05 (section 10; evidence in [docs/evidence/178/slice3/c6](../../docs/evidence/178/slice3/c6/summary.md)). The plan does not change the Epic's completion state.
 
 This plan refines the Slice 3 Todo in [task.md](task.md#execution-todo). The packet's [acceptance criteria](task.md#acceptance-criteria), [evidence requirements](task.md#evidence-required), [negative cases](spec.md#negative-cases) and [verification strategy](design.md#verification-strategy) remain authoritative. Where this plan and the packet disagree, the packet wins and this plan is corrected.
 
@@ -519,3 +519,21 @@ Slice 4 implementation review (2026-10-04, seven dimensions, each finding checke
 Found while integrating the parallel work (2026-10-04): the checker had made a rejected-token invocation silent after its end, but the fixture logs its 401 after answering, so that line can follow the recorded outcome and would have failed the next Work. A prior rejected token may now log exactly that 401 response within 2s and nothing else; a prior unresolved token still logs nothing. The probe-mode checker did not yet require `path=/mcp` and `auth=missing`; it does now.
 
 Codex's review of the Slice 4 diff (2026-10-05) found no P1, P2 or P3 against criterion 8 and R1, R6, N13 and N14, found no token leakage path, and accepted the diff for commit and the c6 build. That is not kind acceptance, which c6 still has to show.
+
+Campaign c6 on kind (2026-10-05) is the formal campaign. It ran at `fd08ac0` with a clean tree.
+- Every step passed on its first run, in the section 9 order, with no workaround and no deviation from the runner's procedure:
+  - preflight, which recorded `qwen2.5:7b`;
+  - build (33s);
+  - protect, load, fixture and controlled-read;
+  - install: 13 commands exit 0, reapply `changed: false`, Deployment revision 1, one ReplicaSet, restarts 0, and the three access reviews as wanted;
+  - the eight Works, each on attempt 1 with parity archived: positive 35s, admission-deny 9s, N6 51s, N7 13s, N8 26s, token-valid 19s, token-missing 13s, token-wrong 14s;
+  - probe (8s);
+  - the sanitised export;
+  - scan: 740 files across the output, the CLI state and the export, with no token value;
+  - restore: the reference install Ready on `8d1738b7…` and `0e33be77…`.
+- From protect to restore took about 22 minutes, most of it the export and its review.
+- Tom approved protect and chose a reduced export. The worker captures, access reviews, Secret records and the reference install's records stay in the local campaign directory ([MANIFEST](../../docs/evidence/178/slice3/c6/MANIFEST.md)), and the scan searched them.
+- Three Slice 4 assumptions that only kind could prove held: `kubectl exec` read `/proc/1/environ` as UID 65532, `auth can-i --as` worked under Tom's context, and the agent-sandbox controller added no env, volume or mount to worker Pods.
+- Left after c6:
+  - both E16 namespaces and their three Secrets still exist (there is no teardown subcommand), and deleting them waits for Tom;
+  - L13, L14 and the earlier open items stand.

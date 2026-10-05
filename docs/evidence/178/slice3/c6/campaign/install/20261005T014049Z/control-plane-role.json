@@ -1,0 +1,98 @@
+{
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "Role",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"Role\",\"metadata\":{\"annotations\":{},\"labels\":{\"app.kubernetes.io/managed-by\":\"agenova\",\"app.kubernetes.io/part-of\":\"agenova\"},\"name\":\"agenova-control-plane-runtime\",\"namespace\":\"agenova-e16-system\"},\"rules\":[{\"apiGroups\":[\"\"],\"resources\":[\"configmaps\"],\"verbs\":[\"get\",\"list\"]},{\"apiGroups\":[\"\"],\"resources\":[\"pods\"],\"verbs\":[\"get\"]},{\"apiGroups\":[\"\"],\"resources\":[\"pods/exec\"],\"verbs\":[\"create\",\"get\"]},{\"apiGroups\":[\"extensions.agents.x-k8s.io\"],\"resources\":[\"sandboxtemplates\",\"sandboxwarmpools\",\"sandboxclaims\"],\"verbs\":[\"get\",\"create\",\"patch\",\"delete\"]},{\"apiGroups\":[\"agents.x-k8s.io\"],\"resources\":[\"sandboxes\"],\"verbs\":[\"get\"]},{\"apiGroups\":[\"\"],\"resourceNames\":[\"e16-mcp-token\",\"e16-mcp-token-absent\",\"e16-mcp-token-wrong\"],\"resources\":[\"secrets\"],\"verbs\":[\"get\"]}]}\n"
+        },
+        "creationTimestamp": "2026-10-05T01:40:52Z",
+        "labels": {
+            "app.kubernetes.io/managed-by": "agenova",
+            "app.kubernetes.io/part-of": "agenova"
+        },
+        "name": "agenova-control-plane-runtime",
+        "namespace": "agenova-e16-system",
+        "resourceVersion": "613853",
+        "uid": "270303ef-ea44-44fc-bcba-c950b3220220"
+    },
+    "rules": [
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resources": [
+                "configmaps"
+            ],
+            "verbs": [
+                "get",
+                "list"
+            ]
+        },
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resources": [
+                "pods"
+            ],
+            "verbs": [
+                "get"
+            ]
+        },
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resources": [
+                "pods/exec"
+            ],
+            "verbs": [
+                "create",
+                "get"
+            ]
+        },
+        {
+            "apiGroups": [
+                "extensions.agents.x-k8s.io"
+            ],
+            "resources": [
+                "sandboxtemplates",
+                "sandboxwarmpools",
+                "sandboxclaims"
+            ],
+            "verbs": [
+                "get",
+                "create",
+                "patch",
+                "delete"
+            ]
+        },
+        {
+            "apiGroups": [
+                "agents.x-k8s.io"
+            ],
+            "resources": [
+                "sandboxes"
+            ],
+            "verbs": [
+                "get"
+            ]
+        },
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resourceNames": [
+                "e16-mcp-token",
+                "e16-mcp-token-absent",
+                "e16-mcp-token-wrong"
+            ],
+            "resources": [
+                "secrets"
+            ],
+            "verbs": [
+                "get"
+            ]
+        }
+    ]
+}

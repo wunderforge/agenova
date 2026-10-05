@@ -1,0 +1,13 @@
+source fd08ac06eed3e702109c4b55276f2ad110272ff0
+context kind-agenova-k8s-lab
+install-namespace agenova-e16-system
+model-profile coding-standard
+model qwen2.5:7b 845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e
+node agenova-k8s-lab-control-plane created 2026-09-20T11:55:44.475109626Z
+node-image agenova-control-plane:0.1.0 sha256:8d1738b72c85946c98cedc34ab0dfc2c80e4e3ad6cab1636eb4588df6c4806b3
+node-image agenova-testworker:kind sha256:0e33be77e0a7385f15c12c7fc6005e78c06413697a7c0d1420aa2d5a3575c8c8
+namespace agenova-e16-system: absent
+namespace agenova-e16: absent
+other installs sharing fixed tags:
+  Deployment agenova-system agenova-control-plane 1
+  SandboxWarmPool agenova-system agenova-pool-pool-engineer 1

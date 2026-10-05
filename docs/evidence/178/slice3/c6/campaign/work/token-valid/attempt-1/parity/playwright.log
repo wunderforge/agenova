@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (126ms)
+  ✓  2 installed/mcp.spec.ts:165:1 › token-valid: the resolved token reads README.md through the configured MCP tool @token-valid (1.6s)
+
+  2 passed (2.2s)

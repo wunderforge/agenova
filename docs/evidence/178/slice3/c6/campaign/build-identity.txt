@@ -1,0 +1,23 @@
+source fd08ac06eed3e702109c4b55276f2ad110272ff0
+base control-plane FROM docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+base control-plane FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+base worker FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+base worker FROM docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+base fixture FROM docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+base fixture FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+base probe FROM docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+base probe FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+control-plane tag=agenova-control-plane:0.1.0 platform=linux/arm64 build-tags=none local-id=sha256:ecff8f2cb8c099add6c131a07e8ad1a0c4af9de63690a320d3496e537c7d9a82 config=sha256:efa81bcc1afe22136e0ee92c00c3aaf71adf97cd3a868d121d7b5c20f220ea56 archive-sha256=6b7b31ab64be5f182fdc0cdcbf85effdc6b2182b5c4916e7bd41382aaaf84b81
+worker tag=agenova-testworker:kind platform=linux/arm64 build-tags=none local-id=sha256:d756542c60473eee93b51aae1f8240eff28a2b47ff14fe0136c6993b4273ccea config=sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91 archive-sha256=b99f9be911e084b0f9564aaf98f15b083d891e91603dba8ec807a101e5af29be
+fixture tag=agenova-e16-mcp:fd08ac06eed3 platform=linux/arm64 build-tags=none local-id=sha256:254de68781ef7946eae34a28e6358f1c0bc8fe1ddcd6dc3630671a2896ee9f3f config=sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc archive-sha256=b1b44b190b2c17b379e4f39a3ba5d2456cdf2740f1536acf48ee25a274d46604
+probe tag=agenova-e16-probe:fd08ac06eed3 platform=linux/arm64 build-tags=agenovaprobe local-id=sha256:8a013fb5e8e593c92d8dbb7eda8f1ff7656394063d88215a9384d0130e0474b6 config=sha256:6dc0725f20a4070cf2d8d2fcc6ae622f2faec97488b4c88537e9c3588193ac4f archive-sha256=149914203a51d191a2f840460ea5ed3c78e0b31a4d3f7a18442a9844698ec6b0
+build-command control-plane docker build --progress=plain -f deploy/reference/Dockerfile -t agenova-control-plane:0.1.0 .
+build-command worker docker build --progress=plain -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
+build-command fixture docker build --progress=plain -f harness/integration/mcpfixture/Dockerfile -t agenova-e16-mcp:fd08ac06eed3 harness/integration/mcpfixture
+build-command probe docker build --progress=plain -f harness/integration/e16/probe.Dockerfile -t agenova-e16-probe:fd08ac06eed3 .
+cli <repo>/.tmp/e16-c6/bin/agenova: go1.22.12 goflags=-ldflags=-linkmode=external runs=yes
+toolchain agenova-control-plane go1.22.12
+toolchain agenova-workerctl go1.22.12
+toolchain mcpfixture go1.27.1
+toolchain e16-probe.test go1.22.12
+[pass] probe tag present only in the probe binary

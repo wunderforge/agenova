@@ -1,0 +1,4 @@
+=== RUN   TestMCPClientInteroperatesWithFixtureServer
+--- PASS: TestMCPClientInteroperatesWithFixtureServer (0.03s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	0.493s

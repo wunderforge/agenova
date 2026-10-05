@@ -1,0 +1,4 @@
+tag agenova-testworker:kind recorded-config sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91
+node-images worker-identity.txt.running.node-images.json sha256 e0ad1fe6e33661df15945d5cb0161649cb9897093988475d826fc1dbc7b83287
+pod agenova-pool-pool-e16-engineer-cc2wx uid=88ff0b8c-56a4-4020-86d6-7d50f960dd1a restarts=0 container=containerd://31cea4d54607c8f0fede84e6cbdef8be05f2408fdb31323d53930fff3e02a4fe imageID=docker.io/library/import-2026-10-05@sha256:caffe96f33e27a7654829d75e90f2b6fa1ac075a08c7df4703e8677b85f623cc
+  resolves to sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91

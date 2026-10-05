@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-n7-oversize-a1
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Read logs/full-trace.log and report the final payment status it records.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-faults]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

@@ -1,0 +1,16 @@
+preflight preflight start=2026-10-04T19:51:20Z end=2026-10-04T19:51:21Z seconds=1 rc=0
+build build start=2026-10-04T19:51:29Z end=2026-10-04T19:52:02Z seconds=33 rc=0
+protect --yes protect start=2026-10-05T01:40:18Z end=2026-10-05T01:40:22Z seconds=4 rc=0
+load --yes load start=2026-10-05T01:40:26Z end=2026-10-05T01:40:29Z seconds=3 rc=0
+fixture fixture start=2026-10-05T01:40:32Z end=2026-10-05T01:40:37Z seconds=5 rc=0
+controlled-read controlled-read start=2026-10-05T01:40:41Z end=2026-10-05T01:40:44Z seconds=3 rc=0
+install install start=2026-10-05T01:40:49Z end=2026-10-05T01:41:00Z seconds=11 rc=0
+work-positive-a1 work positive start=2026-10-05T01:41:22Z end=2026-10-05T01:41:57Z seconds=35 rc=0
+work-admission-deny-a1 work admission-deny start=2026-10-05T01:42:11Z end=2026-10-05T01:42:20Z seconds=9 rc=0
+work-n6-timeout-a1 work n6-timeout start=2026-10-05T01:42:24Z end=2026-10-05T01:43:15Z seconds=51 rc=0
+work-n7-oversize-a1 work n7-oversize start=2026-10-05T01:43:19Z end=2026-10-05T01:43:32Z seconds=13 rc=0
+work-n8-truncation-a1 work n8-truncation start=2026-10-05T01:43:36Z end=2026-10-05T01:44:02Z seconds=26 rc=0
+work-token-valid-a1 work token-valid start=2026-10-05T01:44:17Z end=2026-10-05T01:44:36Z seconds=19 rc=0
+work-token-missing-a1 work token-missing start=2026-10-05T01:44:43Z end=2026-10-05T01:44:56Z seconds=13 rc=0
+work-token-wrong-a1 work token-wrong start=2026-10-05T01:45:00Z end=2026-10-05T01:45:14Z seconds=14 rc=0
+probe probe start=2026-10-05T01:45:23Z end=2026-10-05T01:45:31Z seconds=8 rc=0
