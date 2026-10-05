@@ -60,8 +60,8 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation.
+- [x] Scout the relevant implementation, tests, risks, and dependencies.
+- [x] Self-review this packet against #197, the PRD, and the architecture contract.
 - [ ] Define the generic evaluation context/result/constraint and immutable snapshot interfaces.
 - [ ] Adapt the exact-match `PolicyBundle` as the reference evaluator.
 - [ ] Bind the returned evaluation to admission and expose only the trusted constraint snapshot to downstream authority code.
@@ -94,4 +94,4 @@ Out of scope:
 - `PolicyEvaluator` is the stable product boundary; `team/action/project/templateRef` matching remains a reference implementation detail.
 - `AuthorityConstraints` are an internal cap, never a grant. M3 owns reference-YAML constraint authoring and full authority behavior.
 - No public `ClaimRequest` or `SandboxClaim` schema change is expected in M1.
-- Implementation is blocked until Owner and Reviewer approve this task/spec/design packet in #197.
+- Self-review completed after rebasing onto the advisory packet-approval workflow from #186. The packet matches #197, the PRD, and the architecture contract; no unresolved scope or architecture conflict blocks implementation.

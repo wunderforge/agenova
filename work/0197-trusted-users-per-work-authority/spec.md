@@ -50,4 +50,4 @@ Agenova must stop coupling authorization consumers to the concrete reference `Po
 
 ## Open Decisions
 
-- Owner/Reviewer approval of this narrowed M1 packet is required before implementation.
+- None. The assignee self-reviewed the narrowed M1 boundary against #197, the PRD, and the architecture contract under the workflow introduced by #186.
