@@ -62,13 +62,13 @@ Out of scope:
 
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [x] Self-review this packet against #197, the PRD, and the architecture contract.
-- [ ] Define the generic evaluation context/result/constraint and immutable snapshot interfaces.
-- [ ] Adapt the exact-match `PolicyBundle` as the reference evaluator.
-- [ ] Bind the returned evaluation to admission and expose only the trusted constraint snapshot to downstream authority code.
-- [ ] Add the reusable evaluator contract suite and fake external evaluator.
-- [ ] Add or update focused behavioral evidence.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Define the generic evaluation context/result/constraint and immutable snapshot interfaces.
+- [x] Adapt the exact-match `PolicyBundle` as the reference evaluator.
+- [x] Bind the returned evaluation to admission and expose only the trusted constraint snapshot to downstream authority code.
+- [x] Add the reusable evaluator contract suite and fake external evaluator.
+- [x] Add or update focused behavioral evidence.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 

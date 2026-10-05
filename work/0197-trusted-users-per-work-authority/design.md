@@ -26,7 +26,7 @@ Keep these contracts in or adjacent to `internal/policy` for M1, with the refere
 
 - `internal/policy`: engine-neutral context, result, constraints, evaluator, immutable source/snapshot, reference evaluator, and cloning/validation helpers.
 - `internal/authorization`: constructs the trusted context, calls only the evaluator interface, validates and binds the result, and exposes an opaque admission capability.
-- `internal/authority`: accepts only trusted cloned constraints and treats them as an additional ceiling. M1 preserves behavior when they are absent.
+- `internal/authority`: receives only the opaque admission capability. M1 proves evaluator constraints cannot act as grants and preserves existing resolution; M3 will consume the cloned caps as an additional ceiling.
 - `internal/issuance` and `internal/app`: consume admission through existing application flow without importing the reference rule schema.
 - Public API, Gateways, HTTP transport, identity, adapters, CLI, Portal, and Kubernetes resources are unchanged in M1.
 
@@ -37,7 +37,7 @@ Keep these contracts in or adjacent to `internal/policy` for M1, with the refere
 3. The selected evaluator evaluates that context. The reference adapter translates it to current exact-match lookup; a fake evaluator uses no reference types.
 4. Authorization validates decision, Policy reference, reason data, and constraints, then binds the result to the full context.
 5. A denied or invalid result stops before issuance/allocation. An allowed result produces the existing admission capability plus an internal immutable constraint snapshot.
-6. Preparation, authority resolution, and issuance continue through current behavior when constraints are absent. No later Policy reload can mutate the bound result.
+6. Preparation, authority resolution, and issuance continue through current behavior in M1. Constraints cannot add authority; M3 owns their narrowing semantics. No later Policy reload can mutate the bound result.
 
 ## Compatibility and Migration
 
