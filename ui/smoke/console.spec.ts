@@ -93,8 +93,8 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   const select = page.getByLabel('Fixture presentation scenario');
   await select.focus();
   await expect(select).toBeFocused();
-  // Arrow keys change a closed native select on Linux and Windows but open its
-  // menu on macOS; type-ahead selects an option by label on all of them.
+  // Home and ArrowDown left this closed native select unchanged on macOS but
+  // moved it in Linux CI; type-ahead selects the option by label on both.
   await page.keyboard.press('l');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
