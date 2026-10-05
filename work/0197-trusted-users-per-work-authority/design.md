@@ -1,92 +1,72 @@
-# Technical Design: Trusted users and per-Work organizational authority vertical
+# Technical Design: Backend-neutral Policy evaluation kernel
 
 - Ticket: [#197](https://github.com/wunderforge/agenova/issues/197)
 - Feature spec: `spec.md`
 
 ## Current State and Constraints
 
-- The installed control plane constructs one process-wide Team A `PrincipalSource`. The console HTTP handler has same-origin checks but no per-request authentication or authorization; connected CLI/Portal use a loopback Kubernetes port-forward, which is transport isolation rather than identity.
-- `PolicyBundle.Rule` exactly matches team/action/project/template and returns a boolean. Admission carries the decision, but authority resolution only intersects request and AgentTemplate. The concrete reference bundle is also imported directly by authorization, so it is not yet a replaceable Policy boundary.
-- RunService and Gateways already preserve authoritative claim state and context-mismatch checks, but the live worker has no cryptographically verified claim-bound credential. A claim ID remains caller-controlled unless a trusted host constructs the invocation context.
-- The bundled registry currently contains Kubernetes deployment, Agent Sandbox runtime, and OpenAI-compatible model adapters. There is no EKS or Bedrock adapter in this repository state; E13 owns them.
-- Public contract changes require fixtures, generated UI types, compatibility tests, and architecture review. Provider and deployment shapes must remain adapter-owned.
+- `internal/authorization` imports the concrete `internal/policy` bundle/source shape and its `Authorizer` evaluates reference rules directly.
+- The current evaluation records an authorization request and decision, but there is no engine-neutral context/result contract that another evaluator can implement.
+- Admission already provides a trusted internal handoff to preparation and issuance. M1 strengthens this seam rather than changing public Work or claim schemas.
+- Authority resolution currently intersects requested access and the AgentTemplate ceiling. M1 may carry an optional trusted constraint snapshot to that boundary, but M3 owns authoring and observable per-user authority behavior.
 
 ## Decision
 
-Implement four explicit trust boundaries and compose them without sharing credentials or provider types:
+Introduce one explicit Policy trust boundary:
 
-1. **Human to API:** an `identity.Verifier` validates externally issued compact JWTs using configured local trust material, exact issuer/audience, an algorithm allow-list, and a clock. An HTTP authenticator extracts the Bearer value, calls the verifier, and places an internal immutable verified principal in request context. Token creation and discovery are out of scope.
-2. **Policy evaluation:** a backend-neutral evaluator accepts trusted principal/action/resource/environment context and returns an immutable decision, Policy reference, reasons, and optional authority constraints. The exact-match bundle becomes one reference implementation.
-3. **Worker to Gateway:** a separate `workloadidentity.Issuer/Verifier` signs and validates short-lived claim-bound JWTs. The claim deadline caps expiry. A verified workload principal, not a header claim ID, creates the existing trusted invocation context.
-4. **Gateway to provider:** the selected trusted adapter owns provider authentication. This ticket adds conformance seams and absence/redaction assertions only; it neither serializes provider credentials into Work nor implements the general #155 resolver.
+1. `EvaluationContext` owns engine-neutral, trusted primitives for principal, action, resource, and environment.
+2. `Evaluator.Evaluate` returns a typed result containing decision, Policy reference, reason data, and optional constraints.
+3. An immutable snapshot/source selects one evaluator version for the admission attempt.
+4. The authorization gate validates the result, binds it to an exact cloned context, and produces the existing internal admission capability.
+5. Downstream authority code can receive only a cloned constraint snapshot. Constraints are caps and never bypass request, template, or runtime limits.
 
-Use standard-library cryptography and JSON/base64 processing with a deliberately narrow JWT profile rather than a broad identity framework: one configured asymmetric algorithm for user JWT validation and one separately keyed Agenova workload signer. Reject algorithm/key confusion, duplicate JSON members, non-canonical critical claims, and tokens outside strict size/time bounds. Keep verifier configuration outside Platform business contracts until #146/E13 owns the protected deployment configuration surface.
+Keep these contracts in or adjacent to `internal/policy` for M1, with the reference implementation wrapping the current `BundleSource`/`PolicyBundle`. Do not create a repository-wide package migration. If introducing these types there creates an import cycle, move consumer-neutral primitives into a small internal contract package and record the change before expanding scope.
 
 ## Ownership and Contract Boundaries
 
-- `internal/identity`: verified principal, external JWT verifier, HTTP extraction errors, bounds, redaction-safe categories, and operation authorization inputs. It has no ClaimRequest or provider dependency.
-- `internal/policy`: generic `EvaluationContext`, `Evaluation`, `AuthorityConstraints`, `Evaluator`, and immutable source/snapshot boundary. A reference subpackage/implementation owns exact team/action/project/template matching and reference document decoding.
-- `internal/authorization`: stable operation actions and an internal admission capability bound to the complete generic evaluation. Public decisions continue to expose only Policy reference/result/reason.
-- `internal/authority`: intersect request/template with evaluator-returned constraints and runtime restrictions; emit deterministic per-dimension provenance. It never loads or interprets a Policy engine.
-- `internal/workloadidentity` plus issuance/runtime composition: sign a bounded credential only after system issuance and worker binding are known; inject only that token and non-secret Gateway location into the worker. Signing/verification keys remain host-side.
-- Tool/Model Gateways: authenticate workload identity first, build the trusted invocation context from verified claims, then perform existing active-claim/authority checks. Adapter interfaces and facts remain backend-neutral.
-- Console/control-plane HTTP: middleware maps routes to operation actions, binds submissions to the verified principal, filters list/read results by recorded subject, and protects management writes. Fixed-principal behavior requires explicit local-reference mode.
-- Connected CLI/Portal: a token-file option supplies Bearer authentication over HTTPS/loopback; the UI dev proxy holds the token server-side. JSON/evidence contracts never include token material.
-- Adapter verification: a common matrix records resolved deployment/runtime/model adapter identities and invokes registered adapter-specific evidence gates. Unknown or unavailable gates report unsupported/blocker, never success or fallback.
+- `internal/policy`: engine-neutral context, result, constraints, evaluator, immutable source/snapshot, reference evaluator, and cloning/validation helpers.
+- `internal/authorization`: constructs the trusted context, calls only the evaluator interface, validates and binds the result, and exposes an opaque admission capability.
+- `internal/authority`: accepts only trusted cloned constraints and treats them as an additional ceiling. M1 preserves behavior when they are absent.
+- `internal/issuance` and `internal/app`: consume admission through existing application flow without importing the reference rule schema.
+- Public API, Gateways, HTTP transport, identity, adapters, CLI, Portal, and Kubernetes resources are unchanged in M1.
 
 ## Detailed Data Flow
 
-1. Client loads an externally obtained JWT from a protected file and sends a canonical `ClaimRequest` plus Bearer header.
-2. HTTP authentication validates the JWT and produces one immutable verified principal. Operation authorization checks `work.submit` before parsing can cause any downstream side effect.
-3. Authorization builds a generic trusted evaluation context and evaluates one immutable Policy snapshot. The result is bound into an internal admission capability. The reference evaluator may select one exact rule, but authorization does not know that rule shape.
-4. Authority resolution intersects the validated request, cloned AgentTemplate, admission-bound authority constraints, and runtime limits. Issuance records the public principal projection, Policy reference, effective authority, and narrowing changes.
-5. Runtime allocation binds a backend worker. The host issues a workload credential for that exact claim/worker with expiry capped by the claim deadline and supplies it to the worker without provider credentials.
-6. A Tool/Model request presents the workload credential and may nominate a claim ID. The Gateway verifies the token and uses its claim ID as authoritative; mismatch denies before authority/provider lookup for the nominated claim.
-7. The Gateway confirms authoritative `Running` state and worker binding, evaluates effective authority, invokes the selected adapter only on Allow, and appends claim-attributed facts.
-8. Terminal transition/revocation makes subsequent invocations fail even if the token signature and expiry remain valid.
+1. Application code obtains the immutable evaluator snapshot selected for this admission attempt.
+2. Authorization builds and clones a generic trusted evaluation context.
+3. The selected evaluator evaluates that context. The reference adapter translates it to current exact-match lookup; a fake evaluator uses no reference types.
+4. Authorization validates decision, Policy reference, reason data, and constraints, then binds the result to the full context.
+5. A denied or invalid result stops before issuance/allocation. An allowed result produces the existing admission capability plus an internal immutable constraint snapshot.
+6. Preparation, authority resolution, and issuance continue through current behavior when constraints are absent. No later Policy reload can mutate the bound result.
 
 ## Compatibility and Migration
 
-- Introduce the generic evaluator without changing ClaimRequest or SandboxClaim. Keep exact-match fields inside the reference evaluator and add its ceiling fields as optional.
-- Decode absent versus explicitly present empty reference ceilings deliberately so old documents retain admission-only behavior and explicit empty limits deny that dimension.
-- Clone evaluation context/results, constraints, reference rules and ceilings when loading, matching, and resolving. Policy version changes affect only later admissions.
-- Prefer an internal `VerifiedPrincipal` richer than the current public `v1alpha1.Principal`; project the stable subject/team/authentication context into current issued evidence and add public groups/roles only if acceptance cannot be met without them.
-- Preserve current constructors through explicit local-reference wrappers. New authenticated constructors require verifiers and fail on nil/misconfiguration; they never silently call the old fixed source.
-- Introduce Gateway authenticated entrypoints alongside in-process trusted-context entrypoints long enough to migrate tests. Only the live worker transport may use the authenticated entrypoint.
+- Introduce the evaluator behind compatibility constructors so current callers and fixtures continue to use the reference bundle without configuration changes.
+- Keep exact-match fields and YAML decoding inside the reference implementation.
+- Clone contexts, results, constraints, rules, and snapshot identity at every trust-boundary handoff.
+- Treat absent constraints as current admission-only behavior. M1 does not add ceiling fields to public/reference YAML; M3 owns that versioned document change.
+- Keep `ClaimRequest`, `SandboxClaim`, evidence, Gateway, runtime, and adapter interfaces unchanged.
 
 ## Alternatives Considered
 
-- **Trusted reverse-proxy identity headers:** rejected for the reference because correctness depends on deployment topology stripping spoofed headers; the current loopback/private service does not establish that full boundary.
-- **mTLS client identity:** deferred because certificate enrollment and Portal/browser handling add operational scope unrelated to the authority result.
-- **Agenova-issued user tokens:** rejected for this slice because #182 is optional and would make Agenova an identity lifecycle owner.
-- **Bare claim ID or opaque shared worker token:** rejected because it cannot bind one worker to one issued claim and permits authority selection by identifier.
-- **Policy admission plus a separate authority-policy lookup:** rejected because Policy could change between decisions or the two evaluations could select different versions.
+- **Policy admission plus a later Policy lookup:** rejected because versions can change and the two evaluations can disagree.
 - **Promoting `team/project/templateRef` into the universal Policy model:** rejected because it couples Agenova to one organizational vocabulary and makes future OPA/Cedar/company integrations reshape core contracts.
 - **Implementing a general Policy DSL:** rejected because Agenova needs a stable evaluation contract, not another enterprise policy language.
-- **Generic credential resolver in this PR:** rejected because E14 needs one proven host-side credential boundary, while #155 owns the reusable resolver product.
-- **Hard-coded AWS acceptance logic:** rejected because EKS/Bedrock belong to adapters and E13; shared E14 contracts must also work with kind/Ollama and future providers.
+- **Adding reference YAML ceiling syntax in M1:** deferred to M3 so the kernel can land independently with compatibility evidence.
+- **Repository-wide layer/package migration:** rejected for M1 because the stable seam can be introduced without mixing structural churn into the contract change.
 
 ## Verification Strategy
 
-- Identity unit/contract tests cover signature, algorithm, issuer, audience, expiry/not-before/skew, duplicate claims, conflicting team mapping, bounds, UTF-8, and redaction. Use deterministic local keys and clocks; never snapshot raw tokens.
-- Policy contract tests run the same cases against the bundled reference evaluator and a fake external evaluator. They prove context/result binding, invalid-result fail-closed behavior, and no engine-specific types in consumers.
-- Reference-policy/authority tests submit byte-equivalent request specs for two principals against one Policy version and template, proving distinct constraints, deterministic provenance, no expansion, explicit-empty behavior, ambiguity rejection, and snapshot immutability after loader updates.
-- HTTP tests cover anonymous/invalid authentication, own versus cross-user list/detail, operator-only registration, same-origin behavior, fixed-mode isolation, and zero service calls on denial.
-- Workload/Gateway tests cover both Tool and Model paths with valid, malformed, expired, wrong-audience, wrong-worker, revoked, post-terminal, and claim-A/token plus claim-B/target cases. Adapter spies and fact stores assert zero external calls and no cross-attribution.
-- Runtime tests inspect launch input, Agent Sandbox manifests, and worker environment for forbidden human JWTs, signing keys, AWS/provider credentials, and platform-management credentials.
-- CLI/UI tests prove token-file use, HTTPS/loopback restriction, server-side proxy injection, error redaction, and visible evidence parity.
-- Adapter matrix:
-  - memory/spies: full shared positive and negative contract;
-  - Kubernetes + Agent Sandbox + OpenAI-compatible/Ollama: reproducible installed two-user and lifecycle regression;
-  - E13 EKS + Bedrock: externally supplied real-backend gate for allowed inference, denied zero-call evidence, workload identity, credential absence, and cleanup.
-- Run focused gates, UI tests, opt-in integrations, `./scripts/check.ps1 -All`, generated-contract checks, and a final secret/scope diff review.
+- Run one table-driven contract suite against the reference evaluator and fake external evaluator.
+- Prove allow/deny, immutable Policy identity, exact-context binding, malformed-result rejection, defensive copying, and missing snapshot failure.
+- Preserve existing reference tests for exact matching, ambiguity, same-version changed content, and immutable snapshots.
+- Prove a permissive evaluator result cannot create authority outside the existing request/template/runtime calculation.
+- Run `go test ./internal/policy ./internal/authorization ./internal/authority ./internal/issuance ./internal/app` and `./scripts/check.ps1 -All`.
 
 ## Risks and Compatibility
 
-- JWT parsing is security-sensitive. Keep the accepted profile narrow, cap token/claim sizes, use constant-time/signature-library primitives, inject clocks, and fuzz malformed input. If review prefers a vetted dependency, record that dependency and its validation defaults before implementation.
-- Existing HTTP setup/list surfaces expose policy and evidence without identity. Authenticated mode must protect every route consistently; an unclassified route must default deny.
-- Policy ceiling semantics can accidentally broaden authority if absence and empty are conflated. Preserve an explicit presence bit/pointer and test every dimension.
-- Worker identity issuance occurs only after backend worker binding is known. If the current Agent Sandbox launch API cannot safely inject post-binding identity, stop and revise the runtime handshake rather than placing a reusable credential in the template/warm pool.
-- Token-file handling cannot guarantee external issuer delivery security. This slice documents file permissions and avoids argv/URL/browser persistence; #182 remains the optional first-party lifecycle owner.
-- The E13 adapter/environment may not exist when code is ready. Merge/closure claims must distinguish shared/local proof from the outstanding real Bedrock evidence; no Ollama or mocked response substitutes for it.
-- A future Kubernetes Operator is a transport/reconciliation owner, not a Policy engine. It must be planned separately and consume these interfaces. Before that work, rename the existing in-memory `internal/operator` package to `internal/runtime/memory`; do not mix this structural migration into #197.
+- The evaluator interface could become an accidental universal DSL. Keep only decision inputs/outputs in the shared contract; matching language remains implementation-owned.
+- Absence and explicit emptiness can diverge once M3 authors constraints. M1 must preserve an explicit optional representation and test cloning/validation without inventing YAML semantics.
+- Package placement may create import cycles. Prefer the smallest consumer-neutral internal contract rather than making authorization and Policy implementations import each other.
+- An immutable snapshot that retains caller-owned slices/maps is not immutable. Clone nested values and add mutation-after-evaluation tests.
+- Compatibility wrappers can hide accidental fallback. Tests must prove current constructors select only the reference evaluator and that nil/invalid snapshots fail closed.
