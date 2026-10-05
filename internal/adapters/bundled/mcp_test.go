@@ -312,10 +312,12 @@ func TestToolTokenReferenceIsOptionalValidatedAndKeptOutOfRoutes(t *testing.T) {
 	for _, value := range []any{"e16-mcp-token", "a/b/c", "UPPER/token", "e16-mcp-token/", "/token", "e16-mcp-token/to ken", " e16-mcp-token/token",
 		"e16-mcp-token/..", "e16-mcp-token/..token", "-bad/token", "e16-mcp-token/token\n", strings.Repeat("a", 254) + "/token", "e16/" + strings.Repeat("k", 254), 123} {
 		input, registry := toolPlatform(t)
+		// On the token route, so only the reference format can reject it.
+		input.Spec.Services.ToolBackends[0].Config["endpoint"] = "http://" + fixtureMCPHost + ":8080/mcp-token"
 		input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey] = value
 		_, _, failure := platform.Resolve(input, registry)
-		if failure == nil {
-			t.Fatalf("token reference %q accepted", value)
+		if failure == nil || !strings.Contains(failure.Error(), "invalid-token-secret") {
+			t.Fatalf("token reference %q: %v", value, failure)
 		}
 		if text, ok := value.(string); ok && len(text) > 3 && strings.Contains(failure.Error(), text) {
 			t.Fatalf("rejected reference echoed: %v", failure)
@@ -337,6 +339,27 @@ func hasTokenReference(resolved *platform.ResolvedPlatform) bool {
 		}
 	}
 	return false
+}
+
+// A token goes to the token route or over HTTPS, never in cleartext to the
+// credential-free route.
+func TestToolTokenReferenceNeverTargetsTheCredentialFreeRoute(t *testing.T) {
+	for endpoint, ok := range map[string]bool{
+		"http://" + fixtureMCPHost + ":8080/mcp-token": true,
+		"https://mcp.example.invalid/mcp":              true,
+		"http://" + fixtureMCPHost + ":8080/mcp":       false,
+	} {
+		input, registry := toolPlatform(t)
+		input.Spec.Services.ToolBackends[0].Config["endpoint"] = endpoint
+		input.Spec.Services.ToolBackends[0].Config[mcpTokenSecretKey] = "e16-mcp-token/token"
+		_, _, failure := platform.Resolve(input, registry)
+		if (failure == nil) != ok {
+			t.Fatalf("token reference on %s accepted=%v, want %v (%v)", endpoint, failure == nil, ok, failure)
+		}
+		if !ok && !strings.Contains(failure.Error(), "token-on-credential-free-endpoint") {
+			t.Fatalf("token reference on %s failed for another reason: %v", endpoint, failure)
+		}
+	}
 }
 
 // Cleartext stays limited to the two exact fixture URLs.

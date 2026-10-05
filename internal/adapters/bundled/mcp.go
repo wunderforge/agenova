@@ -93,6 +93,11 @@ func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[s
 	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && (parsed.Path == "/mcp" || parsed.Path == "/mcp-token")) {
 		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}
+	// A token is sent on every request, so in cleartext it may go only to the
+	// token route, never to the credential-free one.
+	if _, hasToken := out[mcpTokenSecretKey]; hasToken && parsed.Scheme == "http" && parsed.Path != "/mcp-token" {
+		return nil, platform.NewAdapterConfigError("token-on-credential-free-endpoint", mcpTokenSecretKey)
+	}
 	if parsed.Hostname() == "" {
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
 	}

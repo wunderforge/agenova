@@ -501,6 +501,8 @@ func TestMCPProviderBindsTokenReferencePerBackend(t *testing.T) {
 	input, _ := toolPlatform(t)
 	backend := input.Spec.Services.ToolBackends[0].Config
 	backend[mcpTokenSecretKey] = "e16-mcp-token-wrong/token"
+	// A token reference goes with the token route, never the credential-free /mcp.
+	backend["endpoint"] = "http://" + fixtureMCPHost + ":8080/mcp-token"
 	profiles := []map[string]any{input.Spec.Services.ToolProfiles[0].Config}
 	secrets := &secretDouble{value: []byte(testToken)}
 	provider, err := (&MCPHTTPTool{}).NewToolProviderWithSecrets(backend, profiles, secrets)

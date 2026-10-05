@@ -392,3 +392,59 @@ func TestInjectedToolTextCannotWidenAuthority(t *testing.T) {
 		t.Fatalf("tool decisions %v", decisions)
 	}
 }
+
+// stoppableContext is a Work context the test stops from inside the provider
+// call, so no wall-clock deadline can expire during setup.
+type stoppableContext struct {
+	context.Context
+	done chan struct{}
+	err  atomic.Value
+}
+
+func newStoppableContext() *stoppableContext {
+	return &stoppableContext{Context: context.Background(), done: make(chan struct{})}
+}
+func (c *stoppableContext) Done() <-chan struct{} { return c.done }
+func (c *stoppableContext) Err() error {
+	if err, ok := c.err.Load().(error); ok {
+		return err
+	}
+	return nil
+}
+func (c *stoppableContext) stop(err error) { c.err.Store(err); close(c.done) }
+
+// The Work stopping while a configured call waits or runs is recorded as
+// Cancelled, not as a provider failure, because the external effect is
+// unknown. A call's own timeout, with the Work still live, stays tool-timeout.
+func TestWorkStoppingDuringACallIsRecordedAsCancelled(t *testing.T) {
+	for _, tc := range []struct {
+		name, status, code string
+		stop               error // how the Work stops during the call, if it does
+	}{
+		{"work cancelled", "Cancelled", "tool-call-cancelled", context.Canceled},
+		{"work deadline", "Cancelled", "tool-call-cancelled", context.DeadlineExceeded},
+		{"call timeout", "Failed", "tool-timeout", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newStoppableContext()
+			// The MCP client reports its own per-call timeout as ErrTimeout.
+			provider := &toolDouble{err: toolbackend.ErrTimeout}
+			if tc.stop != nil {
+				provider.err = tc.stop
+				provider.before = func() { ctx.stop(tc.stop) }
+			}
+			recorded := []facts.Fact{}
+			adapter := &providerToolAdapter{ctx: ctx, claims: runningToolClaims(), appendFact: func(f facts.Fact) (facts.Fact, error) {
+				recorded = append(recorded, f)
+				return f, nil
+			}, ref: "work", claimID: "claim", tools: boundTools(t, provider, "repo.read", "repo:example/a"), results: map[string]workerprotocol.Reply{}}
+			err := adapter.Invoke("invocation", toolgateway.Request{ClaimID: "claim", Tool: "repo", Action: "read", ResourceScope: "repo:example/a", Parameters: map[string]string{"file": "logs/timeout.log"}})
+			if err == nil || provider.calls.Load() != 1 || len(recorded) != 2 || recorded[0].Kind != "ProviderAttempt" || recorded[1].Kind != "ProviderOutcome" {
+				t.Fatalf("err=%v calls=%d facts=%+v", err, provider.calls.Load(), recorded)
+			}
+			if outcome := recorded[1]; outcome.ProviderStatus != tc.status || outcome.ReasonCode != tc.code || outcome.Target != recorded[0].Target {
+				t.Fatalf("outcome %s/%s, want %s/%s", outcome.ProviderStatus, outcome.ReasonCode, tc.status, tc.code)
+			}
+		})
+	}
+}

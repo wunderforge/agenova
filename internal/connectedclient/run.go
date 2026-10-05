@@ -895,6 +895,7 @@ var safeAPIDiagnostic = map[string]string{
 	"model_profile_unavailable":   "Granted model profile is not installed; update the Platform model configuration.",
 	"runtime_profile_unavailable": "Granted runtime profile is not installed; update the Platform runtime configuration.",
 	"tool_unsupported":            "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway.",
+	"tool_route_unavailable":      "Granted tool has no installed route for the granted resource scopes; narrow the template or configure a tool profile for those scopes.",
 	"memory_unsupported":          "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface.",
 	"request_conflict":            "This Work reference already exists; choose a new request name.",
 	"capacity_reached":            "The installed service has reached its current-session Work limit.",

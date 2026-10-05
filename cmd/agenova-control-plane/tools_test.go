@@ -122,6 +122,18 @@ func TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory(t *testing.T) 
 			t.Fatalf("uninstalled grant %s: %v", operation, err)
 		}
 	}
+	// An installed operation granted only for scopes it has no route for would
+	// leave the Work's catalog empty; one routed scope is enough.
+	authority.Tools = []string{"repo.read"}
+	authority.ResourceScopes = []string{"repo:agenova/unrouted"}
+	err = validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools)
+	if submission, ok := err.(*console.SubmissionError); !ok || submission.Code != "tool_route_unavailable" {
+		t.Fatalf("a grant with no routed scope: %v", err)
+	}
+	authority.ResourceScopes = []string{"repo:agenova/unrouted", "repo:agenova/e16-fixture"}
+	if err := validateInstalledAuthority(authority, map[string]string{"model": "fixture"}, map[string]bool{"runtime": true}, tools); err != nil {
+		t.Fatalf("a grant with one routed scope was rejected: %v", err)
+	}
 	// The installed catalog is detached from subsequently edited input data.
 	resolved.ToolRoutes[0].Tool.AllowedValues[0] = "outside"
 	for i := range resolved.Profiles {

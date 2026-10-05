@@ -268,6 +268,11 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 		if (tools == nil && tool != "git.read") || (tools != nil && !tools.Catalog().Supports(tool)) {
 			return &console.SubmissionError{Code: "tool_unsupported", Message: "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway."}
 		}
+		// An installed operation with no route for any granted scope would leave
+		// the Work's catalog empty, and the Work would run without the tool.
+		if tools != nil && len(tools.Catalog().Intersect([]string{tool}, authority.ResourceScopes).Entries()) == 0 {
+			return &console.SubmissionError{Code: "tool_route_unavailable", Message: "Granted tool has no installed route for the granted resource scopes; narrow the template or configure a tool profile for those scopes."}
+		}
 	}
 	if len(authority.MemoryScopes) != 0 {
 		return &console.SubmissionError{Code: "memory_unsupported", Message: "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface."}

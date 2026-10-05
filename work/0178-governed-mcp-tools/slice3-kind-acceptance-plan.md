@@ -76,7 +76,7 @@ The packet requires real-server proof for the five zero-call cases and an explic
 | N6 | `TestMCPClientFailuresAreClassifiedWithoutReplay/slow_server` |
 | N7 | `TestMCPClientEnforcesResponseByteLimit`, `TestMCPClientResponseLimitCoversEventStreamsAndChunkedBodies` (event stream, large notification before the result, chunked body without Content-Length), `TestMCPClientRejectsOversizedEventStreamTailAfterResult` (the cap covers the stream after the result) |
 | N8 | `TestSetBoundsUntrustedResultsWithoutChangingCallerParameters` (UTF-8 cut), `TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow/allow` (markers and `truncated` evidence) |
-| N9 | `TestToolConfigAndRoutesFailClosed`, `TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock`, `TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory` (`tool_unsupported`) |
+| N9 | `TestToolConfigAndRoutesFailClosed`, `TestInstalledToolBuilderFailsClosedAndNeverSubstitutesMock`, `TestInstalledToolBuilderUsesResolvedRoutesAndProviderFactory` (`tool_unsupported`, and `tool_route_unavailable` for a grant whose scopes have no route), `TestToolTokenReferenceNeverTargetsTheCredentialFreeRoute` |
 | N10 | `TestMCPClientUnreachableServerIsUnavailable`, `TestMCPClientFailuresAreClassifiedWithoutReplay`, `TestMCPClientHandshakeFailuresStopBeforeToolCall` |
 | N11 | `TestProviderBoundaryRejectsBeforeExternalCallAndRecordsBeforeAllow/outcome-record` (returns the tool evidence error), `TestProbeAppendWrapperFailsBeforeProviderCall` (Work outcome `tool-evidence-failed`); server-backed in the probe Job, which asserts the refused outcome was `Succeeded` |
 | N12 | `TestInjectedToolTextCannotWidenAuthority` |
@@ -538,3 +538,14 @@ Campaign c6 on kind (2026-10-05) is the formal campaign. It ran at `fd08ac0` wit
 - Three Slice 4 assumptions that only kind could prove held: `kubectl exec` read `/proc/1/environ` as UID 65532, `auth can-i --as` worked under Tom's context, and the agent-sandbox controller added no env, volume or mount to worker Pods.
 - Teardown: with Tom's approval, `agenova-e16-system` and `agenova-e16` were deleted at 02:06 UTC with their three Secrets, the fixture and the E16 sandbox template and warm pool. The fixture log collector exited, and ports 8088 and 5177 are free. The reference install stayed Running and Ready.
 - Left after c6: there is still no teardown subcommand; L13, L14 and the earlier open items stand.
+
+Codex's review on the PR (2026-10-05, at `bd18010`) raised one P1 and two P2. All three are fixed with tests, and each test fails with its fix reverted.
+- **P1.** A grant of an installed operation whose resource scopes match none of its routes passed the operation-only check. The Work's catalog then came out empty, and it could finish without the tool it was granted. The installed service now refuses such a Work with `tool_route_unavailable`, and the CLI shows that code's fixed diagnostic. One routed scope among the grants is enough.
+- **P2.** A token reference on the cleartext credential-free `/mcp` URL was accepted, so the token would have gone in cleartext to a route that must never receive one. Validation now rejects it with `token-on-credential-free-endpoint`. One existing test had paired a token reference with `/mcp`; it now uses `/mcp-token`.
+- **P2.** If the Work stopped while a configured call waited or ran, the outcome was recorded as `Failed` (`tool-timeout` for the Work deadline). It is now `Cancelled` with `tool-call-cancelled`, because the external effect is unknown. A call's own timeout, with the Work still live, stays `tool-timeout`.
+
+Left open by these fixes:
+- **L15.** The evidence checker and the runner allow a late server handler and response only after `tool-timeout`, and `settle_timeouts` waits only for those. A Work stopped during a call is now `tool-call-cancelled`, so a later attempt could fail on that call's late server entries. No campaign case stops a Work during a call.
+- **L16.** The synthetic `git.read` composition still admits a `git.read` grant with no resource scope, which yields an empty catalog. This is the reference path, and it predates E16.
+
+None of these paths ran in c6: every c6 grant had a routed scope, the token backends use `/mcp-token`, and no Work stopped during a call. c6's result therefore stands for the changed code. The full gate, the race tests on the changed packages, the tagged bridge and the probe dry run pass.

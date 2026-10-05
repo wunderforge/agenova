@@ -80,6 +80,13 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		fact.ReasonCode = "tool-provider-failed"
 		fact.Reason = "Configured tool provider failed; no fallback was used."
 		switch {
+		// The Work itself stopped (cancellation or its deadline) while the call
+		// waited or ran: not a provider failure, and the external effect is
+		// unknown. A call's own timeout leaves the Work context live.
+		case a.ctx.Err() != nil:
+			fact.ProviderStatus = "Cancelled"
+			fact.ReasonCode = "tool-call-cancelled"
+			fact.Reason = "The Work stopped while the configured tool call was in progress; its external effect is unknown."
 		case errors.Is(invokeErr, toolbackend.ErrUnavailable):
 			fact.ReasonCode = "tool-transport-unavailable"
 			fact.Reason = "Configured tool server is unavailable; no fallback was used."
