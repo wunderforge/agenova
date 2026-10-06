@@ -1,0 +1,67 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 853B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.20
+#2 ...
+
+#3 [internal] load metadata for docker.io/library/golang:1.22-alpine
+#3 DONE 0.4s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.20
+#2 DONE 1.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 157B done
+#4 DONE 0.0s
+
+#5 [build 1/8] FROM docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+#5 resolve docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052 done
+#5 DONE 0.0s
+
+#6 [stage-1 1/3] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#6 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 29.64kB 0.0s done
+#7 DONE 0.0s
+
+#8 [build 2/8] WORKDIR /src
+#8 CACHED
+
+#9 [build 3/8] COPY go.mod ./
+#9 CACHED
+
+#10 [build 4/8] COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker
+#10 CACHED
+
+#11 [build 5/8] COPY internal/workerprotocol ./internal/workerprotocol
+#11 DONE 0.0s
+
+#12 [build 6/8] COPY cmd/agenova-demo-worker ./cmd/agenova-demo-worker
+#12 DONE 0.1s
+
+#13 [build 7/8] RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-workerctl ./harness/integration/agentsandbox/testworker
+#13 DONE 1.7s
+
+#14 [build 8/8] RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-demo-worker ./cmd/agenova-demo-worker
+#14 DONE 0.2s
+
+#15 [stage-1 2/3] COPY --from=build /agenova-workerctl /agenova-workerctl
+#15 CACHED
+
+#16 [stage-1 3/3] COPY --from=build /agenova-demo-worker /agenova-demo-worker
+#16 DONE 0.0s
+
+#17 exporting to image
+#17 exporting layers 0.1s done
+#17 exporting manifest sha256:56d2d637abca8b8342039d6070cc2e7511bc70e856bfc250ced34d61589ed80e done
+#17 exporting config sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91 done
+#17 exporting attestation manifest sha256:284f32f3d52c10a6cc2eabc54b02b2eeebd13eed3a4fd0038d47d85ff2f8ce47 done
+#17 exporting manifest list sha256:d756542c60473eee93b51aae1f8240eff28a2b47ff14fe0136c6993b4273ccea done
+#17 naming to docker.io/library/agenova-testworker:kind done
+#17 unpacking to docker.io/library/agenova-testworker:kind 0.0s done
+#17 DONE 0.1s

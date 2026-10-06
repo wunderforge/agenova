@@ -1,0 +1,31 @@
+{"key":"N1/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N1/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N1/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N11/probe","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N2a/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N2a/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N2a/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N2b/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N2b/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N2b/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N3/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N3/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N3/control-matched-a","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N3/control-matched-b","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N3/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N4-Expired/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Expired/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Expired/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N4-Failed/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Failed/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Failed/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N4-Succeeded/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Succeeded/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N4-Succeeded/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N5a/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N5a/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N5a/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"N5b/control-after","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N5b/control-before","pass":true,"detail":"one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"}
+{"key":"N5b/probe","pass":true,"detail":"zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"}
+{"key":"campaign/unattributed","pass":true,"detail":"0 server entries inside the probe campaign belong to no step"}

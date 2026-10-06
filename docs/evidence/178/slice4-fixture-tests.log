@@ -1,0 +1,23 @@
+$ GOTOOLCHAIN=local go -C harness/integration/mcpfixture version
+go version go1.27.1 darwin/arm64
+$ GOTOOLCHAIN=local go -C harness/integration/mcpfixture vet ./...
+exit=0
+$ GOTOOLCHAIN=local go -C harness/integration/mcpfixture test -count=1 -v ./...
+--- PASS: TestReadFileReturnsRealContentAndLogsReceiptFirst
+--- PASS: TestReadFileRefusesEscapesAndReportsToolErrors
+--- PASS: TestReadFileFollowsSymlinksThatStayInsideRoot
+--- PASS: TestSlowFileHonoursClientCancellation
+--- PASS: TestOversizedRequestIsLoggedAndRejectedBeforeDispatch
+--- PASS: TestLogsNeverContainFileContentOrRawSession
+--- PASS: TestLoadConfigValidatesFixtureSettings
+--- PASS: TestTokenPathServesEveryRequestOfAValidSession
+--- PASS: TestTokenPathRejectsWithoutTheTokenBeforeAnySession
+--- PASS: TestTokenCheckNeverReachesTheSDKHandler
+--- PASS: TestOpenPathLogsTheAuthClassAndNeverRejects
+--- PASS: TestSessionsAreNotSharedBetweenPaths
+--- PASS: TestTokenPathIsNotServedWithoutATokenFile
+--- PASS: TestLoadConfigReadsTheTokenFileAndKeepsOnlyItsDigest
+--- PASS: TestLogsNeverContainTheTokenOrItsDigest
+PASS
+ok  	github.com/wunderforge/agenova/harness/integration/mcpfixture
+exit=0

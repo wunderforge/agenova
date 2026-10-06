@@ -1,0 +1,52 @@
+[pass] context, namespace, state and output arguments are required and checked
+[pass] an archive counts as complete only when every blob its index reaches is in it and its structure is followable
+[pass] protect changes nothing without --yes
+[pass] protect refuses before any change when history cannot be archived or Work is active
+[pass] protect stops before scaling when an export does not match the node image
+[pass] protect stops before scaling when an export could not be imported again
+[pass] protect is not complete until the other installs have stopped
+[pass] protect archives history, verifies exports, stops the old install and refuses to repeat
+[pass] failed Kubernetes queries never read as "nothing running"
+[pass] Work history is read only through a port-forward that reported its port and stayed alive
+[pass] load requires a complete protect whose effect still holds
+[pass] load refuses archives that do not match the build record for this commit or could not be imported
+[pass] load imports exactly the four recorded archives
+[pass] restore stops E16 first and changes no image while E16 pods run
+[pass] restore keeps state until the old install is Ready and can be repeated safely
+[pass] restore imports only a complete archive and keeps its state otherwise
+[pass] the fixture renders locally with exactly the recorded source-derived image
+[pass] install never applies while E16 Work is active or unknown
+[pass] preflight refuses an existing install or fixture namespace, and a failed namespace query
+[pass] preflight records the model and digest of the model profile from the host Ollama, and refuses when it is missing, misnamed or unreachable
+[pass] fixture creates its namespace and Secret only when absent, never regenerates one, and restarts the Pod before its identity is taken
+[pass] a token is checked before kubectl create: a newline, NUL, non-hex or wrong-length value creates nothing
+[pass] each identity check resolves against one saved node image list and archives it with every resolution
+[pass] image identity is enforced from the build record to the running Pods
+[pass] a stopped collector or truncated log snapshot invalidates the window
+[pass] each Work needs live collectors and its claimed worker on the recorded image; captures before its container started are skipped
+[pass] install keeps every command, its output and exit status per attempt, and stops at the first failure
+[pass] install copies the fixture token, adds a different wrong token and records both without a token in any command line or file
+[pass] install refuses a differing copy, a wrong token equal to the valid one, an existing or unknown absent Secret, and an invalid token
+[pass] install archives the control-plane Pod, Role and access reviews, and fails when one gives the wrong answer
+[pass] the worker watcher keeps each changed Pod list and reads each started Pod once, keeping only complete reads
+[pass] the claimed worker needs its started Pod JSON, environment and mount table for its running UID, with no token path in any of them
+[pass] partial log records are not frozen, and a timed-out call settles before the next Work
+[pass] the controlled read must show the three interop calls, each in its own complete session, with exact handler outcomes
+[pass] the interop calls are all on /mcp without a header, and the token probe is one header-less initialize on /mcp-token answered 401
+[pass] the controlled read runs once, before install, on a log without its calls
+[pass] the controlled read sends one header-less initialize to /mcp-token and needs its 401 in the captured log
+[pass] the controlled read passes only when the interop test passed and the collector captured it
+[pass] parity counts only a run of exactly the setup and case tests
+[pass] parity needs both ports free, uses only its own tunnel and leaves nothing listening on any exit, including SIGTERM and kubectl below api connect
+[pass] each attempt of a Work has its own request name, ref, directory and parity; a recorded attempt is never rerun or changed; a case gets at most 5 attempts and none after its first pass
+[pass] once work show succeeds, a failed check still archives the prior records and parity, and the step fails with its first failure
+[pass] an attempt is judged only on the Work it submitted: a refused submission, other facts or another outcome stop it; a Deny and later facts do not
+[pass] token-missing shows its Secret absent just before submitting; every token case runs its checks and parity
+[pass] every Work that claims a worker, token cases included, needs its captures; a missing one fails the attempt after parity
+[pass] the scan passes the three tokens on stdin only and searches the output, state and extra roots with the host-built checker
+[pass] the scan fails on a changed Secret, a broken log snapshot, an unreadable token or any non-zero checker exit
+[pass] a scan stopped before its search can be repeated, a searched one cannot, and roots are absolute and searched by real path
+[pass] a traced run is refused before any step
+[pass] across fixture, install and scan, no token appears in a command line, campaign.log or any output file
+[pass] host-built binaries (CLI, evidence checker) run on this host
+[pass] a probe Job that skipped or emitted nothing is rejected even with exit 0

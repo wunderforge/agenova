@@ -159,6 +159,9 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if err := workerprotocol.ValidateTools(task.Tools); err != nil {
+		return "", err
+	}
 	if err := writeExecutionLine(writer, task); err != nil {
 		return "", err
 	}
@@ -187,8 +190,8 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		if message.Operation == nil {
 			expected := modelText
 			if task.Mode == workerprotocol.ReAct {
-				a, err := workerprotocol.ParseAction(modelText)
-				if err != nil || a.Action != "finish" || modelTurns < 2 || (task.ResourceScope != "" && observations == 0) {
+				a, err := workerprotocol.ParseAction(modelText, task.Tools)
+				if err != nil || a.Action != "finish" || modelTurns < 2 || (len(task.Tools) > 0 && observations == 0) {
 					return "", workerprotocol.ErrInvalidFinalResult
 				}
 				expected = a.Answer
@@ -215,13 +218,15 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			return "", workerprotocol.ErrTurnLimit
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
-			a, err := workerprotocol.ParseAction(modelText)
-			if err != nil || a.Action != "tool" || a.Tool != op.Tool || a.Input != op.Input {
+			// The call must repeat the model-selected action exactly, and that
+			// action must name one entry of the host-issued Work catalog.
+			a, err := workerprotocol.ParseAction(modelText, task.Tools)
+			if err != nil || a.Action != "tool" || a.Tool != op.Tool || a.Resource != op.ResourceScope || a.Input != op.Input {
 				return "", errors.New("tool lacks matching model-selected action")
 			}
-		}
-		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" && (task.ResourceScope == "" || op.Tool != "git.read" || op.ResourceScope != task.ResourceScope || len(op.Input) > 128 || op.Input == "" || op.Profile != "" || op.Prompt != "") {
-			return "", errors.New("worker tool shape rejected")
+			if op.Profile != "" || op.Prompt != "" {
+				return "", errors.New("worker tool shape rejected")
+			}
 		}
 		reply, err := handle(ctx, op)
 		if err != nil {

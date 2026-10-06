@@ -1,0 +1,59 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 863B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#5 resolve gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab done
+#5 DONE 0.0s
+
+#6 [build 1/6] FROM docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+#6 resolve docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 14.11kB done
+#7 DONE 0.0s
+
+#8 [build 3/6] COPY go.mod go.sum ./
+#8 CACHED
+
+#9 [build 2/6] WORKDIR /src
+#9 CACHED
+
+#10 [build 4/6] RUN go mod download && go mod verify
+#10 CACHED
+
+#11 [build 5/6] COPY main.go ./
+#11 DONE 0.0s
+
+#12 [build 6/6] RUN CGO_ENABLED=0 GOOS=linux GOTOOLCHAIN=local go build -trimpath -ldflags="-s -w" -o /out/mcpfixture .
+#12 DONE 4.5s
+
+#5 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#5 CACHED
+
+#13 [stage-1 2/2] COPY --from=build /out/mcpfixture /mcpfixture
+#13 DONE 0.0s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 0.2s done
+#14 exporting manifest sha256:a160f1764f145bad66d759cad2bc45638658707b1b11537b2bb187d675f391d3 done
+#14 exporting config sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc done
+#14 exporting attestation manifest sha256:e1654906ff7bac7553ba7c9b5bb4c1ffa7ec9282c82341b57ae9d859369fb3b2 done
+#14 exporting manifest list sha256:254de68781ef7946eae34a28e6358f1c0bc8fe1ddcd6dc3630671a2896ee9f3f done
+#14 naming to docker.io/library/agenova-e16-mcp:fd08ac06eed3 done
+#14 unpacking to docker.io/library/agenova-e16-mcp:fd08ac06eed3 0.0s done
+#14 DONE 0.2s

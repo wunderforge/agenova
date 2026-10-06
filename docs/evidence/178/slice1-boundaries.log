@@ -1,0 +1,2 @@
+PASS: ./internal/toolbackend has no forbidden consumer dependency
+PASS: ./internal/adapters/bundled has no forbidden consumer dependency

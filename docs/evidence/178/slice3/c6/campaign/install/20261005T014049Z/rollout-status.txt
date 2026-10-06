@@ -1,0 +1,1 @@
+deployment "agenova-control-plane" successfully rolled out

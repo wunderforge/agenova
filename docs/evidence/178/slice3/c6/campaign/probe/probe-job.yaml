@@ -1,0 +1,65 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E16 acceptance probe Job. The runner substitutes PROBE_IMAGE with the
+# recorded source-derived tag and applies it with an explicit context to the
+# E16 install namespace, after creating the e16-probe-inputs ConfigMap from
+# template.yaml and policy.yaml. The probe reads the installed revision from
+# the agenova-platform ConfigMap; it needs no Kubernetes API access.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e16-probe
+  labels:
+    app.kubernetes.io/part-of: agenova-e16-acceptance
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: e16-probe
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: agenova-e16-probe:fd08ac06eed3
+          imagePullPolicy: Never
+          env:
+            - name: AGENOVA_PROBE_PLATFORM
+              value: /installed/effective-platform.json
+            - name: AGENOVA_PROBE_TEMPLATE
+              value: /inputs/template.yaml
+            - name: AGENOVA_PROBE_POLICY
+              value: /inputs/policy.yaml
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: installed
+              mountPath: /installed
+              readOnly: true
+            - name: inputs
+              mountPath: /inputs
+              readOnly: true
+      volumes:
+        - name: installed
+          configMap:
+            name: agenova-platform
+            items:
+              - key: effective-platform.json
+                path: effective-platform.json
+        - name: inputs
+          configMap:
+            name: e16-probe-inputs

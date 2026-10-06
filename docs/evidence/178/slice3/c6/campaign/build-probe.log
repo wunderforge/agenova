@@ -1,0 +1,65 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from probe.Dockerfile
+#1 transferring dockerfile: 1.19kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+#2 DONE 0.0s
+
+#3 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 157B done
+#4 DONE 0.0s
+
+#5 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#5 resolve gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab done
+#5 DONE 0.0s
+
+#6 [build 1/8] FROM docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052
+#6 resolve docker.io/library/golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052 done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 1.44MB 0.0s done
+#7 DONE 0.0s
+
+#8 [build 2/8] WORKDIR /src
+#8 CACHED
+
+#9 [build 3/8] COPY go.mod go.sum ./
+#9 CACHED
+
+#10 [build 4/8] RUN go mod download && go mod verify
+#10 CACHED
+
+#11 [build 5/8] COPY api ./api
+#11 CACHED
+
+#12 [build 6/8] COPY internal ./internal
+#12 DONE 0.0s
+
+#13 [build 7/8] COPY cmd/agenova-control-plane ./cmd/agenova-control-plane
+#13 DONE 0.0s
+
+#14 [build 8/8] RUN CGO_ENABLED=0 GOOS=linux GOTOOLCHAIN=local go test -c -tags agenovaprobe -trimpath -o /out/e16-probe.test ./cmd/agenova-control-plane
+#14 DONE 3.2s
+
+#5 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#5 CACHED
+
+#15 [stage-1 2/2] COPY --from=build /out/e16-probe.test /e16-probe.test
+#15 DONE 0.0s
+
+#16 exporting to image
+#16 exporting layers
+#16 exporting layers 0.2s done
+#16 exporting manifest sha256:6206bc8709bdcca54c9890843a7c3d13a66da42af3fc26e9d8d34209a725dc23 done
+#16 exporting config sha256:6dc0725f20a4070cf2d8d2fcc6ae622f2faec97488b4c88537e9c3588193ac4f done
+#16 exporting attestation manifest sha256:5a2950b99cdb7abf85ac672d3499d91c483d7325bc0e3a0924e91f64d8b55e68 done
+#16 exporting manifest list sha256:8a013fb5e8e593c92d8dbb7eda8f1ff7656394063d88215a9384d0130e0474b6 done
+#16 naming to docker.io/library/agenova-e16-probe:fd08ac06eed3 done
+#16 unpacking to docker.io/library/agenova-e16-probe:fd08ac06eed3 0.0s done
+#16 DONE 0.2s

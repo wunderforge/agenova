@@ -1,0 +1,8 @@
+
+> @agenova/fixture-storyboard@0.0.0 dev
+> vite --host 127.0.0.1 --port 5177 --strictPort
+
+
+  VITE v8.2.2  ready in 124 ms
+
+  ➜  Local:   http://127.0.0.1:5177/

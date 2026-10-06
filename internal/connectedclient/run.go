@@ -314,6 +314,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.ID == "" || fact.Sequence <= lastSequence || fact.Timestamp.IsZero() || fact.Kind == "" || fact.RequestRef != ref {
 			return false
 		}
+		if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !facts.ValidResultRef(fact.ResultRef)) {
+			return false
+		}
+		if fact.Truncated && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded") {
+			return false
+		}
 		switch fact.Kind {
 		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
 		default:
@@ -889,6 +895,8 @@ var safeAPIDiagnostic = map[string]string{
 	"model_profile_unavailable":   "Granted model profile is not installed; update the Platform model configuration.",
 	"runtime_profile_unavailable": "Granted runtime profile is not installed; update the Platform runtime configuration.",
 	"tool_unsupported":            "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway.",
+	"tool_route_unavailable":      "Granted tool has no installed route for the granted resource scopes; narrow the template or configure a tool profile for those scopes.",
+	"tool_catalog_unsupported":    "Granted tools and resource scopes exceed the worker tool catalog limits; narrow the template or the requested resource scopes.",
 	"memory_unsupported":          "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface.",
 	"request_conflict":            "This Work reference already exists; choose a new request name.",
 	"capacity_reached":            "The installed service has reached its current-session Work limit.",

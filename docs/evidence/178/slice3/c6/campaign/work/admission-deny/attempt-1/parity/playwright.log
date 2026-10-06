@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (122ms)
+  ✓  2 installed/mcp.spec.ts:210:1 › admission denial has no claim and no tool or model activity @admission-deny (998ms)
+
+  2 passed (1.6s)

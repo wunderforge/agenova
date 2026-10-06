@@ -1,0 +1,294 @@
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: <repo>/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.102s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/cmd/agenova	6.855s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.256s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	6.391s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	0.054s
+ok  	github.com/wunderforge/agenova/examples/engineer	0.260s
+ok  	github.com/wunderforge/agenova/harness/e2e	0.321s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	0.370s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	0.257s
+ok  	github.com/wunderforge/agenova/harness/integration/e16	0.084s
+ok  	github.com/wunderforge/agenova/harness/integration/e16/evidence	0.396s
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	0.091s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	3.229s
+ok  	github.com/wunderforge/agenova/internal/app	0.325s
+ok  	github.com/wunderforge/agenova/internal/authority	0.300s
+ok  	github.com/wunderforge/agenova/internal/authorization	0.300s
+ok  	github.com/wunderforge/agenova/internal/cli	0.084s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	0.179s
+ok  	github.com/wunderforge/agenova/internal/console	0.179s
+ok  	github.com/wunderforge/agenova/internal/evidence	0.256s
+ok  	github.com/wunderforge/agenova/internal/facts	0.051s
+ok  	github.com/wunderforge/agenova/internal/gateway	0.310s
+ok  	github.com/wunderforge/agenova/internal/governance	0.298s
+ok  	github.com/wunderforge/agenova/internal/issuance	0.283s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	0.695s
+ok  	github.com/wunderforge/agenova/internal/modelprovider	0.140s
+ok  	github.com/wunderforge/agenova/internal/operator	3.013s
+ok  	github.com/wunderforge/agenova/internal/platform	0.080s
+ok  	github.com/wunderforge/agenova/internal/platformapply	0.310s
+ok  	github.com/wunderforge/agenova/internal/policy	0.275s
+ok  	github.com/wunderforge/agenova/internal/registration	0.267s
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	2.044s
+ok  	github.com/wunderforge/agenova/internal/toolbackend	0.105s
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.068s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	0.058s
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.271s
+[pass] go test ./...
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] Agent Sandbox integration package compiles
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] opt-in controlled Agent Sandbox integration package compiles
+
+> @agenova/fixture-storyboard@0.0.0 check
+> npm run contracts:check && npm run typecheck && npm test -- --run && npm run build && npm run test:smoke
+
+
+> @agenova/fixture-storyboard@0.0.0 contracts:check
+> node scripts/contracts.mjs check && vitest run src/fixture-source.test.ts
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.00s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.088s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+
+ RUN  v5.0.0 <repo>/ui
+
+
+ Test Files  1 passed (1)
+      Tests  22 passed (22)
+   Start at  13:00:46
+   Duration  971ms (transform 53%, environment 46%, import 1%, tests 1%)
+
+
+> @agenova/fixture-storyboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+> @agenova/fixture-storyboard@0.0.0 test
+> vitest --run
+
+
+ RUN  v5.0.0 <repo>/ui
+
+
+ Test Files  9 passed (9)
+      Tests  127 passed (127)
+   Start at  13:00:48
+   Duration  2.10s (transform 48%, environment 41%, import 7%, tests 3%)
+
+  Transform  transforming modules took 6.72s · 48% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+
+> @agenova/fixture-storyboard@0.0.0 build
+> node scripts/contracts.mjs check && tsc --noEmit && vite build
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.00s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.097s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 41 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.37 kB │ gzip:  0.27 kB
+dist/assets/index-D22QsjIV.css   38.71 kB │ gzip:  8.09 kB
+dist/assets/index-DQr7Hl1N.js   309.56 kB │ gzip: 84.67 kB
+
+✓ built in 685ms
+
+> @agenova/fixture-storyboard@0.0.0 test:smoke
+> playwright test
+
+
+Running 52 tests using 5 workers
+
+  ✓   1 smoke/storyboard.spec.ts:14:3 › request-only: claim-request.valid.team-a-engineer-json (509ms)
+  ✓   4 smoke/console.spec.ts:18:5 › console 1100 allowed (566ms)
+  ✓   6 smoke/storyboard.spec.ts:14:3 › allow-running: issued-state.valid.team-a-engineer (335ms)
+  ✓   7 smoke/console.spec.ts:18:5 › console 1100 narrowed (354ms)
+  ✓   5 smoke/connected.spec.ts:31:1 › work name is separate from full instructions and identity (1.1s)
+  ✓   3 smoke/portal.spec.ts:8:1 › portal journey keeps work evidence scoped and shows narrowed authority (1.2s)
+  ✓   8 smoke/storyboard.spec.ts:14:3 › deny-no-claim: issued-state.valid.team-b-denial (333ms)
+  ✓  10 smoke/connected.spec.ts:63:1 › connected Portal rejects an unrelated local demo API (208ms)
+  ✓   9 smoke/console.spec.ts:18:5 › console 1100 denied (383ms)
+  ✓   2 smoke/motion.spec.ts:5:1 › lightweight dark portal keeps lifecycle static and preserves navigation (1.4s)
+  ✓  12 smoke/storyboard.spec.ts:14:3 › invalid-caller-state: issued-state.invalid.caller-effective-authority (261ms)
+  ✓  14 smoke/console.spec.ts:18:5 › console 1100 loading (198ms)
+  ✓  15 smoke/storyboard.spec.ts:14:3 › missing-field: derived.missing-field (220ms)
+  ✓  16 smoke/console.spec.ts:18:5 › console 1100 not-found (185ms)
+  ✓  11 smoke/portal.spec.ts:37:1 › new example request stays pending with no invented grant or worker (559ms)
+  ✓  17 smoke/storyboard.spec.ts:14:3 › unknown-field: derived.unknown-field (162ms)
+  ✓  18 smoke/console.spec.ts:18:5 › console 1100 malformed (178ms)
+  ✓  20 smoke/storyboard.spec.ts:37:1 › mobile selection stays usable without horizontal overflow (121ms)
+  ✓  19 smoke/portal.spec.ts:55:1 › named demo work keeps full instructions behind a disclosure (276ms)
+  ✓  21 smoke/console.spec.ts:18:5 › console 1100 unavailable (167ms)
+  ✓  23 smoke/console.spec.ts:18:5 › console 390 allowed (169ms)
+  ✓  22 smoke/portal.spec.ts:66:1 › research work uses a topic, not a repository field (239ms)
+  ✓  24 smoke/console.spec.ts:18:5 › console 390 narrowed (189ms)
+  ✓  26 smoke/console.spec.ts:18:5 › console 390 denied (149ms)
+  ✓  25 smoke/portal.spec.ts:79:1 › platform activity aggregates example records and links back to one work (370ms)
+  ✓  27 smoke/console.spec.ts:18:5 › console 390 loading (137ms)
+  ✓  29 smoke/console.spec.ts:18:5 › console 390 not-found (120ms)
+  ✓  28 smoke/portal.spec.ts:93:1 › portal remains usable at mobile width (255ms)
+  ✓  30 smoke/console.spec.ts:18:5 › console 390 malformed (120ms)
+  ✓  32 smoke/console.spec.ts:18:5 › console 390 unavailable (122ms)
+  ✓  31 smoke/portal.spec.ts:103:1 › connected view keeps the route but never shows illustrative work or a false empty result (448ms)
+  ✓  33 smoke/console.spec.ts:57:1 › console direct claim route, reload, navigation and browser history (252ms)
+  ✓  34 smoke/portal.spec.ts:120:1 › connected pages explain unavailable capabilities without leaking demo records (429ms)
+  ✓  36 smoke/portal.spec.ts:145:1 › connected status stays readable on mobile (107ms)
+  ✓  13 smoke/connected.spec.ts:70:1 › connected Work polling does not repeatedly query Platform setup (4.9s)
+  ✘  35 smoke/console.spec.ts:74:1 › console keyboard, focus, semantic structure and source announcements (5.2s)
+  ✓  37 smoke/connected.spec.ts:84:1 › idle connected setup is revalidated without one-second Kubernetes polling (30.3s)
+  ✓  38 smoke/connected.spec.ts:101:1 › legacy task title uses its first sentence but retains complete instructions (311ms)
+  ✓  39 smoke/connected.spec.ts:116:1 › failed work shows a separate red outcome, reason and failed detail record without recoloring successful calls (380ms)
+  ✓  40 smoke/connected.spec.ts:143:1 › format retry explains the failing turn without counting checks as calls (266ms)
+  ✓  41 smoke/connected.spec.ts:170:1 › historical missing failure reason is explicit, not inferred from successful model calls (90ms)
+  ✓  42 smoke/connected.spec.ts:179:1 › connected motion follows provider and cleanup evidence without resetting DOM or scroll (4.1s)
+  ✓  43 smoke/connected.spec.ts:211:1 › cobalt light locates real pending calls and separates success from failure (3.8s)
+  ✓  44 smoke/connected.spec.ts:259:1 › malformed connected percent escapes show an error instead of a blank page (96ms)
+  ✓  45 smoke/connected.spec.ts:274:1 › worker follows recorded ReAct turns, tool observation and final model response (4.5s)
+  ✓  46 smoke/connected.spec.ts:317:1 › live source submits canonical intent then polls actual result and narrowed authority (1.7s)
+  ✓  47 smoke/connected.spec.ts:354:1 › new work suggests the active policy project instead of a demo constant (142ms)
+  ✓  48 smoke/connected.spec.ts:364:1 › denial shows request evidence without invented claim worker or model result (174ms)
+  ✓  49 smoke/connected.spec.ts:379:1 › pending live request never invents grant or result and malformed response stays unavailable (137ms)
+  ✓  50 smoke/connected.spec.ts:392:1 › successful result remains visible when cleanup fails and configuration is not health (163ms)
+  ✓  51 smoke/connected.spec.ts:405:1 › terminal authority keeps refreshing until final result and cleanup report arrive (1.4s)
+  ✓  52 smoke/connected.spec.ts:416:1 › queued cancellation overrides pending claim and stops automatic refresh (222ms)
+
+
+  1) smoke/console.spec.ts:74:1 › console keyboard, focus, semantic structure and source announcements
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Loading evidence' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: 'Loading evidence' }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Loading evidence' })
+
+
+       97 |   await page.keyboard.press('ArrowDown');
+       98 |   await page.keyboard.press('Enter');
+    >  99 |   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
+          |                                                                         ^
+      100 |   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
+      101 |   await expect(page.getByText('Allow', { exact: true })).toHaveCount(0);
+      102 | });
+        at <repo>/ui/smoke/console.spec.ts:99:73
+
+    Error Context: ../.tmp/ui-smoke/console-console-keyboard-f-f080e-re-and-source-announcements/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.tmp/ui-smoke/console-console-keyboard-f-f080e-re-and-source-announcements/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.tmp/ui-smoke/console-console-keyboard-f-f080e-re-and-source-announcements/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    smoke/console.spec.ts:74:1 › console keyboard, focus, semantic structure and source announcements
+  51 passed (54.8s)
+[31;1mException: [0m<repo>/scripts/check.ps1:18[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m  18 | [0m function Fail($Message) { [36;1mthrow "[fail] $Message"[0m }[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                           ~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1m[fail] frontend contract, type, component, build or browser smoke check[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mfailed[0m

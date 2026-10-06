@@ -1,0 +1,19 @@
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changed: true
+ready: true
+readiness scope: installation-components
+- adapter/agent-sandbox-runtime: configured
+- adapter/kubernetes-deployment: used
+- adapter/mcp-http-tool: configured
+- adapter/openai-compatible-backend: configured
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-e16-system: available
+- deployment/agenova-platform: configured
+- policy/agenova-active-policy: configured
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured

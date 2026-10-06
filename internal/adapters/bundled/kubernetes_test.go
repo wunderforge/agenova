@@ -24,7 +24,7 @@ type fakeKubectl struct {
 }
 
 func TestInstalledRoleCanListOnlyNamespaceConfigMapsForRegisteredSetup(t *testing.T) {
-	role := roleObject("agenova-system")
+	role := roleObject("agenova-system", nil)
 	if role["kind"] != "Role" || role["metadata"].(map[string]any)["namespace"] != "agenova-system" {
 		t.Fatalf("expected namespace-scoped Role, got %#v", role)
 	}
@@ -436,7 +436,7 @@ func TestKubernetesPlanDetectsRevisionPreservingDrift(t *testing.T) {
 			data, _ := json.Marshal(roleBindingObject("agenova-system"))
 			return string(data)
 		case contains(args, "role"):
-			data, _ := json.Marshal(roleObject("agenova-system"))
+			data, _ := json.Marshal(roleObject("agenova-system", nil))
 			return string(data)
 		case contains(args, "deployment"):
 			return `{"metadata":{"labels":{"app.kubernetes.io/managed-by":"agenova"},"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"replicas":1,"template":{"metadata":{"annotations":{"agenova.io/platform-revision":"sha256:test"}},"spec":{"containers":[{"image":"tampered:latest"}]}}},"status":{"availableReplicas":1}}`
@@ -990,7 +990,7 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 	case contains(args, "rolebinding"):
 		object = roleBindingObject("agenova-system")
 	case contains(args, "role"):
-		object = roleObject("agenova-system")
+		object = roleObject("agenova-system", mcpTokenSecretNames(request.Platform))
 	case contains(args, "deployment"):
 		object = deploymentObject(request, "agenova-system")
 		object["metadata"].(map[string]any)["generation"] = 1
@@ -1037,4 +1037,140 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+// tokenRequest adds mcp-http backends with provisional token references, one
+// without, and a non-MCP tool instance whose same key must be ignored.
+func tokenRequest() platformapply.DeploymentRequest {
+	request := deploymentRequest()
+	request.Platform.Adapters = []platform.ResolvedAdapter{{Name: "mcp-http-tool", ID: MCPHTTPToolID, Version: ReferenceVersion}, {Name: "other-tool", ID: "example.invalid/tool/other", Version: "1"}}
+	for _, backend := range []struct{ name, adapter, ref string }{
+		{"e16-mcp", "mcp-http-tool", ""},
+		{"e16-mcp-token-wrong", "mcp-http-tool", "e16-mcp-token-wrong/token"},
+		{"e16-mcp-token", "mcp-http-tool", "e16-mcp-token/token"},
+		{"e16-mcp-token-other-key", "mcp-http-tool", "e16-mcp-token/other"},
+		{"e16-mcp-token-missing", "mcp-http-tool", "e16-mcp-token-absent/token"},
+		{"unrelated", "other-tool", "unrelated-secret/token"},
+	} {
+		config := map[string]any{"endpoint": "http://" + fixtureMCPHost + ":8080/mcp-token"}
+		if backend.ref != "" {
+			config[mcpTokenSecretKey] = backend.ref
+		}
+		request.Platform.Instances = append(request.Platform.Instances, platform.ResolvedInstance{Category: platform.CapabilityTool, Name: backend.name, AdapterRef: backend.adapter, Config: config})
+	}
+	return request
+}
+
+func secretRules(role map[string]any) []map[string]any {
+	var rules []map[string]any
+	for _, entry := range role["rules"].([]any) {
+		rule := entry.(map[string]any)
+		for _, resource := range rule["resources"].([]any) {
+			if resource == "secrets" {
+				rules = append(rules, rule)
+			}
+		}
+	}
+	return rules
+}
+
+// The installed Role grants get on exactly the referenced Secrets, and only
+// when there is a reference; the rule survives a JSON round trip so an
+// identical reapply plans nothing.
+func TestReferenceRoleGrantsGetOnlyOnReferencedTokenSecrets(t *testing.T) {
+	plain := roleObject("agenova-system", mcpTokenSecretNames(deploymentRequest().Platform))
+	if len(secretRules(plain)) != 0 {
+		t.Fatal("a Platform without token references granted Secret access")
+	}
+	data, _ := json.Marshal(plain)
+	before, _ := json.Marshal(roleObject("agenova-system", nil))
+	if string(data) != string(before) {
+		t.Fatal("the Role changed for a Platform without token references")
+	}
+	request := tokenRequest()
+	names := mcpTokenSecretNames(request.Platform)
+	if strings.Join(names, ",") != "e16-mcp-token,e16-mcp-token-absent,e16-mcp-token-wrong" {
+		t.Fatalf("referenced Secrets = %v", names)
+	}
+	role := roleObject("agenova-system", names)
+	data, _ = json.Marshal(role)
+	var live map[string]any
+	if err := json.Unmarshal(data, &live); err != nil {
+		t.Fatal(err)
+	}
+	if !managedObjectMatches(live, role) {
+		t.Fatal("the decoded live Role does not match its desired shape; reapply would never settle")
+	}
+	rules := secretRules(live)
+	if len(rules) != 1 {
+		t.Fatalf("secret rules = %#v", rules)
+	}
+	rule := rules[0]
+	if len(rule["verbs"].([]any)) != 1 || rule["verbs"].([]any)[0] != "get" || len(rule["resourceNames"].([]any)) != 3 || rule["apiGroups"].([]any)[0] != "" {
+		t.Fatalf("secret rule = %#v", rule)
+	}
+	stale := roleObject("agenova-system", names[:2])
+	data, _ = json.Marshal(stale)
+	_ = json.Unmarshal(data, &live)
+	if managedObjectMatches(live, role) {
+		t.Fatal("a Role missing a referenced Secret matched")
+	}
+	runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+		switch {
+		case contains(args, "version"):
+			return commandResult{stdout: `{}`}, nil
+		case contains(args, "get") && contains(args, "json"):
+			if result, ok := readyResourceResult(args, request); ok {
+				return result, nil
+			}
+			return commandResult{}, errors.New("unexpected resource")
+		}
+		return commandResult{stdout: "found"}, nil
+	}}
+	_, changes, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
+	if err != nil || len(changes) != 0 {
+		t.Fatalf("identical reapply planned %#v, %v", changes, err)
+	}
+	for _, call := range runner.calls {
+		if contains(call, "secret") || contains(call, "secrets") {
+			t.Fatalf("Plan read a Secret: %#v", call)
+		}
+	}
+}
+
+// Without escalate, preflight checks get on each referenced Secret by name,
+// never namespace-wide Secret access, and refuses when one is not held.
+func TestKubernetesPreflightChecksTokenSecretGrantByName(t *testing.T) {
+	for _, denied := range []string{"", "secrets/e16-mcp-token-wrong"} {
+		var checked []string
+		runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
+			if contains(args, "can-i") {
+				for _, arg := range args {
+					if strings.HasPrefix(arg, "secrets") {
+						checked = append(checked, arg)
+					}
+				}
+				if contains(args, "escalate") || contains(args, "bind") || (denied != "" && contains(args, denied)) {
+					return commandResult{stdout: "no\n"}, nil
+				}
+				return commandResult{stdout: "yes\n"}, nil
+			}
+			return commandResult{stderr: "Error from server (NotFound): resource not found"}, errors.New("exit 1")
+		}}
+		err := newKubernetesDeployment(runner).Preflight(context.Background(), tokenRequest())
+		if denied == "" && err != nil {
+			t.Fatal(err)
+		}
+		if denied != "" && (err == nil || !strings.Contains(err.Error(), denied)) {
+			t.Fatalf("Preflight() = %v, want refusal naming %s", err, denied)
+		}
+		for _, target := range checked {
+			if target == "secrets" {
+				t.Fatal("preflight checked namespace-wide Secret access")
+			}
+		}
+		if denied == "" && strings.Join(checked, ",") != "secrets/e16-mcp-token,secrets/e16-mcp-token-absent,secrets/e16-mcp-token-wrong" {
+			t.Fatalf("checked %v", checked)
+		}
+	}
 }

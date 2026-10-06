@@ -126,9 +126,11 @@ export interface Fact {
   reasonCode?: string;
   requestRef: string;
   result?: DecisionResult;
+  resultRef?: string;
   sequence: number;
   target?: string;
   timestamp: string;
+  truncated?: boolean;
 }
 export interface IssuedState {
   action: Action;
@@ -909,6 +911,12 @@ export const shapes = {
         },
         "optional": true
       },
+      "resultRef": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
       "sequence": {
         "shape": {
           "kind": "number"
@@ -924,6 +932,12 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      },
+      "truncated": {
+        "shape": {
+          "kind": "boolean"
+        },
+        "optional": true
       }
     }
   },

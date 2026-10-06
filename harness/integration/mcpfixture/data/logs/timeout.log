@@ -1,0 +1,5 @@
+2026-09-12T03:14:07.120Z payment=pay_7Q2 attempt=1 upstream_latency=4.0s status=503
+2026-09-12T03:14:11.121Z payment=pay_7Q2 retry_backoff=2.0s
+2026-09-12T03:14:13.122Z payment=pay_7Q2 attempt=2 started_after_total_deadline=5s
+2026-09-12T03:14:17.130Z payment=pay_7Q2 attempt=2 status=200 elapsed_total=10.0s
+2026-09-12T03:14:17.131Z payment=pay_7Q2 result=timeout client_deadline=5s idempotency_key=none

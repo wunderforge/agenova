@@ -1,0 +1,16 @@
+
+> @agenova/fixture-storyboard@0.0.0 test
+> vitest
+
+
+ RUN  v5.0.0 <repo>/ui
+
+
+ Test Files  9 passed (9)
+      Tests  127 passed (127)
+   Start at  12:59:43
+   Duration  2.11s (transform 53%, environment 41%, tests 3%, import 3%)
+
+  Transform  transforming modules took 7.47s · 53% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
