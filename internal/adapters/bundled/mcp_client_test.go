@@ -587,4 +587,18 @@ func TestMCPClientOmitsAResultRefTheContractRejects(t *testing.T) {
 			t.Fatalf("%q: result %+v, err %v; want reference %q", file, result, err, want)
 		}
 	}
+	// A configured scope "file:" and file "etc/passwd" would join into the
+	// fetchable "file:/etc/passwd".
+	fileClient := newMCPClient(server.URL, 2*time.Second, 8192, 65536, map[string]mcpRoute{mcpRouteKey("repo.read", "file:"): {tool: "read_file", parameter: "file"}})
+	fileTools, err := toolbackend.NewSet([]toolbackend.Binding{{
+		Descriptor: toolbackend.Descriptor{Description: "Read one allowlisted file.", Operation: "repo.read", ResourceScope: "file:", Parameter: "file", MaxBytes: 128, AllowedValues: []string{"etc/passwd"}},
+		Provider:   fileClient, Backend: "e16-mcp", MaxObservationBytes: 4096, MaxConcurrentCalls: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := fileTools.Invoke(context.Background(), toolbackend.Invocation{ID: "inv-43", ClaimID: "claim-1", Operation: "repo.read", ResourceScope: "file:", Parameters: map[string]string{"file": "etc/passwd"}})
+	if err != nil || result.Text != "payment notes" || result.ResultRef != "" {
+		t.Fatalf("fetchable reference was not omitted: result %+v, err %v", result, err)
+	}
 }

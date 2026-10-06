@@ -46,8 +46,29 @@ type Fact struct {
 }
 
 // ValidResultRef accepts a bounded logical reference, never a fetchable URL.
+// A reference may start with a scope kind such as "repo:", but not with "//",
+// a URI scheme followed by "/" (file:/etc/passwd) or a scheme that clients
+// dereference without a slash (data:text/plain,..., ws:host/x).
 func ValidResultRef(ref string) bool {
-	return ref != "" && len(ref) <= 256 && utf8.ValidString(ref) && !strings.ContainsAny(ref, " \t\r\n\x00?#@") && !strings.Contains(ref, "://")
+	if ref == "" || len(ref) > 256 || !utf8.ValidString(ref) || strings.ContainsAny(ref, " \t\r\n\x00?#@") || strings.Contains(ref, "://") || strings.HasPrefix(ref, "//") {
+		return false
+	}
+	scheme, rest, found := strings.Cut(ref, ":")
+	return !found || !uriScheme(scheme) || (!strings.HasPrefix(rest, "/") && !fetchableSchemes[strings.ToLower(scheme)])
+}
+
+// The WHATWG special schemes plus data and javascript.
+var fetchableSchemes = map[string]bool{"data": true, "file": true, "ftp": true, "http": true, "https": true, "javascript": true, "ws": true, "wss": true}
+
+// uriScheme matches RFC 3986 scheme syntax: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+func uriScheme(s string) bool {
+	for i, c := range s {
+		letter := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+		if !letter && (i == 0 || !(c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.')) {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Journal supplies the strict correlation spine for the application path.

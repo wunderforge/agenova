@@ -437,6 +437,11 @@ func TestInstalledAPIErrorUsesOnlyStableDiagnostics(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "configure a tool profile for those scopes") || strings.Contains(err.Error(), "raw internal detail") {
 		t.Fatalf("unsafe or missing route diagnostic: %v", err)
 	}
+	response = `{"code":"tool_catalog_unsupported","message":"raw internal detail must not leak"}`
+	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
+	if err == nil || !strings.Contains(err.Error(), "exceed the worker tool catalog limits") || strings.Contains(err.Error(), "raw internal detail") {
+		t.Fatalf("unsafe or missing catalog diagnostic: %v", err)
+	}
 	response = `{"code":"unexpected","message":"provider token=secret"}`
 	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
 	if err == nil || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "HTTP 422") {

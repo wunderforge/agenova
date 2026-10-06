@@ -553,3 +553,9 @@ Left open by these fixes:
 - **L16.** The synthetic `git.read` composition still admits a `git.read` grant with no resource scope, which yields an empty catalog. This is the reference path, and it predates E16.
 
 None of these paths ran in c6: every c6 grant had a routed scope, the token backends use `/mcp-token`, and no Work stopped during a call. c6's result therefore stands for the changed code. The full gate, the race tests on the changed packages, the tagged bridge and the probe dry run pass.
+
+Codex's review at `a85c342` (2026-10-06) raised two more P2. Both are fixed with tests that fail with the fix reverted.
+- **P2.** The synthetic `git.read` catalog has one entry per granted scope, so a grant of more than `workerprotocol.MaxTools` (32) scopes was admitted and allocated, and failed only when the worker schema was built. A configured catalog holds at most 32 routes but can still exceed the schema budget with long scopes. The service now builds the Work's catalog schema at submission and refuses a Work it cannot carry with `tool_catalog_unsupported`, before a claim is journalled or a worker allocated; the CLI shows that code's fixed diagnostic.
+- **P2.** The result-reference rule rejected only `://`, so `file:/etc/passwd` passed, and the MCP client builds exactly that from a scope `file:` and a file `etc/passwd`. `facts.ValidResultRef` now also rejects a leading `//`, a URI scheme followed by `/`, and the WHATWG special schemes plus `data` and `javascript`; scope kinds such as `repo:` stay valid. `toolbackend.ValidResultRef` now calls it, so the two rules cannot drift.
+
+c6 granted at most one scope per Work, and every c6 reference starts with `repo:`, so c6's result stands for these changes too.

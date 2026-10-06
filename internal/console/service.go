@@ -155,6 +155,9 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		}
 	}()
 	prepared, err := s.prepare(data)
+	if err == nil {
+		err = s.checkWorkCatalog(prepared)
+	}
 	if err != nil {
 		s.mu.Lock()
 		delete(s.records, request.Metadata.Name)
@@ -445,6 +448,19 @@ func (s *Service) toolParameter(op workerprotocol.Operation) (string, error) {
 		return "", err
 	}
 	return parameter, nil
+}
+
+// checkWorkCatalog refuses an allowed Work whose catalog the worker protocol
+// cannot carry, before a claim is journalled or a worker allocated; run would
+// otherwise fail it only after allocation.
+func (s *Service) checkWorkCatalog(p app.PreparedAssignment) error {
+	if p.Admission.Decision.Result != v0.DecisionResultAllow || p.Issued == nil || p.Issued.EffectiveAuthority == nil {
+		return nil
+	}
+	if _, err := workerprotocol.ActionSchema(s.workCatalog(p.Issued.EffectiveAuthority)); err != nil {
+		return &SubmissionError{Code: "tool_catalog_unsupported", Message: "Granted tools and resource scopes exceed the worker tool catalog limits; narrow the template or the requested resource scopes.", Cause: err}
+	}
+	return nil
 }
 
 // workCatalog intersects the installed catalog with the claim's effective

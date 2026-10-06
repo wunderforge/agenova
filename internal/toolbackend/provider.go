@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/wunderforge/agenova/internal/facts"
 )
 
 var ErrUnavailable = errors.New("configured tool transport is unavailable")
@@ -113,12 +115,12 @@ func (s *Set) Catalog() Catalog {
 }
 
 // ValidResultRef reports whether an optional result reference meets the
-// shared contract: bounded, on one line, and never a fetchable URL or one
-// carrying whitespace, a query, a fragment or userinfo. A provider omits a
-// reference that does not, rather than turning a successful call into a
-// failed one.
+// shared contract (facts.ValidResultRef): bounded, on one line, and never a
+// fetchable URL or one carrying whitespace, a query, a fragment or userinfo.
+// A provider omits a reference that does not, rather than turning a
+// successful call into a failed one.
 func ValidResultRef(ref string) bool {
-	return bounded(ref, 256) && !strings.ContainsAny(ref, " \t?#@") && !strings.Contains(ref, "://")
+	return facts.ValidResultRef(ref)
 }
 
 func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {

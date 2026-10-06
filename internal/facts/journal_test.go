@@ -69,6 +69,32 @@ func TestJournalInvocationAttemptOutcomeOrdering(t *testing.T) {
 	}
 }
 
+// Scope kinds such as "repo:" stay valid; URI forms a client could fetch do
+// not, with or without a double slash.
+func TestValidResultRefRejectsFetchableURIs(t *testing.T) {
+	for ref, want := range map[string]bool{
+		"repo:agenova/e16-fixture/logs/timeout.log": true,
+		"artifact:readme":            true,
+		"notes/incident-timeline.md": true,
+		"file:/etc/passwd":           false,
+		"FILE:etc/passwd":            false,
+		"data:/text/plain,secret":    false,
+		"data:text/plain,secret":     false,
+		"javascript:alert(1)":        false,
+		"https:example.invalid/a":    false,
+		"ws:example.invalid/a":       false,
+		"ftp:example.invalid/a":      false,
+		"//example.invalid:80/a":     false,
+		"repo:/etc/passwd":           false,
+		"https://example.invalid/a":  false,
+		"repo:acme/payments/a?b":     false,
+	} {
+		if got := ValidResultRef(ref); got != want {
+			t.Errorf("ValidResultRef(%q) = %t, want %t", ref, got, want)
+		}
+	}
+}
+
 func TestJournalTruncationOnlyOnSuccessfulToolOutcome(t *testing.T) {
 	p := &v0.PolicyReference{ID: "policy", Version: "1"}
 	for _, tc := range []struct {

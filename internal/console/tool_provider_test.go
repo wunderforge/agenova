@@ -47,6 +47,63 @@ func boundTools(t *testing.T, provider toolbackend.Provider, operation, scope st
 	}
 	return tools
 }
+
+// A grant whose catalog the worker protocol cannot carry is refused at
+// submission, before any claim or worker exists, and the request name stays
+// free: on the synthetic path more than workerprotocol.MaxTools scopes, on the
+// configured path (at most 32 installed routes) scopes too long for the
+// schema budget.
+func TestOversizedWorkCatalogIsRefusedAtSubmission(t *testing.T) {
+	scope := func(i int, size int) string {
+		name := "repo:acme/r" + string(rune('a'+i/26)) + string(rune('a'+i%26))
+		return name + strings.Repeat("x", size-len(name))
+	}
+	synthetic := make([]string, workerprotocol.MaxTools+1)
+	for i := range synthetic {
+		synthetic[i] = scope(i, 16)
+	}
+	long := make([]string, workerprotocol.MaxTools)
+	bindings := make([]toolbackend.Binding, len(long))
+	for i := range long {
+		long[i] = scope(i, 250)
+		bindings[i] = toolbackend.Binding{Descriptor: toolbackend.Descriptor{Description: "Read a fixture file.", Operation: "git.read", ResourceScope: long[i], Parameter: "file", MaxBytes: 128, AllowedValues: []string{"README.md"}}, Provider: &toolDouble{}, Backend: "docs", MaxObservationBytes: 64, MaxConcurrentCalls: 1}
+	}
+	configured, err := toolbackend.NewSet(bindings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		tools  *toolbackend.Set
+		scopes []string
+	}{{"synthetic", nil, synthetic}, {"configured", configured, long}} {
+		tools, scopes := tc.tools, tc.scopes
+		t.Run(tc.name, func(t *testing.T) {
+			backend := &verticalBackend{}
+			prepare := func(data []byte) (app.PreparedAssignment, error) {
+				prepared, err := app.PrepareReferenceAssignment(data, app.ReferencePrincipalTeamA)
+				if err == nil {
+					prepared.Issued.EffectiveAuthority.ResourceScopes = scopes
+				}
+				return prepared, err
+			}
+			service, err := NewServiceWithOptions(backend, reactExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{ToolBackend: tools, Prepare: prepare})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer service.Close()
+			_, err = service.Submit(verticalRequest(t, "oversized"))
+			var refused *SubmissionError
+			if !errors.As(err, &refused) || refused.Code != "tool_catalog_unsupported" || !errors.Is(err, workerprotocol.ErrToolCatalog) {
+				t.Fatalf("submission error %v, want tool_catalog_unsupported", err)
+			}
+			if _, err := service.QueryRequest("oversized"); err == nil || backend.calls.Load() != 0 {
+				t.Fatalf("refused Work left a record or allocated: query err %v, allocations %d", err, backend.calls.Load())
+			}
+		})
+	}
+}
+
 func TestConfiguredServiceUsesProviderAndPreservesAttemptTarget(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "unavailable"}[fail], func(t *testing.T) {
