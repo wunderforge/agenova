@@ -56,13 +56,17 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 	if err := adapter.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: "reference-engineer-pool"}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: app.ReferenceRuntimeTemplateRef, Replicas: 1}}); err != nil {
 		t.Fatal(err)
 	}
-	provider, err := modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{"approved-coding-model": "llama3.1:latest"}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute})
+	// As in cmd/agenova-console: the service sends a per-Work schema with every
+	// model request (the catalog grammar, or FinishSchema on finishing turns),
+	// so the configured schema is only the fallback.
+	provider, err := modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{"approved-coding-model": "llama3.1:latest"}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.FinishSchema), Timeout: 2 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
-	counter := &checkpointProvider{Client: provider, t: t}
+	executor := &catalogExecutor{Executor: adapter}
+	counter := &checkpointProvider{Client: provider, executor: executor, t: t}
 	recorder := &recordingRuntimeBackend{RuntimeBackend: adapter}
-	denied, err := console.NewService(recorder, adapter, counter, app.ReferencePrincipalTeamB)
+	denied, err := console.NewService(recorder, executor, counter, app.ReferencePrincipalTeamB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,7 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 		}
 	}
 	t.Log("Team B HTTP denial: claim=absent backendCalls=0 providerCalls=0")
-	allowed, err := console.NewService(recorder, adapter, counter, app.ReferencePrincipalTeamA)
+	allowed, err := console.NewService(recorder, executor, counter, app.ReferencePrincipalTeamA)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,17 +167,35 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 	t.Logf("Real ReAct loop: modelTurns=%d mockObservations=%d", turns, observations)
 }
 
+// catalogExecutor keeps the catalog the service sent with the Work's Task, so
+// the turn log validates actions against the same tools as the service.
+type catalogExecutor struct {
+	console.Executor
+	tools atomic.Pointer[[]workerprotocol.Tool]
+}
+
+func (e *catalogExecutor) Execute(ctx context.Context, identity v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handler workerprotocol.Handler) (string, error) {
+	e.tools.Store(&task.Tools)
+	return e.Executor.Execute(ctx, identity, task, handler)
+}
+
 type checkpointProvider struct {
 	modelprovider.Client
-	calls atomic.Int32
-	t     *testing.T
+	executor *catalogExecutor
+	calls    atomic.Int32
+	t        *testing.T
 }
 
 func (p *checkpointProvider) Complete(ctx context.Context, r modelprovider.Request) (modelprovider.Result, error) {
 	turn := p.calls.Add(1)
 	result, err := p.Client.Complete(ctx, r)
 	if err == nil {
-		a, validation := workerprotocol.ParseAction(result.Text)
+		tools := p.executor.tools.Load()
+		if tools == nil {
+			p.t.Error("model call before the Work's tool catalog reached the worker")
+			return result, err
+		}
+		a, validation := workerprotocol.ParseAction(result.Text, *tools)
 		p.t.Logf("Model turn %d: actionValid=%v actionTool=%v actionFinish=%v toolEmpty=%v inputEmpty=%v answerEmpty=%v bytes=%d outputTokens=%d validation=%v", turn, validation == nil, a.Action == "tool", a.Action == "finish", a.Tool == "", a.Input == "", a.Answer == "", len(result.Text), result.OutputTokens, validation)
 	}
 	return result, err

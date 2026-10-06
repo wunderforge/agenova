@@ -119,6 +119,18 @@ function Test-Go {
     go test -run '^$' -tags 'integration controlled' ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "opt-in controlled Agent Sandbox integration package does not compile" }
     Pass "opt-in controlled Agent Sandbox integration package compiles"
+
+    go test -run '^$' -tags 'integration controlled live' ./harness/integration/agentsandbox/
+    if ($LASTEXITCODE -ne 0) { Fail "opt-in live model checkpoint package does not compile" }
+    Pass "opt-in live model checkpoint package compiles"
+
+    go test -count=1 -tags agenovaprobe ./internal/console/
+    if ($LASTEXITCODE -ne 0) { Fail "go test -tags agenovaprobe ./internal/console failed" }
+    Pass "go test -tags agenovaprobe ./internal/console"
+
+    go test -run '^$' -tags agenovaprobe ./cmd/agenova-control-plane/
+    if ($LASTEXITCODE -ne 0) { Fail "E16 acceptance probe build does not compile" }
+    Pass "E16 acceptance probe build compiles"
   }
   finally {
     Pop-Location
