@@ -6,10 +6,114 @@ package authorization
 import (
 	"os"
 	"testing"
+	"time"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/policy"
 )
+
+func TestEvaluatorContractReferenceAndExternal(t *testing.T) {
+	request := loadRequestFixture(t)
+	teamA := loadIssuedFixture(t, "valid-team-a-engineer.json").Principal
+	teamB := loadIssuedFixture(t, "valid-team-b-denial.json").Principal
+	load := matchingPolicy(t)
+	sources := map[string]policy.SnapshotSource{
+		"reference": load,
+		"external fake": staticPolicySource{evaluator: policyEvaluatorFunc(func(context policy.EvaluationContext) (policy.Evaluation, error) {
+			result := policy.Evaluation{
+				Context:   context,
+				Decision:  policy.DecisionDeny,
+				PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "2026-10-06"},
+				Reasons:   []policy.Reason{{Code: "company-deny", Message: "company policy denied the assignment"}},
+			}
+			if context.Principal.Subject == teamA.Subject {
+				result.Decision = policy.DecisionAllow
+				result.Reasons = []policy.Reason{{Code: "company-allow", Message: "company policy allowed the assignment"}}
+			}
+			return result, nil
+		})},
+	}
+
+	for sourceName, source := range sources {
+		t.Run(sourceName, func(t *testing.T) {
+			for _, test := range []struct {
+				name      string
+				principal v1alpha1.Principal
+				want      v1alpha1.DecisionResult
+				calls     int
+			}{
+				{"allow", teamA, v1alpha1.DecisionResultAllow, 1},
+				{"deny", teamB, v1alpha1.DecisionResultDeny, 0},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					calls := 0
+					decision, err := (Gate{Evaluator: Authorizer{Policies: source}}).Admit(inputFor(request, test.principal), func(Admission) error {
+						calls++
+						return nil
+					})
+					if err != nil || decision.Result != test.want || calls != test.calls {
+						t.Fatalf("decision/error/calls = %+v/%v/%d, want %s/<nil>/%d", decision, err, calls, test.want, test.calls)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestAdmissionDefensivelyCopiesExternalConstraints(t *testing.T) {
+	request := loadRequestFixture(t)
+	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
+	timeout := 5 * time.Minute
+	returned := policy.Evaluation{
+		Context:   policyContext(input),
+		Decision:  policy.DecisionAllow,
+		PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "1"},
+		Reasons:   []policy.Reason{{Code: "company-allow", Message: "allowed"}},
+		Constraints: &policy.AuthorityConstraints{
+			Tools:      &policy.StringSetConstraint{Values: []string{"git.read"}},
+			MaxTimeout: &timeout,
+		},
+	}
+	source := staticPolicySource{evaluator: policyEvaluatorFunc(func(policy.EvaluationContext) (policy.Evaluation, error) {
+		return returned, nil
+	})}
+	var admission Admission
+	_, err := (Gate{Evaluator: Authorizer{Policies: source}}).Admit(input, func(value Admission) error {
+		admission = value
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	returned.Constraints.Tools.Values[0] = "git.write"
+	*returned.Constraints.MaxTimeout = time.Hour
+	first := admission.Constraints()
+	first.Tools.Values[0] = "mutated-by-consumer"
+	second := admission.Constraints()
+	if second.Tools.Values[0] != "git.read" || *second.MaxTimeout != 5*time.Minute {
+		t.Fatalf("admission constraints retained mutable caller memory: %+v", second)
+	}
+}
+
+func TestExternalEvaluatorContextMismatchFailsBeforeContinuation(t *testing.T) {
+	request := loadRequestFixture(t)
+	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
+	source := staticPolicySource{evaluator: policyEvaluatorFunc(func(context policy.EvaluationContext) (policy.Evaluation, error) {
+		context.Resource.Attributes[0].Values[0] = "ledger"
+		return policy.Evaluation{
+			Context: context, Decision: policy.DecisionAllow,
+			PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "1"},
+			Reasons:   []policy.Reason{{Code: "allow", Message: "allowed"}},
+		}, nil
+	})}
+	calls := 0
+	_, err := (Gate{Evaluator: Authorizer{Policies: source}}).Admit(input, func(Admission) error { calls++; return nil })
+	validationErr, ok := err.(*v1alpha1.ValidationError)
+	if !ok || validationErr.FieldPath != "evaluation.request" || calls != 0 {
+		t.Fatalf("error/calls = %#v/%d, want evaluation.request and zero calls", err, calls)
+	}
+}
 
 func TestCanonicalTeamAAllowAndTeamBDenyBeforeSideEffects(t *testing.T) {
 	request := loadRequestFixture(t)
@@ -62,7 +166,6 @@ func TestAuthorizerDefaultsToDenyWithoutPolicyOrExactMatch(t *testing.T) {
 		authorizer Authorizer
 		mutate     func(*Request)
 	}{
-		"missing policy": {authorizer: Authorizer{}},
 		"unknown team": {authorizer: Authorizer{Policies: matchingPolicy(t)}, mutate: func(in *Request) {
 			in.Principal.Team = "unknown"
 		}},
@@ -89,6 +192,24 @@ func TestAuthorizerDefaultsToDenyWithoutPolicyOrExactMatch(t *testing.T) {
 			}
 			if decision.Result != v1alpha1.DecisionResultDeny || decision.Reason == "" || calls != 0 {
 				t.Fatalf("decision/calls = %+v/%d, want evidence-ready deny and zero calls", decision, calls)
+			}
+		})
+	}
+}
+
+func TestAuthorizerFailsClosedWithoutPolicySnapshot(t *testing.T) {
+	request := loadRequestFixture(t)
+	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
+	for name, authorizer := range map[string]Authorizer{
+		"missing source":   {},
+		"missing snapshot": {Policies: staticPolicySource{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			_, err := (Gate{Evaluator: authorizer}).Admit(input, func(Admission) error { calls++; return nil })
+			validationErr, ok := err.(*v1alpha1.ValidationError)
+			if !ok || validationErr.FieldPath != "evaluator.snapshot" || calls != 0 {
+				t.Fatalf("error/calls = %#v/%d, want evaluator.snapshot and zero calls", err, calls)
 			}
 		})
 	}
@@ -190,7 +311,10 @@ func TestGateRejectsMalformedAllowBeforeContinuation(t *testing.T) {
 			decision := valid
 			test.mutate(&decision)
 			calls := 0
-			evaluation := Evaluation{request: input, decision: decision}
+			evaluation := completeEvaluation(input, decision)
+			// Preserve the deliberately malformed public value after the helper
+			// constructs the complete generic Policy snapshot for this context.
+			evaluation.decision = decision
 			_, validationErr := (Gate{Evaluator: fixedEvaluator{evaluation: evaluation}}).Admit(input, func(Admission) error {
 				calls++
 				return nil
@@ -296,6 +420,18 @@ type spyEvaluator struct{ calls int }
 func (s *spyEvaluator) Evaluate(Request) (Evaluation, error) {
 	s.calls++
 	return Evaluation{}, nil
+}
+
+type policyEvaluatorFunc func(policy.EvaluationContext) (policy.Evaluation, error)
+
+func (f policyEvaluatorFunc) Evaluate(context policy.EvaluationContext) (policy.Evaluation, error) {
+	return f(context)
+}
+
+type staticPolicySource struct{ evaluator policy.Evaluator }
+
+func (s staticPolicySource) Snapshot() (policy.Evaluator, bool) {
+	return s.evaluator, s.evaluator != nil
 }
 
 func inputFor(request *v1alpha1.ClaimRequest, principal v1alpha1.Principal) Request {
