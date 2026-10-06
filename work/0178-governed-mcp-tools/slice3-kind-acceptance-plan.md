@@ -1,6 +1,6 @@
 # E16 Slice 3: installed kind acceptance plan
 
-Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. Slice 4, E16's token-required path, is built offline (section 4, G7) and c6 proves it together with Slice 3. L12 set the rules for model answers on 2026-10-05 (decisions 14–19). Campaign c6, the formal campaign, passed every step on its first run at `fd08ac0` on 2026-10-05 (section 10; evidence in [docs/evidence/178/slice3/c6](../../docs/evidence/178/slice3/c6/summary.md)). The plan does not change the Epic's completion state.
+Status: revision 3, accepted for implementation after independent review rounds 1–3 (findings in [section 10](#10-review-record)). Phase 2 began on kind on 2026-10-04. Campaign c3 stopped at the fixture (L6). Campaign c4 passed Phase 2 and then stopped before `install` on a runner defect (L7). Campaign c5, a rehearsal on the L7 fix rather than evidence, reached every step through the probe and found L9–L14. L9–L11 are fixed in a new commit, so the next campaign (c6) starts again from preflight. Slice 4, E16's token-required path, is built offline (section 4, G7) and c6 proves it together with Slice 3. L12 set the rules for model answers on 2026-10-05 (decisions 14–19). Campaign c6, the formal campaign, passed every step on its first run at `fd08ac0` on 2026-10-05 (section 10; evidence in [docs/evidence/178/slice3/c6](../../docs/evidence/178/slice3/c6/summary.md)). On 2026-10-06 E14's split moved worker authentication from #197 to #205 (section 7). The plan does not change the Epic's completion state.
 
 This plan refines the Slice 3 Todo in [task.md](task.md#execution-todo). The packet's [acceptance criteria](task.md#acceptance-criteria), [evidence requirements](task.md#evidence-required), [negative cases](spec.md#negative-cases) and [verification strategy](design.md#verification-strategy) remain authoritative. Where this plan and the packet disagree, the packet wins and this plan is corrected.
 
@@ -42,7 +42,7 @@ Unchanged boundaries:
 - Backend-neutral contracts and Gateway ownership of authority. The service still checks only the installed route and allowlisted argument before the Gateway.
 - No production API, flag or route for fault injection or probing. The production binary contains one inactive append function value (G2) that always points at `journal.Append`; the API that replaces it compiles only under the `agenovaprobe` build tag.
 - No root `go.mod` or CI toolchain change. No CI job for the fixture.
-- Worker identity tokens and worker authentication (#197, formerly #121), hostile-worker network bypass (E15), EKS and durable storage (E18) keep their current owners.
+- Worker identity tokens and worker authentication (#205 since 2026-10-06, before that #197; source requirement #121), hostile-worker network bypass (E15), EKS (E13) and durable storage (E18) keep their current owners.
 - PR #192 stays Draft. Slice 3 passing does not close #178; Slice 4, E16's own token-required MCP path, is still required, and c6 proves both (section 7).
 
 ## 3. Pass tiers
@@ -83,7 +83,7 @@ The packet requires real-server proof for the five zero-call cases and an explic
 | N13 | `TestMCPClientUnresolvableTokenSendsNothing`, `TestKubectlSecretReaderFailsWithOneConstantError`, `TestInstalledToolBuilderResolvesTokenReferencesPerCall`, `TestConfiguredServiceRecordsCredentialFailures` |
 | N14 | `TestMCPClientCredentialRejectionIsExplicitAndNotRetried`, fixture `TestTokenPathRejectsWithoutTheTokenBeforeAnySession`, `TestConfiguredServiceRecordsCredentialFailures` |
 
-Recording failures are explicit. A ToolDecision, ProviderAttempt or ProviderOutcome that cannot be recorded returns `tool evidence recording failed` to the worker and ends the Work with reason `tool-evidence-failed`, never an ordinary tool failure. The Tool Gateway now wraps its decision-observer error with `%w` (`internal/toolgateway/gateway.go`), the only change in that package; E14 (#197) and E18 also touch it.
+Recording failures are explicit. A ToolDecision, ProviderAttempt or ProviderOutcome that cannot be recorded returns `tool evidence recording failed` to the worker and ends the Work with reason `tool-evidence-failed`, never an ordinary tool failure. The Tool Gateway now wraps its decision-observer error with `%w` (`internal/toolgateway/gateway.go`), the only change in that package. E18's plan on [#180](https://github.com/wunderforge/agenova/issues/180#issuecomment-5862744273) names that file, and E14's #205 will add worker-credential checks on the Gateway entry path.
 
 ## 4. Code and configuration gaps
 
@@ -253,7 +253,7 @@ Start only after Phase 4 restoration and a successful positive control. Run each
 | N4a/b/c | Captured handler with a live call context after Succeeded, Failed, Expired | `app.RequireRunningClaim` | Each rejected independently, zero calls after the boundary |
 | N5a/b | ToolDecision append fails; ProviderAttempt append fails | Journal append before the provider | Explicit evidence failure, zero downstream calls |
 
-N3 and the probe lifecycle prove only the service-side correlation guard. They do not claim authenticated worker isolation, which belongs to #197.
+N3 and the probe lifecycle prove only the service-side correlation guard. They do not claim authenticated worker isolation, which belongs to #205.
 
 Any lost log, unknown request, Pod UID change, restartCount increase or collector exit invalidates the affected window. Keep the failed evidence, fix, and start a new campaign; never stitch partial runs into one pass.
 
@@ -279,14 +279,16 @@ No token, credential or raw trusted metadata appears in any artifact. Since Slic
 
 ## 7. Coordination with E14 (#197)
 
-#197 adds a claim-bound worker JWT that Tool and Model Gateways verify before authority lookup and adapter invocation, on the same entry path as G2 and G3.
+Until 2026-10-06 the worker JWT belonged to #197. E14 then split into sequential milestones ([task.md](task.md#decisions-and-blockers), E14 split): #197 is now M1, the Policy kernel, and the worker JWT moved to [#205](https://github.com/wunderforge/agenova/issues/205) (M4). This section names the current owner.
 
-Slice 4 no longer depends on E14 (Tom, 2026-10-04, recorded on [Epic #178](https://github.com/wunderforge/agenova/issues/178#issuecomment-5977720567)): E16 delivers its own token-required path for the `mcp-http` backend ([task.md](task.md#execution-todo) Slice 4), and the formal campaign c6 proves it on kind together with Slice 3. What remains with #197 is merge order.
+#205 adds a claim-bound worker JWT that Tool and Model Gateways verify before claim and authority lookup, on the same entry path as G2 and G3.
 
-- c6 runs on this branch, without #197.
-- After #197 merges, E16 reruns N1–N5 under the worker JWT, with nothing needed from E14. Each probe must present a valid claim-bound identity and prove it still reached its intended rejection point. A missing-token rejection cannot stand in for N1–N5's distinct mechanisms.
-- N3's correlation claim stays separate from authenticated cross-claim rejection, which #197 owns.
-- A note on #197 about overlapping paths is useful but is a separate action that needs Tom's approval. It is not a prerequisite for implementation.
+Slice 4 no longer depends on E14 (Tom, 2026-10-04, recorded on [Epic #178](https://github.com/wunderforge/agenova/issues/178#issuecomment-5977720567)): E16 delivers its own token-required path for the `mcp-http` backend ([task.md](task.md#execution-todo) Slice 4), and the formal campaign c6 proves it on kind together with Slice 3. What remains with E14 is merge order.
+
+- c6 ran on this branch, without any worker JWT.
+- After #205 merges, E16 reruns N1–N5 under the worker JWT, with nothing needed from E14. Each probe must present a valid claim-bound identity and prove it still reached its intended rejection point. A missing-token rejection cannot stand in for N1–N5's distinct mechanisms.
+- N3's correlation claim stays separate from authenticated cross-claim rejection, which #205 owns.
+- A note on #205 about overlapping paths is useful but is a separate action that needs Tom's approval. It is not a prerequisite for implementation.
 
 ## 8. Order, commits and estimate
 
