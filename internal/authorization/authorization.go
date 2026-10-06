@@ -85,7 +85,7 @@ func (a Admission) Constraints() *policy.AuthorityConstraints {
 	return policy.CloneEvaluation(a.evaluation.policyEvaluation).Constraints
 }
 
-// Authorizer performs exact-match, default-deny assignment admission.
+// Authorizer maps assignment admission into one immutable generic Policy snapshot.
 type Authorizer struct {
 	Policies policy.SnapshotSource
 }
@@ -99,11 +99,11 @@ func (a Authorizer) Evaluate(input Request) (Evaluation, error) {
 
 	context := policyContext(input)
 	if a.Policies == nil {
-		return completePolicyEvaluation(input, noActivePolicy(context)), nil
+		return Evaluation{}, required("evaluator.snapshot")
 	}
 	evaluator, ok := a.Policies.Snapshot()
 	if !ok {
-		return completePolicyEvaluation(input, noActivePolicy(context)), nil
+		return Evaluation{}, required("evaluator.snapshot")
 	}
 	if evaluator == nil {
 		return Evaluation{}, required("evaluator.snapshot")
@@ -212,29 +212,23 @@ func completePolicyEvaluation(input Request, evaluation policy.Evaluation) Evalu
 	return Evaluation{request: input, policyEvaluation: copy, decision: decision}
 }
 
-func noActivePolicy(context policy.EvaluationContext) policy.Evaluation {
-	return policy.Evaluation{
-		Context:  context,
-		Decision: policy.DecisionDeny,
-		Reasons: []policy.Reason{{
-			Code:    "no-active-policy",
-			Message: "no active policy bundle",
-		}},
-	}
-}
-
 func policyContext(input Request) policy.EvaluationContext {
 	return policy.EvaluationContext{
 		Principal: policy.PrincipalContext{
 			Subject:               input.Principal.Subject,
-			Team:                  input.Principal.Team,
 			AuthenticationContext: input.Principal.AuthenticationContext,
+			Attributes: []policy.Attribute{{
+				Name: "team", Values: []string{input.Principal.Team},
+			}},
 		},
 		Action: input.Action.Name,
 		Resource: policy.ResourceContext{
-			RequestRef:  input.RequestRef,
-			Project:     input.Action.Project,
-			TemplateRef: input.Action.TemplateRef,
+			Type: "assignment",
+			ID:   input.RequestRef,
+			Attributes: []policy.Attribute{
+				{Name: "project", Values: []string{input.Action.Project}},
+				{Name: "templateRef", Values: []string{input.Action.TemplateRef}},
+			},
 		},
 	}
 }

@@ -26,7 +26,7 @@ func TestReferenceEvaluatorPreservesExactMatchBehavior(t *testing.T) {
 		t.Fatalf("allowed evaluation = %+v", allowed)
 	}
 
-	context.Principal.Team = "team-b"
+	context.Principal.Attributes[0].Values[0] = "team-b"
 	denied, err := evaluator.Evaluate(context)
 	if err != nil {
 		t.Fatal(err)
@@ -91,10 +91,14 @@ func TestValidateEvaluationFailsClosed(t *testing.T) {
 		Reasons:   []Reason{{Code: "allowed", Message: "allowed"}},
 	}
 	tests := map[string]func(*Evaluation){
-		"different context": func(e *Evaluation) { e.Context.Resource.Project = "ledger" },
+		"different context": func(e *Evaluation) { e.Context.Resource.Attributes[0].Values[0] = "ledger" },
 		"invalid decision":  func(e *Evaluation) { e.Decision = Decision("maybe") },
 		"missing policy":    func(e *Evaluation) { e.PolicyRef = PolicyReference{} },
-		"missing reason":    func(e *Evaluation) { e.Reasons = nil },
+		"deny missing policy": func(e *Evaluation) {
+			e.Decision = DecisionDeny
+			e.PolicyRef = PolicyReference{}
+		},
+		"missing reason": func(e *Evaluation) { e.Reasons = nil },
 		"blank constraint": func(e *Evaluation) {
 			e.Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: []string{" "}}}
 		},
@@ -112,9 +116,18 @@ func TestValidateEvaluationFailsClosed(t *testing.T) {
 
 func validEvaluationContext() EvaluationContext {
 	return EvaluationContext{
-		Principal:   PrincipalContext{Subject: "user:team-a", Team: "team-a", AuthenticationContext: "fixture"},
-		Action:      "claim.create",
-		Resource:    ResourceContext{RequestRef: "fix-payment-timeout", Project: "payments", TemplateRef: "engineer"},
+		Principal: PrincipalContext{
+			Subject: "user:team-a", AuthenticationContext: "fixture",
+			Attributes: []Attribute{{Name: "team", Values: []string{"team-a"}}},
+		},
+		Action: "claim.create",
+		Resource: ResourceContext{
+			Type: "assignment", ID: "fix-payment-timeout",
+			Attributes: []Attribute{
+				{Name: "project", Values: []string{"payments"}},
+				{Name: "templateRef", Values: []string{"engineer"}},
+			},
+		},
 		Environment: []EnvironmentFact{{Name: "deployment", Value: "kind"}},
 	}
 }

@@ -26,7 +26,7 @@ func TestEvaluatorContractReferenceAndExternal(t *testing.T) {
 				PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "2026-10-06"},
 				Reasons:   []policy.Reason{{Code: "company-deny", Message: "company policy denied the assignment"}},
 			}
-			if context.Principal.Team == "team-a" {
+			if context.Principal.Subject == teamA.Subject {
 				result.Decision = policy.DecisionAllow
 				result.Reasons = []policy.Reason{{Code: "company-allow", Message: "company policy allowed the assignment"}}
 			}
@@ -100,7 +100,7 @@ func TestExternalEvaluatorContextMismatchFailsBeforeContinuation(t *testing.T) {
 	request := loadRequestFixture(t)
 	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
 	source := staticPolicySource{evaluator: policyEvaluatorFunc(func(context policy.EvaluationContext) (policy.Evaluation, error) {
-		context.Resource.Project = "ledger"
+		context.Resource.Attributes[0].Values[0] = "ledger"
 		return policy.Evaluation{
 			Context: context, Decision: policy.DecisionAllow,
 			PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "1"},
@@ -166,7 +166,6 @@ func TestAuthorizerDefaultsToDenyWithoutPolicyOrExactMatch(t *testing.T) {
 		authorizer Authorizer
 		mutate     func(*Request)
 	}{
-		"missing policy": {authorizer: Authorizer{}},
 		"unknown team": {authorizer: Authorizer{Policies: matchingPolicy(t)}, mutate: func(in *Request) {
 			in.Principal.Team = "unknown"
 		}},
@@ -193,6 +192,24 @@ func TestAuthorizerDefaultsToDenyWithoutPolicyOrExactMatch(t *testing.T) {
 			}
 			if decision.Result != v1alpha1.DecisionResultDeny || decision.Reason == "" || calls != 0 {
 				t.Fatalf("decision/calls = %+v/%d, want evidence-ready deny and zero calls", decision, calls)
+			}
+		})
+	}
+}
+
+func TestAuthorizerFailsClosedWithoutPolicySnapshot(t *testing.T) {
+	request := loadRequestFixture(t)
+	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
+	for name, authorizer := range map[string]Authorizer{
+		"missing source":   {},
+		"missing snapshot": {Policies: staticPolicySource{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			_, err := (Gate{Evaluator: authorizer}).Admit(input, func(Admission) error { calls++; return nil })
+			validationErr, ok := err.(*v1alpha1.ValidationError)
+			if !ok || validationErr.FieldPath != "evaluator.snapshot" || calls != 0 {
+				t.Fatalf("error/calls = %#v/%d, want evaluator.snapshot and zero calls", err, calls)
 			}
 		})
 	}

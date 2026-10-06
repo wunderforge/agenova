@@ -23,15 +23,22 @@ const (
 // PrincipalContext is the trusted identity projection made available to Policy.
 type PrincipalContext struct {
 	Subject               string
-	Team                  string
 	AuthenticationContext string
+	Attributes            []Attribute
 }
 
 // ResourceContext identifies the backend-neutral object being authorized.
 type ResourceContext struct {
-	RequestRef  string
-	Project     string
-	TemplateRef string
+	Type       string
+	ID         string
+	Attributes []Attribute
+}
+
+// Attribute carries one trusted, evaluator-neutral named value set. Attribute
+// names and their meaning belong to the producer/evaluator composition.
+type Attribute struct {
+	Name   string
+	Values []string
 }
 
 // EnvironmentFact is one bounded, trusted input supplied by the application.
@@ -99,14 +106,19 @@ type SnapshotSource interface {
 
 // ContextEqual compares the complete trusted input, including ordered facts.
 func ContextEqual(left, right EvaluationContext) bool {
-	return left.Principal == right.Principal && left.Action == right.Action &&
-		left.Resource == right.Resource && slices.Equal(left.Environment, right.Environment)
+	return left.Principal.Subject == right.Principal.Subject &&
+		left.Principal.AuthenticationContext == right.Principal.AuthenticationContext &&
+		attributesEqual(left.Principal.Attributes, right.Principal.Attributes) &&
+		left.Action == right.Action && left.Resource.Type == right.Resource.Type &&
+		left.Resource.ID == right.Resource.ID &&
+		attributesEqual(left.Resource.Attributes, right.Resource.Attributes) &&
+		slices.Equal(left.Environment, right.Environment)
 }
 
 // CloneEvaluation returns a deep copy safe to retain as an admission snapshot.
 func CloneEvaluation(evaluation Evaluation) Evaluation {
 	copy := evaluation
-	copy.Context.Environment = append([]EnvironmentFact(nil), evaluation.Context.Environment...)
+	copy.Context = cloneContext(evaluation.Context)
 	copy.Reasons = append([]Reason(nil), evaluation.Reasons...)
 	copy.Constraints = cloneConstraints(evaluation.Constraints)
 	return copy
@@ -125,11 +137,8 @@ func ValidateEvaluation(expected EvaluationContext, evaluation Evaluation) error
 	}
 	policyID := strings.TrimSpace(evaluation.PolicyRef.ID)
 	policyVersion := strings.TrimSpace(evaluation.PolicyRef.Version)
-	if (policyID == "") != (policyVersion == "") {
-		return errors.New("evaluation policy reference requires both ID and version")
-	}
-	if evaluation.Decision == DecisionAllow && policyID == "" {
-		return errors.New("allowed evaluation requires a policy reference")
+	if policyID == "" || policyVersion == "" {
+		return errors.New("evaluation requires a complete policy reference")
 	}
 	if len(evaluation.Reasons) == 0 {
 		return errors.New("evaluation requires at least one reason")
@@ -149,12 +158,16 @@ func ValidateContext(context EvaluationContext) error {
 		value string
 	}{
 		{"principal.subject", context.Principal.Subject},
-		{"principal.team", context.Principal.Team},
 		{"principal.authenticationContext", context.Principal.AuthenticationContext},
 		{"action", context.Action},
-		{"resource.requestRef", context.Resource.RequestRef},
-		{"resource.project", context.Resource.Project},
-		{"resource.templateRef", context.Resource.TemplateRef},
+		{"resource.type", context.Resource.Type},
+		{"resource.id", context.Resource.ID},
+	}
+	if err := validateAttributes("principal.attributes", context.Principal.Attributes); err != nil {
+		return err
+	}
+	if err := validateAttributes("resource.attributes", context.Resource.Attributes); err != nil {
+		return err
 	}
 	for _, field := range fields {
 		if strings.TrimSpace(field.value) == "" {
@@ -170,6 +183,33 @@ func ValidateContext(context EvaluationContext) error {
 			return fmt.Errorf("evaluation context environment fact %q is duplicated", fact.Name)
 		}
 		seen[fact.Name] = struct{}{}
+	}
+	return nil
+}
+
+func validateAttributes(path string, attributes []Attribute) error {
+	seen := make(map[string]struct{}, len(attributes))
+	for index, attribute := range attributes {
+		if strings.TrimSpace(attribute.Name) == "" {
+			return fmt.Errorf("evaluation context %s[%d] requires a name", path, index)
+		}
+		if _, duplicate := seen[attribute.Name]; duplicate {
+			return fmt.Errorf("evaluation context %s attribute %q is duplicated", path, attribute.Name)
+		}
+		seen[attribute.Name] = struct{}{}
+		if len(attribute.Values) == 0 {
+			return fmt.Errorf("evaluation context %s[%d] requires at least one value", path, index)
+		}
+		values := make(map[string]struct{}, len(attribute.Values))
+		for valueIndex, value := range attribute.Values {
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("evaluation context %s[%d].values[%d] is blank", path, index, valueIndex)
+			}
+			if _, duplicate := values[value]; duplicate {
+				return fmt.Errorf("evaluation context %s[%d].values[%d] is duplicated", path, index, valueIndex)
+			}
+			values[value] = struct{}{}
+		}
 	}
 	return nil
 }
@@ -258,11 +298,14 @@ func (r referenceEvaluator) Evaluate(context EvaluationContext) (Evaluation, err
 			Message: "no exact policy rule matched the trusted principal and requested assignment",
 		}},
 	}
-	if r.bundle.Allows(Match{
-		Team:        context.Principal.Team,
+	team, teamOK := singleAttribute(context.Principal.Attributes, "team")
+	project, projectOK := singleAttribute(context.Resource.Attributes, "project")
+	templateRef, templateOK := singleAttribute(context.Resource.Attributes, "templateRef")
+	if teamOK && projectOK && templateOK && r.bundle.Allows(Match{
+		Team:        team,
 		Action:      context.Action,
-		Project:     context.Resource.Project,
-		TemplateRef: context.Resource.TemplateRef,
+		Project:     project,
+		TemplateRef: templateRef,
 	}) {
 		evaluation.Decision = DecisionAllow
 		evaluation.Reasons = []Reason{{
@@ -275,6 +318,31 @@ func (r referenceEvaluator) Evaluate(context EvaluationContext) (Evaluation, err
 
 func cloneContext(context EvaluationContext) EvaluationContext {
 	copy := context
+	copy.Principal.Attributes = cloneAttributes(context.Principal.Attributes)
+	copy.Resource.Attributes = cloneAttributes(context.Resource.Attributes)
 	copy.Environment = append([]EnvironmentFact(nil), context.Environment...)
 	return copy
+}
+
+func cloneAttributes(attributes []Attribute) []Attribute {
+	copy := make([]Attribute, len(attributes))
+	for index, attribute := range attributes {
+		copy[index] = Attribute{Name: attribute.Name, Values: append([]string(nil), attribute.Values...)}
+	}
+	return copy
+}
+
+func attributesEqual(left, right []Attribute) bool {
+	return slices.EqualFunc(left, right, func(left, right Attribute) bool {
+		return left.Name == right.Name && slices.Equal(left.Values, right.Values)
+	})
+}
+
+func singleAttribute(attributes []Attribute, name string) (string, bool) {
+	for _, attribute := range attributes {
+		if attribute.Name == name && len(attribute.Values) == 1 {
+			return attribute.Values[0], true
+		}
+	}
+	return "", false
 }

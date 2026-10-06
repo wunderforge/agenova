@@ -240,14 +240,18 @@ func admitWithConstraints(t *testing.T, request *v1alpha1.ClaimRequest, constrai
 	context := policy.EvaluationContext{
 		Principal: policy.PrincipalContext{
 			Subject:               state.Principal.Subject,
-			Team:                  state.Principal.Team,
 			AuthenticationContext: state.Principal.AuthenticationContext,
+			Attributes: []policy.Attribute{{
+				Name: "team", Values: []string{state.Principal.Team},
+			}},
 		},
 		Action: "claim.create",
 		Resource: policy.ResourceContext{
-			RequestRef:  request.Metadata.Name,
-			Project:     request.Spec.ProjectRef,
-			TemplateRef: request.Spec.TemplateRef,
+			Type: "assignment", ID: request.Metadata.Name,
+			Attributes: []policy.Attribute{
+				{Name: "project", Values: []string{request.Spec.ProjectRef}},
+				{Name: "templateRef", Values: []string{request.Spec.TemplateRef}},
+			},
 		},
 	}
 	source := fixedPolicySource{evaluator: fixedPolicyEvaluator{evaluation: policy.Evaluation{
