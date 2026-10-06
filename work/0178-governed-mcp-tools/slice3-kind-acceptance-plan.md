@@ -559,3 +559,5 @@ Codex's review at `a85c342` (2026-10-06) raised two more P2. Both are fixed with
 - **P2.** The result-reference rule rejected only `://`, so `file:/etc/passwd` passed, and the MCP client builds exactly that from a scope `file:` and a file `etc/passwd`. `facts.ValidResultRef` now also rejects a leading `//`, a URI scheme followed by `/`, and the WHATWG special schemes plus `data` and `javascript`; scope kinds such as `repo:` stay valid. `toolbackend.ValidResultRef` now calls it, so the two rules cannot drift.
 
 c6 granted at most one scope per Work, and every c6 reference starts with `repo:`, so c6's result stands for these changes too.
+
+Codex's review at `a1b0de5` (2026-10-06) raised one more P2: the MCP client sent `tools/call` even when the server's `initialize` result did not declare the `tools` capability. The handshake now fails with a protocol error before any `tools/call` when that capability is absent or null; `TestMCPClientHandshakeFailuresStopBeforeToolCall` covers both and fails without the fix. The official-SDK fixture declares the capability, and the client still interoperates with it, so c6's result stands.

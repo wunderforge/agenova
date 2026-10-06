@@ -29,12 +29,14 @@ type seenRequest struct {
 // fakeMCP is a deterministic Streamable HTTP server. Each hook may override
 // one step; the defaults implement a well-behaved JSON server.
 type fakeMCP struct {
-	t        *testing.T
-	mu       sync.Mutex
-	seen     []seenRequest
-	version  string
-	initNote int
-	onCall   func(w http.ResponseWriter, id json.RawMessage)
+	t       *testing.T
+	mu      sync.Mutex
+	seen    []seenRequest
+	version string
+	// capabilities is the initialize result's capabilities object.
+	capabilities string
+	initNote     int
+	onCall       func(w http.ResponseWriter, id json.RawMessage)
 	// reject answers requests of this RPC (or HTTP) method with status.
 	reject       string
 	rejectStatus int
@@ -77,7 +79,7 @@ func (f *fakeMCP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case message.Method == "initialize":
 		w.Header().Set("Mcp-Session-Id", "session-1")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":%q,"capabilities":{"tools":{}},"serverInfo":{"name":"fake","version":"0"}}}`, message.ID, f.version)
+		fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":%q,"capabilities":%s,"serverInfo":{"name":"fake","version":"0"}}}`, message.ID, f.version, f.capabilities)
 	case message.Method == "notifications/initialized":
 		w.WriteHeader(f.initNote)
 	case message.Method == "tools/call":
@@ -104,7 +106,7 @@ func rawResult(contentType, body string) func(http.ResponseWriter, json.RawMessa
 
 func startFake(t *testing.T, onCall func(http.ResponseWriter, json.RawMessage)) (*fakeMCP, *httptest.Server) {
 	t.Helper()
-	fake := &fakeMCP{t: t, version: mcpProtocolVersion, initNote: http.StatusAccepted, onCall: onCall}
+	fake := &fakeMCP{t: t, version: mcpProtocolVersion, capabilities: `{"tools":{}}`, initNote: http.StatusAccepted, onCall: onCall}
 	server := httptest.NewServer(fake)
 	t.Cleanup(server.Close)
 	return fake, server
@@ -209,6 +211,8 @@ func TestMCPClientHandshakeFailuresStopBeforeToolCall(t *testing.T) {
 	for name, change := range map[string]func(*fakeMCP){
 		"unsupported negotiated version": func(f *fakeMCP) { f.version = "2024-11-05" },
 		"initialized not accepted":       func(f *fakeMCP) { f.initNote = http.StatusOK },
+		"tools capability absent":        func(f *fakeMCP) { f.capabilities = `{"resources":{}}` },
+		"tools capability null":          func(f *fakeMCP) { f.capabilities = `{"tools":null}` },
 	} {
 		t.Run(name, func(t *testing.T) {
 			fake, server := startFake(t, jsonResult("x"))

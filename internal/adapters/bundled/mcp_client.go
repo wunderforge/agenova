@@ -170,8 +170,12 @@ func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (st
 	}
 	var init struct {
 		ProtocolVersion string `json:"protocolVersion"`
+		Capabilities    struct {
+			Tools map[string]any `json:"tools"`
+		} `json:"capabilities"`
 	}
-	if json.Unmarshal(initResult, &init) != nil || init.ProtocolVersion != mcpProtocolVersion {
+	// A server that does not declare the tools capability never receives tools/call.
+	if json.Unmarshal(initResult, &init) != nil || init.ProtocolVersion != mcpProtocolVersion || init.Capabilities.Tools == nil {
 		return "", toolbackend.ErrProtocol
 	}
 	s.initialized = true
