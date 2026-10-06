@@ -75,6 +75,7 @@ Out of scope:
 | Public IP `1.1.1.1:443` from the worker | Allowed by the generated policy; proves the worker's probe tooling works when a path is open. (kube-dns is not usable here: `10.96.0.10` falls inside the policy's excluded `10.0.0.0/8`.) |
 | By-DNS and by-IP variants | Separates DNS failure from connection blocking. The worker uses `dnsPolicy: None` with public resolvers, so cluster names never resolve; by-IP results decide. |
 | Unique request path per probe (`/e15-<round>-<pod>`) | Docker Desktop shows every client as `127.0.0.1` in the Ollama log, so probes are attributed by path, not by source address. |
+| Startup probe on a freshly created worker (`startup-window.sh`) | Checks whether the generated policy already applies at the worker's first request, not only after it has been running. |
 | Second probe: experimental default-deny egress NetworkPolicy, created and removed by the harness | Shows whether kindnet enforces any policy at all, so a "blocked" result can name its mechanism; labelled experimental (yanyang, 20 Sep). |
 
 Worker source: a worker bound to a real Agenova claim during `agenova run` when it stays Running long enough to exec into; otherwise a `SandboxClaim` created directly on the Agenova-generated template `agenova-tmpl-engineer`, with a recorded Pod-spec comparison against a real run's worker. The evidence states which was used.
@@ -91,7 +92,7 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 - [x] Run the governed positive control and record the Ollama count delta.
 - [x] Run probes from the claim worker, warm-pool worker, control Pod and host; record counts.
 - [x] Run the canary scan and the RI-2 / ES-5 audits.
-- [ ] Classify each target; apply the Disclosure rule before writing any public evidence.
+- [x] Classify each target; apply the Disclosure rule before writing any public evidence.
 - [x] Experimental default-deny second probe, with creation and cleanup recorded.
 - [ ] Write `docs/evidence/52/`, Known Gaps and status wording; draft follow-up issues for owner approval.
 - [ ] Run the focused gate and `./scripts/check.ps1 -All`.
@@ -125,10 +126,10 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 - Planning depth: Task. The method is fixed by the #194 matrix rows and the #52 comments; no new spec or design.
 - Starts from merged controlled-worker path (#134/#136/#144) without waiting for #51 (board reconciliation note in the #52 body, 21 Sep).
 - The meaning of "bypass the Gateway" follows the owner calibration on #52 (16 Sep) and the #194 spec: public egress is TM-1 exfiltration, not bypass, on kind.
-- Branch is cut from `main` at `c56ba3a`, not from `feat/194-security-claim-matrix`; matrix links are added after PR #195 merges.
+- Branch was cut from `main` at `c56ba3a` and rebased onto `ebb4c04` after PR #195 merged; matrix links are added in a follow-up change.
 - Private vulnerability reporting is disabled on the repository; high-severity findings go to the maintainer privately until it is enabled.
 - Assignee decisions (5 Oct): probe a worker bound by a real `agenova run` first, falling back to a `SandboxClaim` on `agenova-tmpl-engineer` with a recorded Pod-spec comparison; run the experimental default-deny second probe.
 - First run (5 Oct): a real `agenova run` ends before a full probe completes (one bound-worker datapoint only), so the full probe used a held `SandboxClaim` with the same `sandboxTemplateRef` and `warmpool` as the adapter. The control-plane canary needs a temporary env var on the control-plane Deployment; it was reverted and `platform status` returned `changes: 0`.
-- Disclosure (5 Oct): part of the AC-9 result was sent to the maintainer privately under the #194 Disclosure rule. Classification, public evidence and claim wording wait for that decision.
+- Disclosure (5–6 Oct): the AC-9 startup result was sent to the maintainer privately under the #194 Disclosure rule. The maintainer confirmed it as a real vulnerability and asked for a public issue: #208. Public egress (TM-1) is #202.
 - Related: #201 (E13) owns the EKS worker egress boundary; the kind public-egress result (TM-1) is filed separately.
 - Dates: packet 9 Oct, probe results 16 Oct, conclusion and docs 23 Oct 2026.
