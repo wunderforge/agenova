@@ -92,6 +92,7 @@ The ordinary integration gate checks Allocate, identity-matched Observe, explici
 6. Gateway transport, claim identity, external-egress controls, and durable facts are not integrated with the Kubernetes path.
 7. Workers cannot be enumerated independently of their claim, so if the claim disappears before the worker is observed, its release cannot be confirmed and non-allocation cannot be proven.
 8. The worker filesystem layout, writable task directory, HOME/temp/cache placement, host-path and credential exposure, and outside-boundary enforcement are not verified; the adapter reports an unsupported filesystem boundary.
+9. Worker network boundary on the kind reference ([#52 evidence](../evidence/52/kind-boundary/summary.md)): the generated NetworkPolicy is enforced by kindnet and blocks a running worker from the model provider, Kubernetes API, control plane and kube-dns. Two gaps are open. A freshly created worker reached the provider directly within about one second of start, before the policy applied ([#208](https://github.com/wunderforge/agenova/issues/208)). The policy allows public egress, and the worker uses public DNS resolvers ([#202](https://github.com/wunderforge/agenova/issues/202)). Not evaluated on EKS or another CNI.
 
 ## Integration Gate
 
