@@ -94,14 +94,14 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 - [x] Run the canary scan and the RI-2 / ES-5 audits.
 - [x] Classify each target; apply the Disclosure rule before writing any public evidence.
 - [x] Experimental default-deny second probe, with creation and cleanup recorded.
-- [ ] Write `docs/evidence/52/`, Known Gaps and status wording; draft follow-up issues for owner approval.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
-- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+- [x] Write `docs/evidence/52/`, Known Gaps and status wording; draft follow-up issues for owner approval.
+- [x] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
 
 - `bash -n harness/security/*.sh` and `shellcheck harness/security/*.sh` when available
-- `bash harness/security/probe-worker.sh --context kind-agenova-k8s-lab --namespace agenova-system` (real kind run; output committed as evidence)
+- `bash harness/security/probe-pod.sh --context kind-agenova-k8s-lab --namespace agenova-system --pod <pod> --marker <id>` and `startup-window.sh` (real kind run; output committed as evidence)
 - `.\scripts\check.ps1 -Docs`
 - `.\scripts\check.ps1 -All` (known macOS-only failure `ui/smoke/console.spec.ts:74`, passes on CI)
 
