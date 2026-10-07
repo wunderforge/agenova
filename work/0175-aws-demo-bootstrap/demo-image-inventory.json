@@ -1,0 +1,48 @@
+{
+  "agenova-demo/control-plane": [
+    {
+      "imageDigest": "sha256:8153ff7a3a5af9c47b7ed87d42556dd36a2b8eff3e7e5e4c05ddb81c274ee4da",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:57a20d0185122a2d79e5974c73bf9d23c39932f27877aff4e65d225f8b137160",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:787ef98b429039867ef5644c9a7ea8733585ce97bc80b9b82aff8b52493edad7",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:312794e0b9ae4ece0ca43e2cee33539d7fe07caec43e7118f9dd764a712877de",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:394646864093320ca64fe8ca4006ed6a3ba8d7ba81c70f4a53a975663037b467",
+      "imageTags": [
+        "demo-session-v2"
+      ]
+    },
+    {
+      "imageDigest": "sha256:5e3e2ce88e010bb1b2e603f33e0397970dff81e179300c6f4b2e993dbdeba5a5",
+      "imageTags": [
+        "e13-20260928"
+      ]
+    }
+  ],
+  "agenova-demo/worker": [
+    {
+      "imageDigest": "sha256:b51160079e8e55535040d158e90309e838c4f76cd19af6f89ae3d9796730d11f",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:065227afad619896becc85470bf56cd3df12468bae69959682c60390a73b9c26",
+      "imageTags": []
+    },
+    {
+      "imageDigest": "sha256:ec74e41c6348b4e4d10d4da3ab1ee0561d44c1e05964487adb2cc4a9c7b4ca9e",
+      "imageTags": [
+        "e13-20260928"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: demo-eks-bedrock
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: bedrock-backend
+      id: agenova.io/model/bedrock
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: agenova-demo
+        control-plane-image: REGISTRY/control-plane@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image-pull-policy: Always
+        namespace: agenova-system
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-system
+          compatible-worker-image: REGISTRY/worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          compatible-worker-protocol: controlled-v1
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: sydney-bedrock
+        adapterRef: bedrock-backend
+        config:
+          region: ap-southeast-2
+    modelProfiles:
+      - name: coding-standard
+        backendRef: sydney-bedrock
+        config:
+          model: amazon.nova-micro-v1:0
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

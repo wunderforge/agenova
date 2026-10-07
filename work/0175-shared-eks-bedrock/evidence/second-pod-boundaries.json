@@ -1,0 +1,44 @@
+[
+  {
+    "name": "agenova-control-plane-5b744b947b-vrchv",
+    "uid": "5b9b72a9-6cd3-4cfb-a6e4-bafd92bc72b4",
+    "serviceAccount": "agenova-control-plane",
+    "automount": false,
+    "phase": "Running",
+    "containers": [
+      {
+        "image": "931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/control-plane@sha256:5e3e2ce88e010bb1b2e603f33e0397970dff81e179300c6f4b2e993dbdeba5a5",
+        "envNames": [
+          "AGENOVA_PLATFORM_NAME",
+          "AGENOVA_PLATFORM_REVISION",
+          "AGENOVA_POLICY_REF",
+          "AGENOVA_ALLOWED_WORKER_IMAGE",
+          "AWS_STS_REGIONAL_ENDPOINTS",
+          "AWS_DEFAULT_REGION",
+          "AWS_REGION",
+          "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+          "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"
+        ],
+        "mounts": [
+          "platform",
+          "service-token",
+          "eks-pod-identity-token"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "agenova-pool-pool-engineer-k4528",
+    "uid": "b6a51420-f3bb-4d98-b37f-0f844cce2f97",
+    "serviceAccount": "default",
+    "automount": false,
+    "phase": "Running",
+    "containers": [
+      {
+        "image": "931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/worker@sha256:ec74e41c6348b4e4d10d4da3ab1ee0561d44c1e05964487adb2cc4a9c7b4ca9e",
+        "envNames": [],
+        "mounts": []
+      }
+    ]
+  }
+]

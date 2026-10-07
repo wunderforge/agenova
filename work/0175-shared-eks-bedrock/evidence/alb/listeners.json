@@ -1,0 +1,11 @@
+[
+    {
+        "Port": 443,
+        "Protocol": "HTTPS",
+        "Certificate": [
+            {
+                "CertificateArn": "arn:aws:acm:ap-southeast-2:931228356546:certificate/05298630-af13-42c2-8ffa-4bed2401d2ea"
+            }
+        ]
+    }
+]
