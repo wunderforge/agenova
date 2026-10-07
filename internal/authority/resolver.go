@@ -37,6 +37,9 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	}
 
 	tools := exactIntersection(request.Spec.RequestedAccess.Tools, ceiling.Tools)
+	if policyTools, limited := admission.ToolCeiling(); limited {
+		tools = exactIntersection(tools, policyTools)
+	}
 	if len(request.Spec.RequestedAccess.Tools) > 0 && len(tools) == 0 {
 		return nil, invalid("spec.requestedAccess.tools", "requested tools resolved completely empty")
 	}

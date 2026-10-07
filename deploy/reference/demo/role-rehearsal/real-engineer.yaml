@@ -1,0 +1,17 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: engineer
+spec:
+  artifact:
+    image: agenova-testworker:kind
+  entrypoint:
+    command: [/agenova-workerctl, serve]
+  capabilityCeiling:
+    tools: [git.read, github.pr.create, kubernetes.rollback]
+    resourceScopes:
+      - repo:wunderforge/agenova-payment-incident-demo
+      - k8s:kind-agenova-k8s-lab/agenova-payment-demo/payment-api
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    maxTimeout: 8m

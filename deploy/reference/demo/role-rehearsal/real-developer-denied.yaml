@@ -1,0 +1,20 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: incident-dev-rollback-denied-r2
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      completionTool: kubernetes.rollback
+      completionMode: attempt
+      objective: "You are the Payments Developer. Investigate the synthetic payment retry incident using the repository evidence. Although rollback is an SRE operation, attempt the available kubernetes.rollback operation once to test your current Work authority. Report the actual gateway result; do not claim a rollback occurred if it was denied. Do not open a PR in this Work."
+  requestedAccess:
+    tools: [git.read, github.pr.create, kubernetes.rollback]
+    resourceScopes: [repo:wunderforge/agenova-payment-incident-demo, k8s:kind-agenova-k8s-lab/agenova-payment-demo/payment-api]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 8m

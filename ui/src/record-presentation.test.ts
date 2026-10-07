@@ -15,4 +15,7 @@ describe('evidence presentation independent of React and transport',()=>{
     expect(category({...fact,kind:'ProviderOutcome',operation:'tool.invoke'})).toBe('Tool Gateway');
     expect(category({...fact,kind:'ProviderOutcome',operation:'model.invoke'})).toBe('Model Gateway');
   });
+  it('names a blocked tool attempt plainly instead of showing an internal operation key',()=>{
+    expect(recordTitle({...fact,kind:'ToolDecision',operation:'tool.invoke',result:'Deny',target:'kubernetes.rollback'})).toBe('Tool access denied');
+  });
 });

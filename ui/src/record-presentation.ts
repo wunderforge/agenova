@@ -21,8 +21,10 @@ export const category = (fact: Observation) => fact.operation === 'tool.invoke' 
 export function recordTitle(fact: Observation): string {
   if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return `${fact.target || 'Agent'} · Action format checked`;
   if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
-  if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Mock tool call started' : 'Model request started';
-  if (fact.kind === 'ProviderOutcome') return fact.operation === 'tool.invoke' ? 'Mock tool call finished' : 'Model request finished';
+  if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Tool call started' : 'Model request started';
+  if (fact.kind === 'ProviderOutcome') return fact.operation === 'tool.invoke' ? 'Tool call finished' : 'Model request finished';
+  if (fact.kind === 'ToolDecision') return fact.result === 'Deny' ? 'Tool access denied' : fact.result === 'Allow' ? 'Tool access allowed' : 'Tool access checked';
+  if (fact.kind === 'ModelDecision') return fact.result === 'Deny' ? 'Model access denied' : fact.result === 'Allow' ? 'Model access allowed' : 'Model access checked';
   if (fact.operation) return operationLabels[fact.operation] || fact.operation;
   if (fact.kind === 'RequestReceived') return 'Request received';
   if (fact.kind === 'AuthorityResolved') return 'Access resolved';

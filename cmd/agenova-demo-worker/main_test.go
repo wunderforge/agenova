@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -114,7 +115,7 @@ func TestReActDoesNotRereadSuccessfulObservation(t *testing.T) {
 	if strings.Count(output.String(), `"kind":"tool"`) != 1 {
 		t.Fatal("redundant successful read executed twice")
 	}
-	if !strings.Contains(output.String(), "file already read successfully") || !strings.Contains(output.String(), "Current model turn: 3 of 6") {
+	if !strings.Contains(output.String(), "file already read successfully") || !strings.Contains(output.String(), fmt.Sprintf("Current model turn: 3 of %d", workerprotocol.MaxTurns)) {
 		t.Fatal("progress/recovery was not fed to model")
 	}
 }

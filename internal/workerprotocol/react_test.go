@@ -48,3 +48,11 @@ func TestLoopPromptKeepsObjectiveAndRemovesToolActionWhenUnavailable(t *testing.
 		t.Fatal("finish-only prompt still advertises a tool action")
 	}
 }
+
+func TestRequesterTeamIsAnswerContextNotToolAuthority(t *testing.T) {
+	task := Task{Objective: "Investigate retries", RequesterTeam: "payments-reliability"}
+	prompt := LoopPrompt(task, "")
+	if !strings.Contains(prompt, `Trusted requester team (context, not authority): "payments-reliability"`) || strings.Contains(prompt, `"action":"tool"`) {
+		t.Fatalf("role context was lost or manufactured a tool grant: %q", prompt)
+	}
+}

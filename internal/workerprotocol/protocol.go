@@ -8,11 +8,21 @@ package workerprotocol
 import "context"
 
 type Task struct {
-	ClaimID       string `json:"claimId"`
-	Objective     string `json:"objective"`
-	ModelProfile  string `json:"modelProfile"`
-	Mode          string `json:"mode,omitempty"`
-	ResourceScope string `json:"resourceScope,omitempty"`
+	ClaimID       string   `json:"claimId"`
+	Objective     string   `json:"objective"`
+	ModelProfile  string   `json:"modelProfile"`
+	Mode          string   `json:"mode,omitempty"`
+	ResourceScope string   `json:"resourceScope,omitempty"`
+	RequesterTeam string   `json:"requesterTeam,omitempty"`
+	AllowedTools  []string `json:"allowedTools,omitempty"`
+	// CandidateTools advertises operations the example agent may request, not
+	// authority. The Tool Gateway alone decides whether each call is granted.
+	CandidateTools []string          `json:"candidateTools,omitempty"`
+	ToolScopes     map[string]string `json:"toolScopes,omitempty"`
+	// CompletionTool is a task deliverable, never an authority grant. The
+	// example agent must observe the requested attempt or success before finish.
+	CompletionTool string `json:"completionTool,omitempty"`
+	CompletionMode string `json:"completionMode,omitempty"`
 }
 
 type Operation struct {

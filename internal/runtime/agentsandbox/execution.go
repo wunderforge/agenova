@@ -63,7 +63,7 @@ func (a *ControlledAdapter) Execute(ctx context.Context, id v0.SandboxClaimBacke
 	if !ok {
 		return "", errors.New("worker execution transport unsupported")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
 	defer cancel()
 	result, err := session.executeSession(ctx, id.WorkerID, func(reader io.Reader, writer io.Writer) (string, error) {
 		return exchangeWorker(ctx, reader, writer, task, func(ctx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
@@ -167,6 +167,7 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 	var result, modelText string
 	operations := 0
 	modelTurns, observations := 0, 0
+	completionAttempted, completionSucceeded := false, false
 	if task.Mode != "" && task.Mode != workerprotocol.ReAct {
 		return "", errors.New("unsupported worker mode")
 	}
@@ -189,6 +190,9 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			if task.Mode == workerprotocol.ReAct {
 				a, err := workerprotocol.ParseAction(modelText)
 				if err != nil || a.Action != "finish" || modelTurns < 2 || (task.ResourceScope != "" && observations == 0) {
+					return "", workerprotocol.ErrInvalidFinalResult
+				}
+				if task.CompletionTool != "" && ((task.CompletionMode == "attempt" && !completionAttempted) || (task.CompletionMode == "success" && !completionSucceeded)) {
 					return "", workerprotocol.ErrInvalidFinalResult
 				}
 				expected = a.Answer
@@ -220,7 +224,7 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 				return "", errors.New("tool lacks matching model-selected action")
 			}
 		}
-		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" && (task.ResourceScope == "" || op.Tool != "git.read" || op.ResourceScope != task.ResourceScope || len(op.Input) > 128 || op.Input == "" || op.Profile != "" || op.Prompt != "") {
+		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" && !validToolOperation(task, op) {
 			return "", errors.New("worker tool shape rejected")
 		}
 		reply, err := handle(ctx, op)
@@ -240,8 +244,14 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			}
 			modelText = reply.Text
 		}
-		if op.Kind == "tool" && reply.Allowed && reply.Error == "" && reply.Text != "" {
+		if op.Kind == "tool" && ((reply.Allowed && reply.Error == "" && reply.Text != "") || (!reply.Allowed && reply.Error != "")) {
 			observations++
+		}
+		if op.Kind == "tool" && op.Tool == task.CompletionTool {
+			completionAttempted = true
+			if reply.Allowed && reply.Error == "" && reply.Text != "" {
+				completionSucceeded = true
+			}
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
 			modelText = ""
@@ -263,6 +273,30 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		return "", workerprotocol.ErrNoFinalResult
 	}
 	return result, nil
+}
+
+func validToolOperation(task workerprotocol.Task, op workerprotocol.Operation) bool {
+	if task.ResourceScope == "" || op.Tool == "" || op.Input == "" || op.Profile != "" || op.Prompt != "" {
+		return false
+	}
+	if len(task.CandidateTools) == 0 {
+		return op.Tool == "git.read" && op.ResourceScope == task.ResourceScope && len(op.Input) <= 128
+	}
+	listed := false
+	for _, name := range task.CandidateTools {
+		if name == op.Tool {
+			listed = true
+			break
+		}
+	}
+	if !listed {
+		return false
+	}
+	scope := task.ToolScopes[op.Tool]
+	if scope == "" {
+		scope = task.ResourceScope
+	}
+	return op.ResourceScope == scope
 }
 
 func writeExecutionLine(writer io.Writer, value any) error {

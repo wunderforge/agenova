@@ -1,0 +1,17 @@
+apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: payment-incident-real-actions
+  version: "1"
+spec:
+  rules:
+    - team: payments-development
+      action: claim.create
+      project: payments
+      templateRef: engineer
+      toolCeiling: [git.read, github.pr.create]
+    - team: payments-reliability
+      action: claim.create
+      project: payments
+      templateRef: engineer
+      toolCeiling: [git.read, kubernetes.rollback]

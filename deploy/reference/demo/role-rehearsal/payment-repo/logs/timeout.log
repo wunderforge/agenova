@@ -1,0 +1,6 @@
+08:55 version=v2.6 p95=2.1s timeout_rate=0.2%
+09:00 version=v2.7 rollout=complete schema_migration=none
+09:08 version=v2.7 p95=10.1s timeout_rate=18%
+trace payment=example-42 total_deadline=5s attempt_1_latency=4s backoff=2s
+trace payment=example-42 attempt_2_started_after_total_deadline=true final_timeout=10s
+trace payment=example-42 idempotency_key_reused=false
