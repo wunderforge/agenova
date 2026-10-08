@@ -149,6 +149,45 @@ func TestOIDCVerifierFailsClosedWhenKeysUnavailable(t *testing.T) {
 	}
 }
 
+func TestOIDCVerifierRefreshesExpiredJWKSAndRejectsRevokedKey(t *testing.T) {
+	first, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active := &first.PublicKey
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{jwk("shared", active)}})
+	}))
+	defer server.Close()
+	now := time.Unix(1_800_000_000, 0).UTC()
+	verifier, err := NewOIDCVerifier(OIDCConfig{
+		Issuer: "https://identity.example", Audience: "agenova", JWKSURL: server.URL,
+		TeamClaim: "groups", TeamMappings: map[string]string{"engineering": "team-a"},
+		Clock: func() time.Time { return now }, JWKSCacheTTL: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := map[string]any{"iss": "https://identity.example", "aud": "agenova", "sub": "user-a", "exp": now.Add(time.Hour).Unix(), "acr": "mfa", "groups": "engineering"}
+	oldToken := sign(t, first, "shared", claims)
+	if _, err := verifier.Verify(context.Background(), oldToken); err != nil {
+		t.Fatal(err)
+	}
+	active = &second.PublicKey
+	now = now.Add(2 * time.Minute)
+	if _, err := verifier.Verify(context.Background(), oldToken); !IsCategory(err, CategoryInvalidSignature) {
+		t.Fatalf("revoked cached key remained valid: %v", err)
+	}
+	newToken := sign(t, second, "shared", with(claims, "exp", now.Add(time.Hour).Unix()))
+	if _, err := verifier.Verify(context.Background(), newToken); err != nil {
+		t.Fatalf("rotated key was not accepted: %v", err)
+	}
+}
+
 func TestOIDCConfigurationRejectsUnsafeOrIncompleteInputs(t *testing.T) {
 	valid := OIDCConfig{Issuer: "https://identity.example", Audience: "agenova", JWKSURL: "https://identity.example/keys", TeamClaim: "groups", TeamMappings: map[string]string{"engineering": "team-a"}}
 	for _, mutate := range []func(*OIDCConfig){

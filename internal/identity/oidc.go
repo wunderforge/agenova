@@ -22,6 +22,7 @@ import (
 )
 
 const maxJWKSBytes = 1 << 20
+const defaultJWKSCacheTTL = 5 * time.Minute
 
 type OIDCConfig struct {
 	Issuer                     string
@@ -32,15 +33,17 @@ type OIDCConfig struct {
 	AuthenticationContextClaim string
 	HTTPClient                 *http.Client
 	Clock                      func() time.Time
+	JWKSCacheTTL               time.Duration
 }
 
 // OIDCVerifier implements the deliberately bounded M2 profile: explicit
 // issuer/audience/JWKS configuration and RS256 tokens. Discovery, token
 // issuance, refresh, and user-directory behavior remain outside Agenova.
 type OIDCVerifier struct {
-	config OIDCConfig
-	mu     sync.RWMutex
-	keys   map[string]*rsa.PublicKey
+	config    OIDCConfig
+	mu        sync.RWMutex
+	keys      map[string]*rsa.PublicKey
+	fetchedAt time.Time
 }
 
 func NewOIDCVerifier(config OIDCConfig) (*OIDCVerifier, error) {
@@ -61,10 +64,16 @@ func NewOIDCVerifier(config OIDCConfig) (*OIDCVerifier, error) {
 		}
 	}
 	if config.HTTPClient == nil {
-		config.HTTPClient = &http.Client{Timeout: 10 * time.Second}
+		config.HTTPClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
 	if config.Clock == nil {
 		config.Clock = time.Now
+	}
+	if config.JWKSCacheTTL == 0 {
+		config.JWKSCacheTTL = defaultJWKSCacheTTL
+	}
+	if config.JWKSCacheTTL < 0 || config.JWKSCacheTTL > time.Hour {
+		return nil, errors.New("OIDC JWKS cache TTL is invalid")
 	}
 	return &OIDCVerifier{config: config, keys: map[string]*rsa.PublicKey{}}, nil
 }
@@ -86,7 +95,7 @@ func (v *OIDCVerifier) Verify(ctx context.Context, bearer string) (VerifiedPrinc
 		return VerifiedPrincipal{}, reject(CategoryMalformedToken)
 	}
 	key, ok := v.key(header.KeyID)
-	if !ok {
+	if !ok || !v.keysFresh() {
 		if err := v.refreshKeys(ctx); err != nil {
 			return VerifiedPrincipal{}, reject(CategoryKeyUnavailable)
 		}
@@ -173,6 +182,12 @@ func (v *OIDCVerifier) key(id string) (*rsa.PublicKey, bool) {
 	return key, ok
 }
 
+func (v *OIDCVerifier) keysFresh() bool {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return !v.fetchedAt.IsZero() && v.config.Clock().Sub(v.fetchedAt) >= 0 && v.config.Clock().Sub(v.fetchedAt) < v.config.JWKSCacheTTL
+}
+
 func (v *OIDCVerifier) refreshKeys(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.config.JWKSURL, nil)
 	if err != nil {
@@ -220,13 +235,18 @@ func (v *OIDCVerifier) refreshKeys(ctx context.Context) error {
 		if exponent < 3 {
 			continue
 		}
-		keys[item.KeyID] = &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: exponent}
+		modulus := new(big.Int).SetBytes(n)
+		if modulus.BitLen() < 2048 {
+			continue
+		}
+		keys[item.KeyID] = &rsa.PublicKey{N: modulus, E: exponent}
 	}
 	if len(keys) == 0 {
 		return errors.New("JWKS contains no supported signing key")
 	}
 	v.mu.Lock()
 	v.keys = keys
+	v.fetchedAt = v.config.Clock()
 	v.mu.Unlock()
 	return nil
 }
