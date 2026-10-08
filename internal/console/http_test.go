@@ -19,7 +19,9 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/identity"
 	"github.com/wunderforge/agenova/internal/modelprovider"
+	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
@@ -67,6 +69,59 @@ type httpProvider struct {
 	fail    bool
 }
 
+type httpIdentityProvider struct {
+	calls atomic.Int32
+}
+
+func (p *httpIdentityProvider) Verify(_ context.Context, token string) (identity.VerifiedPrincipal, error) {
+	p.calls.Add(1)
+	switch token {
+	case "token-user-a":
+		return identity.VerifiedPrincipal{Issuer: "https://identity.example", Subject: "user-a", Team: "team-a", AuthenticationContext: "company-mfa"}, nil
+	case "token-user-b":
+		return identity.VerifiedPrincipal{Issuer: "https://identity.example", Subject: "user-b", Team: "team-b", AuthenticationContext: "company-mfa"}, nil
+	default:
+		return identity.VerifiedPrincipal{}, &identity.Error{Category: identity.CategoryInvalidSignature}
+	}
+}
+
+type httpTemplateSource struct{}
+
+func (httpTemplateSource) Lookup(name string) (*v0.AgentTemplate, error) {
+	template := app.ReferenceTemplate()
+	if template == nil || template.Metadata.Name != name {
+		return nil, errors.New("template not found")
+	}
+	return template, nil
+}
+
+func authenticatedHTTPService(t *testing.T) (*Service, *httpBackend, *httpProvider, *httpIdentityProvider, http.Handler) {
+	t.Helper()
+	backend, provider, identities := &httpBackend{}, &httpProvider{}, &httpIdentityProvider{}
+	service, err := NewServiceWithOptions(backend, httpExecutor{}, provider, app.ReferencePrincipalTeamA, Options{
+		PrepareVerified: func(data []byte, principal identity.VerifiedPrincipal) (app.PreparedAssignment, error) {
+			loader := &policy.Loader{}
+			if err := loader.Load(app.ReferencePolicy()); err != nil {
+				return app.PreparedAssignment{}, err
+			}
+			return app.PrepareAssignment(data, principal, loader, httpTemplateSource{})
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(service.Close)
+	return service, backend, provider, identities, AuthenticatedHandler(service, identities)
+}
+
+func authenticatedCall(h http.Handler, token, method, path string, body []byte) *httptest.ResponseRecorder {
+	headers := map[string]string{}
+	if token != "" {
+		headers["Authorization"] = "Bearer " + token
+	}
+	return httpCall(h, method, path, body, headers)
+}
+
 func (p *httpProvider) Complete(ctx context.Context, r modelprovider.Request) (modelprovider.Result, error) {
 	p.calls.Add(1)
 	if p.started != nil {
@@ -106,6 +161,103 @@ func httpCall(h http.Handler, method, path string, body []byte, headers map[stri
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
+}
+
+func TestAuthenticatedHTTPAttributesTwoUsersAndIsolatesEvidence(t *testing.T) {
+	_, backend, provider, _, handler := authenticatedHTTPService(t)
+	userA := authenticatedCall(handler, "token-user-a", http.MethodPost, "/api/requests", httpInput("user-a-work"))
+	if userA.Code != http.StatusAccepted {
+		t.Fatalf("user A submission=%d %s", userA.Code, userA.Body.String())
+	}
+	userB := authenticatedCall(handler, "token-user-b", http.MethodPost, "/api/requests", httpInput("user-b-work"))
+	if userB.Code != http.StatusOK {
+		t.Fatalf("user B denial=%d %s", userB.Code, userB.Body.String())
+	}
+	viewA, viewB := httpView(t, userA), httpView(t, userB)
+	if viewA.State.Principal.Subject != "user-a" || viewA.State.Principal.Team != "team-a" || viewB.State.Principal.Subject != "user-b" || viewB.State.Principal.Team != "team-b" {
+		t.Fatalf("verified attribution lost: A=%+v B=%+v", viewA.State.Principal, viewB.State.Principal)
+	}
+	if viewB.State.Decision.Result != v0.DecisionResultDeny || viewB.State.Claim != nil {
+		t.Fatalf("team B did not retain reference policy semantics: %+v", viewB.State)
+	}
+	if got := authenticatedCall(handler, "token-user-a", http.MethodGet, "/api/requests/user-b-work/evidence", nil); got.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner request disclosed: %d %s", got.Code, got.Body.String())
+	}
+	if got := authenticatedCall(handler, "token-user-b", http.MethodGet, "/api/requests/user-a-work/evidence", nil); got.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner request disclosed: %d %s", got.Code, got.Body.String())
+	}
+	if viewA.State.Claim == nil {
+		t.Fatal("allowed user has no claim")
+	}
+	if got := authenticatedCall(handler, "token-user-b", http.MethodGet, "/api/claims/"+url.PathEscape(viewA.State.Claim.ID)+"/evidence", nil); got.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner claim disclosed: %d %s", got.Code, got.Body.String())
+	}
+	for token, want := range map[string]string{"token-user-a": "user-a", "token-user-b": "user-b"} {
+		response := authenticatedCall(handler, token, http.MethodGet, "/api/requests", nil)
+		var views []evidence.View
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &views) != nil || len(views) != 1 || views[0].State.Principal.Subject != want {
+			t.Fatalf("owner list %s=%d %s", want, response.Code, response.Body.String())
+		}
+		setup := authenticatedCall(handler, token, http.MethodGet, "/api/setup", nil)
+		var configuration Setup
+		if json.Unmarshal(setup.Body.Bytes(), &configuration) != nil || configuration.Principal.Subject != want || strings.Contains(setup.Body.String(), token) {
+			t.Fatalf("setup principal mismatch or token leak: %s", setup.Body.String())
+		}
+	}
+	// Team B denial does no runtime/provider work. User A may execute normally.
+	if backend.calls.Load() == 0 || provider.calls.Load() > 1 {
+		t.Fatalf("unexpected side effects: backend=%d provider=%d", backend.calls.Load(), provider.calls.Load())
+	}
+}
+
+func TestAuthenticatedHTTPFailuresPrecedeAllWorkAndAreSanitized(t *testing.T) {
+	service, backend, provider, identities, handler := authenticatedHTTPService(t)
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"missing", ""},
+		{"malformed", "Basic secret-token"},
+		{"multiple", "Bearer token-user-a, Bearer token-user-b"},
+		{"invalid", "Bearer synthetic-secret-token"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			headers := map[string]string{}
+			if test.header != "" {
+				headers["Authorization"] = test.header
+			}
+			response := httpCall(handler, http.MethodPost, "/api/requests", httpInput("unauthenticated-"+test.name), headers)
+			if response.Code != http.StatusUnauthorized || strings.Contains(response.Body.String(), "secret") || strings.Contains(response.Body.String(), "token-user") || (test.header != "" && strings.Contains(response.Body.String(), test.header)) {
+				t.Fatalf("unsafe authentication failure: %d %s", response.Code, response.Body.String())
+			}
+		})
+	}
+	if len(service.List()) != 0 || backend.calls.Load() != 0 || provider.calls.Load() != 0 {
+		t.Fatalf("authentication failure performed Work: records=%d backend=%d provider=%d", len(service.List()), backend.calls.Load(), provider.calls.Load())
+	}
+	if identities.calls.Load() != 1 {
+		t.Fatalf("provider should receive only syntactically valid bearer value, got %d calls", identities.calls.Load())
+	}
+	if response := httpCall(AuthenticatedHandler(service, nil), http.MethodGet, "/api/requests", nil, map[string]string{"Authorization": "Bearer token-user-a"}); response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("nil provider did not fail closed: %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestAuthenticatedHTTPDoesNotTrustCallerIdentityFields(t *testing.T) {
+	_, backend, provider, _, handler := authenticatedHTTPService(t)
+	for _, input := range [][]byte{
+		bytes.Replace(httpInput("forged-metadata"), []byte(`"name":"forged-metadata"`), []byte(`"name":"forged-metadata","team":"team-b"`), 1),
+		bytes.Replace(httpInput("forged-spec"), []byte(`"projectRef":"payments"`), []byte(`"projectRef":"payments","principal":{"subject":"user-b","team":"team-b"}`), 1),
+	} {
+		response := authenticatedCall(handler, "token-user-a", http.MethodPost, "/api/requests", input)
+		if response.Code != http.StatusBadRequest || strings.Contains(response.Body.String(), "user-b") || strings.Contains(response.Body.String(), "team-b") {
+			t.Fatalf("caller identity accepted or leaked: %d %s", response.Code, response.Body.String())
+		}
+	}
+	if backend.calls.Load() != 0 || provider.calls.Load() != 0 {
+		t.Fatal("forged identity input performed external work")
+	}
 }
 
 func TestHTTPSubmissionReturnsStableOperatorDiagnostic(t *testing.T) {

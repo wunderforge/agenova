@@ -19,6 +19,7 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
+	"github.com/wunderforge/agenova/internal/identity"
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
@@ -34,32 +35,35 @@ type Executor interface {
 }
 
 type record struct {
-	view   evidence.View
-	cancel context.CancelFunc
+	view     evidence.View
+	cancel   context.CancelFunc
+	ownerKey string
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	executeMu chan struct{}
-	preset    app.ReferencePrincipalPreset
-	setup     func() (Setup, error)
-	prepare   func([]byte) (app.PreparedAssignment, error)
-	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner    *app.RunService
-	executor  Executor
-	provider  modelprovider.Client
-	journal   *facts.Journal
-	store     *facts.Store
-	records   map[string]*record
-	order     []string
-	closed    bool
-	wg        sync.WaitGroup
+	mu              sync.RWMutex
+	executeMu       chan struct{}
+	preset          app.ReferencePrincipalPreset
+	setup           func() (Setup, error)
+	prepare         func([]byte) (app.PreparedAssignment, error)
+	prepareVerified func([]byte, identity.VerifiedPrincipal) (app.PreparedAssignment, error)
+	configure       func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner          *app.RunService
+	executor        Executor
+	provider        modelprovider.Client
+	journal         *facts.Journal
+	store           *facts.Store
+	records         map[string]*record
+	order           []string
+	closed          bool
+	wg              sync.WaitGroup
 }
 
 type Options struct {
-	Prepare   func([]byte) (app.PreparedAssignment, error)
-	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	Setup     func() (Setup, error)
+	Prepare         func([]byte) (app.PreparedAssignment, error)
+	PrepareVerified func([]byte, identity.VerifiedPrincipal) (app.PreparedAssignment, error)
+	Configure       func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup           func() (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -101,7 +105,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, prepareVerified: options.PrepareVerified, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -113,6 +117,25 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 // Submit accepts only the strict canonical JSON surface. The task must contain
 // an objective for this example worker; it cannot contain an asserted identity.
 func (s *Service) Submit(data []byte) (evidence.View, error) {
+	source, err := app.NewReferencePrincipalSource(s.preset)
+	if err != nil {
+		return evidence.View{}, err
+	}
+	return s.submit(data, "reference:"+source.Principal().Subject, s.prepare)
+}
+
+// SubmitVerified binds one Work record to identity established by the HTTP
+// authentication boundary. The credential itself is never retained.
+func (s *Service) SubmitVerified(data []byte, principal identity.VerifiedPrincipal) (evidence.View, error) {
+	if err := principal.Validate(); err != nil || s.prepareVerified == nil {
+		return evidence.View{}, errors.New("verified submission is unavailable")
+	}
+	return s.submit(data, principal.OwnerKey(), func(data []byte) (app.PreparedAssignment, error) {
+		return s.prepareVerified(data, principal)
+	})
+}
+
+func (s *Service) submit(data []byte, ownerKey string, prepare func([]byte) (app.PreparedAssignment, error)) (evidence.View, error) {
 	request, validationErr := v0.ParseClaimRequestJSON(data)
 	if validationErr != nil {
 		return evidence.View{}, validationErr
@@ -135,7 +158,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		return evidence.View{}, ErrCapacity
 	}
 	// Reserve before issuance to prevent duplicate submissions racing to allocate.
-	s.records[request.Metadata.Name] = &record{}
+	s.records[request.Metadata.Name] = &record{ownerKey: ownerKey}
 	s.wg.Add(1)
 	s.mu.Unlock()
 	runOwned := false
@@ -144,7 +167,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 			s.wg.Done()
 		}
 	}()
-	prepared, err := s.prepare(data)
+	prepared, err := prepare(data)
 	if err != nil {
 		s.mu.Lock()
 		delete(s.records, request.Metadata.Name)
@@ -166,7 +189,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view)}
+		s.records[ref] = &record{view: evidence.Clone(view), ownerKey: ownerKey}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -186,7 +209,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
 		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view)}
+		s.records[ref] = &record{view: evidence.Clone(view), ownerKey: ownerKey}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -205,7 +228,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
 	s.mu.Lock()
-	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel}
+	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, ownerKey: ownerKey}
 	s.order = append(s.order, ref)
 	if s.closed {
 		cancel()
@@ -511,9 +534,20 @@ func (a *completionAdapter) result(id string) (modelprovider.Result, bool) {
 }
 
 func (s *Service) QueryRequest(ref string) (evidence.View, error) {
+	return s.queryRequest(ref, "")
+}
+
+func (s *Service) QueryRequestVerified(ref string, principal identity.VerifiedPrincipal) (evidence.View, error) {
+	if err := principal.Validate(); err != nil {
+		return evidence.View{}, fmt.Errorf("request not found")
+	}
+	return s.queryRequest(ref, principal.OwnerKey())
+}
+
+func (s *Service) queryRequest(ref, ownerKey string) (evidence.View, error) {
 	s.mu.RLock()
 	r, ok := s.records[ref]
-	if !ok || r.view.Request == nil {
+	if !ok || r.view.Request == nil || (ownerKey != "" && r.ownerKey != ownerKey) {
 		s.mu.RUnlock()
 		return evidence.View{}, fmt.Errorf("request not found")
 	}
@@ -535,10 +569,21 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	return view, nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {
+	return s.queryClaim(id, "")
+}
+
+func (s *Service) QueryClaimVerified(id string, principal identity.VerifiedPrincipal) (evidence.View, error) {
+	if err := principal.Validate(); err != nil {
+		return evidence.View{}, errors.New("claim not found")
+	}
+	return s.queryClaim(id, principal.OwnerKey())
+}
+
+func (s *Service) queryClaim(id, ownerKey string) (evidence.View, error) {
 	s.mu.RLock()
 	ref := ""
 	for key, r := range s.records {
-		if r.view.State != nil && r.view.State.Claim != nil && r.view.State.Claim.ID == id {
+		if r.view.State != nil && r.view.State.Claim != nil && r.view.State.Claim.ID == id && (ownerKey == "" || r.ownerKey == ownerKey) {
 			ref = key
 			break
 		}
@@ -547,15 +592,26 @@ func (s *Service) QueryClaim(id string) (evidence.View, error) {
 	if ref == "" {
 		return evidence.View{}, errors.New("claim not found")
 	}
-	return s.QueryRequest(ref)
+	return s.queryRequest(ref, ownerKey)
 }
 func (s *Service) List() []evidence.View {
+	return s.list("")
+}
+
+func (s *Service) ListVerified(principal identity.VerifiedPrincipal) []evidence.View {
+	if err := principal.Validate(); err != nil {
+		return []evidence.View{}
+	}
+	return s.list(principal.OwnerKey())
+}
+
+func (s *Service) list(ownerKey string) []evidence.View {
 	s.mu.RLock()
 	order := append([]string{}, s.order...)
 	s.mu.RUnlock()
 	views := []evidence.View{}
 	for _, ref := range order {
-		if view, err := s.QueryRequest(ref); err == nil {
+		if view, err := s.queryRequest(ref, ownerKey); err == nil {
 			views = append(views, view)
 		}
 	}

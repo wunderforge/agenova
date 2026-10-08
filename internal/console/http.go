@@ -4,6 +4,7 @@
 package console
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/identity"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
@@ -42,6 +45,37 @@ type httpError struct {
 // Handler exposes only the approved bounded local console surface. It never
 // accepts caller identity, effective authority, or operator configuration.
 func Handler(service *Service) http.Handler {
+	return handler(service, false)
+}
+
+type verifiedPrincipalKey struct{}
+
+// AuthenticatedHandler protects the ordinary Work/evidence surface with one
+// verified bearer identity. It is a separate composition from fixed-principal
+// Handler, so authentication failure can never fall back to reference mode.
+func AuthenticatedHandler(service *Service, provider identity.Provider) http.Handler {
+	base := handler(service, true)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if provider == nil {
+			writeError(w, http.StatusServiceUnavailable, "authentication_unavailable", "Authentication is unavailable.")
+			return
+		}
+		token, ok := bearerToken(r.Header.Values("Authorization"))
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "authentication_failed", "A valid bearer credential is required.")
+			return
+		}
+		principal, err := provider.Verify(r.Context(), token)
+		if err != nil || principal.Validate() != nil {
+			writeError(w, http.StatusUnauthorized, "authentication_failed", "A valid bearer credential is required.")
+			return
+		}
+		base.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), verifiedPrincipalKey{}, principal)))
+	})
+}
+
+func handler(service *Service, authenticated bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -52,6 +86,15 @@ func Handler(service *Service) http.Handler {
 		if service == nil {
 			writeError(w, http.StatusServiceUnavailable, "unavailable", "The console service is unavailable.")
 			return
+		}
+		var verified *identity.VerifiedPrincipal
+		if authenticated {
+			principal, ok := r.Context().Value(verifiedPrincipalKey{}).(identity.VerifiedPrincipal)
+			if !ok || principal.Validate() != nil {
+				writeError(w, http.StatusUnauthorized, "authentication_failed", "A valid bearer credential is required.")
+				return
+			}
+			verified = &principal
 		}
 		switch r.URL.Path {
 		case "/api/setup":
@@ -68,13 +111,20 @@ func Handler(service *Service) http.Handler {
 			if setup.Policy.Rules == nil {
 				setup.Policy.Rules = []policy.Rule{}
 			}
+			if verified != nil {
+				setup.Principal = verified.Principal()
+			}
 			writeJSON(w, 200, setup)
 		case "/api/requests":
 			switch r.Method {
 			case http.MethodGet:
-				writeJSON(w, 200, service.List())
+				if verified == nil {
+					writeJSON(w, 200, service.List())
+				} else {
+					writeJSON(w, 200, service.ListVerified(*verified))
+				}
 			case http.MethodPost:
-				submitHTTP(w, r, service)
+				submitHTTP(w, r, service, verified)
 			default:
 				w.Header().Set("Allow", "GET, POST")
 				writeError(w, 405, "method_not_allowed", "This method is not supported.")
@@ -100,8 +150,13 @@ func Handler(service *Service) http.Handler {
 					return
 				}
 				view, err := service.QueryRequest(ref)
-				if route.claim {
+				if verified != nil {
+					view, err = service.QueryRequestVerified(ref, *verified)
+				}
+				if route.claim && verified == nil {
 					view, err = service.QueryClaim(ref)
+				} else if route.claim {
+					view, err = service.QueryClaimVerified(ref, *verified)
 				}
 				if err != nil {
 					writeError(w, 404, "not_found", "The record was not found.")
@@ -115,7 +170,7 @@ func Handler(service *Service) http.Handler {
 	})
 }
 
-func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
+func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, principal *identity.VerifiedPrincipal) {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		writeError(w, 415, "unsupported_media_type", "Submit application/json.")
@@ -141,7 +196,12 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
 		writeError(w, 400, "invalid_request", "Submit a bounded task objective and request reference.")
 		return
 	}
-	view, err := service.Submit(data)
+	var view evidence.View
+	if principal == nil {
+		view, err = service.Submit(data)
+	} else {
+		view, err = service.SubmitVerified(data, *principal)
+	}
 	if err != nil {
 		var submission *SubmissionError
 		switch {
@@ -180,6 +240,17 @@ func sameOrigin(r *http.Request) bool {
 		scheme = "https"
 	}
 	return err == nil && u.Scheme == scheme && u.Host == r.Host && u.User == nil && u.Path == "" && u.RawQuery == "" && !u.ForceQuery && !strings.Contains(origins[0], "#") && u.Opaque == ""
+}
+
+func bearerToken(values []string) (string, bool) {
+	if len(values) != 1 {
+		return "", false
+	}
+	parts := strings.Fields(values[0])
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" || strings.ContainsAny(parts[1], "\r\n") {
+		return "", false
+	}
+	return parts[1], true
 }
 
 func validReference(ref string) bool {
