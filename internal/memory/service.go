@@ -102,10 +102,72 @@ func sameAuthority(a, b *v0.EffectiveAuthority) bool {
 }
 
 func (s *Session) Invoke(ctx context.Context, request Request) (Result, error) {
+	result, err := s.invoke(ctx, request, "")
+	if err == nil && result.Status == WriteUncertain {
+		result.Retry = &WriteRetry{state: &writeRetryState{
+			session: s, request: request, receiptID: result.InvocationID, usable: true, gate: make(chan struct{}, 1),
+		}}
+	}
+	return result, err
+}
+
+// WriteRetry is an opaque, session-local continuation for an uncertain write.
+// Copies share its disposition; neither copying nor wire decoding can revive it.
+type WriteRetry struct{ state *writeRetryState }
+
+type writeRetryState struct {
+	gate      chan struct{}
+	session   *Session
+	request   Request
+	receiptID string
+	usable    bool
+}
+
+// RetryWrite repeats all admission checks and preserves the original immutable
+// body/scope and receipt ID. It never retries automatically or accepts a new body.
+func (s *Session) RetryWrite(ctx context.Context, retry *WriteRetry) (Result, error) {
+	if s == nil || s.ctx == nil || ctx == nil || retry == nil || retry.state == nil || retry.state.session != s {
+		return Result{}, ErrBinding
+	}
+	state := retry.state
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	if err := s.ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	// Waiting is before admission: cancellation starts no audit invocation and
+	// cannot force a second caller to wait for another backend acknowledgement.
+	select {
+	case state.gate <- struct{}{}:
+		defer func() { <-state.gate }()
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	case <-s.ctx.Done():
+		return Result{}, s.ctx.Err()
+	}
+	if !state.usable {
+		return Result{}, ErrBinding
+	}
+	result, err := s.invoke(ctx, state.request, state.receiptID)
+	if err != nil || result.Status == Written {
+		// Known completion or evidence failure must not be replayed to conceal
+		// missing facts. A remaining backend fault does not resolve uncertainty.
+		state.usable = false
+	} else {
+		result.Retry = retry
+	}
+	return result, err
+}
+
+func (s *Session) invoke(ctx context.Context, request Request, receiptID string) (Result, error) {
 	if s == nil || s.service == nil || s.state == nil || s.ctx == nil || ctx == nil {
 		return Result{}, ErrBinding
 	}
 	id := s.service.ids()
+	if receiptID == "" {
+		receiptID = id
+	}
 	result := Result{InvocationID: id, Status: Denied, ReasonCode: "memory-denied"}
 	operation := "memory.invalid"
 	if request.Operation == v0.MemoryRead || request.Operation == v0.MemoryWrite {
@@ -170,7 +232,7 @@ func (s *Session) Invoke(ctx context.Context, request Request) (Result, error) {
 		err = ErrUnsupported
 	} else if request.Operation == v0.MemoryWrite {
 		var record Record
-		record, err = s.service.backend.Write(callCtx, route, WriteInput{InvocationID: id, ClaimID: s.state.Claim.ID, Body: request.Body})
+		record, err = s.service.backend.Write(callCtx, route, WriteInput{InvocationID: receiptID, ClaimID: s.state.Claim.ID, Body: request.Body})
 		if err == nil {
 			records = []Record{record}
 		}

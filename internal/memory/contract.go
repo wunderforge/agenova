@@ -48,6 +48,8 @@ type Namespace struct {
 }
 
 type WriteInput struct {
+	// InvocationID identifies the original trusted write receipt. Authorized
+	// retry attempts reuse it while receiving fresh journal invocation IDs.
 	InvocationID, ClaimID, Body string
 }
 
@@ -89,4 +91,6 @@ type Result struct {
 	Reference    string  `json:"reference,omitempty"`
 	Entries      []Entry `json:"entries,omitempty"`
 	Truncated    bool    `json:"truncated"`
+	// Retry is host-only continuation state, never a worker-supplied ID or wire value.
+	Retry *WriteRetry `json:"-"`
 }
