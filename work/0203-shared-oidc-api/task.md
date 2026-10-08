@@ -67,8 +67,8 @@ Out of scope:
 - [x] Protect Work submission and owner-filter evidence routes without changing canonical `ClaimRequest`.
 - [x] Add connected CLI token-file transport and Portal server-side proxy injection.
 - [ ] Add installed kind two-user authentication and evidence-isolation smoke evidence.
-- [ ] Add or update focused behavioral evidence.
-- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
+- [x] Add focused behavioral evidence for OIDC verification, dual-user HTTP ownership, CLI token files, and Portal proxy token files.
+- [ ] Run the focused gate and `./scripts/check.ps1 -All` (current prepared branch passes both; rerun after installed kind smoke and the final rebase onto merged `main`).
 - [ ] Review the diff for scope, regressions, and source-of-truth updates.
 
 ## Quality Gates
@@ -101,3 +101,6 @@ Out of scope:
 - Decision: keep rich verified claims internal and persist only the current stable public `Principal` projection plus an internal immutable ownership key.
 - Decision: the bounded initial verifier accepts only RS256 keys/tokens from the explicitly configured JWKS endpoint; unsupported algorithms fail closed rather than widening the cryptographic profile implicitly.
 - Blocker: M1 PR #207 must merge before this milestone can be proposed for review.
+- Evidence: `go test ./cmd/agenova-control-plane ./cmd/agenova ./internal/connectedclient ./internal/console ./internal/identity` passed on 8 October 2026.
+- Evidence: `npm test -- --run src/server-token.test.ts` and `npm run typecheck` passed on 8 October 2026.
+- Evidence: `pwsh ./scripts/check.ps1 -All` passed on 8 October 2026, including all Go packages, 126 UI tests, production build, and 52/52 browser smoke tests.
