@@ -297,6 +297,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
+		// Memory evidence is enabled only with its coordinated reader/privacy
+		// slice. Do not accept newly recognized metadata on legacy facts.
+		if fact.Memory != nil {
+			return false
+		}
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
 		if runOutcomeSeen {
@@ -711,6 +716,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		{granted.Tools, wanted.Tools},
 		{granted.ResourceScopes, wanted.ResourceScopes},
 		{granted.MemoryScopes, wanted.MemoryScopes},
+		{granted.MemoryOperations, wanted.MemoryOperations},
 	} {
 		if len(pair.requested) > 0 && len(pair.granted) == 0 {
 			return false
@@ -734,6 +740,7 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 		{"tools", request.Spec.RequestedAccess.Tools, granted.Tools},
 		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, granted.ResourceScopes},
 		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, granted.MemoryScopes},
+		{"memoryOperations", request.Spec.RequestedAccess.MemoryOperations, granted.MemoryOperations},
 	} {
 		for _, value := range dimension.requested {
 			if !slices.Contains(dimension.effective, value) {
@@ -752,7 +759,7 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {
 	return a.ID == b.ID && slices.Equal(a.Tools, b.Tools) && slices.Equal(a.ResourceScopes, b.ResourceScopes) &&
-		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
+		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && slices.Equal(a.MemoryOperations, b.MemoryOperations) && a.Runtime == b.Runtime
 }
 
 func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedProfile string) bool {

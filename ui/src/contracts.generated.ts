@@ -19,6 +19,7 @@ export interface AgentTemplateArtifact {
 }
 export interface AgentTemplateCapabilityCeiling {
   maxTimeout?: (string | null);
+  memoryOperations?: (Array<string> | null);
   memoryScopes?: (Array<string> | null);
   modelProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
@@ -63,6 +64,7 @@ export interface ClaimRequestTask {
   type: string;
 }
 export interface ClaimRequestedAccess {
+  memoryOperations?: (Array<string> | null);
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
   resourceScopes?: (Array<string> | null);
@@ -83,6 +85,7 @@ export interface Decision {
 export type DecisionResult = "Allow" | "Deny" | "ApprovalRequired";
 export interface EffectiveAuthority {
   id: string;
+  memoryOperations?: (Array<string> | null);
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
   resourceScopes?: (Array<string> | null);
@@ -119,6 +122,7 @@ export interface Fact {
   id: string;
   invocationId?: string;
   kind: string;
+  memory?: (MemoryMetadata | null);
   operation?: string;
   policyRef?: (PolicyReference | null);
   providerStatus?: string;
@@ -139,6 +143,13 @@ export interface IssuedState {
   policyRef: PolicyReference;
   principal: Principal;
   requestRef: string;
+}
+export interface MemoryMetadata {
+  count: number;
+  durationMilliseconds: number;
+  references?: (Array<string> | null);
+  status: string;
+  truncated: boolean;
 }
 export interface ModelResult {
   inputTokens: number;
@@ -252,6 +263,18 @@ export const shapes = {
           "kind": "nullable",
           "item": {
             "kind": "string"
+          }
+        },
+        "optional": true
+      },
+      "memoryOperations": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
           }
         },
         "optional": true
@@ -519,6 +542,18 @@ export const shapes = {
   "ClaimRequestedAccess": {
     "kind": "object",
     "fields": {
+      "memoryOperations": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
       "memoryScopes": {
         "shape": {
           "kind": "nullable",
@@ -633,6 +668,18 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      },
+      "memoryOperations": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
       },
       "memoryScopes": {
         "shape": {
@@ -863,6 +910,16 @@ export const shapes = {
           "kind": "string"
         }
       },
+      "memory": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "MemoryMetadata"
+          }
+        },
+        "optional": true
+      },
       "operation": {
         "shape": {
           "kind": "string"
@@ -983,6 +1040,43 @@ export const shapes = {
       "requestRef": {
         "shape": {
           "kind": "string"
+        }
+      }
+    }
+  },
+  "MemoryMetadata": {
+    "kind": "object",
+    "fields": {
+      "count": {
+        "shape": {
+          "kind": "number"
+        }
+      },
+      "durationMilliseconds": {
+        "shape": {
+          "kind": "number"
+        }
+      },
+      "references": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "status": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "truncated": {
+        "shape": {
+          "kind": "boolean"
         }
       }
     }

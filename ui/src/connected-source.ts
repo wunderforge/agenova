@@ -58,7 +58,8 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
 }
 
 function view(data: unknown): View {
-  if (shapeDiagnostics('View', data).length || (data as View).version !== 'agenova.evidence/v0') {
+  if (shapeDiagnostics('View', data).length || (data as View).version !== 'agenova.evidence/v0' ||
+      (data as View).facts?.some(fact => fact.memory != null || fact.kind === 'MemoryDecision')) {
     throw new SourceError(502, 'The connection returned an incomplete work record.');
   }
   return data as View;

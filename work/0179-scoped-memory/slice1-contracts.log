@@ -1,0 +1,70 @@
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: C:\Users\medicalstudent\Documents\ChatGPT\Agenova – AgentTemplate v0\agenova\.tmp\task-scaffold-contract\9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.553s
+ok  	github.com/wunderforge/agenova/cmd/agenova	24.836s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.723s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	0.778s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	0.526s
+ok  	github.com/wunderforge/agenova/examples/engineer	0.833s
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/harness/e2e	0.940s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	11.078s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	1.103s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	1.579s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	0.549s
+ok  	github.com/wunderforge/agenova/internal/app	0.768s
+ok  	github.com/wunderforge/agenova/internal/authority	0.663s
+ok  	github.com/wunderforge/agenova/internal/authorization	0.742s
+ok  	github.com/wunderforge/agenova/internal/cli	1.130s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	1.328s
+ok  	github.com/wunderforge/agenova/internal/console	0.571s
+ok  	github.com/wunderforge/agenova/internal/evidence	0.772s
+ok  	github.com/wunderforge/agenova/internal/facts	1.205s
+ok  	github.com/wunderforge/agenova/internal/gateway	1.564s
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+ok  	github.com/wunderforge/agenova/internal/governance	1.229s
+ok  	github.com/wunderforge/agenova/internal/issuance	0.834s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	0.748s
+ok  	github.com/wunderforge/agenova/internal/modelprovider	0.570s
+--- FAIL: TestCollectFixtureOutputRejectsEscapeLinkAndOversize (0.15s)
+    filesystem_compatibility_test.go:241: create symbolic-link fixture: symlink C:\Users\MEDICA~1\AppData\Local\Temp\TestCollectFixtureOutputRejectsEscapeLinkAndOversize956945218\001\outside.txt C:\Users\MEDICA~1\AppData\Local\Temp\TestCollectFixtureOutputRejectsEscapeLinkAndOversize956945218\001\workspace\link.txt: A required privilege is not held by the client.
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/operator	43.169s
+ok  	github.com/wunderforge/agenova/internal/platform	0.787s
+ok  	github.com/wunderforge/agenova/internal/platformapply	1.241s
+ok  	github.com/wunderforge/agenova/internal/policy	0.545s
+ok  	github.com/wunderforge/agenova/internal/registration	0.778s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	1.352s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.544s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	0.634s
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.506s
+FAIL
+Exception: C:\Users\medicalstudent\Documents\ChatGPT\Agenova – AgentTemplate v0\agenova\scripts\check.ps1:18
+Line |
+  18 |  function Fail($Message) { throw "[fail] $Message" }
+     |                            ~~~~~~~~~~~~~~~~~~~~~~~
+     | [fail] go test ./... failed

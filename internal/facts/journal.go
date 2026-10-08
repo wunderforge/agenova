@@ -34,6 +34,7 @@ type Fact struct {
 	Operation        string                          `json:"operation,omitempty"`
 	Target           string                          `json:"target,omitempty"`
 	ProviderStatus   string                          `json:"providerStatus,omitempty"`
+	Memory           *MemoryMetadata                 `json:"memory,omitempty"`
 }
 
 // Journal supplies the strict correlation spine for the application path.
@@ -56,6 +57,9 @@ type Journal struct {
 type invocationState struct {
 	result               v0.DecisionResult
 	attempted, completed bool
+	memory               bool
+	operation, target    string
+	policy               v0.PolicyReference
 }
 
 func NewJournal() *Journal {
@@ -156,11 +160,35 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 		}
 	}
 	stage := j.invocationStates[fact.InvocationID]
-	if fact.Kind == "ModelDecision" || fact.Kind == "ToolDecision" {
+	if fact.Kind == "ModelDecision" || fact.Kind == "ToolDecision" || fact.Kind == "MemoryDecision" {
 		if fact.InvocationID == "" || !validDecision(fact.Result) || fact.ReasonCode == "" || fact.PolicyRef == nil || fact.PolicyRef.ID == "" || fact.PolicyRef.Version == "" || stage.result != "" {
 			return Fact{}, fmt.Errorf("invocation decision is incomplete or already recorded")
 		}
 		stage.result = fact.Result
+		if fact.Kind == "MemoryDecision" {
+			if fact.Operation != "memory.read" && fact.Operation != "memory.write" && !(fact.Result == v0.DecisionResultDeny && fact.Operation == "memory.invalid") {
+				return Fact{}, fmt.Errorf("invalid memory operation")
+			}
+			if fact.Result == v0.DecisionResultAllow && fact.Target == "" {
+				return Fact{}, fmt.Errorf("memory Allow requires a logical scope")
+			}
+			stage.memory = true
+			stage.operation, stage.target, stage.policy = fact.Operation, fact.Target, *fact.PolicyRef
+		}
+	}
+	if fact.Memory != nil && (fact.Kind != "ProviderOutcome" || !stage.memory) {
+		return Fact{}, fmt.Errorf("memory metadata requires a memory outcome")
+	}
+	if stage.memory && (fact.Kind == "ProviderAttempt" || fact.Kind == "ProviderOutcome") {
+		if fact.Operation != stage.operation || fact.Target != stage.target || fact.PolicyRef == nil || *fact.PolicyRef != stage.policy {
+			return Fact{}, fmt.Errorf("memory invocation correlation mismatch")
+		}
+		if fact.Kind == "ProviderAttempt" && fact.ProviderStatus != "Attempted" {
+			return Fact{}, fmt.Errorf("memory attempt requires Attempted status")
+		}
+		if fact.Kind == "ProviderOutcome" && !ValidMemoryOutcome(fact.Memory, fact.Operation, fact.ProviderStatus) {
+			return Fact{}, fmt.Errorf("invalid memory outcome metadata")
+		}
 	}
 	if fact.Kind == "ProviderAttempt" {
 		if fact.InvocationID == "" || stage.result != v0.DecisionResultAllow || stage.attempted {

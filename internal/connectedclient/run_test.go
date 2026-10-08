@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wunderforge/agenova/internal/facts"
 )
 
 func workFile(t *testing.T, ref string) string {
@@ -33,6 +35,30 @@ spec:
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestLegacyEvidenceRejectsUnexpectedMemoryMetadata(t *testing.T) {
+	data := []byte(installedEvidenceJSON("demo", "Succeeded"))
+	base, err := decodeView(data, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range base.Facts {
+		for _, status := range []string{"Empty", "private-status-sentinel"} {
+			view, err := decodeView(data, "demo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			view.Facts[index].Memory = &facts.MemoryMetadata{Status: status}
+			encoded, err := json.Marshal(view)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := decodeView(encoded, "demo"); err == nil {
+				t.Fatalf("Memory metadata accepted on legacy %s", view.Facts[index].Kind)
+			}
+		}
+	}
 }
 
 func installedEvidenceJSON(ref, outcome string) string {

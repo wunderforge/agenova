@@ -67,12 +67,41 @@ func TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence(t *testing.T) {
 	)
 }
 
+func TestClaimDeadlineIsRunOwnedAndDoesNotExtendWithStateReads(t *testing.T) {
+	now := time.Now()
+	service := newTestRunService(t, newRecordingBackend(), RunServiceOptions{Now: func() time.Time { return now }})
+	issued := pendingIssuedState(time.Minute)
+	if _, ok := service.ClaimDeadline(issued.Claim.ID); ok {
+		t.Fatal("unstarted claim has a deadline")
+	}
+	if _, err := service.Run(issued, testLaunch(issued), func(context.Context) error {
+		deadline, ok := service.ClaimDeadline(issued.Claim.ID)
+		if !ok || !deadline.Equal(now.Add(time.Minute)) {
+			t.Fatalf("deadline=%v known=%v", deadline, ok)
+		}
+		snapshot := service.State(issued.Claim.ID)
+		snapshot.EffectiveAuthority.Runtime.Timeout = v1alpha1.Duration(time.Hour)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	deadline, ok := service.ClaimDeadline(issued.Claim.ID)
+	if !ok || !deadline.Equal(now.Add(time.Minute)) {
+		t.Fatal("snapshot read extended claim deadline")
+	}
+	var absent *RunService
+	if _, ok := absent.ClaimDeadline("unknown"); ok {
+		t.Fatal("nil service supplied deadline")
+	}
+}
+
 func TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot(t *testing.T) {
 	backend := newRecordingBackend()
 	service := newTestRunService(t, backend, RunServiceOptions{})
 	issued := pendingIssuedState(time.Minute)
 	issued.EffectiveAuthority.Tools = []string{"git.read"}
 	issued.EffectiveAuthority.ResourceScopes = []string{"repo:acme/payments"}
+	issued.EffectiveAuthority.MemoryOperations = []string{v1alpha1.MemoryRead}
 	if _, err := service.Run(issued, testLaunch(issued), func(ctx context.Context) error { return nil }); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -91,6 +120,7 @@ func TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot(t *testing.T
 	snapshot.EffectiveAuthority.ID = "mutated"
 	snapshot.EffectiveAuthority.Tools[0] = "mutated"
 	snapshot.EffectiveAuthority.ResourceScopes[0] = "mutated"
+	snapshot.EffectiveAuthority.MemoryOperations[0] = v1alpha1.MemoryWrite
 
 	again, ok := service.ClaimAuthority(issued.Claim.ID)
 	if !ok || again.Claim.AuthorityRef != issued.Claim.AuthorityRef || again.EffectiveAuthority.ID != issued.EffectiveAuthority.ID {
@@ -98,6 +128,9 @@ func TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot(t *testing.T
 	}
 	if again.EffectiveAuthority.Tools[0] != wantTool || again.EffectiveAuthority.ResourceScopes[0] != wantScope {
 		t.Fatalf("authoritative grant slices were mutated: %+v", again.EffectiveAuthority)
+	}
+	if again.EffectiveAuthority.MemoryOperations[0] != v1alpha1.MemoryRead {
+		t.Fatal("memory operation authority was mutated")
 	}
 }
 

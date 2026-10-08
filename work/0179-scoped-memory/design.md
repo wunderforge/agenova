@@ -1,0 +1,114 @@
+# Technical Design: Deliver scoped cross-Work memory with PostgreSQL
+
+- Ticket: [#179](https://github.com/wunderforge/agenova/issues/179)
+- Feature spec: [spec.md](spec.md)
+
+## Current State and Constraints
+
+- Baseline main is `ebb4c04f7b8cc76d63036c820e04c62af68fad3d`. Existing Memory scopes are strings in request/template/effective authority; there is no executable Memory operation grant or backend.
+- The installed service rejects Memory authority. Platform currently configures deployment/runtime/model capabilities; optional Memory routing must follow accepted registry/version-lock patterns.
+- The controlled worker is executed against an authoritative backend identity. Its callback captures the claim, validates target/context, and checks Running state. Extend this trusted reference path; do not expose a bare-claim-ID network endpoint.
+- Journal invocation stages recognize Tool/Model decisions; a Memory decision must join those state checks before sharing provider attempt/outcome mechanics.
+- The evidence view currently embeds the full request and successful model text. Redaction of invocation facts alone is insufficient; public projection must also handle those two echo paths.
+- The project uses Go 1.22. Do not raise its toolchain incidentally to install a database driver.
+
+## Decision
+
+Use a small backend-neutral Memory service and a single direct PostgreSQL
+adapter. Explicit Write and literal-keyword Search prove governance and durable
+cross-Work knowledge without introducing an extraction model or Agent framework.
+The adapter is replaceable; the Memory service alone owns invocation authority.
+
+### Trusted Data Flow
+
+1. Operator configuration identifies a backend and named logical scopes with trusted Team/Project ownership; validate this without retrieving secret values.
+2. Admission verifies supported Memory operation/scope pairs and captures a defensively copied route binding from the effective Platform revision.
+3. Worker startup receives only its allowed logical scope/operations. No backend endpoint, SQL filter, or long-lived credential is passed to it.
+4. A run-owned handler establishes a private invocation binding from the issued principal/action, claim, and authoritative backend worker. Worker arguments cannot construct that binding.
+5. Memory invocation validates input, target consistency, Running state, deadline, operation/scope grants, and route ownership. Deny before any PostgreSQL connection/query/embedding operation.
+6. The journal records MemoryDecision and ProviderAttempt before an allowed adapter call. The adapter receives only a trusted namespace, bounded body/query, deadline, and host-issued invocation ID.
+7. Record a typed sanitized outcome before returning a reply. Recheck active context before returning body data; fail Work if required evidence cannot be recorded.
+8. Export public views through one redaction projector. The runner retains original request/body privately; connected clients validate the redacted shared view.
+
+### Interface and Ownership Boundaries
+
+- A new `internal/memory` boundary owns typed Write/Search requests, typed results, limits, trusted-session binding, and reusable adapter contract cases.
+- The persistence interface takes a context plus trusted namespace and bounded input; it contains no SQL, Kubernetes, vendor SDK, or model framework types.
+- The PostgreSQL implementation lives under its adapter boundary. It owns database connection/configuration, SQL, migrations, RLS, receipts, and backend error mapping.
+- The composition layer constructs sessions from authoritative issued state, not from public EffectiveAuthority-shaped values. Reuse accepted E14/E16 construction helpers when merged; do not freeze a competing trusted-context API.
+- Requested/template/effective `memoryOperations`, strict parsers, proof copying/digest/provenance, and canonical fixtures are one shared-contract slice.
+- The fact journal adds a typed optional Memory metadata payload restricted to Memory outcomes. CLI/UI derive display from those same facts, not from a second Memory history model.
+- Platform exposes only an opaque credential reference at the shared boundary; its Memory adapter configuration owns database address/name and connection policy. No credentials in task-authored fields.
+
+### Persistence and Isolation
+
+- Reference backend: PostgreSQL 18, patched stable official image pinned by digest after environment verification; no pgvector or embedding service in v1.
+- Driver: stable pgx v5 release whose complete dependency graph supports Go 1.22, locked after a focused compatibility/security check. An incompatible current release is not a reason to raise the repository toolchain in this ticket.
+- Records contain opaque Memory ID, team, project, logical scope, body, trusted source Claim ID, server timestamp, and invocation ID. Index the ownership tuple and creation order.
+- Receipts contain the ownership tuple, invocation ID, private request digest, Memory ID, and committed response metadata. Insert row and receipt atomically with uniqueness on namespace/invocation ID.
+- Write returns only after known commit. Distinguish uncertain acknowledgement from definite transaction failure. No automatic write retry under a new ID; an explicit authorized retry of the same invocation can resolve from its receipt.
+- Application SQL uses explicit namespace predicates and parameter binding. Search uses `strpos(lower(body), lower(query))` and newest-time/ID ordering, so wildcard and SQL-like text remain literal data.
+- Use enabled and forced RLS, a migration owner separate from the non-owner application role, and no application `BYPASSRLS` or schema-management permission. Missing namespace settings default-deny.
+- Set team/project/scope only transaction-locally, under trusted adapter values. Search uses a read-only transaction. Test alternating namespaces on the same pool connection to catch context retention.
+- Migrations are versioned and run through an operator-owned setup step, not ordinary worker calls. Check schema compatibility on adapter startup; a mismatch fails capability readiness explicitly.
+- Resolve DB credentials only on the trusted host through #155's accepted resolver. Rotation closes/rebuilds idle host connections through the documented restart/reconcile path; active claim authority is unchanged. Never print DSNs or raw driver errors.
+- Reference database uses a private Service and a task-scoped StatefulSet/PVC. Keep data through ordinary restart/reapply; cleanup explicitly names the owned namespace/PVC and never deletes a cluster or unrelated storage.
+- Enforce database ingress from the Control Plane only. Test fresh worker startup and existing worker reachability using the actual CNI, not policy text alone.
+
+### Evidence and Redaction
+
+- MemoryDecision participates in the existing one-decision/one-attempt/one-outcome correlation state machine. Metadata includes result class, logical scope/operation, returned count, bounded duration, truncation, and validated logical references.
+- Stable reason codes classify Memory denial, unsupported/unavailable configuration, timeout/cancel, backend failure, write uncertainty, and evidence failure. Raw database or worker input does not become a reason string.
+- Default projection for any Memory-requesting Work sets `Request.Spec.Task.Input` to a new empty map, clears `Outcome.Text`, and adds the two documented `contentRedactions` paths.
+- Keep original canonical data private; redact a copy only at every public submission/query/list/detail serialization boundary. Preserve authority-bearing fields so readers can still validate scope/operation/no-expansion and invocation correlation.
+- Validation rejects unknown/missing redaction, hidden fields carrying data, ungranted MemoryDecision targets, orphan/reordered provider facts, and cross-Work identity reuse.
+- UI displays metadata and a fixed withheld-content label. No reveal/write management UI is added. Non-Memory Work retains existing behavior.
+- The campaign's private oracle receipt verifies computed use of a generated fact, while screenshots and ordinary CLI/API exports contain no raw Memory content.
+
+## Ownership and Contract Boundaries
+
+| Producer | Owns | Consumer action |
+| --- | --- | --- |
+| E17 | Memory operation/scope authorization, data path, persistence, privacy projection, acceptance | Keep all Memory changes in the task's five implementation slices |
+| E14 #155 | Typed host-side credential resolver and opaque references | Consume the accepted contract before credentialed live evidence; no Memory-specific secret system |
+| E14 #204/#207 | Generic immutable Policy evaluation/constraints | Add Memory caps through accepted evaluator fields and preserve missing-versus-empty semantics |
+| E14 #205 | Authenticated claim-bound worker identity | Reuse after merge and rerun authenticated negatives; reference closure binding is the initial path |
+| E16 #192 | Shared routing/worker/fact additions for real MCP | Coordinate overlapping modules and adapt to accepted producer code without merging its whole work branch |
+
+## Alternatives Considered
+
+- Mem0 OSS: useful later for automatic extraction/semantic retrieval, but adds an HTTP service, provider/model configuration and version-dependent API semantics beyond this acceptance baseline.
+- LangGraph Store/LangMem: appropriate inside an existing LangGraph Worker, but introducing that framework solely for persistence into this Go control plane is unnecessary.
+- Graphiti/Zep: useful temporal/relationship context, with additional graph/model or managed-service dependencies not required for E17.
+- Letta: an Agent runtime choice rather than the smallest independent persistence boundary for this product.
+- AgentCore Memory: a cloud adapter candidate after local acceptance, not the selected self-hosted baseline.
+- Process memory or audit facts as retrieval storage: rejected because they do not prove restart durability or authorized reusable knowledge.
+- pgvector/embeddings now: deferred until a measured retrieval requirement justifies semantic capability and its governed provider path.
+
+## Verification Strategy
+
+| Layer | Positive evidence | Negative evidence / oracle |
+| --- | --- | --- |
+| Contract | read/write exact intersection and immutable issued copy | missing operations, unrequested additions, malformed shapes, changed proof input |
+| Memory boundary | active captured session and valid owner call | spy proves zero calls for wrong target, phase, grant, owner or input |
+| PostgreSQL | atomic row/receipt, literal search, explicit empty, repeat receipt | real RLS/pool isolation, duplicate mismatch, SQL-like text, timeouts and uncertain commit |
+| Installed worker | A Write, independent B Search/use, restart then C Search/use | backend-side zero-call controls; B/C never receive expected values |
+| Network | Control Plane can reach PostgreSQL | fresh/steady-state worker cannot, with independent probes and actual CNI output |
+| Evidence/UI | consistent CLI/API/Portal operation/result metadata | content/query/error/credential sentinels absent; corrupted attribution/order/redaction rejected |
+
+- Each slice runs its focused gate followed by `./scripts/check.ps1 -All`.
+- Real campaigns require explicit context/namespace/version and fail when the selected live environment is unavailable. Compile-only/unit/fixture checks are reported separately.
+- Capture sanitized raw output, exact commands, database image/driver/CNI identities, resource/PVC identities, browser screenshots, and scope-limited cleanup instructions.
+- Completion requires independent teammate reproduction; absent evidence remains a blocker rather than a production-readiness claim.
+
+## Risks and Compatibility
+
+- Credential resolver delivery may extend the 12-15 day estimate. Fake-boundary development is possible first; live acceptance cannot bypass #155.
+- Shared-file conflicts with E16/E14 require rebasing and replaying focused integration tests. Accept their reviewed contracts rather than hard-coding current drafts.
+- The declared PostgreSQL/runtime/network configuration is not verified until the live campaign. kind storage classes and CNI must be preflighted.
+- In-flight Write may commit before cancellation is observed. Outcomes must preserve commit/uncertainty truth rather than claim distributed rollback.
+- Database data and application journal are not one atomic store. A lost outcome after commit fails Work explicitly; Memory durability does not imply durable evidence.
+- Current reference identity remains fixed/in-process. This design does not claim OIDC tenancy or authenticated hostile-worker protection; #205 integration gets a separate rerun.
+- New Memory views require coordinated service/CLI/UI deployment because strict older readers reject unknown additive fields. Existing non-Memory documents/views omit new optional fields.
+- Task-input/outcome redaction means default public Memory views are not replay artifacts. Reproduction uses the controlled task-owned manifests and private campaign inputs.
+- On 2026-10-08 the user explicitly authorized latest main's assignee-self-review workflow, superseding the initial preparation stop. Normal independent PR review still applies.

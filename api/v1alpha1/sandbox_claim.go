@@ -44,12 +44,13 @@ type PolicyReference struct {
 // EffectiveAuthority is the system-issued grant distinct from any requested
 // access. It is never caller-suppliable.
 type EffectiveAuthority struct {
-	ID             string                    `json:"id"`
-	Tools          []string                  `json:"tools,omitempty"`
-	ResourceScopes []string                  `json:"resourceScopes,omitempty"`
-	ModelProfile   string                    `json:"modelProfile,omitempty"`
-	MemoryScopes   []string                  `json:"memoryScopes,omitempty"`
-	Runtime        EffectiveAuthorityRuntime `json:"runtime"`
+	ID               string                    `json:"id"`
+	Tools            []string                  `json:"tools,omitempty"`
+	ResourceScopes   []string                  `json:"resourceScopes,omitempty"`
+	ModelProfile     string                    `json:"modelProfile,omitempty"`
+	MemoryScopes     []string                  `json:"memoryScopes,omitempty"`
+	MemoryOperations []string                  `json:"memoryOperations,omitempty"`
+	Runtime          EffectiveAuthorityRuntime `json:"runtime"`
 }
 
 type EffectiveAuthorityRuntime struct {
@@ -231,6 +232,9 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		}
 		if strings.TrimSpace(state.EffectiveAuthority.ID) == "" {
 			return validationError(ValidationCategoryRequiredField, "effectiveAuthority.id", "value is required")
+		}
+		if err := validateMemoryOperations("effectiveAuthority.memoryOperations", state.EffectiveAuthority.MemoryOperations, ValidationCategoryInvalidValue); err != nil {
+			return err
 		}
 		if strings.TrimSpace(state.EffectiveAuthority.Runtime.ProfileRef) == "" {
 			return validationError(ValidationCategoryRequiredField, "effectiveAuthority.runtime.profileRef", "value is required")

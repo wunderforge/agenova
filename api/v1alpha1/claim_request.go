@@ -61,10 +61,11 @@ type ClaimRequestTask struct {
 // ClaimRequestedAccess expresses requested access only. Nothing here grants
 // authority; resolution intersects it with template and policy limits.
 type ClaimRequestedAccess struct {
-	Tools          []string `json:"tools,omitempty" yaml:"tools,omitempty"`
-	ResourceScopes []string `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
-	ModelProfile   string   `json:"modelProfile,omitempty" yaml:"modelProfile,omitempty"`
-	MemoryScopes   []string `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
+	Tools            []string `json:"tools,omitempty" yaml:"tools,omitempty"`
+	ResourceScopes   []string `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
+	ModelProfile     string   `json:"modelProfile,omitempty" yaml:"modelProfile,omitempty"`
+	MemoryScopes     []string `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
+	MemoryOperations []string `json:"memoryOperations,omitempty" yaml:"memoryOperations,omitempty"`
 }
 
 type ClaimRuntimeRequirements struct {
@@ -167,6 +168,9 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 		return err
 	}
 	if err := validateRequestList("spec.requestedAccess.memoryScopes", request.Spec.RequestedAccess.MemoryScopes); err != nil {
+		return err
+	}
+	if err := validateMemoryOperations("spec.requestedAccess.memoryOperations", request.Spec.RequestedAccess.MemoryOperations, ValidationCategoryInvalidValue); err != nil {
 		return err
 	}
 	if request.Spec.Runtime == nil {
@@ -343,10 +347,11 @@ func validateClaimTaskShape(node *yaml.Node, path string) *ValidationError {
 
 func validateClaimAccessShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
-		"tools":          nullable(validateStringSequence),
-		"resourceScopes": nullable(validateStringSequence),
-		"modelProfile":   nullable(validateStringScalar),
-		"memoryScopes":   nullable(validateStringSequence),
+		"tools":            nullable(validateStringSequence),
+		"resourceScopes":   nullable(validateStringSequence),
+		"modelProfile":     nullable(validateStringScalar),
+		"memoryScopes":     nullable(validateStringSequence),
+		"memoryOperations": nullable(validateStringSequence),
 	}, nil)
 }
 
