@@ -160,8 +160,12 @@ func (b *Backend) Write(ctx context.Context, n memory.Namespace, in memory.Write
 		// Only a server-declared rollback is definite. Driver/network errors,
 		// including cancellation around COMMIT, cannot promise no side effect.
 		var state interface{ SQLState() string }
-		if errors.As(err, &state) && (strings.HasPrefix(state.SQLState(), "40") || strings.HasPrefix(state.SQLState(), "23") || strings.HasPrefix(state.SQLState(), "25")) {
-			return memory.Record{}, errFailed
+		if errors.As(err, &state) {
+			code := state.SQLState()
+			// 40003 means statement_completion_unknown despite its class 40.
+			if code != "40003" && (strings.HasPrefix(code, "40") || strings.HasPrefix(code, "23") || strings.HasPrefix(code, "25")) {
+				return memory.Record{}, errFailed
+			}
 		}
 		return memory.Record{}, memory.ErrWriteUncertain
 	}

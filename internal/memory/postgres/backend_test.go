@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -197,29 +198,46 @@ func writeSteps(t *testing.T, in memory.WriteInput) []step {
 
 func TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault(t *testing.T) {
 	in := memory.WriteInput{InvocationID: "inv:trusted", ClaimID: "claim:trusted", Body: "% _ SQL-like ' content"}
-	for _, commitErr := range []error{nil, errors.New("private connection credential error"), stateError("40001"), stateError("23514")} {
-		b, s := backend(t, writeSteps(t, in)...)
-		s.commitErr = commitErr
-		record, err := b.Write(context.Background(), namespace, in)
-		if commitErr == nil && (err != nil || record.Reference != reference) {
-			t.Fatalf("write: %+v %v", record, err)
-		}
-		if commitErr != nil && err == nil {
-			t.Fatal("commit failure hidden")
-		}
-		if _, ok := commitErr.(stateError); ok && !errors.Is(err, errFailed) {
-			t.Fatalf("definite rollback: %v", err)
-		}
-		_, serverRollback := commitErr.(stateError)
-		if commitErr != nil && !serverRollback && !errors.Is(err, memory.ErrWriteUncertain) {
-			t.Fatalf("lost acknowledgement: %v", err)
-		}
-		if err != nil && strings.Contains(err.Error(), "credential") {
-			t.Fatal("raw driver error escaped")
-		}
-		if s.commits != 1 || len(s.begins) != 1 || s.begins[0].ReadOnly {
-			t.Fatal("write transaction missing")
-		}
+	for _, test := range []struct {
+		name string
+		err  error
+		want error
+	}{
+		{"success", nil, nil},
+		{"lost acknowledgement", errors.New("private connection credential error"), memory.ErrWriteUncertain},
+		{"completion unknown", stateError("40003"), memory.ErrWriteUncertain},
+		{"wrapped completion unknown", fmt.Errorf("private credential detail: %w", stateError("40003")), memory.ErrWriteUncertain},
+		{"transaction resolution unknown", stateError("08007"), memory.ErrWriteUncertain},
+		{"commit cancellation", context.Canceled, memory.ErrWriteUncertain},
+		{"commit timeout", context.DeadlineExceeded, memory.ErrWriteUncertain},
+		{"transaction rollback", stateError("40000"), errFailed},
+		{"serialization failure", stateError("40001"), errFailed},
+		{"transaction constraint", stateError("40002"), errFailed},
+		{"deadlock", stateError("40P01"), errFailed},
+		{"integrity constraint", stateError("23514"), errFailed},
+		{"failed transaction", stateError("25P02"), errFailed},
+		{"wrapped rollback", fmt.Errorf("private credential detail: %w", stateError("40001")), errFailed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			b, s := backend(t, writeSteps(t, in)...)
+			s.commitErr = test.err
+			record, err := b.Write(context.Background(), namespace, in)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("commit result: got %v, want %v", err, test.want)
+			}
+			if test.want == nil && record.Reference != reference {
+				t.Fatalf("write: %+v %v", record, err)
+			}
+			if test.want != nil && record != (memory.Record{}) {
+				t.Fatal("commit failure returned a record")
+			}
+			if err != nil && strings.Contains(err.Error(), "private") {
+				t.Fatal("raw driver error escaped")
+			}
+			if s.commits != 1 || len(s.begins) != 1 || s.begins[0].ReadOnly {
+				t.Fatal("write transaction missing")
+			}
+		})
 	}
 }
 

@@ -1,0 +1,568 @@
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/commit-ack-lost
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/no-commit
+--- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest (0.01s)
+    --- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/commit-ack-lost (0.00s)
+    --- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/no-commit (0.00s)
+=== RUN   TestRetryContinuationCannotBeForgedOrMovedToAnotherSession
+--- PASS: TestRetryContinuationCannotBeForgedOrMovedToAnotherSession (0.01s)
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/terminal
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/grant-revoked
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/scope-revoked
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/worker-changed
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/deadline
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/ownership
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/caller-cancelled
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/run-cancelled
+--- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend (0.02s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/terminal (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/grant-revoked (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/scope-revoked (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/worker-changed (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/deadline (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/ownership (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/caller-cancelled (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/run-cancelled (0.00s)
+=== RUN   TestRetryTransientFaultsKeepSameReceiptWithoutAutomaticRetries
+--- PASS: TestRetryTransientFaultsKeepSameReceiptWithoutAutomaticRetries (0.00s)
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/MemoryDecision
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/ProviderAttempt
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/ProviderOutcome
+--- PASS: TestRetryEvidenceFailureDisablesAllCopies (0.01s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/MemoryDecision (0.00s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/ProviderAttempt (0.00s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/ProviderOutcome (0.00s)
+=== RUN   TestConcurrentRetryCopiesResolveOnlyOnce
+--- PASS: TestConcurrentRetryCopiesResolveOnlyOnce (0.00s)
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission/caller-cancelled
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission/run-cancelled
+--- PASS: TestWaitingRetryCanCancelBeforeAdmission (0.03s)
+    --- PASS: TestWaitingRetryCanCancelBeforeAdmission/caller-cancelled (0.01s)
+    --- PASS: TestWaitingRetryCanCancelBeforeAdmission/run-cancelled (0.01s)
+=== RUN   TestSuccessfulWriteSearchEmptyAndMetadataPrivacy
+--- PASS: TestSuccessfulWriteSearchEmptyAndMetadataPrivacy (0.00s)
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/foreign_target
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/unknown_claim
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/no_operations
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/no_scope
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/foreign_scope
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/cross_team
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/cross_project
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/read_only_write
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/changed_worker
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/changed_issued_grant
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/expired_deadline
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/unknown_operation
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/blank_query
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/long_query
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/invalid_utf8
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/negative_limit
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/large_limit
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/extra_write_body
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/long_body
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Pending
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Bound
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Succeeded
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Failed
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Expired
+--- PASS: TestDenialsNeverCallBackendOrAttributeVictim (0.08s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/foreign_target (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/unknown_claim (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/no_operations (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/no_scope (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/foreign_scope (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/cross_team (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/cross_project (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/read_only_write (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/changed_worker (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/changed_issued_grant (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/expired_deadline (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/unknown_operation (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/blank_query (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/long_query (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/invalid_utf8 (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/negative_limit (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/large_limit (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/extra_write_body (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/long_body (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Pending (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Bound (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Succeeded (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Failed (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Expired (0.00s)
+=== RUN   TestBindingAndRouteCopies
+--- PASS: TestBindingAndRouteCopies (0.00s)
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unsupported
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unavailable
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Timeout
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Cancelled
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Failed
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/WriteUncertain
+--- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries (0.02s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unsupported (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unavailable (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Timeout (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Cancelled (0.01s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Failed (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/WriteUncertain (0.00s)
+=== RUN   TestDeadlineAndRunCancellationWithholdReadData
+--- PASS: TestDeadlineAndRunCancellationWithholdReadData (0.05s)
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/MemoryDecision
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderAttempt
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderOutcome
+--- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork (0.01s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/MemoryDecision (0.00s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderAttempt (0.00s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderOutcome (0.00s)
+=== RUN   TestReplyBoundsAndMisrouting
+--- PASS: TestReplyBoundsAndMisrouting (0.00s)
+=== RUN   TestConcurrentCallsKeepIndependentInvocationFacts
+--- PASS: TestConcurrentCallsKeepIndependentInvocationFacts (0.01s)
+=== RUN   TestKnownWriteCommitIsNotReportedAsRollback
+--- PASS: TestKnownWriteCommitIsNotReportedAsRollback (0.00s)
+=== RUN   TestEmptyNonMemoryGrantsAndCallerDeadline
+--- PASS: TestEmptyNonMemoryGrantsAndCallerDeadline (0.00s)
+=== RUN   TestNULTextDeniedBeforeBackendDispatch
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"\u0000private-nul-sentinel"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000tail"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"\u0000private-nul-sentinel"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000tail"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"\u0000"
+--- PASS: TestNULTextDeniedBeforeBackendDispatch (0.02s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"\u0000private-nul-sentinel" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000tail" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"\u0000private-nul-sentinel" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000tail" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"\u0000" (0.00s)
+=== RUN   TestTextContractPreservesNonNULData
+=== RUN   TestTextContractPreservesNonNULData/line__second
+=== RUN   TestTextContractPreservesNonNULData/知识_📚
+=== RUN   TestTextContractPreservesNonNULData/%___SQL-like_'_\u0000
+--- PASS: TestTextContractPreservesNonNULData (0.01s)
+    --- PASS: TestTextContractPreservesNonNULData/line__second (0.00s)
+    --- PASS: TestTextContractPreservesNonNULData/知识_📚 (0.00s)
+    --- PASS: TestTextContractPreservesNonNULData/%___SQL-like_'_\u0000 (0.00s)
+=== RUN   TestNULBackendReplyWithheld
+--- PASS: TestNULBackendReplyWithheld (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory	0.298s
+=== RUN   TestReadinessRejectsUnsafeRolesAndSchema
+--- PASS: TestReadinessRejectsUnsafeRolesAndSchema (0.00s)
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/success
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/lost_acknowledgement
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/completion_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_completion_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_resolution_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_cancellation
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_timeout
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_rollback
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/serialization_failure
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_constraint
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/deadlock
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/integrity_constraint
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/failed_transaction
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_rollback
+--- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/success (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/lost_acknowledgement (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/completion_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_completion_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_resolution_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_cancellation (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_timeout (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_rollback (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/serialization_failure (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_constraint (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/deadlock (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/integrity_constraint (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/failed_transaction (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_rollback (0.00s)
+=== RUN   TestReceiptReplayNeverWritesAndDifferentBodyFails
+--- PASS: TestReceiptReplayNeverWritesAndDifferentBodyFails (0.00s)
+=== RUN   TestReceiptFailureRollsBackWithoutCommit
+--- PASS: TestReceiptFailureRollsBackWithoutCommit (0.00s)
+=== RUN   TestSearchUsesLiteralParametersReadonlyTransactionAndResetsOwnership
+--- PASS: TestSearchUsesLiteralParametersReadonlyTransactionAndResetsOwnership (0.00s)
+=== RUN   TestInvalidInputAndTypedFaults
+--- PASS: TestInvalidInputAndTypedFaults (0.00s)
+=== RUN   TestMigrationScopeAndDenyByDefault
+--- PASS: TestMigrationScopeAndDenyByDefault (0.00s)
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/lost_acknowledgement
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/SQLSTATE_40003
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/wrapped_SQLSTATE_40003
+--- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement (0.01s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/lost_acknowledgement (0.01s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/SQLSTATE_40003 (0.00s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/wrapped_SQLSTATE_40003 (0.00s)
+=== RUN   TestGovernedDenialsNeverCallDatabase
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_prefix
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_middle
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_suffix
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/blank
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/invalid_UTF8
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/oversized
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/foreign_target
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/foreign_scope
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/no_operations
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/no_scopes
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/inactive
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/wrong_owner
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_prefix
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_middle
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_suffix
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/blank
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/invalid_UTF8
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/oversized
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/foreign_target
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/foreign_scope
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/no_operations
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/no_scopes
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/inactive
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/wrong_owner
+--- PASS: TestGovernedDenialsNeverCallDatabase (0.09s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_prefix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_middle (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_suffix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/blank (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/invalid_UTF8 (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/oversized (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/foreign_target (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/foreign_scope (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/no_operations (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/no_scopes (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/inactive (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/wrong_owner (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_prefix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_middle (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_suffix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/blank (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/invalid_UTF8 (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/oversized (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/foreign_target (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/foreign_scope (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/no_operations (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/no_scopes (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/inactive (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/wrong_owner (0.00s)
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00body
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00tail
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00
+--- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00body (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00tail (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00 (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00 (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	0.126s
+=== RUN   TestJournalInvocationAttemptOutcomeOrdering
+--- PASS: TestJournalInvocationAttemptOutcomeOrdering (0.00s)
+=== RUN   TestJournalAuthorityAndBackendCannotBeReassigned
+--- PASS: TestJournalAuthorityAndBackendCannotBeReassigned (0.00s)
+=== RUN   TestJournalDefensiveAppendAndQuery
+--- PASS: TestJournalDefensiveAppendAndQuery (0.00s)
+=== RUN   TestJournalRejectsCrossClaimAndInvocation
+--- PASS: TestJournalRejectsCrossClaimAndInvocation (0.00s)
+=== RUN   TestJournalPreClaimTypedDecisionAndOrdering
+--- PASS: TestJournalPreClaimTypedDecisionAndOrdering (0.00s)
+=== RUN   TestJournalMemoryCorrelationAndMetadata
+--- PASS: TestJournalMemoryCorrelationAndMetadata (0.00s)
+=== RUN   TestMemoryMetadataCannotDecorateOtherProvider
+--- PASS: TestMemoryMetadataCannotDecorateOtherProvider (0.00s)
+=== RUN   TestStore_RecordAndQueryToolInvocations
+--- PASS: TestStore_RecordAndQueryToolInvocations (0.00s)
+=== RUN   TestStore_RecordAndQueryModelInvocations
+--- PASS: TestStore_RecordAndQueryModelInvocations (0.00s)
+=== RUN   TestStore_RecordAndQueryRuntimeEvents
+--- PASS: TestStore_RecordAndQueryRuntimeEvents (0.00s)
+=== RUN   TestStore_IsolatesByClaimID
+--- PASS: TestStore_IsolatesByClaimID (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/facts	0.007s
+ok  	github.com/wunderforge/agenova/internal/memory	1.534s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	1.134s
+ok  	github.com/wunderforge/agenova/internal/facts	1.030s
+ok  	github.com/wunderforge/agenova/internal/memory	1.547s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	0.139s
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /mnt/c/Users/medicalstudent/Documents/ChatGPT/Agenova – AgentTemplate v0/agenova/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+warning: in the working copy of 'go.sum', CRLF will be replaced by LF the next time Git touches it
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.312s
+ok  	github.com/wunderforge/agenova/cmd/agenova	27.984s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.036s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	0.017s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	0.007s
+ok  	github.com/wunderforge/agenova/examples/engineer	0.044s
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/harness/e2e	0.036s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	2.948s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	0.023s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	0.024s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	0.045s
+ok  	github.com/wunderforge/agenova/internal/app	0.096s
+ok  	github.com/wunderforge/agenova/internal/authority	0.487s
+ok  	github.com/wunderforge/agenova/internal/authorization	0.136s
+ok  	github.com/wunderforge/agenova/internal/cli	0.169s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	0.249s
+ok  	github.com/wunderforge/agenova/internal/console	0.181s
+ok  	github.com/wunderforge/agenova/internal/evidence	0.011s
+ok  	github.com/wunderforge/agenova/internal/facts	0.016s
+ok  	github.com/wunderforge/agenova/internal/gateway	0.011s
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+ok  	github.com/wunderforge/agenova/internal/governance	0.006s
+ok  	github.com/wunderforge/agenova/internal/issuance	0.187s
+ok  	github.com/wunderforge/agenova/internal/memory	0.469s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	0.452s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	0.184s
+ok  	github.com/wunderforge/agenova/internal/modelprovider	0.098s
+ok  	github.com/wunderforge/agenova/internal/operator	12.599s
+ok  	github.com/wunderforge/agenova/internal/platform	0.010s
+ok  	github.com/wunderforge/agenova/internal/platformapply	0.038s
+ok  	github.com/wunderforge/agenova/internal/policy	0.009s
+ok  	github.com/wunderforge/agenova/internal/registration	0.012s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	2.039s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.094s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	0.005s
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.231s
+[pass] go test ./...
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] Agent Sandbox integration package compiles
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] opt-in controlled Agent Sandbox integration package compiles
+
+> @agenova/fixture-storyboard@0.0.0 check
+> npm run contracts:check && npm run typecheck && npm test -- --run && npm run build && npm run test:smoke
+
+
+> @agenova/fixture-storyboard@0.0.0 contracts:check
+> node scripts/contracts.mjs check && vitest run src/fixture-source.test.ts
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.06s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.03s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.01s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.105s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.0 [39m[90m/mnt/c/Users/medicalstudent/Documents/ChatGPT/Agenova – AgentTemplate v0/agenova/ui[39m
+
+ [32m✓[39m src/fixture-source.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 10:07:32
+[2m   Duration [22m 24.26s[2m (environment 88%, transform 11%)[22m
+
+
+> @agenova/fixture-storyboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+> @agenova/fixture-storyboard@0.0.0 test
+> vitest --run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.0 [39m[90m/mnt/c/Users/medicalstudent/Documents/ChatGPT/Agenova – AgentTemplate v0/agenova/ui[39m
+
+ [32m✓[39m src/local-api-target.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/connected-source.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/work-name.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/RunFlow.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/WorkerActivity.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/fixture-source.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/record-presentation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 395[2mms[22m[39m
+ [32m✓[39m src/console.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 360[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[32m126 passed[39m[22m[90m (126)[39m
+[2m   Start at [22m 10:08:03
+[2m   Duration [22m 25.65s[2m (environment 86%, import 7%, transform 6%)[22m
+
+
+> @agenova/fixture-storyboard@0.0.0 build
+> node scripts/contracts.mjs check && tsc --noEmit && vite build
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.07s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.03s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.01s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.118s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 41 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.37 kB │ gzip:  0.27 kB
+dist/assets/index-D22QsjIV.css   38.71 kB │ gzip:  8.09 kB
+dist/assets/index-BpapjdtK.js   310.68 kB │ gzip: 84.88 kB
+
+✓ built in 5.29s
+[PLUGIN_TIMINGS] Plugin hooks ran for 5.1s of this 5.3s build (96%).
+The slowest hooks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - agenova-v0-fixtures load (91%, 4.8s, 39 calls)
+Additional hook time came from hooks under 1s.
+See https://rolldown.rs/reference/InputOptions.checks#plugintimings for more details.
+
+
+> @agenova/fixture-storyboard@0.0.0 test:smoke
+> playwright test
+
+
+Running 54 tests using 5 workers
+
+  ✓   2 smoke/console.spec.ts:18:5 › console 1100 allowed (1.3s)
+  ✓   5 smoke/storyboard.spec.ts:14:3 › request-only: claim-request.valid.team-a-engineer-json (975ms)
+  ✓   4 smoke/connected.spec.ts:37:2 › Memory projection withholds task and result at 1100px (2.2s)
+  ✓   7 smoke/storyboard.spec.ts:14:3 › allow-running: issued-state.valid.team-a-engineer (981ms)
+  ✓   6 smoke/console.spec.ts:18:5 › console 1100 narrowed (1.4s)
+  ✓   3 smoke/portal.spec.ts:8:1 › portal journey keeps work evidence scoped and shows narrowed authority (3.1s)
+  ✓   9 smoke/storyboard.spec.ts:14:3 › deny-no-claim: issued-state.valid.team-b-denial (754ms)
+  ✓   1 smoke/motion.spec.ts:5:1 › lightweight dark portal keeps lifecycle static and preserves navigation (3.3s)
+  ✓   8 smoke/connected.spec.ts:37:2 › Memory projection withholds task and result at 390px (1.2s)
+  ✓  10 smoke/console.spec.ts:18:5 › console 1100 denied (749ms)
+  ✓  12 smoke/storyboard.spec.ts:14:3 › invalid-caller-state: issued-state.invalid.caller-effective-authority (478ms)
+  ✓  11 smoke/portal.spec.ts:37:1 › new example request stays pending with no invented grant or worker (914ms)
+  ✓  14 smoke/console.spec.ts:18:5 › console 1100 loading (792ms)
+  ✓  15 smoke/storyboard.spec.ts:14:3 › missing-field: derived.missing-field (718ms)
+  ✓  17 smoke/console.spec.ts:18:5 › console 1100 not-found (605ms)
+  ✓  18 smoke/storyboard.spec.ts:14:3 › unknown-field: derived.unknown-field (605ms)
+  ✓  16 smoke/portal.spec.ts:55:1 › named demo work keeps full instructions behind a disclosure (1.1s)
+  ✓  19 smoke/console.spec.ts:18:5 › console 1100 malformed (437ms)
+  ✓  20 smoke/storyboard.spec.ts:37:1 › mobile selection stays usable without horizontal overflow (401ms)
+  ✓  21 smoke/portal.spec.ts:66:1 › research work uses a topic, not a repository field (569ms)
+  ✓  22 smoke/console.spec.ts:18:5 › console 1100 unavailable (331ms)
+  ✓  13 smoke/connected.spec.ts:59:1 › work name is separate from full instructions and identity (2.5s)
+  ✓  25 smoke/connected.spec.ts:91:1 › connected Portal rejects an unrelated local demo API (1.1s)
+  ✓  24 smoke/console.spec.ts:18:5 › console 390 allowed (1.4s)
+  ✓  23 smoke/portal.spec.ts:79:1 › platform activity aggregates example records and links back to one work (1.8s)
+  ✓  27 smoke/console.spec.ts:18:5 › console 390 narrowed (453ms)
+  ✓  28 smoke/portal.spec.ts:93:1 › portal remains usable at mobile width (492ms)
+  ✓  29 smoke/console.spec.ts:18:5 › console 390 denied (354ms)
+  ✓  31 smoke/console.spec.ts:18:5 › console 390 loading (270ms)
+  ✓  32 smoke/console.spec.ts:18:5 › console 390 not-found (260ms)
+  ✓  30 smoke/portal.spec.ts:103:1 › connected view keeps the route but never shows illustrative work or a false empty result (745ms)
+  ✓  33 smoke/console.spec.ts:18:5 › console 390 malformed (250ms)
+  ✓  35 smoke/console.spec.ts:18:5 › console 390 unavailable (274ms)
+  ✓  34 smoke/portal.spec.ts:120:1 › connected pages explain unavailable capabilities without leaking demo records (866ms)
+  ✓  36 smoke/console.spec.ts:57:1 › console direct claim route, reload, navigation and browser history (594ms)
+  ✓  37 smoke/portal.spec.ts:145:1 › connected status stays readable on mobile (343ms)
+  ✓  38 smoke/console.spec.ts:74:1 › console keyboard, focus, semantic structure and source announcements (423ms)
+  ✓  26 smoke/connected.spec.ts:98:1 › connected Work polling does not repeatedly query Platform setup (5.1s)
+  ✓  39 smoke/connected.spec.ts:112:1 › idle connected setup is revalidated without one-second Kubernetes polling (33.0s)
+  ✓  40 smoke/connected.spec.ts:129:1 › legacy task title uses its first sentence but retains complete instructions (463ms)
+  ✓  41 smoke/connected.spec.ts:144:1 › failed work shows a separate red outcome, reason and failed detail record without recoloring successful calls (623ms)
+  ✓  42 smoke/connected.spec.ts:171:1 › format retry explains the failing turn without counting checks as calls (499ms)
+  ✓  43 smoke/connected.spec.ts:198:1 › historical missing failure reason is explicit, not inferred from successful model calls (220ms)
+  ✓  44 smoke/connected.spec.ts:207:1 › connected motion follows provider and cleanup evidence without resetting DOM or scroll (4.0s)
+  ✓  45 smoke/connected.spec.ts:239:1 › cobalt light locates real pending calls and separates success from failure (4.9s)
+  ✓  46 smoke/connected.spec.ts:287:1 › malformed connected percent escapes show an error instead of a blank page (189ms)
+  ✓  47 smoke/connected.spec.ts:302:1 › worker follows recorded ReAct turns, tool observation and final model response (5.1s)
+  ✓  48 smoke/connected.spec.ts:345:1 › live source submits canonical intent then polls actual result and narrowed authority (1.6s)
+  ✓  49 smoke/connected.spec.ts:382:1 › new work suggests the active policy project instead of a demo constant (358ms)
+  ✓  50 smoke/connected.spec.ts:392:1 › denial shows request evidence without invented claim worker or model result (342ms)
+  ✓  51 smoke/connected.spec.ts:407:1 › pending live request never invents grant or result and malformed response stays unavailable (333ms)
+  ✓  52 smoke/connected.spec.ts:420:1 › successful result remains visible when cleanup fails and configuration is not health (461ms)
+  ✓  53 smoke/connected.spec.ts:433:1 › terminal authority keeps refreshing until final result and cleanup report arrive (1.6s)
+  ✓  54 smoke/connected.spec.ts:444:1 › queued cancellation overrides pending claim and stops automatic refresh (256ms)
+
+  54 passed (1.4m)
+[pass] frontend contracts, types, components, production build and browser smoke

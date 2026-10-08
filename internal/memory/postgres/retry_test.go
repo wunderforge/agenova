@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +37,20 @@ func (r retryStateReader) ClaimDeadline(id string) (time.Time, bool) {
 }
 
 func TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{"lost acknowledgement", errors.New("private-lost-commit-acknowledgement")},
+		{"SQLSTATE 40003", stateError("40003")},
+		{"wrapped SQLSTATE 40003", fmt.Errorf("private credential detail: %w", stateError("40003"))},
+	} {
+		t.Run(test.name, func(t *testing.T) { testGovernedReceiptRetry(t, test.err) })
+	}
+}
+
+func testGovernedReceiptRetry(t *testing.T, commitErr error) {
+	t.Helper()
 	data, err := os.ReadFile("../../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json")
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +83,7 @@ func TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement(t *tes
 		},
 	})
 	b, script := backend(t, steps...)
-	script.commitErr = errors.New("private-lost-commit-acknowledgement")
+	script.commitErr = commitErr
 	journal := facts.NewJournal()
 	if err := journal.RegisterRequest(state.RequestRef, state.Principal); err != nil {
 		t.Fatal(err)
@@ -94,7 +110,24 @@ func TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement(t *tes
 	if script.commits != 1 || script.rollbacks != 1 || len(script.begins) != 2 || len(script.steps) != 0 {
 		t.Fatal("retry inserted or committed a second record instead of reading the receipt")
 	}
-	if len(journal.ForClaim(state.Claim.ID)) != 6 {
+	got := journal.ForClaim(state.Claim.ID)
+	if len(got) != 6 {
 		t.Fatal("SQL replay lost unique audit attempts")
+	}
+	for i, result := range []memory.Result{first, second} {
+		decision, attempt, outcome := got[i*3], got[i*3+1], got[i*3+2]
+		if decision.Kind != "MemoryDecision" || decision.Result != v0.DecisionResultAllow || attempt.Kind != "ProviderAttempt" || outcome.Kind != "ProviderOutcome" || outcome.Memory == nil || outcome.Memory.Status != string(result.Status) {
+			t.Fatal("commit classification lost correlated outcome metadata")
+		}
+		if decision.InvocationID != result.InvocationID || attempt.InvocationID != result.InvocationID || outcome.InvocationID != result.InvocationID {
+			t.Fatal("retry reused an audit attempt instead of only the receipt")
+		}
+	}
+	export, err := json.Marshal(struct {
+		Results []memory.Result
+		Facts   []facts.Fact
+	}{[]memory.Result{first, second}, got})
+	if err != nil || strings.Contains(string(export), "private") {
+		t.Fatal("commit error, body or retry state leaked")
 	}
 }
