@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -39,6 +40,9 @@ type Client struct {
 	// OpenTunnel is a test seam; production uses only the fixed private API port.
 	OpenTunnel func(context.Context) (endpoint string, close func(), err error)
 	HTTPClient *http.Client
+	// TokenFile is an explicit protected file containing one externally issued
+	// bearer token. The token is read for each request to permit upstream rotation.
+	TokenFile string
 }
 
 const maxEvidenceBytes = 1 << 20
@@ -837,6 +841,13 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 		return nil, errors.New("installed Work API request is invalid")
 	}
 	req.Header.Set("Accept", "application/json")
+	if c.TokenFile != "" {
+		token, err := readProtectedToken(c.TokenFile)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -880,6 +891,33 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 	return data, nil
 }
 
+func readProtectedToken(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("OIDC token file path is required")
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("OIDC token file is unavailable or not a regular file")
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return "", errors.New("OIDC token file permissions must not grant group or other access")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", errors.New("OIDC token file is unavailable")
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 64<<10))
+	if err != nil {
+		return "", errors.New("OIDC token file could not be read")
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" || len(token) >= 64<<10 || strings.ContainsAny(token, " \t\r\n") {
+		return "", errors.New("OIDC token file must contain one bounded bearer token")
+	}
+	return token, nil
+}
+
 var safeAPIDiagnostic = map[string]string{
 	"active_policy_unavailable":   "Active PolicyBundle is unavailable; register or repair the active policy.",
 	"active_policy_invalid":       "Active PolicyBundle is invalid; register a valid policy version.",
@@ -893,6 +931,8 @@ var safeAPIDiagnostic = map[string]string{
 	"request_conflict":            "This Work reference already exists; choose a new request name.",
 	"capacity_reached":            "The installed service has reached its current-session Work limit.",
 	"not_found":                   "Work was not found in the installed service.",
+	"authentication_failed":       "Authentication failed; refresh the configured company token file.",
+	"authentication_unavailable":  "Authentication is unavailable in the installed service.",
 }
 
 func (c Client) openTunnel(ctx context.Context) (string, func(), error) {

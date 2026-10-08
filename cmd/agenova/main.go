@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/cli"
@@ -40,7 +41,7 @@ func installedClient(stateDirectory string) (connectedclient.Client, error) {
 	if err != nil {
 		return connectedclient.Client{}, err
 	}
-	return connectedclient.Client{Context: contextName, Namespace: namespace}, nil
+	return connectedclient.Client{Context: contextName, Namespace: namespace, TokenFile: strings.TrimSpace(os.Getenv("AGENOVA_TOKEN_FILE"))}, nil
 }
 
 func showConnected(ref, stateDirectory string) (evidence.View, error) {

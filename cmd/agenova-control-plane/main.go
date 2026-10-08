@@ -23,6 +23,7 @@ import (
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/identity"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
@@ -62,7 +63,15 @@ func serve() error {
 	// Admission can perform three bounded registration reads (20s each) and
 	// two bounded runtime setup calls (30s each) before returning Accepted.
 	// Keep the server budget above their sum; clients wait longer still.
-	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
+	workHandler := console.Handler(configured)
+	if path := strings.TrimSpace(os.Getenv("AGENOVA_OIDC_CONFIG_FILE")); path != "" {
+		verifier, err := loadOIDCVerifier(path)
+		if err != nil {
+			return err
+		}
+		workHandler = console.AuthenticatedHandler(configured, verifier)
+	}
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
 	privateListener, err := net.Listen("tcp", private.Addr)
 	if err != nil {
 		return fmt.Errorf("start private Work service: %w", err)
@@ -169,6 +178,32 @@ func configuredService(path string) (*console.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	prepare := func(data []byte, source app.PrincipalSource) (app.PreparedAssignment, error) {
+		bundle, err := store.ActivePolicy()
+		if err != nil {
+			return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
+		}
+		loader := &policy.Loader{}
+		if err := loader.Load(bundle); err != nil {
+			return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
+		}
+		prepared, err := app.PrepareAssignment(data, source, loader, store)
+		if err != nil {
+			request, parseErr := v0.ParseClaimRequestJSON(data)
+			if parseErr == nil {
+				if _, lookupErr := store.Template(request.Spec.TemplateRef); lookupErr != nil {
+					return prepared, &console.SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: err}
+				}
+			}
+			return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
+		}
+		if prepared.Issued != nil && prepared.Issued.Claim != nil {
+			if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles); err != nil {
+				return app.PreparedAssignment{}, err
+			}
+		}
+		return prepared, nil
+	}
 	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
@@ -187,30 +222,10 @@ func configuredService(path string) (*console.Service, error) {
 				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
 		Prepare: func(data []byte) (app.PreparedAssignment, error) {
-			bundle, err := store.ActivePolicy()
-			if err != nil {
-				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
-			}
-			loader := &policy.Loader{}
-			if err := loader.Load(bundle); err != nil {
-				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
-			}
-			prepared, err := app.PrepareAssignment(data, principal, loader, store)
-			if err != nil {
-				request, parseErr := v0.ParseClaimRequestJSON(data)
-				if parseErr == nil {
-					if _, lookupErr := store.Template(request.Spec.TemplateRef); lookupErr != nil {
-						return prepared, &console.SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: err}
-					}
-				}
-				return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
-			}
-			if prepared.Issued != nil && prepared.Issued.Claim != nil {
-				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles); err != nil {
-					return app.PreparedAssignment{}, err
-				}
-			}
-			return prepared, nil
+			return prepare(data, principal)
+		},
+		PrepareVerified: func(data []byte, verified identity.VerifiedPrincipal) (app.PreparedAssignment, error) {
+			return prepare(data, verified)
 		},
 		Configure: func(template *v0.AgentTemplate) (app.ResolvedLaunch, error) {
 			if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil {
@@ -232,6 +247,41 @@ func configuredService(path string) (*console.Service, error) {
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
 	})
+}
+
+type oidcDocument struct {
+	Issuer                     string            `json:"issuer"`
+	Audience                   string            `json:"audience"`
+	JWKSURL                    string            `json:"jwksUrl"`
+	TeamClaim                  string            `json:"teamClaim"`
+	TeamMappings               map[string]string `json:"teamMappings"`
+	AuthenticationContextClaim string            `json:"authenticationContextClaim,omitempty"`
+}
+
+func loadOIDCVerifier(path string) (*identity.OIDCVerifier, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("read OIDC configuration: %w", err)
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(io.LimitReader(file, 64<<10))
+	decoder.DisallowUnknownFields()
+	var document oidcDocument
+	if err := decoder.Decode(&document); err != nil {
+		return nil, fmt.Errorf("decode OIDC configuration: %w", err)
+	}
+	var trailing json.RawMessage
+	if decoder.Decode(&trailing) != io.EOF {
+		return nil, fmt.Errorf("decode OIDC configuration: trailing data")
+	}
+	verifier, err := identity.NewOIDCVerifier(identity.OIDCConfig{
+		Issuer: document.Issuer, Audience: document.Audience, JWKSURL: document.JWKSURL,
+		TeamClaim: document.TeamClaim, TeamMappings: document.TeamMappings, AuthenticationContextClaim: document.AuthenticationContextClaim,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure OIDC verifier: %w", err)
+	}
+	return verifier, nil
 }
 
 // This reference composition currently provides only a synthetic git.read

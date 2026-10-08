@@ -11,10 +11,69 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
+
+func TestClientReadsProtectedTokenFileAndNeverPlacesTokenInURL(t *testing.T) {
+	tokenPath := filepath.Join(t.TempDir(), "company-token")
+	if err := os.WriteFile(tokenPath, []byte("signed.jwt.value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer signed.jwt.value" || strings.Contains(r.URL.String(), "signed.jwt.value") {
+			t.Errorf("credential transport mismatch: header=%q url=%q", r.Header.Get("Authorization"), r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer server.Close()
+	client := Client{Context: "kind-agenova", Namespace: "agenova-system", TokenFile: tokenPath, OpenTunnel: func(context.Context) (string, func(), error) {
+		return server.URL, func() {}, nil
+	}}
+	views, err := client.List()
+	if err != nil || len(views) != 0 {
+		t.Fatalf("authenticated list failed: %v %+v", err, views)
+	}
+}
+
+func TestClientRejectsUnsafeTokenFilesBeforeHTTPRequest(t *testing.T) {
+	directory := t.TempDir()
+	target := filepath.Join(directory, "target")
+	if err := os.WriteFile(target, []byte("signed.jwt.value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	symlink := filepath.Join(directory, "link")
+	if err := os.Symlink(target, symlink); err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{symlink, filepath.Join(directory, "missing")}
+	if runtime.GOOS != "windows" {
+		insecure := filepath.Join(directory, "insecure")
+		if err := os.WriteFile(insecure, []byte("signed.jwt.value"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, insecure)
+	}
+	for _, path := range paths {
+		called := false
+		client := Client{Context: "kind-agenova", Namespace: "agenova-system", TokenFile: path, OpenTunnel: func(context.Context) (string, func(), error) {
+			return "http://127.0.0.1:12345", func() {}, nil
+		}, HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			called = true
+			return nil, fmt.Errorf("unexpected request")
+		})}}
+		if _, err := client.List(); err == nil || strings.Contains(err.Error(), "signed.jwt.value") || called {
+			t.Fatalf("unsafe token path accepted or leaked: %q err=%v called=%v", path, err, called)
+		}
+	}
+}
 
 func workFile(t *testing.T, ref string) string {
 	t.Helper()

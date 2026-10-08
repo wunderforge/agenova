@@ -6,11 +6,36 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 )
+
+func TestOIDCConfigurationIsExplicitAndStrict(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oidc.json")
+	valid := `{"issuer":"https://identity.example","audience":"agenova","jwksUrl":"https://identity.example/keys","teamClaim":"groups","teamMappings":{"engineering":"team-a"}}`
+	if err := os.WriteFile(path, []byte(valid), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadOIDCVerifier(path); err != nil {
+		t.Fatalf("valid OIDC config rejected: %v", err)
+	}
+	for _, source := range []string{
+		`{"issuer":"https://identity.example","audience":"agenova","jwksUrl":"https://identity.example/keys","teamClaim":"groups","teamMappings":{"engineering":"team-a"},"clientSecret":"must-not-be-accepted"}`,
+		valid + ` {}`,
+		`{"issuer":"","audience":"agenova","jwksUrl":"https://identity.example/keys","teamClaim":"groups","teamMappings":{"engineering":"team-a"}}`,
+	} {
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadOIDCVerifier(path); err == nil {
+			t.Fatalf("invalid OIDC config accepted: %s", source)
+		}
+	}
+}
 
 func TestReferenceEndpointsExposeOnlySafeStatus(t *testing.T) {
 	t.Setenv("AGENOVA_PLATFORM_NAME", "reference-local")

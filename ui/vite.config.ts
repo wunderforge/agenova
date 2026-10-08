@@ -6,13 +6,28 @@ import { defineConfig } from 'vitest/config';
 import { fixtureRows, consoleFixtureRows, root } from './scripts/contracts.mjs';
 import { resolve } from 'node:path';
 import { localAPITarget } from './local-api-target.ts';
+import { serverBearerToken } from './server-token.ts';
 
 const moduleID = 'virtual:agenova-fixtures';
 const consoleID = 'virtual:agenova-console-fixtures';
 const apiTarget = localAPITarget(process.env.AGENOVA_API_URL);
+const apiProxy = {
+  target: apiTarget,
+  changeOrigin: false,
+  configure(proxy: { on(event: 'proxyReq', listener: (request: { setHeader(name: string, value: string): void; destroy(error: Error): void }) => void): void }) {
+    proxy.on('proxyReq', request => {
+      try {
+        const token = serverBearerToken(process.env.AGENOVA_TOKEN_FILE);
+        if (token) request.setHeader('Authorization', `Bearer ${token}`);
+      } catch (error) {
+        request.destroy(error instanceof Error ? error : new Error('OIDC token file is unavailable.'));
+      }
+    });
+  },
+};
 export default defineConfig({
-  server: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
-  preview: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
+  server: { proxy: { '/api': apiProxy } },
+  preview: { proxy: { '/api': apiProxy } },
   plugins: [{
     name: 'agenova-v0-fixtures',
     resolveId(id) { if (id === moduleID || id === consoleID) return '\0' + id; },

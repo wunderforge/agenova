@@ -64,8 +64,8 @@ Out of scope:
 - [x] Scout the relevant implementation, tests, risks, and dependencies: the current console service binds one preset principal at construction, so M2 must introduce per-request identity without changing the evidence DTO or allowing owner checks only in handlers.
 - [x] Assignee self-review: Ticket and PRD agree on externally issued identity, fail-closed authorization, owner-only evidence, and no management expansion; M1 merge remains the PR publication dependency.
 - [x] Add the verified principal and OIDC verifier boundary with deterministic JWKS test fixtures.
-- [ ] Protect Work submission and owner-filter evidence routes without changing canonical `ClaimRequest`.
-- [ ] Add connected CLI token-file transport and Portal server-side proxy injection.
+- [x] Protect Work submission and owner-filter evidence routes without changing canonical `ClaimRequest`.
+- [x] Add connected CLI token-file transport and Portal server-side proxy injection.
 - [ ] Add installed kind two-user authentication and evidence-isolation smoke evidence.
 - [ ] Add or update focused behavioral evidence.
 - [ ] Run the focused gate and `./scripts/check.ps1 -All`.
