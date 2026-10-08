@@ -15,8 +15,49 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 )
+
+func TestEvidenceContentRedactionValidation(t *testing.T) {
+	for _, status := range []string{"Succeeded", "Deny"} {
+		base, err := decodeView([]byte(installedEvidenceJSON("demo", status)), "demo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		base.Request.Spec.RequestedAccess.MemoryOperations = []string{"read"}
+		if base.State.EffectiveAuthority != nil {
+			base.State.EffectiveAuthority.MemoryOperations = []string{"read"}
+			for index := range base.Facts {
+				if base.Facts[index].Authority != nil {
+					base.Facts[index].Authority.MemoryOperations = []string{"read"}
+				}
+			}
+		}
+		base = evidence.ProjectPublic(base)
+		data, _ := evidence.MarshalPublic(base)
+		if _, err := decodeView(data, "demo"); err != nil {
+			t.Fatalf("valid redacted %s: %v", status, err)
+		}
+		for index, mutate := range []func(*evidence.View){
+			func(v *evidence.View) { v.ContentRedactions = nil },
+			func(v *evidence.View) { v.ContentRedactions[1] = "unknown.path" },
+			func(v *evidence.View) { v.ContentRedactions[1] = v.ContentRedactions[0] },
+			func(v *evidence.View) { v.Request.Spec.Task.Input["objective"] = "private-input-sentinel" },
+			func(v *evidence.View) { v.Request.Spec.Task.Input = nil },
+			func(v *evidence.View) { v.Outcome.Text = "private-output-sentinel" },
+		} {
+			bad := evidence.Clone(base)
+			mutate(&bad)
+			// Bypass the safe producer to simulate a hostile transport response.
+			type wireView evidence.View
+			data, _ := json.Marshal(wireView(bad))
+			if _, err := decodeView(data, "demo"); err == nil {
+				t.Fatalf("accepted corrupt %s projection %d", status, index)
+			}
+		}
+	}
+}
 
 func workFile(t *testing.T, ref string) string {
 	t.Helper()

@@ -189,6 +189,7 @@ export interface SandboxClaimBackendIdentity {
   workerId: string;
 }
 export interface View {
+  contentRedactions?: (Array<string> | null);
   facts: (Array<Fact> | null);
   outcome?: (Outcome | null);
   request: (ClaimRequest | null);
@@ -1248,6 +1249,18 @@ export const shapes = {
   "View": {
     "kind": "object",
     "fields": {
+      "contentRedactions": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
       "facts": {
         "shape": {
           "kind": "nullable",

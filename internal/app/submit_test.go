@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
@@ -32,6 +33,9 @@ func TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim(t *testing.T) {
 	if result.ClaimID == "" || result.Phase != v1alpha1.ClaimPhaseSucceeded {
 		t.Fatalf("claim outcome = %+v", result)
 	}
+	if result.Evidence == nil || !evidence.ValidContentProjection(*result.Evidence) {
+		t.Fatal("reference submission did not return a redacted public projection")
+	}
 }
 
 func TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation(t *testing.T) {
@@ -45,6 +49,9 @@ func TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation(t *testing.T) {
 	}
 	if result.Allocated || spy.allocates != 0 {
 		t.Fatalf("deny allocated a backend: %+v calls=%d", result, spy.allocates)
+	}
+	if result.Evidence == nil || !evidence.ValidContentProjection(*result.Evidence) {
+		t.Fatal("denied reference submission leaked task input")
 	}
 }
 

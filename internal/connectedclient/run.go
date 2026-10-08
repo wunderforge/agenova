@@ -245,7 +245,7 @@ func decodeStrictJSON(data []byte, value any) bool {
 
 func validEvidenceView(view evidence.View, ref string) bool {
 	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil || view.State == nil ||
-		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
+		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil || !evidence.ValidContentProjection(view) {
 		return false
 	}
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {

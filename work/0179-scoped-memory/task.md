@@ -25,6 +25,8 @@ Additional task-specific context:
 - [Platform contract](../../api/v1alpha1/platform.go), [Platform resolution](../../internal/platform/resolve.go), [adapter registry](../../internal/adapters/bundled/registry.go), and [installed service](../../cmd/agenova-control-plane/main.go)
 - [Fact journal](../../internal/facts/journal.go), [evidence view](../../internal/evidence/view.go), and [connected client](../../internal/connectedclient/)
 - [Governed Memory contract](../../internal/memory/contract.go), [trusted session service](../../internal/memory/service.go), [boundary tests](../../internal/memory/service_test.go), and [metadata validation](../../internal/facts/memory.go)
+- [PostgreSQL adapter core](../../internal/memory/postgres/backend.go), [version-one migration](../../internal/memory/postgres/migrations/001_memory.sql), and [SQL-driver contract tests](../../internal/memory/postgres/backend_test.go)
+- [Projection tests](../../internal/evidence/privacy_test.go), [HTTP boundary](../../internal/console/http.go), [CLI output](../../internal/cli/cli.go), [Portal reader](../../ui/src/connected-source.ts), [Portal view](../../ui/src/ConnectedPortal.tsx), and [connected browser smoke](../../ui/smoke/connected.spec.ts)
 - [Credential resolver #155](https://github.com/wunderforge/agenova/issues/155), [Policy kernel PR #207](https://github.com/wunderforge/agenova/pull/207), [organizational constraints #204](https://github.com/wunderforge/agenova/issues/204), [worker identity #205](https://github.com/wunderforge/agenova/issues/205), and [MCP integration PR #192](https://github.com/wunderforge/agenova/pull/192)
 - [Kind startup network gap #208](https://github.com/wunderforge/agenova/issues/208), [public egress gap #202](https://github.com/wunderforge/agenova/issues/202), and [current reference runbook](../../docs/reference-cli-kind-ollama.md)
 
@@ -78,9 +80,12 @@ Out of scope:
 - [x] Slice 1: add operation grants, strict validation, resolution/copy/provenance, representative fixture-based cases, and generated frontend contracts.
 - [x] Slice 1: implement the governed Memory boundary and deterministic fake-adapter tests with complete zero-call negatives and fact correlation.
 - [ ] Slice 2: implement PostgreSQL schema, migrations, forced RLS, bounded transactions, atomic row/receipt write, replay dedup, and explicit uncertain/fault outcomes.
+- [x] Slice 2 core: implement driver-independent PostgreSQL SQL/transactions through a host-owned standard DB handle; add SQL-driver tests without installing a live database or claiming live persistence.
+- [ ] Slice 2 connection: select a security-reviewed, Go-compatible driver through accepted host credential composition; no implicit DSN/env lookup or competing credential resolver.
 - [ ] Slice 2: capture real database evidence including scope isolation, connection-pool reuse, restart, duplicates, cancellation, and lost acknowledgement.
 - [ ] Slice 3: wire optional Platform configuration, host-side credentials, PVC/network prerequisites, worker Write/Search, and installed capability validation.
 - [ ] Slice 4: add Memory facts, query redaction, CLI/API/Portal parity, read-side integrity negatives, and rendered browser proof.
+- [x] Slice 4 privacy core: project task input/outcome at public submission/query/list/CLI boundaries, validate explicit redaction and add rendered desktop/mobile fixture proof. Live Memory invocation reader/UI parity remains pending.
 - [ ] Slice 5: execute the real A/B/restart/C campaign, hostile-request negatives, worker network controls, failure cases, and sentinel scans.
 - [ ] Run focused gates followed by `./scripts/check.ps1 -All` after each implementation slice; stop expansion on failure.
 - [ ] Review scope, regression risk, and source ownership; obtain independent PR review and teammate reproduction before reporting E17 complete.
@@ -159,6 +164,18 @@ Out of scope:
 ## Draft PR Publication
 
 - The user explicitly requested a draft PR for the verified foundation. Publish the existing `codex/0179-scoped-memory` branch without pre-existing `deliverables/`, ignored tool/runtime files or unrelated changes.
-- This draft contains Slice 1 only. PostgreSQL, installed/worker wiring, public content projection, live acceptance and independent review remain outstanding; do not mark ready or merge while #179 acceptance is incomplete.
+- At initial publication this draft contained Slice 1 only. The continuation below adds PostgreSQL core and public content projection. Installed/worker wiring, live acceptance and independent review remain outstanding; do not mark ready or merge while #179 acceptance is incomplete.
 - The repository's PR delivery validator requires a closing Ticket reference matching this task packet. The draft therefore targets eventual closure of #179 on a future accepted merge, rather than bypassing that check with `Refs`. Opening a draft does not close the Ticket.
 - No product source changed after the successful final campaign. Documentation and PR-body checks are rerun for publication; GitHub CI status is separate from captured local passes.
+
+## Adapter and Privacy Continuation
+
+- The user authorized continued PostgreSQL-adapter and redaction development after draft PR #212. This is not authorization to take #155 or provision an unspecified cluster.
+- The adapter core consumes a trusted host-created `database/sql.DB`, not a new credential API. Driver locking is deferred after the compatibility/security preflight described in the design; `go.mod` is unchanged.
+- Initial adapter unit gate: `go test -count=1 ./internal/memory/postgres ./internal/memory` passed. The first run exposed an overly broad assertion in the fake commit-error test; narrowing it to distinguish server-declared rollback from unknown acknowledgement resolved the failure. No gate was weakened.
+- SQL-driver tests exercise parameter binding, transaction-local ownership, read-only Search, serialized receipts, replay/digest mismatch, atomic row/receipt sequencing, safe role/schema readiness and sanitized fault/commit outcomes. They do not execute PostgreSQL, prove RLS enforcement or storage restart durability. Those gates remain blocked on accepted host composition and explicit real-backend configuration.
+- Adapter core focused/race and full Linux gate passed; [captured output](slice2-adapter-linux.log) includes 125 frontend tests and 52 browser cases.
+- Public content projection now exists at reference/HTTP submissions, query/list/Claim and CLI boundaries. Private request/result data stays available for execution; scope-only and denied Memory intent are deliberately projected too. Readers reject absent/unknown/duplicate markers, missing empty input and hidden content. Ordinary non-Memory records retain their existing display.
+- Privacy focused Go tests and race checks passed for evidence/console/connectedclient/CLI/app/Memory packages. The two focused desktop/mobile browser cases passed and their screenshots were inspected for withheld content and overflow. The complete post-review Linux gate passed all Go tests, generated contracts, 126 frontend tests, production build and 54 browser cases; [final output](slice2-final-linux.log) and [adapter and privacy evidence](../../docs/evidence/179/adapter-privacy.md) record exact gates and residual gaps. Only documentation/publication edits followed this passing source campaign.
+- A custom View serializer failed the unchanged contract generator, so public outputs use explicit shared projection/serialization without changing canonical input tags. Further early failures were fixture/import assertions and browser-test registration; fixes preserve all privacy gates. Failed logs remain local; passing output is selected for review.
+- No driver or live PostgreSQL, installed Memory wiring, complete Memory invocation reader, network/data-use campaign, live record screenshots or independent reproduction has been delivered by these checks. Keep #212 draft and #179 open.

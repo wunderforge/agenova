@@ -532,7 +532,7 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	} else {
 		view.Facts = s.journal.ForRequest(ref)
 	}
-	return view, nil
+	return evidence.ProjectPublic(view), nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {
 	s.mu.RLock()

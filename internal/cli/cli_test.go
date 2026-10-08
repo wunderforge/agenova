@@ -5,6 +5,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -12,6 +13,35 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
+
+func TestMemoryEvidencePrivacyAcrossCLIOutputs(t *testing.T) {
+	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: "private-test", Request: &v1alpha1.ClaimRequest{
+		Spec: v1alpha1.ClaimRequestSpec{Task: &v1alpha1.ClaimRequestTask{
+			Type: "investigation", Input: map[string]any{"objective": "private-input-sentinel"},
+		}, RequestedAccess: v1alpha1.ClaimRequestedAccess{MemoryScopes: []string{"team-docs"}}},
+	}, Outcome: &evidence.Outcome{Status: "Succeeded", Text: "private-output-sentinel"}}
+	for _, value := range []any{view, &view, []evidence.View{view}} {
+		var out, diagnostic bytes.Buffer
+		if printJSON(&out, &diagnostic, value) != 0 || !json.Valid(out.Bytes()) {
+			t.Fatal("CLI JSON output failed")
+		}
+		if strings.Contains(out.String(), "sentinel") || !strings.Contains(out.String(), `"input":{}`) || !strings.Contains(out.String(), "contentRedactions") {
+			t.Fatal("CLI JSON leaked content or omitted projection markers")
+		}
+	}
+	var out, diagnostic bytes.Buffer
+	if err := printRunReport(&out, RunReport{Evidence: &view}, true); err != nil || strings.Contains(out.String(), "sentinel") {
+		t.Fatal("CLI submission JSON leaked content")
+	}
+	out.Reset()
+	services := Services{ShowConnected: func(string, string) (evidence.View, error) { return view, nil }}
+	if printWork(&out, &diagnostic, parsedArgs{operands: []string{"show", view.RequestRef}}, services) != 0 || strings.Contains(out.String(), "sentinel") || !strings.Contains(out.String(), "content: withheld") {
+		t.Fatal("CLI text leaked content or failed to show redaction")
+	}
+	if view.Outcome.Text == "" || len(view.Request.Spec.Task.Input) == 0 {
+		t.Fatal("CLI mutated private data")
+	}
+}
 
 func TestWorkPhaseApprovalRequiredMatchesPortal(t *testing.T) {
 	view := evidence.View{State: &v1alpha1.IssuedState{Decision: v1alpha1.Decision{Result: v1alpha1.DecisionResultApprovalRequired}}, Outcome: &evidence.Outcome{Status: "ApprovalRequired"}}

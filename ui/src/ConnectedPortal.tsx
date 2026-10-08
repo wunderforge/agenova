@@ -121,7 +121,9 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
-    <TaskInstructions text={work.request.spec.task?.input?.objective}/>
+    {work.contentRedactions?.includes('request.spec.task.input')
+      ? <p className="portal-source-note">Task instructions: Content withheld</p>
+      : <TaskInstructions text={work.request.spec.task?.input?.objective}/>}
     <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
@@ -150,8 +152,9 @@ function WorkDetail({ work }: { work: View }) {
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
           <a href={link('policy')}>View policy</a>
         </div>
-      </aside>} result={work.outcome?.text && <section className="portal-result">
-      <h2>Result</h2><pre>{work.outcome.text}</pre>
+      </aside>} result={work.outcome && (work.outcome.text || work.contentRedactions?.includes('outcome.text')) && <section className="portal-result">
+      <h2>Result</h2>{work.contentRedactions?.includes('outcome.text')
+        ? <p>Content withheld</p> : <pre>{work.outcome.text}</pre>}
       {work.outcome.model && <p className="portal-source-note">
         Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens

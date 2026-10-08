@@ -59,10 +59,23 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
 
 function view(data: unknown): View {
   if (shapeDiagnostics('View', data).length || (data as View).version !== 'agenova.evidence/v0' ||
+      !validContentProjection(data as View) ||
       (data as View).facts?.some(fact => fact.memory != null || fact.kind === 'MemoryDecision')) {
     throw new SourceError(502, 'The connection returned an incomplete work record.');
   }
   return data as View;
+}
+
+function validContentProjection(work: View): boolean {
+  const access = work.request.spec.requestedAccess;
+  const memoryRequested = !!(access?.memoryScopes?.length || access?.memoryOperations?.length);
+  const paths = work.contentRedactions || [];
+  if (!memoryRequested) return paths.length === 0;
+  const input = work.request.spec.task?.input;
+  return paths.length === 2 && new Set(paths).size === 2 &&
+    paths.every(path => path === 'request.spec.task.input' || path === 'outcome.text') &&
+    !!input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 0 &&
+    !work.outcome?.text;
 }
 
 export const connectedSource = {

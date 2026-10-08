@@ -148,10 +148,13 @@ func waitHTTPOutcome(t *testing.T, h http.Handler, ref string) evidence.View {
 
 func TestHTTPSubmissionRunningThenTerminalEvidence(t *testing.T) {
 	p := &httpProvider{started: make(chan struct{}), release: make(chan struct{})}
-	_, b, h := httpService(t, app.ReferencePrincipalTeamA, p)
+	s, b, h := httpService(t, app.ReferencePrincipalTeamA, p)
 	w := httpCall(h, "POST", "/api/requests", httpInput("http-run"), map[string]string{"Origin": "http://console.local"})
 	if w.Code != 202 {
 		t.Fatalf("submit=%d %s", w.Code, w.Body.String())
+	}
+	if !evidence.ValidContentProjection(httpView(t, w)) || strings.Contains(w.Body.String(), "Explain retry backoff") {
+		t.Fatal("Memory submission acknowledgement leaked task input")
 	}
 	select {
 	case <-p.started:
@@ -172,7 +175,7 @@ func TestHTTPSubmissionRunningThenTerminalEvidence(t *testing.T) {
 	}
 	close(p.release)
 	v = waitHTTPOutcome(t, h, "http-run")
-	if v.State.Claim.Phase != v0.ClaimPhaseSucceeded || v.Outcome.Text != "Answer: Explain retry backoff" || !b.released.Load() {
+	if v.State.Claim.Phase != v0.ClaimPhaseSucceeded || v.Outcome.Text != "" || !evidence.ValidContentProjection(v) || !b.released.Load() {
 		t.Fatalf("terminal=%+v", v)
 	}
 	claim := httpView(t, httpCall(h, "GET", "/api/claims/"+url.PathEscape(v.State.Claim.ID)+"/evidence", nil, nil))
@@ -183,6 +186,21 @@ func TestHTTPSubmissionRunningThenTerminalEvidence(t *testing.T) {
 	w = httpCall(h, "GET", "/api/requests", nil, nil)
 	if json.Unmarshal(w.Body.Bytes(), &list) != nil || len(list) != 1 {
 		t.Fatal("list is not current evidence")
+	}
+	for _, response := range []*httptest.ResponseRecorder{
+		w,
+		httpCall(h, "GET", "/api/requests/http-run/evidence", nil, nil),
+		httpCall(h, "GET", "/api/claims/"+url.PathEscape(v.State.Claim.ID)+"/evidence", nil, nil),
+	} {
+		if strings.Contains(response.Body.String(), "Explain retry backoff") || !strings.Contains(response.Body.String(), `"input":{}`) {
+			t.Fatal("public endpoint leaked private task/result")
+		}
+	}
+	s.mu.RLock()
+	private := evidence.Clone(s.records["http-run"].view)
+	s.mu.RUnlock()
+	if private.Request.Spec.Task.Input["objective"] != "Explain retry backoff" || private.Outcome.Text != "Answer: Explain retry backoff" || p.calls.Load() != 1 {
+		t.Fatal("redaction changed the private execution request or result")
 	}
 	if httpCall(h, "POST", "/api/requests", httpInput("http-run"), nil).Code != 409 {
 		t.Fatal("duplicate did not conflict")
@@ -197,6 +215,9 @@ func TestHTTPTeamBDeniedBeforeAllExternalWork(t *testing.T) {
 		t.Fatalf("denial=%d %s", w.Code, w.Body.String())
 	}
 	v := httpView(t, w)
+	if !evidence.ValidContentProjection(v) || strings.Contains(w.Body.String(), "Explain retry backoff") {
+		t.Fatal("denied Memory submission leaked task input")
+	}
 	if v.State.Decision.Result != v0.DecisionResultDeny || v.State.Claim != nil || v.State.EffectiveAuthority != nil || v.State.Principal.Team != "team-b" || len(v.Facts) != 2 || b.calls.Load() != 0 || p.calls.Load() != 0 {
 		t.Fatalf("denial fabricated execution: %+v", v)
 	}

@@ -91,6 +91,7 @@ func SubmitClaimRequestFile(path string, backend runtime.RuntimeBackend, preset 
 	}
 	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: result.RequestRef, Request: prepared.Request, State: issued, Facts: journal.ForRequest(result.RequestRef)}
 	report.Evidence = &view
+	defer func() { view = evidence.ProjectPublic(view) }()
 	if result.Decision.Result != v1alpha1.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		return report, nil
