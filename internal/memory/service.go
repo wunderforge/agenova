@@ -289,7 +289,7 @@ func validRequest(r Request) bool {
 }
 
 func validText(text string, limit int) bool {
-	return len(text) <= limit && utf8.ValidString(text) && strings.TrimSpace(text) != ""
+	return len(text) <= limit && utf8.ValidString(text) && strings.TrimSpace(text) != "" && !strings.ContainsRune(text, 0)
 }
 
 func statusFor(err error, operation string) Status {

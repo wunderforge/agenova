@@ -30,14 +30,20 @@ type script struct {
 	t                  *testing.T
 	mu                 sync.Mutex
 	steps              []step
+	connects, queries  int
 	begins             []driver.TxOptions
 	commits, rollbacks int
 	commitErr          error
 }
 type connector struct{ s *script }
 
-func (c connector) Connect(context.Context) (driver.Conn, error) { return connection{c.s}, nil }
-func (c connector) Driver() driver.Driver                        { return testDriver{} }
+func (c connector) Connect(context.Context) (driver.Conn, error) {
+	c.s.mu.Lock()
+	defer c.s.mu.Unlock()
+	c.s.connects++
+	return connection{c.s}, nil
+}
+func (c connector) Driver() driver.Driver { return testDriver{} }
 
 type testDriver struct{}
 
@@ -63,6 +69,7 @@ func (c connection) BeginTx(_ context.Context, opts driver.TxOptions) (driver.Tx
 func (c connection) next(ctx context.Context, query string, args []driver.NamedValue) step {
 	c.s.mu.Lock()
 	defer c.s.mu.Unlock()
+	c.s.queries++
 	if len(c.s.steps) == 0 {
 		c.s.t.Errorf("unexpected SQL: %s", query)
 		return step{err: errFailed}

@@ -34,6 +34,7 @@ The adapter is replaceable; the Memory service alone owns invocation authority.
 
 - A new `internal/memory` boundary owns typed Write/Search requests, typed results, limits, trusted-session binding, and reusable adapter contract cases.
 - The persistence interface takes a context plus trusted namespace and bounded input; it contains no SQL, Kubernetes, vendor SDK, or model framework types.
+- The shared service text validator excludes NUL from body/query and returned body text, matching the adapter's defense-in-depth validation. Request rejection precedes Allow/attempt/dispatch and has one metadata-only denial. SQL-driver connection, transaction and statement counters prove denied calls never touch the host DB pool; this is unit proof, not a live PostgreSQL claim. Newline/tab/Unicode and literal backslash sequences remain data, not additional prohibited characters.
 - The PostgreSQL implementation lives under its adapter boundary. It owns database connection/configuration, SQL, migrations, RLS, receipts, and backend error mapping.
 - The composition layer constructs sessions from authoritative issued state, not from public EffectiveAuthority-shaped values. Reuse accepted E14/E16 construction helpers when merged; do not freeze a competing trusted-context API.
 - Requested/template/effective `memoryOperations`, strict parsers, proof copying/digest/provenance, and canonical fixtures are one shared-contract slice.

@@ -36,7 +36,7 @@ uses the same decision, invocation, and redacted evidence contracts.
 
 ### Operations and Results
 
-- Write takes one scope and a nonblank valid UTF-8 body, at most 8192 bytes. It appends a record and returns an opaque reference. Search takes one scope, a nonblank query of at most 512 bytes, and a bounded result limit.
+- Write takes one scope and a nonblank valid UTF-8 body, at most 8192 bytes. It appends a record and returns an opaque reference. Search takes one scope, a nonblank valid UTF-8 query of at most 512 bytes, and a bounded result limit. Body and query must not contain NUL (U+0000), including decoded JSON escapes; reject them with `Denied` / `memory-invalid-input` before Allow, provider attempt or backend access. Returned body text follows the same text rule. Other valid text, including line breaks, tabs, Unicode and literal backslash sequences, remains permitted within existing bounds.
 - Search requires `read`; Write requires `write`. Search uses literal case-insensitive substring matching, treats `%`, `_`, SQL fragments, and backslashes as data, and orders by newest creation time with opaque ID as a stable tie-breaker.
 - Default result limit is 3; permitted range is 1-10. Total encoded Memory reply is at most 32768 bytes, including its envelope. Omit excess complete records and return `truncated=true`; do not corrupt UTF-8 or silently truncate a record's content.
 - Reuse the same maximum constants in worker decoding, host validation, adapter execution, and tests. Reject malformed or oversized calls before backend invocation.
