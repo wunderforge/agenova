@@ -61,9 +61,9 @@ Out of scope:
 
 ## Execution Todo
 
-- [ ] Scout the relevant implementation, tests, risks, and dependencies.
+- [x] Scout the relevant implementation, tests, risks, and dependencies: the current console service binds one preset principal at construction, so M2 must introduce per-request identity without changing the evidence DTO or allowing owner checks only in handlers.
 - [x] Assignee self-review: Ticket and PRD agree on externally issued identity, fail-closed authorization, owner-only evidence, and no management expansion; M1 merge remains the PR publication dependency.
-- [ ] Add the verified principal and OIDC verifier boundary with deterministic JWKS test fixtures.
+- [x] Add the verified principal and OIDC verifier boundary with deterministic JWKS test fixtures.
 - [ ] Protect Work submission and owner-filter evidence routes without changing canonical `ClaimRequest`.
 - [ ] Add connected CLI token-file transport and Portal server-side proxy injection.
 - [ ] Add installed kind two-user authentication and evidence-isolation smoke evidence.
@@ -99,4 +99,5 @@ Out of scope:
 - Decision: use configured issuer, audience, JWKS URL, and explicit claim-to-team mapping; OIDC discovery is intentionally excluded.
 - Decision: return not-found semantics for cross-owner evidence references to avoid disclosure through existence or status differences.
 - Decision: keep rich verified claims internal and persist only the current stable public `Principal` projection plus an internal immutable ownership key.
+- Decision: the bounded initial verifier accepts only RS256 keys/tokens from the explicitly configured JWKS endpoint; unsupported algorithms fail closed rather than widening the cryptographic profile implicitly.
 - Blocker: M1 PR #207 must merge before this milestone can be proposed for review.
