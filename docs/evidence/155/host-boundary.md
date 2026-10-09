@@ -72,7 +72,12 @@ generated frontend contracts and baseline tests are unchanged.
 [Final source output](../../../work/0155-host-credentials/slice1-host-boundary-linux.log)
 owns these results. Only evidence/publication documentation followed the passing
 source run. The [publication gate](../../../work/0155-host-credentials/slice1-publication-linux.log)
-records documentation, PR-body and whitespace checks. CI and reviewer acceptance
+records documentation, PR-body and whole-branch whitespace checks. Staging first
+detected extra EOF blank lines in three packet files; the initial commit was
+pushed before handling that failure. A follow-up removes those lines and reruns
+the publication gates, including staged additions and the entire change from
+accepted main. No implementation changed after the passing source campaign.
+CI and reviewer acceptance
 for the published commit are separate from local results.
 
 ## Remaining Acceptance

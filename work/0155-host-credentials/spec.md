@@ -45,4 +45,3 @@ adapter invocation/lifecycle. One shared contract serves Tool, Model and Memory.
 ## Open Decisions
 
 - No product/architecture expansion is requested. The user reports no kind context; live Secret/RBAC/reload and independent reproduction are outstanding environmental/review gates.
-

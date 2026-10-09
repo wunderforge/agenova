@@ -80,4 +80,3 @@ is no implicit environment lookup, persistent secret cache or claim restoration.
 - A stable host resolver contract does not make credentialed installed consumers ready. Platform integration, real Secret evidence and independent review remain required.
 - Kubernetes namespace/allowlist is trusted operator state; caller intent or a bare secret name cannot create authority.
 - Rotation has no automatic hot-cache guarantee. Restart/reconcile must refresh subsequent host bindings without widening active claim authority.
-
