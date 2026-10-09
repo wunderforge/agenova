@@ -41,8 +41,12 @@ const readinessSQL = `SELECT
    AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolreplication
    AND left(r.rolname, 3) <> 'pg_')
   FROM pg_catalog.pg_roles r WHERE pg_has_role(current_user, r.oid, 'MEMBER'))
+ AND current_user = session_user
  AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
-  WHERE m.admin_option AND pg_has_role(current_user, m.member, 'MEMBER')),
+  WHERE m.admin_option AND pg_has_role(current_user, m.member, 'MEMBER'))
+ AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+  WHERE pg_has_role(current_user, r.oid, 'SET')
+   AND NOT pg_has_role(current_user, r.oid, 'USAGE')),
  (SELECT count(*) = 1 AND bool_and(NOT pg_has_role(current_user, n.nspowner, 'MEMBER')
    AND NOT has_schema_privilege(current_user, n.oid, 'CREATE')
    AND NOT has_schema_privilege(current_user, n.oid, 'USAGE WITH GRANT OPTION'))
@@ -85,6 +89,7 @@ const readinessSQL = `SELECT
 
 // New receives a host-owned connection pool after governed credential resolution.
 // It accepts no DSN, secret, task path, or implicit environment configuration.
+// The pool must authenticate as its data-only role without masking another login.
 // A supported driver and the #155 installation composition are still required.
 func New(ctx context.Context, db *sql.DB) (*Backend, error) {
 	if ctx == nil || db == nil {

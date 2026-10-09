@@ -118,6 +118,14 @@ func TestReadinessSQLRejectsPrivilegeDelegation(t *testing.T) {
 	}
 }
 
+func TestReadinessSQLRejectsHiddenSetRolePrivileges(t *testing.T) {
+	if !strings.Contains(readinessSQL, "current_user = session_user") ||
+		!strings.Contains(readinessSQL, "pg_has_role(current_user, r.oid, 'SET')") ||
+		!strings.Contains(readinessSQL, "NOT pg_has_role(current_user, r.oid, 'USAGE')") {
+		t.Fatal("readiness permits SET-reachable privileges outside the inherited ACL checks")
+	}
+}
+
 func TestReadinessSchemaVersionResult(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

@@ -1,0 +1,6 @@
+=== RUN   TestReadinessSQLRejectsHiddenSetRolePrivileges
+    readiness_test.go:125: readiness permits SET-reachable privileges outside the inherited ACL checks
+--- FAIL: TestReadinessSQLRejectsHiddenSetRolePrivileges (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	0.509s
+FAIL

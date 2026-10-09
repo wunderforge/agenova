@@ -55,6 +55,53 @@ GRANT SELECT ON agenova_memory.schema_version TO memory_app;
 GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
 
+	t.Run("masked privileged session rejects readiness", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		fixture.expect("", "SET ROLE memory_app; SELECT current_user = 'memory_app' AND session_user = 'postgres'", "t")
+		flags := strings.Split(fixture.sql("", "SET ROLE memory_app; "+readinessSQL), "|")
+		if len(flags) != 5 || flags[1] != "f" {
+			t.Fatal("readiness accepted a privileged login masked by a data-only current role")
+		}
+	})
+
+	t.Run("non inheriting SET roles reject readiness", func(t *testing.T) {
+		d.sql("", `CREATE ROLE memory_hidden NOLOGIN; CREATE ROLE memory_bridge NOLOGIN;
+GRANT USAGE ON SCHEMA agenova_memory TO memory_hidden;
+GRANT SELECT, TRUNCATE ON agenova_memory.records, agenova_memory.receipts TO memory_hidden;`)
+		for _, member := range []string{"memory_app", "memory_bridge"} {
+			t.Run(member, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				fixture.sql("", "GRANT memory_hidden TO "+member+" WITH INHERIT FALSE, SET TRUE;")
+				if member == "memory_bridge" {
+					fixture.sql("", "GRANT memory_bridge TO memory_app WITH INHERIT TRUE, SET TRUE;")
+				}
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE memory_hidden FROM "+member+";")
+					if member == "memory_bridge" {
+						fixture.sql("", "REVOKE memory_bridge FROM memory_app;")
+					}
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect("memory_app", "SELECT has_table_privilege(current_user, 'agenova_memory.records', 'TRUNCATE'), pg_has_role(current_user, 'memory_hidden', 'SET'), pg_has_role(current_user, 'memory_hidden', 'USAGE')", "f|t|f")
+				// SET SESSION AUTHORIZATION makes the application role the session
+				// identity too: the operator's SET ROLE permission cannot supply
+				// the reachability being demonstrated. Rollback preserves test data.
+				fixture.expect("", `BEGIN;
+SET SESSION AUTHORIZATION memory_app;
+SET ROLE memory_hidden;
+TRUNCATE agenova_memory.records, agenova_memory.receipts;
+SELECT current_user = 'memory_hidden' AND session_user = 'memory_app';
+ROLLBACK;`, "t")
+				fixture.expectUnsafeFlag(1)
+			})
+		}
+		d.sql("", "GRANT memory_hidden TO memory_app WITH INHERIT FALSE, SET FALSE;")
+		d.expect("memory_app", readinessSQL, "t|t|t|t|t")
+		d.sql("", "REVOKE memory_hidden FROM memory_app; REVOKE TRUNCATE ON agenova_memory.records, agenova_memory.receipts FROM memory_hidden; GRANT memory_hidden TO memory_app WITH INHERIT TRUE, SET TRUE;")
+		d.expect("memory_app", readinessSQL, "t|t|t|t|t")
+		d.sql("", "REVOKE memory_hidden FROM memory_app;")
+	})
+
 	t.Run("grant options reject readiness", func(t *testing.T) {
 		for _, role := range []string{"memory_app", "memory_inherited"} {
 			for _, object := range []struct{ name, column string }{{"records", "body"}, {"receipts", "request_digest"}, {"schema_version", "version"}} {
