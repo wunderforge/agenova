@@ -28,6 +28,24 @@ func TestReadinessSQLRejectsTenantColumnUpdate(t *testing.T) {
 	}
 }
 
+func TestReadinessSQLRejectsUnexpectedTablePrivileges(t *testing.T) {
+	start := strings.Index(readinessSQL, "(SELECT count(*) = 2 AND bool_and(")
+	marker := strings.Index(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	if start < 0 || marker <= start {
+		t.Fatal("missing separate readiness aggregates")
+	}
+	for _, guard := range []string{readinessSQL[start:marker], readinessSQL[marker:]} {
+		for _, privilege := range []string{"TRIGGER", "REFERENCES", "MAINTAIN"} {
+			if !strings.Contains(guard, "NOT has_table_privilege(current_user, c.oid, '"+privilege+"')") {
+				t.Errorf("readiness permits unexpected %s privilege", privilege)
+			}
+		}
+		if !strings.Contains(guard, "NOT has_any_column_privilege(current_user, c.oid, 'REFERENCES')") {
+			t.Error("readiness permits column-level REFERENCES")
+		}
+	}
+}
+
 func TestReadinessSQLRequiresReadOnlySchemaVersion(t *testing.T) {
 	// Independent query-shape assertions complement scripted result handling;
 	// neither executes PostgreSQL or proves effective live privileges.

@@ -343,3 +343,59 @@ func TestWaitingRetryCanCancelBeforeAdmission(t *testing.T) {
 		})
 	}
 }
+
+// Arm cancellation while RetryWrite evaluates its select operands. Releasing
+// the occupied gate makes acquisition and cancellation ready at the same time,
+// without scheduler sleeps or a production test hook.
+type retryHandoffContext struct {
+	context.Context
+	once    sync.Once
+	handoff func()
+}
+
+func (c *retryHandoffContext) Done() <-chan struct{} {
+	c.once.Do(c.handoff)
+	return c.Context.Done()
+}
+
+func TestRetryCancellationAtGateHandoffStartsNoInvocation(t *testing.T) {
+	for _, runCancelled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "caller-cancelled", true: "run-cancelled"}[runCancelled], func(t *testing.T) {
+			for trial := 0; trial < 64; trial++ {
+				s, _, b, j := setup(t)
+				b.write = func(context.Context, Namespace, WriteInput) (Record, error) { return Record{}, ErrWriteUncertain }
+				first := uncertainWrite(t, s)
+				b.write = func(context.Context, Namespace, WriteInput) (Record, error) { return Record{}, ErrUnavailable }
+				transient, err := s.RetryWrite(context.Background(), first.Retry)
+				if err != nil || transient.Status != Unavailable || transient.Retry == nil {
+					t.Fatal("transient retry did not retain uncertainty")
+				}
+				state := first.Retry.state
+				state.gate <- struct{}{}
+				base, cancel := context.WithCancel(context.Background())
+				handedOff := false
+				boundary := &retryHandoffContext{Context: base, handoff: func() {
+					cancel()
+					<-state.gate
+					handedOff = true
+				}}
+				ctx := context.Background()
+				if runCancelled {
+					s.ctx = boundary
+				} else {
+					ctx = boundary
+				}
+				ids := 0
+				s.service.ids = func() string { ids++; return "invocation:cancelled-waiter" }
+				result, err := s.RetryWrite(ctx, first.Retry)
+				cancel()
+				if !handedOff || !errors.Is(err, context.Canceled) || result.InvocationID != "" || ids != 0 || b.calls != 2 || len(j.ForClaim(s.state.Claim.ID)) != 6 {
+					t.Fatalf("trial %d: cancellation at gate handoff admitted an invocation", trial)
+				}
+				if !state.usable || len(state.gate) != 0 {
+					t.Fatal("pre-admission cancellation consumed recovery or retained the gate")
+				}
+			}
+		})
+	}
+}

@@ -1,0 +1,257 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/records
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/receipts
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/schema_version
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (12.19s)
+    --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness (8.19s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited (0.34s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited (0.39s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app (0.29s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited (0.39s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC (0.29s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited (0.39s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC (0.27s)
+    --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness (0.71s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/records (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/receipts (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/schema_version (0.23s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (1.00s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.25s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.40s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.06s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.35s)
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/records
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/receipts
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/schema_version
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (11.58s)
+    --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness (7.87s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited (0.38s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC (0.27s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app (0.29s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited (0.38s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited (0.39s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app (0.23s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited (0.38s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app (0.27s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited (0.35s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited (0.32s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC (0.25s)
+    --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness (0.77s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/records (0.27s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/receipts (0.26s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/schema_version (0.25s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (1.00s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.24s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.27s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.25s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.42s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.06s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.36s)
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/records
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/receipts
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/schema_version
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (11.69s)
+    --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness (7.88s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app (0.28s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC (0.27s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC (0.26s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited (0.35s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited (0.37s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC (0.25s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app (0.27s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited (0.38s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app (0.24s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited (0.36s)
+        --- PASS: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC (0.26s)
+    --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness (0.76s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/records (0.24s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/receipts (0.28s)
+        --- PASS: TestPostgresSQLIntegration/column_references_reject_readiness/schema_version (0.24s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (1.00s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.28s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.24s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.25s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.48s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.06s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.41s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	36.842s

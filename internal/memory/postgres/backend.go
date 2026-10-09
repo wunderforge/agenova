@@ -46,6 +46,10 @@ const readinessSQL = `SELECT
    AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_any_column_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
+   AND NOT has_table_privilege(current_user, c.oid, 'TRIGGER')
+   AND NOT has_table_privilege(current_user, c.oid, 'REFERENCES')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'REFERENCES')
+   AND NOT has_table_privilege(current_user, c.oid, 'MAINTAIN')
    AND NOT has_table_privilege(current_user, c.oid, 'TRUNCATE'))
   FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'agenova_memory' AND c.relname IN ('records', 'receipts')),
@@ -56,6 +60,10 @@ const readinessSQL = `SELECT
    AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
    AND NOT has_table_privilege(current_user, c.oid, 'TRUNCATE')
+   AND NOT has_table_privilege(current_user, c.oid, 'TRIGGER')
+   AND NOT has_table_privilege(current_user, c.oid, 'REFERENCES')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'REFERENCES')
+   AND NOT has_table_privilege(current_user, c.oid, 'MAINTAIN')
    AND NOT has_any_column_privilege(current_user, c.oid, 'INSERT')
    AND NOT has_any_column_privilege(current_user, c.oid, 'UPDATE'))
   FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace

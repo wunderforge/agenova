@@ -52,6 +52,7 @@ uses the same decision, invocation, and redacted evidence contracts.
 - Cancellation cannot promise that a previously committed write was rolled back. If the backend cannot establish whether a commit completed, return `WriteUncertain` and do not retry with a new ID.
 - Commit the Memory row and trusted invocation receipt in one database transaction. A duplicate of the same trusted invocation returns the stored result after current authorization checks. Different content under that ID fails without a second write.
 - Deduplication applies to the same host-issued invocation, not repeated agent intent or a new independent Work. Worker-supplied IDs are not accepted as authoritative receipts.
+- A queued retry rechecks caller and run cancellation immediately after acquiring its serialized gate. If cancellation and gate release are simultaneously ready, cancellation still returns before allocating an invocation ID, recording facts or dispatching; it does not consume the uncertain-write continuation.
 - If a write commits but recording its outcome fails, fail Work with a stable evidence-error code; do not repeat the write. No cross-store atomicity guarantee is claimed.
 
 ### Evidence and Privacy

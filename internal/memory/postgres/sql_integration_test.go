@@ -55,6 +55,54 @@ GRANT SELECT ON agenova_memory.schema_version TO memory_app;
 GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
 
+	t.Run("unexpected table privileges reject readiness", func(t *testing.T) {
+		for _, object := range []string{"records", "receipts", "schema_version"} {
+			for _, privilege := range []string{"TRIGGER", "REFERENCES", "MAINTAIN"} {
+				for _, grantee := range []string{"memory_app", "memory_inherited", "PUBLIC"} {
+					t.Run(object+"/"+privilege+"/"+grantee, func(t *testing.T) {
+						fixture := &sqlFixture{t: t, id: d.id}
+						if grantee == "memory_inherited" {
+							fixture.sql("", "GRANT memory_inherited TO memory_app;")
+						}
+						fixture.sql("", "GRANT "+privilege+" ON agenova_memory."+object+" TO "+grantee+";")
+						t.Cleanup(func() {
+							fixture.sql("", "REVOKE "+privilege+" ON agenova_memory."+object+" FROM "+grantee+";")
+							if grantee == "memory_inherited" {
+								fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+							}
+							fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+						})
+						fixture.expect("memory_app", "SELECT has_table_privilege(current_user, 'agenova_memory."+object+"', '"+privilege+"')", "t")
+						expected := "t|t|t|f|t"
+						if object == "schema_version" {
+							expected = "t|t|t|t|f"
+						}
+						fixture.expect("memory_app", readinessSQL, expected)
+					})
+				}
+			}
+		}
+	})
+
+	t.Run("column references reject readiness", func(t *testing.T) {
+		for _, tc := range []struct{ object, column string }{{"records", "source_claim"}, {"receipts", "memory_id"}, {"schema_version", "version"}} {
+			t.Run(tc.object, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				fixture.sql("", "GRANT REFERENCES ("+tc.column+") ON agenova_memory."+tc.object+" TO memory_app;")
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE REFERENCES ("+tc.column+") ON agenova_memory."+tc.object+" FROM memory_app;")
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect("memory_app", "SELECT has_table_privilege(current_user, 'agenova_memory."+tc.object+"', 'REFERENCES'), has_any_column_privilege(current_user, 'agenova_memory."+tc.object+"', 'REFERENCES')", "f|t")
+				expected := "t|t|t|f|t"
+				if tc.object == "schema_version" {
+					expected = "t|t|t|t|f"
+				}
+				fixture.expect("memory_app", readinessSQL, expected)
+			})
+		}
+	})
+
 	t.Run("column privileges reject readiness", func(t *testing.T) {
 		for _, tc := range []struct {
 			name, object, column, grantee, setup, reset string

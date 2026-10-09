@@ -146,6 +146,14 @@ func (s *Session) RetryWrite(ctx context.Context, retry *WriteRetry) (Result, er
 	case <-s.ctx.Done():
 		return Result{}, s.ctx.Err()
 	}
+	// Acquisition can win when cancellation and gate release are both ready.
+	// Admission starts only after checking both contexts at this handoff.
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	if err := s.ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	if !state.usable {
 		return Result{}, ErrBinding
 	}
