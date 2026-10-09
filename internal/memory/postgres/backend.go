@@ -40,9 +40,12 @@ const readinessSQL = `SELECT
  (SELECT count(*) > 0 AND bool_and(NOT r.rolsuper AND NOT r.rolbypassrls
    AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolreplication
    AND left(r.rolname, 3) <> 'pg_')
-  FROM pg_catalog.pg_roles r WHERE pg_has_role(current_user, r.oid, 'MEMBER')),
+  FROM pg_catalog.pg_roles r WHERE pg_has_role(current_user, r.oid, 'MEMBER'))
+ AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
+  WHERE m.admin_option AND pg_has_role(current_user, m.member, 'MEMBER')),
  (SELECT count(*) = 1 AND bool_and(NOT pg_has_role(current_user, n.nspowner, 'MEMBER')
-   AND NOT has_schema_privilege(current_user, n.oid, 'CREATE'))
+   AND NOT has_schema_privilege(current_user, n.oid, 'CREATE')
+   AND NOT has_schema_privilege(current_user, n.oid, 'USAGE WITH GRANT OPTION'))
   FROM pg_catalog.pg_namespace n WHERE n.nspname = 'agenova_memory')
  AND (SELECT NOT pg_has_role(current_user, d.datdba, 'MEMBER')
    AND NOT has_database_privilege(current_user, d.oid, 'CREATE')
@@ -51,6 +54,8 @@ const readinessSQL = `SELECT
    AND NOT pg_has_role(current_user, c.relowner, 'MEMBER')
    AND has_table_privilege(current_user, c.oid, 'SELECT')
    AND has_table_privilege(current_user, c.oid, 'INSERT')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'SELECT WITH GRANT OPTION')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'INSERT WITH GRANT OPTION')
    AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_any_column_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
@@ -64,6 +69,7 @@ const readinessSQL = `SELECT
  (SELECT count(*) = 1 AND bool_and(
    NOT pg_has_role(current_user, c.relowner, 'MEMBER')
    AND has_table_privilege(current_user, c.oid, 'SELECT')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'SELECT WITH GRANT OPTION')
    AND NOT has_table_privilege(current_user, c.oid, 'INSERT')
    AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')

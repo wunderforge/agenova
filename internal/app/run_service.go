@@ -632,7 +632,8 @@ func (s *RunService) ClaimDeadline(claimID string) (time.Time, bool) {
 }
 
 // ObserveState holds the lifecycle read lock while the caller reads its
-// correlated journal projection. Runtime transitions append their event while
+// correlated journal projection or publishes bounded invocation admission.
+// Runtime transitions append their event while
 // holding the write lock, so observers cannot combine a new phase with an old
 // Runtime fact (or an old phase with a new Runtime fact). The callback must not
 // call RunService methods or retain the state pointer for mutation.

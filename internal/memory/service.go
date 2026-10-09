@@ -20,9 +20,14 @@ import (
 type StateReader interface {
 	State(string) *v0.IssuedState
 	ClaimDeadline(string) (time.Time, bool)
+	// ObserveState calls back exactly once under the lifecycle read boundary
+	// shared by terminal transitions. The callback must not reenter the reader.
+	ObserveState(string, func(*v0.IssuedState))
 }
 
 type FactSink interface {
+	// Append is a bounded local publication and must not call the state owner;
+	// admission publishes decision/attempt while holding its lifecycle boundary.
 	Append(facts.Fact) (facts.Fact, error)
 }
 
@@ -88,7 +93,10 @@ func active(state *v0.IssuedState) bool {
 }
 
 func (s *Session) current() bool {
-	current := s.service.states.State(s.state.Claim.ID)
+	return s.matchesCurrent(s.service.states.State(s.state.Claim.ID))
+}
+
+func (s *Session) matchesCurrent(current *v0.IssuedState) bool {
 	if !active(current) {
 		return false
 	}
@@ -189,34 +197,6 @@ func (s *Session) invoke(ctx context.Context, request Request, receiptID string)
 	if request.Operation == v0.MemoryRead && request.Limit == 0 {
 		request.Limit = DefaultLimit
 	}
-	switch {
-	case request.ClaimID != s.state.Claim.ID:
-		result.ReasonCode = "memory-context-mismatch"
-	case !s.current() || !time.Now().Before(s.deadline):
-		result.ReasonCode = "memory-claim-inactive"
-	case s.ctx.Err() != nil || ctx.Err() != nil:
-		result.Status, result.ReasonCode = Cancelled, "memory-context-cancelled"
-	case !validRequest(request):
-		result.ReasonCode = "memory-invalid-input"
-	case !slices.Contains(s.state.EffectiveAuthority.MemoryOperations, request.Operation):
-		result.ReasonCode = "memory-operation-not-granted"
-	case !slices.Contains(s.state.EffectiveAuthority.MemoryScopes, request.Scope):
-		result.ReasonCode = "memory-scope-not-granted"
-	case !routed || route.Team != s.state.Principal.Team || route.Project != s.state.Action.Project:
-		result.ReasonCode = "memory-ownership-denied"
-	default:
-		result.Status, result.ReasonCode = "", "memory-allowed"
-	}
-	fact := facts.Fact{Kind: "MemoryDecision", RequestRef: s.state.RequestRef, ClaimID: s.state.Claim.ID, InvocationID: id, PolicyRef: &s.state.PolicyRef, Operation: operation, Target: target, Result: v0.DecisionResultDeny, ReasonCode: result.ReasonCode}
-	if result.Status == "" {
-		fact.Result = v0.DecisionResultAllow
-	}
-	if _, err := s.service.facts.Append(fact); err != nil {
-		return Result{}, ErrEvidence
-	}
-	if fact.Result != v0.DecisionResultAllow {
-		return result, nil
-	}
 	deadline := time.Now().Add(CallTimeout)
 	if s.deadline.Before(deadline) {
 		deadline = s.deadline
@@ -225,15 +205,60 @@ func (s *Session) invoke(ctx context.Context, request Request, receiptID string)
 	stop := context.AfterFunc(s.ctx, cancel)
 	defer stop()
 	defer cancel()
-	fact.Kind, fact.Result, fact.ProviderStatus = "ProviderAttempt", "", "Attempted"
-	if _, err := s.service.facts.Append(fact); err != nil {
+	var fact facts.Fact
+	var admissionErr error
+	observed := false
+	// Admission and its complete decision/attempt publication share the state
+	// owner's read lock. A terminal transition can win before this boundary or
+	// follow it, but cannot split it. Backend IO runs after releasing the lock.
+	s.service.states.ObserveState(s.state.Claim.ID, func(current *v0.IssuedState) {
+		observed = true
+		switch {
+		case request.ClaimID != s.state.Claim.ID:
+			result.ReasonCode = "memory-context-mismatch"
+		case !s.matchesCurrent(current) || !time.Now().Before(s.deadline):
+			result.ReasonCode = "memory-claim-inactive"
+		case s.ctx.Err() != nil || ctx.Err() != nil:
+			result.Status, result.ReasonCode = Cancelled, "memory-context-cancelled"
+		case !validRequest(request):
+			result.ReasonCode = "memory-invalid-input"
+		case !slices.Contains(s.state.EffectiveAuthority.MemoryOperations, request.Operation):
+			result.ReasonCode = "memory-operation-not-granted"
+		case !slices.Contains(s.state.EffectiveAuthority.MemoryScopes, request.Scope):
+			result.ReasonCode = "memory-scope-not-granted"
+		case !routed || route.Team != s.state.Principal.Team || route.Project != s.state.Action.Project:
+			result.ReasonCode = "memory-ownership-denied"
+		default:
+			result.Status, result.ReasonCode = "", "memory-allowed"
+		}
+		fact = facts.Fact{Kind: "MemoryDecision", RequestRef: s.state.RequestRef, ClaimID: s.state.Claim.ID, InvocationID: id, PolicyRef: &s.state.PolicyRef, Operation: operation, Target: target, Result: v0.DecisionResultDeny, ReasonCode: result.ReasonCode}
+		if result.Status == "" {
+			fact.Result = v0.DecisionResultAllow
+		}
+		if _, admissionErr = s.service.facts.Append(fact); admissionErr != nil || fact.Result != v0.DecisionResultAllow {
+			return
+		}
+		fact.Kind, fact.Result, fact.ProviderStatus = "ProviderAttempt", "", "Attempted"
+		_, admissionErr = s.service.facts.Append(fact)
+	})
+	if !observed {
+		return Result{}, ErrBinding
+	}
+	if admissionErr != nil {
 		return Result{}, ErrEvidence
+	}
+	if result.Status != "" {
+		return result, nil
 	}
 	started := time.Now()
 	var records []Record
 	var err error
 	if callCtx.Err() != nil {
 		err = callCtx.Err()
+	} else if s.ctx.Err() != nil {
+		// AfterFunc propagates cancellation asynchronously. A cancelled run
+		// cannot dispatch while that callback or terminal publication is pending.
+		err = s.ctx.Err()
 	} else if !s.current() {
 		err = context.Canceled
 	} else if s.service.backend == nil {

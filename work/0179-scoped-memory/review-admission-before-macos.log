@@ -1,0 +1,49 @@
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/read
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/read
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/write
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/read
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/write
+    memory_admission_test.go:172: new Memory admission published after terminal authority
+    memory_admission_test.go:176: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/write
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.01s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/read (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/write (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/read (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/write (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/read (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/write (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/connectedclient	0.471s
+FAIL

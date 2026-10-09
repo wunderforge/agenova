@@ -36,6 +36,11 @@ func (r retryStateReader) ClaimDeadline(id string) (time.Time, bool) {
 	return r.deadline, id == r.state.Claim.ID
 }
 
+func (r retryStateReader) ObserveState(id string, observe func(*v0.IssuedState)) {
+	// This fixture is immutable for the composed scripted-driver calls.
+	observe(r.State(id))
+}
+
 func TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement(t *testing.T) {
 	for _, test := range []struct {
 		name string

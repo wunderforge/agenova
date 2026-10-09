@@ -55,6 +55,84 @@ GRANT SELECT ON agenova_memory.schema_version TO memory_app;
 GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
 
+	t.Run("grant options reject readiness", func(t *testing.T) {
+		for _, role := range []string{"memory_app", "memory_inherited"} {
+			for _, object := range []struct{ name, column string }{{"records", "body"}, {"receipts", "request_digest"}, {"schema_version", "version"}} {
+				privileges := []string{"SELECT", "INSERT"}
+				if object.name == "schema_version" {
+					privileges = privileges[:1]
+				}
+				for _, privilege := range privileges {
+					for _, columnGrant := range []bool{false, true} {
+						grant := privilege
+						if columnGrant {
+							grant += " (" + object.column + ")"
+						}
+						t.Run(object.name+"/"+grant+"/"+role, func(t *testing.T) {
+							fixture := &sqlFixture{t: t, id: d.id}
+							if role == "memory_inherited" {
+								fixture.sql("", "GRANT memory_inherited TO memory_app;")
+							}
+							fixture.sql("", "GRANT "+grant+" ON agenova_memory."+object.name+" TO "+role+" WITH GRANT OPTION;")
+							t.Cleanup(func() {
+								fixture.sql("", "REVOKE GRANT OPTION FOR "+grant+" ON agenova_memory."+object.name+" FROM "+role+" CASCADE;")
+								if role == "memory_inherited" {
+									fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+								}
+								fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+							})
+							fixture.expect("memory_app", "SELECT has_any_column_privilege(current_user, 'agenova_memory."+object.name+"', '"+privilege+" WITH GRANT OPTION')", "t")
+							index := 3
+							if object.name == "schema_version" {
+								index = 4
+							}
+							fixture.expectUnsafeFlag(index)
+						})
+					}
+				}
+			}
+			t.Run("schema USAGE/"+role, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				if role == "memory_inherited" {
+					fixture.sql("", "GRANT memory_inherited TO memory_app;")
+				}
+				fixture.sql("", "GRANT USAGE ON SCHEMA agenova_memory TO "+role+" WITH GRANT OPTION;")
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE GRANT OPTION FOR USAGE ON SCHEMA agenova_memory FROM "+role+" CASCADE;")
+					if role == "memory_inherited" {
+						fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+					}
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect("memory_app", "SELECT has_schema_privilege(current_user, 'agenova_memory', 'USAGE WITH GRANT OPTION')", "t")
+				fixture.expectUnsafeFlag(2)
+			})
+		}
+	})
+
+	t.Run("role membership administration rejects readiness", func(t *testing.T) {
+		d.sql("", "CREATE ROLE memory_delegate NOLOGIN;")
+		for _, member := range []string{"memory_app", "memory_delegate"} {
+			t.Run(member, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				fixture.sql("", "GRANT memory_inherited TO "+member+" WITH ADMIN OPTION;")
+				if member == "memory_delegate" {
+					fixture.sql("", "GRANT memory_delegate TO memory_app;")
+				}
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE memory_inherited FROM "+member+";")
+					if member == "memory_delegate" {
+						fixture.sql("", "REVOKE memory_delegate FROM memory_app;")
+					}
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect(member, "SELECT pg_has_role(current_user, 'memory_inherited', 'MEMBER WITH ADMIN OPTION')", "t")
+				fixture.expect("memory_app", "SELECT pg_has_role(current_user, '"+member+"', 'MEMBER')", "t")
+				fixture.expectUnsafeFlag(1)
+			})
+		}
+	})
+
 	t.Run("administrative roles reject readiness", func(t *testing.T) {
 		for _, attribute := range []string{"SUPERUSER", "BYPASSRLS", "CREATEROLE", "CREATEDB", "REPLICATION"} {
 			for _, role := range []string{"memory_app", "memory_inherited"} {
@@ -369,7 +447,7 @@ func (d *sqlFixture) expectUnsafeFlag(index int) {
 	d.t.Helper()
 	flags := strings.Split(d.sql("memory_app", readinessSQL), "|")
 	if len(flags) != 5 || flags[index] != "f" {
-		d.t.Fatal("live readiness accepted an administrative role or ownership")
+		d.t.Fatal("live readiness accepted an unsafe application role or privilege")
 	}
 }
 

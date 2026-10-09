@@ -33,6 +33,10 @@ func memoryReaderView(t *testing.T) evidence.View {
 type memoryReaderState struct{ state *v0.IssuedState }
 
 func (r memoryReaderState) State(string) *v0.IssuedState { return r.state }
+func (r memoryReaderState) ObserveState(_ string, observe func(*v0.IssuedState)) {
+	// This public-reader fixture has no concurrent lifecycle mutations.
+	observe(r.state)
+}
 func (r memoryReaderState) ClaimDeadline(string) (time.Time, bool) {
 	return time.Now().Add(time.Minute), true
 }

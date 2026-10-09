@@ -93,6 +93,31 @@ func TestReadinessSQLRejectsAdministrativeRolesAndOwnership(t *testing.T) {
 	}
 }
 
+func TestReadinessSQLRejectsPrivilegeDelegation(t *testing.T) {
+	start := strings.Index(readinessSQL, "(SELECT count(*) = 2 AND bool_and(")
+	marker := strings.LastIndex(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	if start < 0 || marker <= start {
+		t.Fatal("missing separate readiness aggregates")
+	}
+	for _, required := range []string{
+		"NOT has_schema_privilege(current_user, n.oid, 'USAGE WITH GRANT OPTION')",
+		"NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m",
+		"m.admin_option AND pg_has_role(current_user, m.member, 'MEMBER')",
+	} {
+		if !strings.Contains(readinessSQL, required) {
+			t.Errorf("readiness permits delegation: missing %q", required)
+		}
+	}
+	for _, guard := range []string{readinessSQL[start:marker], readinessSQL[marker:]} {
+		if !strings.Contains(guard, "NOT has_any_column_privilege(current_user, c.oid, 'SELECT WITH GRANT OPTION')") {
+			t.Error("readiness permits table/column SELECT delegation")
+		}
+	}
+	if !strings.Contains(readinessSQL[start:marker], "NOT has_any_column_privilege(current_user, c.oid, 'INSERT WITH GRANT OPTION')") {
+		t.Error("readiness permits table/column INSERT delegation")
+	}
+}
+
 func TestReadinessSchemaVersionResult(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

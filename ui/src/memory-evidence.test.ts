@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, expect, it, vi } from 'vitest';
 import vectors from '../../work/0179-scoped-memory/memory-reader-vectors.json';
+import admissionTraces from '../../work/0179-scoped-memory/memory-admission-traces.json';
 import { connectedSource, type View } from './connected-source';
 import { validMemoryEvidence } from './memory-evidence';
 import { shapeDiagnostics } from './shape-check';
@@ -9,6 +10,13 @@ import type { ClaimPhase, Fact } from './contracts.generated';
 
 const base = vectors.view as View;
 afterEach(() => vi.unstubAllGlobals());
+it.each(admissionTraces.map((view, index) => ({view: view as View, index})))('accepts lifecycle/Memory producer trace $index', async ({view}) => {
+  expect(shapeDiagnostics('View', view)).toEqual([]);
+  expect(validMemoryEvidence(view)).toBe(true);
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url === '/api/requests' ? [view] : view))));
+  expect((await connectedSource.request(view.requestRef)).outcome?.status).toBe(view.outcome?.status);
+  expect(await connectedSource.list()).toHaveLength(1);
+});
 it('accepts the same public Memory view as the CLI reader', async () => {
   expect(shapeDiagnostics('View', base)).toEqual([]);
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => new Response(JSON.stringify(init.method === 'POST' ? base : [base]))));

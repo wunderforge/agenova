@@ -35,6 +35,15 @@ func (r *reader) State(string) *v0.IssuedState {
 
 func (r *reader) ClaimDeadline(string) (time.Time, bool) { return r.deadline, !r.deadline.IsZero() }
 
+func (r *reader) ObserveState(_ string, observe func(*v0.IssuedState)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	data, _ := json.Marshal(r.state)
+	var state *v0.IssuedState
+	_ = json.Unmarshal(data, &state)
+	observe(state)
+}
+
 type spy struct {
 	mu     sync.Mutex
 	calls  int
