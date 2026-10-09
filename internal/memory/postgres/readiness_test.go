@@ -13,6 +13,21 @@ import (
 	"github.com/wunderforge/agenova/internal/memory"
 )
 
+func TestReadinessSQLRejectsTenantColumnUpdate(t *testing.T) {
+	start := strings.Index(readinessSQL, "(SELECT count(*) = 2 AND bool_and(")
+	end := strings.Index(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	if start < 0 || end <= start {
+		t.Fatal("missing separate tenant-table safety aggregate")
+	}
+	guard := readinessSQL[start:end]
+	if !strings.Contains(guard, "NOT has_any_column_privilege(current_user, c.oid, 'UPDATE')") {
+		t.Fatal("tenant-table safety permits column-level UPDATE")
+	}
+	if !strings.Contains(guard, "c.relname IN ('records', 'receipts')") {
+		t.Fatal("tenant-table safety does not cover both records and receipts")
+	}
+}
+
 func TestReadinessSQLRequiresReadOnlySchemaVersion(t *testing.T) {
 	// Independent query-shape assertions complement scripted result handling;
 	// neither executes PostgreSQL or proves effective live privileges.

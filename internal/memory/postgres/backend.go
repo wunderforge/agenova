@@ -44,6 +44,7 @@ const readinessSQL = `SELECT
    AND has_table_privilege(current_user, c.oid, 'SELECT')
    AND has_table_privilege(current_user, c.oid, 'INSERT')
    AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'UPDATE')
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
    AND NOT has_table_privilege(current_user, c.oid, 'TRUNCATE'))
   FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace

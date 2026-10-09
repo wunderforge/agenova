@@ -1,0 +1,6 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:26: selected PostgreSQL gate requires AGENOVA_MEMORY_POSTGRES_IMAGE with an official image digest
+--- FAIL: TestPostgresSQLIntegration (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	0.470s
+FAIL

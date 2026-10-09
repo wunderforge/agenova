@@ -1,0 +1,236 @@
+//go:build memorypostgres
+
+// Copyright 2026 Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
+package postgres
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+)
+
+// This selected gate executes the production schema/readiness SQL through psql.
+// It does not exercise a Go driver, installed credentials, or worker governance.
+// A missing explicit image is a failure, never a skipped real-backend gate.
+func TestPostgresSQLIntegration(t *testing.T) {
+	image := os.Getenv("AGENOVA_MEMORY_POSTGRES_IMAGE")
+	if !regexp.MustCompile(`^(docker\.io/library/)?postgres@sha256:[0-9a-f]{64}$`).MatchString(image) {
+		t.Fatal("selected PostgreSQL gate requires AGENOVA_MEMORY_POSTGRES_IMAGE with an official image digest")
+	}
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		t.Fatal("cannot allocate isolated database test identity")
+	}
+	d := &sqlFixture{t: t}
+	d.id = d.docker("", "create", "--pull=never", "--name", "agenova-e17-sql-"+hex.EncodeToString(suffix[:]),
+		"--label", "io.agenova.ticket=179", "--network", "none", "--env", "POSTGRES_HOST_AUTH_METHOD=trust",
+		image, "-c", "listen_addresses=", "-c", "log_statement=none")
+	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(d.id) {
+		t.Fatal("Docker did not return an owned test container identity")
+	}
+	t.Cleanup(func() {
+		// Only remove the ID created by this test, including its anonymous volume.
+		d.docker("", "rm", "--force", "--volumes", d.id)
+	})
+	d.docker("", "start", d.id)
+	d.waitReady()
+	t.Logf("image=%s; server=%s; network=none; transport=container-local socket", image, d.sql("", "SHOW server_version"))
+	d.sql("", `CREATE ROLE memory_owner NOLOGIN;
+CREATE ROLE memory_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+CREATE ROLE memory_inherited NOLOGIN;
+GRANT CREATE ON DATABASE postgres TO memory_owner;
+SET ROLE memory_owner;
+`+MigrationSQL()+`
+RESET ROLE;
+GRANT USAGE ON SCHEMA agenova_memory TO memory_app;
+GRANT SELECT ON agenova_memory.schema_version TO memory_app;
+GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
+	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
+
+	t.Run("column privileges reject readiness", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, object, column, grantee, setup, reset string
+		}{
+			{name: "record body", object: "records", column: "body", grantee: "memory_app"},
+			{name: "receipt digest", object: "receipts", column: "request_digest", grantee: "memory_app"},
+			{name: "record inherited", object: "records", column: "source_claim", grantee: "memory_inherited", setup: "GRANT memory_inherited TO memory_app;", reset: "REVOKE memory_inherited FROM memory_app;"},
+			{name: "receipt public", object: "receipts", column: "memory_id", grantee: "PUBLIC"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				fixture.sql("", tc.setup+"GRANT UPDATE ("+tc.column+") ON agenova_memory."+tc.object+" TO "+tc.grantee+";")
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE UPDATE ("+tc.column+") ON agenova_memory."+tc.object+" FROM "+tc.grantee+";"+tc.reset)
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				// The independent oracle reproduces why table-only checks miss this.
+				fixture.expect("memory_app", "SELECT has_table_privilege(current_user, 'agenova_memory."+tc.object+"', 'UPDATE'), has_any_column_privilege(current_user, 'agenova_memory."+tc.object+"', 'UPDATE')", "f|t")
+				fixture.expect("memory_app", readinessSQL, "t|t|t|f|t")
+			})
+		}
+	})
+
+	t.Run("marker privileges reject readiness", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		for _, operation := range []string{"UPDATE", "INSERT"} {
+			fixture.sql("", "GRANT "+operation+" (version) ON agenova_memory.schema_version TO memory_app;")
+			fixture.expect("memory_app", readinessSQL, "t|t|t|t|f")
+			fixture.sql("", "REVOKE "+operation+" (version) ON agenova_memory.schema_version FROM memory_app;")
+			fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+		}
+	})
+
+	t.Run("RLS and transaction context", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		fixture.expect("memory_app", `
+SELECT (SELECT count(*) FROM agenova_memory.records) = 0 AND (SELECT count(*) FROM agenova_memory.receipts) = 0;
+BEGIN;
+`+sqlNamespace("team-a", "payments", "team-docs")+`
+INSERT INTO agenova_memory.records (team, project, scope, id, body, source_claim)
+ VALUES ('team-a', 'payments', 'team-docs', 'memory:00000000000000000000000000000001', 'campaign_%_synthetic', 'claim:sql-a');
+INSERT INTO agenova_memory.receipts (team, project, scope, invocation_id, request_digest, memory_id)
+ VALUES ('team-a', 'payments', 'team-docs', 'invocation:sql-a', repeat('0', 64), 'memory:00000000000000000000000000000001');
+SELECT (SELECT count(*) FROM agenova_memory.records) = 1 AND (SELECT count(*) FROM agenova_memory.receipts) = 1;
+COMMIT;
+SELECT (SELECT count(*) FROM agenova_memory.records) = 0 AND (SELECT count(*) FROM agenova_memory.receipts) = 0;
+BEGIN;
+`+sqlNamespace("team-b", "payments", "team-docs")+`
+SELECT (SELECT count(*) FROM agenova_memory.records) = 0 AND (SELECT count(*) FROM agenova_memory.receipts) = 0;
+DO $$ BEGIN
+ BEGIN
+  INSERT INTO agenova_memory.records (team, project, scope, id, body, source_claim)
+   VALUES ('team-a', 'payments', 'team-docs', 'memory:00000000000000000000000000000002', 'synthetic', 'claim:sql-b');
+  RAISE EXCEPTION 'cross-namespace INSERT unexpectedly permitted';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+END $$;
+ROLLBACK;
+BEGIN;
+`+sqlNamespace("team-a", "other-project", "team-docs")+`
+SELECT (SELECT count(*) FROM agenova_memory.records) = 0 AND (SELECT count(*) FROM agenova_memory.receipts) = 0;
+ROLLBACK;
+BEGIN;
+`+sqlNamespace("team-a", "payments", "other-scope")+`
+SELECT (SELECT count(*) FROM agenova_memory.records) = 0 AND (SELECT count(*) FROM agenova_memory.receipts) = 0;
+ROLLBACK;`, "t\nt\nt\nt\nt\nt")
+	})
+
+	t.Run("literal search and durable receipt constraints", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		fixture.expect("memory_app", "BEGIN;"+sqlNamespace("team-a", "payments", "team-docs")+`
+SELECT count(*) = 1 FROM agenova_memory.records WHERE strpos(lower(body), lower('CAMPAIGN_%_')) > 0;
+SELECT count(*) = 0 FROM agenova_memory.records WHERE strpos(lower(body), lower('campaign__')) > 0;
+DO $$ BEGIN
+ BEGIN
+  INSERT INTO agenova_memory.receipts (team, project, scope, invocation_id, request_digest, memory_id)
+   VALUES ('team-a', 'payments', 'team-docs', 'invocation:sql-a', repeat('1', 64), 'memory:00000000000000000000000000000001');
+  RAISE EXCEPTION 'duplicate receipt unexpectedly permitted';
+ EXCEPTION WHEN unique_violation THEN NULL;
+ END;
+ BEGIN
+  INSERT INTO agenova_memory.receipts (team, project, scope, invocation_id, request_digest, memory_id)
+   VALUES ('team-a', 'payments', 'team-docs', 'invocation:missing-record', repeat('1', 64), 'memory:00000000000000000000000000000003');
+  RAISE EXCEPTION 'orphan receipt unexpectedly permitted';
+ EXCEPTION WHEN foreign_key_violation THEN NULL;
+ END;
+END $$;
+SELECT count(*) = 1 FROM agenova_memory.receipts;
+COMMIT;
+BEGIN READ ONLY;
+`+sqlNamespace("team-a", "payments", "team-docs")+`
+DO $$ BEGIN
+ BEGIN
+  INSERT INTO agenova_memory.records (team, project, scope, id, body, source_claim)
+   VALUES ('team-a', 'payments', 'team-docs', 'memory:00000000000000000000000000000004', 'synthetic', 'claim:sql-a');
+  RAISE EXCEPTION 'read-only INSERT unexpectedly permitted';
+ EXCEPTION WHEN read_only_sql_transaction THEN NULL;
+ END;
+END $$;
+ROLLBACK;`, "t\nt\nt")
+	})
+
+	t.Run("database restart retains rows and receipts", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		volumeTemplate := "{{range .Mounts}}{{if eq .Destination \"/var/lib/postgresql\"}}{{.Name}}{{end}}{{end}}"
+		volume := fixture.docker("", "inspect", "--format", volumeTemplate, fixture.id)
+		if volume == "" {
+			t.Fatal("restart gate requires an identified persistent test volume")
+		}
+		fixture.docker("", "restart", "--time", "10", fixture.id)
+		fixture.waitReady()
+		if fixture.docker("", "inspect", "--format", volumeTemplate, fixture.id) != volume {
+			t.Fatal("database restart changed the storage identity")
+		}
+		fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+		fixture.expect("memory_app", "BEGIN;"+sqlNamespace("team-a", "payments", "team-docs")+`
+SELECT (SELECT count(*) FROM agenova_memory.records WHERE strpos(body, 'campaign_%_') > 0) = 1
+ AND (SELECT count(*) FROM agenova_memory.receipts WHERE invocation_id = 'invocation:sql-a') = 1;
+COMMIT;`, "t")
+	})
+}
+
+// Values in this fixture are fixed synthetic operator inputs, never worker input.
+func sqlNamespace(team, project, scope string) string {
+	return "DO $$ BEGIN PERFORM set_config('agenova.team', '" + team + "', true); PERFORM set_config('agenova.project', '" + project + "', true); PERFORM set_config('agenova.scope', '" + scope + "', true); END $$;"
+}
+
+type sqlFixture struct {
+	t  *testing.T
+	id string
+}
+
+func (d *sqlFixture) docker(input string, args ...string) string {
+	d.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.Output()
+	if err != nil {
+		// Do not publish SQL text, bodies, raw server errors, or command output.
+		d.t.Fatalf("isolated PostgreSQL %s command failed", args[0])
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func (d *sqlFixture) sql(role, statement string) string {
+	d.t.Helper()
+	if role != "" {
+		statement = "SET SESSION AUTHORIZATION " + role + ";" + statement
+	}
+	return d.docker(statement+";", "exec", "--interactive", d.id, "psql", "--username=postgres", "--dbname=postgres", "--no-psqlrc", "--quiet", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1")
+}
+
+func (d *sqlFixture) expect(role, statement, expected string) {
+	d.t.Helper()
+	if d.sql(role, statement) != expected {
+		d.t.Fatal("live SQL assertion failed; private result withheld")
+	}
+}
+
+func (d *sqlFixture) waitReady() {
+	d.t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// The entrypoint briefly starts a temporary server during initialization.
+		// Wait for the final postgres process to own PID 1 before admitting SQL.
+		process, err := exec.CommandContext(ctx, "docker", "exec", d.id, "cat", "/proc/1/comm").Output()
+		cmd := exec.CommandContext(ctx, "docker", "exec", d.id, "pg_isready", "--username=postgres", "--dbname=postgres", "--quiet")
+		ready := err == nil && strings.TrimSpace(string(process)) == "postgres" && cmd.Run() == nil
+		cancel()
+		if ready {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	d.t.Fatal("isolated PostgreSQL did not become ready within 30 seconds")
+}

@@ -1,0 +1,65 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (3.02s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (0.99s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.25s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.26s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.25s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.35s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.05s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.31s)
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (2.82s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (0.99s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.26s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.26s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.24s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.40s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.05s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.31s)
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+=== RUN   TestPostgresSQLIntegration/marker_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/RLS_and_transaction_context
+=== RUN   TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints
+=== RUN   TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts
+--- PASS: TestPostgresSQLIntegration (2.77s)
+    --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness (0.96s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.23s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.24s)
+        --- PASS: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.26s)
+    --- PASS: TestPostgresSQLIntegration/marker_privileges_reject_readiness (0.36s)
+    --- PASS: TestPostgresSQLIntegration/RLS_and_transaction_context (0.05s)
+    --- PASS: TestPostgresSQLIntegration/literal_search_and_durable_receipt_constraints (0.05s)
+    --- PASS: TestPostgresSQLIntegration/database_restart_retains_rows_and_receipts (0.33s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	10.001s

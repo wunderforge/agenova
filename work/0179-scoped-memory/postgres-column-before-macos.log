@@ -1,0 +1,20 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body
+    sql_integration_test.go:76: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest
+    sql_integration_test.go:76: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited
+    sql_integration_test.go:76: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public
+    sql_integration_test.go:76: live SQL assertion failed; private result withheld
+--- FAIL: TestPostgresSQLIntegration (2.23s)
+    --- FAIL: TestPostgresSQLIntegration/column_privileges_reject_readiness (1.00s)
+        --- FAIL: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_body (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_digest (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/column_privileges_reject_readiness/record_inherited (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/column_privileges_reject_readiness/receipt_public (0.24s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	2.702s
+FAIL

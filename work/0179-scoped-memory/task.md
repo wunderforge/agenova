@@ -29,6 +29,8 @@ Additional task-specific context:
 - [Shared text validation tests](../../internal/memory/text_test.go) and [database zero-call tests](../../internal/memory/postgres/text_test.go)
 - [PostgreSQL adapter core](../../internal/memory/postgres/backend.go), [version-one migration](../../internal/memory/postgres/migrations/001_memory.sql), and [SQL-driver contract tests](../../internal/memory/postgres/backend_test.go)
 - [Schema-version readiness regressions](../../internal/memory/postgres/readiness_test.go) and [review evidence](../../docs/evidence/179/schema-version-review.md)
+- [Real PostgreSQL SQL gate](../../internal/memory/postgres/sql_integration_test.go), [column-privilege correction](../../docs/evidence/179/column-privilege-review.md), and [SQL campaign](../../docs/evidence/179/postgres-sql.md)
+- [Console keyboard smoke](../../ui/smoke/console.spec.ts): portable native-option selection after keyboard/focus checks
 - [Projection tests](../../internal/evidence/privacy_test.go), [HTTP boundary](../../internal/console/http.go), [CLI output](../../internal/cli/cli.go), [Portal reader](../../ui/src/connected-source.ts), [Portal view](../../ui/src/ConnectedPortal.tsx), and [connected browser smoke](../../ui/smoke/connected.spec.ts)
 - [Memory reader](../../internal/connectedclient/memory.go), [reader tests](../../internal/connectedclient/memory_test.go), [Portal integrity](../../ui/src/memory-evidence.ts), [shared vectors](memory-reader-vectors.json), and [worker activity model](../../ui/src/worker-activity-model.ts)
 - [Existing shape validation](../../ui/src/shape-check.ts) and [Portal reader regressions](../../ui/src/memory-evidence.test.ts): explicit empty observation arrays in Memory-only Work, without accepting null/missing histories
@@ -98,7 +100,9 @@ Out of scope:
 - [x] Review P1 COMMIT: preserve SQLSTATE 40003 uncertainty and the original receipt retry path; wrapped errors and known-failure controls plus focused/race/full gates passed. Independent re-review remains required.
 - [x] Slice 4 reader: enable coordinated CLI/Portal Memory decision/outcome validation, public metadata display, shared corruption vectors and rendered fixture proof; focused/race/repeated/full gates passed. Installed Memory and live-record proof remain pending.
 - [x] Review P2 reader lifecycle: require an earlier Running fact even for Memory denials; preserve legitimate terminal denials and reject pre-Running/future-Running traces in both readers. Shared cases, browser proof and focused/race/repeated/full gates passed. Independent re-review remains required.
-- [x] Review P2 schema-version safety: require a separate non-owner, read-only migration-marker readiness check; query-shape/result regressions and focused/race/repeated/full gates passed. Independent re-review and live privilege proof remain required.
+- [x] Review P2 schema-version safety: require a separate non-owner, read-only migration-marker readiness check; query-shape/result regressions and focused/race/repeated/full gates passed. The later SQL campaign verifies live marker column privileges; independent re-review remains required.
+- [x] Review P2 tenant-column safety: reject direct, inherited and PUBLIC column-level UPDATE on records/receipts; the old query fails real PostgreSQL regressions and the corrected query passes.
+- [x] Slice 2 SQL evidence: execute the production migration/readiness SQL on isolated PostgreSQL 18.6; verify real privilege checks, RLS, transaction-local context reset, receipt constraints and database-container restart. This does not complete driver/installed/Pod-PVC acceptance.
 - [ ] Slice 5: execute the real A/B/restart/C campaign, hostile-request negatives, worker network controls, failure cases, and sentinel scans.
 - [ ] Run focused gates followed by `./scripts/check.ps1 -All` after each implementation slice; stop expansion on failure.
 - [ ] Review scope, regression risk, and source ownership; obtain independent PR review and teammate reproduction before reporting E17 complete.
@@ -109,6 +113,7 @@ Out of scope:
 - Shared-contract slice: `go test ./api/v1alpha1 ./internal/authority ./internal/authorization ./internal/issuance ./internal/app` plus generated UI contract checks.
 - New Memory packages: focused Go tests and race tests; package commands are recorded when the packages exist.
 - Database slice: opt-in real PostgreSQL contract/integration tests. Missing explicit backend configuration must fail a selected real gate, not silently skip it.
+- SQL-only database gate: `AGENOVA_MEMORY_POSTGRES_IMAGE='<official-postgres-digest>' go test -tags memorypostgres -v -count=1 -timeout=3m ./internal/memory/postgres -run '^TestPostgresSQLIntegration$'`. Requires a pre-pulled official digest and Docker; creates/removes only its own network-isolated container and anonymous volume. It uses local psql, not an installed Go driver or credential consumer.
 - Installed slice: a task-owned campaign requiring explicit cluster context, namespace, installed revision, backend version, and initialized dataset. No unscoped teardown.
 - Privacy/UI slice: connected CLI/API/browser parity, payload/credential scans, and screenshots from real records. Fixture browser smoke is a separate gate.
 - Baseline: `pwsh -NoProfile -File ./scripts/check.ps1 -All`. This is not a substitute for the live database/cluster campaign.
@@ -137,6 +142,7 @@ Out of scope:
 
 - Planning baseline: main `ebb4c04f7b8cc76d63036c820e04c62af68fad3d`, checked on 2026-10-08.
 - Owner: `yanyang15037755`, assigned on #179. An independent Reviewer has not been named in the issue.
+- Independent review/reproduction owners (user nomination, 2026-10-09): the team lead and Sonia. Exact GitHub accounts, review acceptance and clean-environment reproduction evidence remain outstanding; nomination alone does not complete those gates.
 - User decisions: governance/persistence first; local kind; PostgreSQL first adapter; reference trusted context before E14 identity; approximately 12-15 engineering days excluding dependency/review wait.
 - User workflow update (2026-10-08): explicitly authorized latest main's self-review process; this supersedes the earlier session packet-approval stop. Independent review remains a PR gate.
 - Packet status: self-reviewed and authorized for implementation. Live-backend acceptance remains pending executable evidence.
@@ -144,8 +150,10 @@ Out of scope:
 - Integration coordination: #192/#207 are open PRs; #204/#205 are open issues. Rebase on accepted producers and preserve their contracts, without stacking unrelated implementation branches.
 - #205 is not a blocker for the approved controlled reference path. Authenticated workload claims require a later integration rerun using its accepted verifier.
 - Environment: Windows PATH contains Go and PowerShell but no Docker/kind/kubectl. WSL Ubuntu exists; `wsl -d Ubuntu -- which docker kind kubectl go` returned no paths (exit 1). Reference tools, cluster, CNI, and storage remain unverified; no cluster was changed.
-- General PostgreSQL, inference, and cluster readiness results remain pending executable evidence.
+- Go-driver/backend execution, inference and installed cluster readiness remain pending executable evidence. The later SQL campaign separately proves the named database/schema behaviors.
 - The user explicitly reported no existing kind context on 2026-10-09. No cluster/Secret/PVC is created or modified; live Memory and credential integration remain blocked.
+- Mac continuation preflight (2026-10-09): this machine has an existing `kind-agenova-k8s-lab` context, kind 0.33.0, Kubernetes 1.37.0, kindnetd `v20260820-69b56db7`, the `standard` local-path storage class, and an older installed Agenova service. This supersedes the no-context environment blocker for this machine. CNI identity and policy objects are observations, not enforcement proof; actual worker/Control Plane probes and installed revision checks remain outstanding. No cluster, Secret or PVC was changed.
+- Driver preflight refinement: current [lib/pq v1.12.3](https://github.com/lib/pq/releases/tag/v1.12.3) has a [Go 1.21 module requirement](https://github.com/lib/pq/blob/v1.12.3/go.mod) and is a possible direct `database/sql` alternative to the planned pgx choice. Its security/configuration behavior and accepted #155 composition still need review before locking a driver; no dependency or toolchain requirement was changed.
 
 ## Preparation Verification - 2026-10-08
 
@@ -234,3 +242,12 @@ Out of scope:
 - The independent query-shape test first failed on the missing aggregate. Scripted result tests now prove safe readiness, false/NULL/malformed safety rejection, sanitized errors and zero mutating transactions. This is not executed PostgreSQL or effective live-privilege proof.
 - Native focused tests and the [Linux campaign](review-marker-linux.log) passed focused/race checks, 20 repeated readiness runs and `check.ps1 -All`: all Go, generated contracts, 189 frontend tests, build and 59 browser cases. Only documentation/publication changes followed; [evidence](../../docs/evidence/179/schema-version-review.md) records scope and residual risk.
 - User authorization now permits the independent #155 task; its foundation is draft #213, not accepted installed composition. No kind context is available. No database/cluster/Secret/PVC was read or changed; driver, installed Memory, live evidence and independent review/reproduction remain outstanding. Keep #212 draft and #179 open.
+
+## Mac Continuation and Real SQL Evidence - 2026-10-09
+
+- Inspected current Issue/PR progress and resumed `codex/0179-scoped-memory` at `a249a21c31b94372f61783b0dfc9195805e97cf2`. Its latest CI passed. #155/#213, #192 and #207 remain unmerged; preserve producer ownership and do not stack those branches. The newest [P2 finding](https://github.com/wunderforge/agenova/pull/212#discussion_r4226857918) concerns column-level UPDATE on tenant tables.
+- Added the missing negative column-privilege predicate to the existing records/receipts readiness aggregate. The query-shape regression failed before the change. A real server regression also fails with the old query for records, receipts, inherited-role and PUBLIC grants, while independently proving table UPDATE is false and column UPDATE is true.
+- The first full Mac gate failed because sandbox DNS blocked a missing Go test dependency. Its normal-environment retry passed Go and 189 frontend tests but exposed an existing native-select keyboard assumption. The smoke test retains keyboard navigation, skip link, focus/outline and live-region checks; option selection now uses the portable Playwright action. The corrected full gate passed all Go, contracts, 189 frontend tests, build and 59 browser cases. The test no longer claims to exercise platform-specific native-select shortcuts.
+- The explicit `memorypostgres` gate runs the production migration/readiness SQL through psql in a digest-pinned, network-isolated temporary PostgreSQL container. Three fresh race-enabled campaigns passed on PostgreSQL 18.6: tenant/marker privilege checks, real RLS, one-session transaction-local context reset, literal matching, receipt uniqueness/foreign keys, read-only writes denied, and preserved rows/receipts after database-container restart. Selected execution without the explicit image fails before creating a container. No existing database, cluster, Secret or PVC was changed; each test's own container and anonymous volume are removed.
+- The post-SQL [complete repository gate](postgres-sql-all-macos.log) passed all Go tests, generated contracts, 189 frontend tests, build and 59 browser cases. `go vet -tags memorypostgres ./internal/memory/postgres` and [20 repeated readiness runs](review-column-repeated-macos.log) also passed. Only documentation/publication changes followed the passing source campaign.
+- This is real SQL/schema evidence, not Go-driver/pool integration, host credential acceptance, installed A/B/restart/C, worker network isolation, live CLI/API/Portal parity or independent reproduction. Those acceptance items remain open. Keep #212 draft and #179 open; independent review remains required.
