@@ -42,6 +42,7 @@ const readinessSQL = `SELECT
    AND left(r.rolname, 3) <> 'pg_')
   FROM pg_catalog.pg_roles r WHERE pg_has_role(current_user, r.oid, 'MEMBER'))
  AND current_user = session_user
+ AND COALESCE(system_user = 'scram-sha-256:' || current_user, false)
  AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
   WHERE m.admin_option AND pg_has_role(current_user, m.member, 'MEMBER'))
  AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
@@ -89,7 +90,8 @@ const readinessSQL = `SELECT
 
 // New receives a host-owned connection pool after governed credential resolution.
 // It accepts no DSN, secret, task path, or implicit environment configuration.
-// The pool must authenticate as its data-only role without masking another login.
+// The reference pool must use SCRAM authentication as its data-only role.
+// Mutable current/session roles cannot stand in for the original login identity.
 // A supported driver and the #155 installation composition are still required.
 func New(ctx context.Context, db *sql.DB) (*Backend, error) {
 	if ctx == nil || db == nil {

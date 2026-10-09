@@ -126,6 +126,12 @@ func TestReadinessSQLRejectsHiddenSetRolePrivileges(t *testing.T) {
 	}
 }
 
+func TestReadinessSQLRequiresAuthenticatedDataIdentity(t *testing.T) {
+	if !strings.Contains(readinessSQL, "COALESCE(system_user = 'scram-sha-256:' || current_user, false)") {
+		t.Fatal("readiness lacks fail-closed original authentication identity proof")
+	}
+}
+
 func TestReadinessSchemaVersionResult(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

@@ -16,10 +16,13 @@ role-specific privilege evaluator. Ordinary inherited data groups remain
 supported; a non-inherited group with SET=false remains unreachable and passes
 when the other existing safety conditions hold.
 
-The pool must also authenticate directly as its data-only application identity:
-current_user must equal session_user. SET ROLE cannot mask a more privileged
-login behind a low-privilege current role. These are adapter reference
-configuration restrictions, not new public authority or credential contracts.
+This campaign required current_user to equal session_user, rejecting SET ROLE
+masking. Subsequent review showed that equality does not prove the original
+authenticated identity: SET SESSION AUTHORIZATION can change both values.
+The [authentication correction](review-authentication.md) supersedes that claim
+and the operator-session positive fixtures with actual SCRAM data-role logins.
+These are adapter reference configuration restrictions, not new public authority
+or credential contracts.
 One bounded read-only query still returns five booleans, with no grant repair.
 
 References: PostgreSQL 18 [role membership](https://www.postgresql.org/docs/18/role-membership.html)
@@ -30,10 +33,11 @@ and [privilege inquiry functions](https://www.postgresql.org/docs/18/functions-i
 The [live SQL gate](../../../internal/memory/postgres/sql_integration_test.go)
 proves direct and transitive INHERIT=false/SET=true paths. Independent oracles
 show the application has no immediate TRUNCATE permission, can SET the hidden
-role and does not inherit it. A native transaction changes session authorization
-to memory_app before switching roles, then successfully TRUNCATEs both tables;
-current_user/session_user checks confirm the operator's original identity did
-not supply that ability. ROLLBACK preserves the test database.
+role and does not inherit it. This historical campaign changed session
+authorization to memory_app before switching roles and TRUNCATEing both tables.
+That establishes the SET reachability control but not a direct data-role login;
+the later authentication campaign repeats it with actual SCRAM memory_app login.
+ROLLBACK preserves the test database.
 
 The old exact e00c27f readiness query accepts both dangerous memberships and a
 third configuration where a privileged session masks itself using SET ROLE.
@@ -51,9 +55,10 @@ database-container restart cases.
 
 Same versions, official PostgreSQL 18.6 digest, local socket transport, network
 isolation and scoped cleanup as [the SQL campaign](postgres-sql.md). The existing
-application-role fixture uses session authorization, not privileged login role
-masking; this does not establish TCP/password authentication or Go-driver/pool
-integration.
+application-role fixture used operator session authorization and did not establish
+original data-role login, TCP/password authentication or Go-driver/pool integration.
+The authentication correction replaces these positive fixtures; this page retains
+the historical campaign and its original logs.
 
 | Gate | Command / artifact | Result |
 | --- | --- | --- |

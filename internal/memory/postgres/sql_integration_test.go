@@ -44,7 +44,8 @@ func TestPostgresSQLIntegration(t *testing.T) {
 	d.waitReady()
 	t.Logf("image=%s; server=%s; network=none; transport=container-local socket", image, d.sql("", "SHOW server_version"))
 	d.sql("", `CREATE ROLE memory_owner NOLOGIN;
-CREATE ROLE memory_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+CREATE ROLE memory_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+CREATE ROLE memory_privileged LOGIN SUPERUSER;
 CREATE ROLE memory_inherited NOLOGIN;
 GRANT CREATE ON DATABASE postgres TO memory_owner;
 SET ROLE memory_owner;
@@ -53,7 +54,51 @@ RESET ROLE;
 GRANT USAGE ON SCHEMA agenova_memory TO memory_app;
 GRANT SELECT ON agenova_memory.schema_version TO memory_app;
 GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
+	// Fresh synthetic passwords are sent only through private stdin, not argv,
+	// logs or evidence. All credential files belong to this disposable container.
+	var passwords strings.Builder
+	for _, role := range []string{"memory_app", "memory_privileged"} {
+		var secret [32]byte
+		if _, err := rand.Read(secret[:]); err != nil {
+			t.Fatal("cannot allocate isolated database test credential")
+		}
+		password := hex.EncodeToString(secret[:])
+		d.sql("", "SET password_encryption = 'scram-sha-256'; ALTER ROLE "+role+" PASSWORD '"+password+"'")
+		passwords.WriteString("*:5432:postgres:" + role + ":" + password + "\n")
+	}
+	d.docker(passwords.String(), "exec", "--interactive", d.id, "sh", "-c", "umask 077; cat > /tmp/e17-pgpass")
+	d.docker("local all memory_app,memory_privileged scram-sha-256\n", "exec", "--interactive", d.id, "sh", "-c", `cat > /tmp/e17-hba; cat "$PGDATA/pg_hba.conf" >> /tmp/e17-hba; cat /tmp/e17-hba > "$PGDATA/pg_hba.conf"; rm /tmp/e17-hba`)
+	d.expect("", "SELECT pg_reload_conf()", "t")
+	d.expect("memory_app", "SELECT current_user = 'memory_app' AND session_user = 'memory_app' AND system_user = 'scram-sha-256:memory_app'", "t")
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
+
+	t.Run("authenticated identity rejects session authorization masking", func(t *testing.T) {
+		for _, login := range []string{"", "memory_privileged"} {
+			t.Run("login_"+login, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				identity := "system_user IS NULL"
+				if login != "" {
+					identity = "system_user = 'scram-sha-256:memory_privileged'"
+				}
+				fixture.expect(login, "SET SESSION AUTHORIZATION memory_app; SELECT current_user = session_user AND current_user = 'memory_app' AND "+identity+"; RESET SESSION AUTHORIZATION; SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = current_user", "t\nt")
+				flags := strings.Split(fixture.sql(login, "SET SESSION AUTHORIZATION memory_app; "+readinessSQL), "|")
+				if len(flags) != 5 || flags[1] != "f" {
+					t.Fatal("readiness accepted a privileged authenticated identity masked by session authorization")
+				}
+			})
+		}
+	})
+
+	t.Run("unauthenticated data login rejects readiness", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		fixture.sql("", "CREATE ROLE memory_trusted LOGIN; GRANT memory_app TO memory_trusted WITH INHERIT TRUE, SET FALSE")
+		t.Cleanup(func() { fixture.sql("", "DROP ROLE memory_trusted") })
+		fixture.expect("memory_trusted", "SELECT current_user = session_user AND current_user = 'memory_trusted' AND system_user IS NULL", "t")
+		flags := strings.Split(fixture.sql("memory_trusted", readinessSQL), "|")
+		if len(flags) != 5 || flags[1] != "f" {
+			t.Fatal("readiness accepted a data-only login without authenticated identity proof")
+		}
+	})
 
 	t.Run("masked privileged session rejects readiness", func(t *testing.T) {
 		fixture := &sqlFixture{t: t, id: d.id}
@@ -83,11 +128,9 @@ GRANT SELECT, TRUNCATE ON agenova_memory.records, agenova_memory.receipts TO mem
 					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
 				})
 				fixture.expect("memory_app", "SELECT has_table_privilege(current_user, 'agenova_memory.records', 'TRUNCATE'), pg_has_role(current_user, 'memory_hidden', 'SET'), pg_has_role(current_user, 'memory_hidden', 'USAGE')", "f|t|f")
-				// SET SESSION AUTHORIZATION makes the application role the session
-				// identity too: the operator's SET ROLE permission cannot supply
-				// the reachability being demonstrated. Rollback preserves test data.
-				fixture.expect("", `BEGIN;
-SET SESSION AUTHORIZATION memory_app;
+				// This connection authenticates as the application role itself.
+				// Rollback preserves data after proving native SET/TRUNCATE access.
+				fixture.expect("memory_app", `BEGIN;
 SET ROLE memory_hidden;
 TRUNCATE agenova_memory.records, agenova_memory.receipts;
 SELECT current_user = 'memory_hidden' AND session_user = 'memory_app';
@@ -477,10 +520,15 @@ func (d *sqlFixture) docker(input string, args ...string) string {
 
 func (d *sqlFixture) sql(role, statement string) string {
 	d.t.Helper()
-	if role != "" {
+	login := role
+	if login == "" {
+		login = "postgres"
+	} else if role != "memory_app" && role != "memory_privileged" && role != "memory_trusted" {
+		// Group-role oracles are operator sessions, never readiness positives.
+		login = "postgres"
 		statement = "SET SESSION AUTHORIZATION " + role + ";" + statement
 	}
-	return d.docker(statement+";", "exec", "--interactive", d.id, "psql", "--username=postgres", "--dbname=postgres", "--no-psqlrc", "--quiet", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1")
+	return d.docker(statement+";", "exec", "--interactive", "--env", "PGPASSFILE=/tmp/e17-pgpass", d.id, "psql", "--username="+login, "--dbname=postgres", "--no-password", "--no-psqlrc", "--quiet", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1")
 }
 
 func (d *sqlFixture) expect(role, statement, expected string) {
