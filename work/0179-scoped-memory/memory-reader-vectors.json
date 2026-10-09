@@ -1,0 +1,77 @@
+{
+  "view": {
+    "version": "agenova.evidence/v0",
+    "requestRef": "memory-reader",
+    "request": {
+      "apiVersion": "agenova.io/v1alpha1", "kind": "ClaimRequest", "metadata": {"name": "memory-reader"},
+      "spec": {
+        "templateRef": "engineer", "projectRef": "payments", "task": {"type": "investigation", "input": {}},
+        "requestedAccess": {"memoryScopes": ["team-docs"], "memoryOperations": ["read", "write"]},
+        "runtime": {"profileRef": "standard-isolated", "timeout": "1m"}
+      }
+    },
+    "state": {
+      "requestRef": "memory-reader",
+      "principal": {"subject": "user:demo", "team": "team-a", "authenticationContext": "upstream:test"},
+      "action": {"name": "claim.create", "project": "payments", "templateRef": "engineer"},
+      "policyRef": {"id": "policy:demo", "version": "1"},
+      "decision": {"id": "decision:demo", "principalRef": "user:demo", "action": "claim.create", "result": "Allow", "policyRef": {"id": "policy:demo", "version": "1"}, "reason": "Reference allow"},
+      "claim": {"id": "claim:memory-reader", "requestRef": "memory-reader", "templateRef": "engineer", "authorityRef": "authority:demo", "phase": "Running", "backendIdentity": {"backend": "test-backend", "workerId": "worker:demo"}},
+      "effectiveAuthority": {"id": "authority:demo", "memoryScopes": ["team-docs"], "memoryOperations": ["read", "write"], "runtime": {"profileRef": "standard-isolated", "timeout": "1m"}},
+      "evidence": {"requestRef": "memory-reader", "decisionIds": ["decision:demo"], "modelInvocations": [], "toolInvocations": [], "runtimeEvents": [{"kind": "Bound"}, {"kind": "BackendReady"}, {"kind": "Running"}]}
+    },
+    "contentRedactions": ["request.spec.task.input", "outcome.text"],
+    "facts": [
+      {"id": "fact:1", "sequence": 1, "timestamp": "2026-10-09T00:00:00Z", "kind": "RequestReceived", "requestRef": "memory-reader"},
+      {"id": "fact:2", "sequence": 2, "timestamp": "2026-10-09T00:00:00Z", "kind": "RequestResolution", "requestRef": "memory-reader", "result": "Allow", "reasonCode": "assignment-allow", "policyRef": {"id": "policy:demo", "version": "1"}, "decision": {"id": "decision:demo", "principalRef": "user:demo", "action": "claim.create", "result": "Allow", "policyRef": {"id": "policy:demo", "version": "1"}, "reason": "Reference allow"}},
+      {"id": "fact:3", "sequence": 3, "timestamp": "2026-10-09T00:00:00Z", "kind": "AuthorityResolved", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "policyRef": {"id": "policy:demo", "version": "1"}, "effectiveAuthority": {"id": "authority:demo", "memoryScopes": ["team-docs"], "memoryOperations": ["read", "write"], "runtime": {"profileRef": "standard-isolated", "timeout": "1m"}}},
+      {"id": "fact:4", "sequence": 4, "timestamp": "2026-10-09T00:00:00Z", "kind": "Runtime", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "operation": "Bound", "backendIdentity": {"backend": "test-backend", "workerId": "worker:demo"}},
+      {"id": "fact:5", "sequence": 5, "timestamp": "2026-10-09T00:00:00Z", "kind": "Runtime", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "operation": "BackendReady"},
+      {"id": "fact:6", "sequence": 6, "timestamp": "2026-10-09T00:00:00Z", "kind": "Runtime", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "operation": "Running"},
+      {"id": "fact:7", "sequence": 7, "timestamp": "2026-10-09T00:00:00Z", "kind": "MemoryDecision", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:write", "operation": "memory.write", "target": "team-docs", "result": "Allow", "reasonCode": "memory-allowed", "policyRef": {"id": "policy:demo", "version": "1"}},
+      {"id": "fact:8", "sequence": 8, "timestamp": "2026-10-09T00:00:00Z", "kind": "ProviderAttempt", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:write", "operation": "memory.write", "target": "team-docs", "providerStatus": "Attempted", "reasonCode": "memory-allowed", "policyRef": {"id": "policy:demo", "version": "1"}},
+      {"id": "fact:9", "sequence": 9, "timestamp": "2026-10-09T00:00:00Z", "kind": "ProviderOutcome", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:write", "operation": "memory.write", "target": "team-docs", "providerStatus": "Succeeded", "reasonCode": "memory-completed", "policyRef": {"id": "policy:demo", "version": "1"}, "memory": {"status": "Written", "count": 1, "durationMilliseconds": 4, "truncated": false, "references": ["memory:00000000000000000000000000000001"]}},
+      {"id": "fact:10", "sequence": 10, "timestamp": "2026-10-09T00:00:00Z", "kind": "MemoryDecision", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:read", "operation": "memory.read", "target": "team-docs", "result": "Allow", "reasonCode": "memory-allowed", "policyRef": {"id": "policy:demo", "version": "1"}},
+      {"id": "fact:11", "sequence": 11, "timestamp": "2026-10-09T00:00:00Z", "kind": "ProviderAttempt", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:read", "operation": "memory.read", "target": "team-docs", "providerStatus": "Attempted", "reasonCode": "memory-allowed", "policyRef": {"id": "policy:demo", "version": "1"}},
+      {"id": "fact:12", "sequence": 12, "timestamp": "2026-10-09T00:00:00Z", "kind": "ProviderOutcome", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:read", "operation": "memory.read", "target": "team-docs", "providerStatus": "Succeeded", "reasonCode": "memory-completed", "policyRef": {"id": "policy:demo", "version": "1"}, "memory": {"status": "Found", "count": 1, "durationMilliseconds": 2, "truncated": false, "references": ["memory:00000000000000000000000000000001"]}},
+      {"id": "fact:13", "sequence": 13, "timestamp": "2026-10-09T00:00:00Z", "kind": "MemoryDecision", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:denied", "operation": "memory.invalid", "result": "Deny", "reasonCode": "memory-invalid-input", "policyRef": {"id": "policy:demo", "version": "1"}}
+    ]
+  },
+  "corruptions": [
+    {"name": "missing projection", "path": ["contentRedactions"], "value": []},
+    {"name": "private input", "path": ["request", "spec", "task", "input"], "value": {"objective": "private-input-sentinel"}},
+    {"name": "missing model history", "path": ["state", "evidence", "modelInvocations"], "value": null},
+    {"name": "missing tool history", "path": ["state", "evidence", "toolInvocations"], "value": null},
+    {"name": "missing runtime history", "path": ["state", "evidence", "runtimeEvents"], "value": null},
+    {"name": "operation expansion", "path": ["request", "spec", "requestedAccess", "memoryOperations"], "value": ["read"]},
+    {"name": "scope expansion", "path": ["request", "spec", "requestedAccess", "memoryScopes"], "value": ["other"]},
+    {"name": "foreign claim", "path": ["facts", "8", "claimId"], "value": "claim:victim"},
+    {"name": "foreign request", "path": ["facts", "8", "requestRef"], "value": "victim"},
+    {"name": "foreign policy", "path": ["facts", "8", "policyRef", "version"], "value": "2"},
+    {"name": "foreign scope", "path": ["facts", "8", "target"], "value": "other"},
+    {"name": "orphan outcome", "path": ["facts", "8", "invocationId"], "value": "inv:orphan"},
+    {"name": "denied attempt", "path": ["facts", "6", "result"], "value": "Deny"},
+    {"name": "wrong operation", "path": ["facts", "8", "operation"], "value": "model.invoke"},
+    {"name": "duplicate invocation", "path": ["facts", "9", "invocationId"], "value": "inv:write"},
+    {"name": "duplicate fact", "path": ["facts", "8", "id"], "value": "fact:7"},
+    {"name": "reordered sequence", "path": ["facts", "8", "sequence"], "value": 7},
+    {"name": "missing metadata", "path": ["facts", "8", "memory"], "value": null},
+    {"name": "metadata on attempt", "path": ["facts", "7", "memory"], "value": {"status": "Empty", "count": 0, "durationMilliseconds": 0, "truncated": false}},
+    {"name": "unknown status", "path": ["facts", "8", "memory", "status"], "value": "private-status-sentinel"},
+    {"name": "count mismatch", "path": ["facts", "8", "memory", "count"], "value": 0},
+    {"name": "oversized count", "path": ["facts", "8", "memory", "count"], "value": 11},
+    {"name": "negative duration", "path": ["facts", "8", "memory", "durationMilliseconds"], "value": -1},
+    {"name": "fractional count", "path": ["facts", "8", "memory", "count"], "value": 1.5},
+    {"name": "fractional duration", "path": ["facts", "8", "memory", "durationMilliseconds"], "value": 0.5},
+    {"name": "invalid reference", "path": ["facts", "8", "memory", "references"], "value": ["private-body-sentinel"]},
+    {"name": "read result on write", "path": ["facts", "8", "memory", "status"], "value": "Found"},
+    {"name": "wrong provider status", "path": ["facts", "8", "providerStatus"], "value": "Failed"},
+    {"name": "private reason", "path": ["facts", "8", "reason"], "value": "private-sql-sentinel"},
+    {"name": "private reason code", "path": ["facts", "8", "reasonCode"], "value": "memory-private-error-sentinel"},
+    {"name": "raw body", "path": ["facts", "8", "memory", "body"], "value": "private-body-sentinel"},
+    {"name": "raw query", "path": ["facts", "8", "query"], "value": "private-query-sentinel"},
+    {"name": "raw credentials", "path": ["facts", "8", "credentials"], "value": "private-credential-sentinel"},
+    {"name": "authority payload", "path": ["facts", "8", "effectiveAuthority"], "value": {"id": "authority:demo", "runtime": {"profileRef": "standard-isolated", "timeout": "1m"}}},
+    {"name": "deny becomes Allow", "path": ["facts", "12", "result"], "value": "Allow"}
+  ]
+}

@@ -3,6 +3,7 @@
 import type { AgentTemplate, ClaimRequest, Fact, Principal, View as CanonicalView } from './contracts.generated';
 import { shapeDiagnostics } from './shape-check';
 import { displayWorkName } from './work-name';
+import { validMemoryEvidence, validMemoryList } from './memory-evidence';
 
 // Live views must contain the canonical request and a fact array.
 export type View = Omit<CanonicalView, 'request' | 'facts'> & {
@@ -57,10 +58,10 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
   catch { throw new SourceError(502, 'The connection returned an incomplete response.'); }
 }
 
-function view(data: unknown): View {
+function view(data: unknown, expectedRef?: string): View {
   if (shapeDiagnostics('View', data).length || (data as View).version !== 'agenova.evidence/v0' ||
       !validContentProjection(data as View) ||
-      (data as View).facts?.some(fact => fact.memory != null || fact.kind === 'MemoryDecision')) {
+      !validMemoryEvidence(data as View, expectedRef)) {
     throw new SourceError(502, 'The connection returned an incomplete work record.');
   }
   return data as View;
@@ -100,10 +101,12 @@ export const connectedSource = {
   async list(signal?: AbortSignal): Promise<View[]> {
     const data = await json('/api/requests', signal);
     if (!Array.isArray(data)) throw new SourceError(502, 'The connection returned an incomplete work list.');
-    return data.map(view);
+    const works = data.map(item => view(item));
+    if (!validMemoryList(works)) throw new SourceError(502, 'The connection returned an incomplete work list.');
+    return works;
   },
   async request(ref: string, signal?: AbortSignal): Promise<View> {
-    return view(await json(`/api/requests/${encodeURIComponent(ref)}/evidence`, signal));
+    return view(await json(`/api/requests/${encodeURIComponent(ref)}/evidence`, signal), ref);
   },
   async submit(request: ClaimRequest, signal?: AbortSignal): Promise<View> {
     return view(await json('/api/requests', signal, request));

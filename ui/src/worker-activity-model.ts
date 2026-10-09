@@ -18,21 +18,22 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
     if (f.kind === 'ProviderOutcome') outcomes.set(f.invocationId, f);
   }
   let turn: string | undefined;
-  return ordered.filter(f => ['WorkerActivity', 'ProviderAttempt', 'ProviderOutcome', 'ModelDecision', 'ToolDecision'].includes(f.kind))
+  return ordered.filter(f => ['WorkerActivity', 'ProviderAttempt', 'ProviderOutcome', 'ModelDecision', 'ToolDecision', 'MemoryDecision'].includes(f.kind))
     .filter(f => f.kind !== 'ProviderOutcome' || !f.invocationId || (firstAttempt.get(f.invocationId) ?? Infinity) >= f.sequence)
     .map(f => {
       if (f.kind === 'WorkerActivity' && f.target) turn = f.target;
       const candidate = f.kind === 'ProviderAttempt' && f.invocationId ? outcomes.get(f.invocationId) : undefined;
       const outcome = candidate && candidate.sequence > f.sequence ? candidate : undefined;
       const active = f.kind === 'ProviderAttempt' && !!f.invocationId && !outcome && status === 'Running';
-      const decision = f.kind === 'ModelDecision' || f.kind === 'ToolDecision';
+      const decision = f.kind === 'ModelDecision' || f.kind === 'ToolDecision' || f.kind === 'MemoryDecision';
       const toolCall = f.operation === 'tool.invoke';
+      const memoryCall = f.operation?.startsWith('memory.');
       const step = f.kind === 'WorkerActivity';
       return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
-        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? 'Tool call (mock)' : 'Model request',
+        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'MemoryDecision' ? 'Memory access' : f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : memoryCall ? f.operation === 'memory.write' ? 'Memory write' : 'Memory search' : toolCall ? 'Tool call (mock)' : 'Model request',
         target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
         state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? f.result || 'Recorded'
-          : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || 'No completion recorded',
+          : outcome?.memory?.status || outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.memory?.status || f.providerStatus : undefined) || 'No completion recorded',
       };
     });
 }
@@ -45,11 +46,11 @@ export function demoWorkerActions(events: WorkEvent[], activityHref: string): Wo
 export interface WorkerTurn { id: string; calls: WorkerAction[]; observations: number; active: boolean }
 export function groupWorkerTurns(actions: WorkerAction[]): WorkerTurn[] {
   const recordedTurns = actions.some(a => a.turn);
-  const recordedCalls = actions.some(a => ['Model request', 'Tool call (mock)'].includes(a.label));
+  const recordedCalls = actions.some(a => ['Model request', 'Tool call (mock)', 'Memory write', 'Memory search'].includes(a.label));
   const groups = new Map<string, WorkerTurn>();
   for (const action of actions) {
     // Access decisions remain inspectable records, not redundant execution rows.
-    if ((recordedTurns || recordedCalls) && ['Tool access', 'Model access'].includes(action.label)) continue;
+    if ((recordedTurns || recordedCalls) && ['Tool access', 'Model access', 'Memory access'].includes(action.label)) continue;
     const id = action.turn || (recordedTurns ? 'Earlier calls' : recordedCalls ? 'Recorded calls' : 'Recorded access checks');
     const group = groups.get(id) || {id, calls: [], observations: 0, active: false};
     if (action.label !== 'Agent turn') group.calls.push(action);

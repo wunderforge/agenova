@@ -328,6 +328,13 @@ func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) i
 		if len(view.ContentRedactions) > 0 {
 			fmt.Fprintln(stdout, "content: withheld")
 		}
+		for _, fact := range view.Facts {
+			if fact.Kind == "MemoryDecision" && fact.Result == "Deny" {
+				fmt.Fprintf(stdout, "memory: %s scope=%s status=Denied invocation=%s\n", fact.Operation, fact.Target, fact.InvocationID)
+			} else if fact.Kind == "ProviderOutcome" && fact.Memory != nil {
+				fmt.Fprintf(stdout, "memory: %s scope=%s status=%s count=%d truncated=%t duration-ms=%d invocation=%s\n", fact.Operation, fact.Target, fact.Memory.Status, fact.Memory.Count, fact.Memory.Truncated, fact.Memory.DurationMilliseconds, fact.InvocationID)
+			}
+		}
 		return 0
 	}
 	fmt.Fprint(stderr, workHelpText)

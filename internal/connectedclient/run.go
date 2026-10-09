@@ -251,6 +251,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
 		return false
 	}
+	if slices.ContainsFunc(view.Facts, func(f facts.Fact) bool {
+		return f.Kind == "MemoryDecision" || memoryOperation(f.Operation) || f.Memory != nil
+	}) &&
+		(view.State.Evidence.ModelInvocations == nil || view.State.Evidence.ToolInvocations == nil || view.State.Evidence.RuntimeEvents == nil) {
+		return false
+	}
 	if view.State != nil && (strings.TrimSpace(view.State.Principal.Team) == "" || strings.TrimSpace(view.State.Principal.AuthenticationContext) == "") {
 		return false
 	}
@@ -297,9 +303,8 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
-		// Memory evidence is enabled only with its coordinated reader/privacy
-		// slice. Do not accept newly recognized metadata on legacy facts.
-		if fact.Memory != nil {
+		memoryFact := fact.Kind == "MemoryDecision" || memoryOperation(fact.Operation)
+		if memoryFact && (!evidence.MemoryRequested(view.Request) || !validMemoryFact(fact)) || !memoryFact && fact.Memory != nil {
 			return false
 		}
 		// RunOutcome is appended after worker teardown. No further activity for
@@ -320,7 +325,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		switch fact.Kind {
-		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
+		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "MemoryDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
 		default:
 			return false
 		}
@@ -450,9 +455,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
-			if !runningRecorded || runtimeTerminal &&
-				(fact.Kind != "ProviderOutcome" || fact.ProviderStatus != "Cancelled" ||
-					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {
+			memoryDeny := fact.Kind == "MemoryDecision" && fact.Result == v0.DecisionResultDeny
+			lateOutcome := (runtimeTerminalOperation == "Cancelled" || runtimeTerminalOperation == "Expired") &&
+				(fact.Kind == "ProviderOutcome" && fact.ProviderStatus == "Cancelled" || lateMemoryOutcome(fact))
+			if !memoryDeny && (!runningRecorded || runtimeTerminal && !lateOutcome) {
 				return false
 			}
 		}
@@ -462,6 +468,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.Kind == "ModelDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || fact.Target == "" || fact.Target != view.State.EffectiveAuthority.ModelProfile) {
+			return false
+		}
+		if fact.Kind == "MemoryDecision" && fact.Result == v0.DecisionResultAllow &&
+			(view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.MemoryOperations, strings.TrimPrefix(fact.Operation, "memory.")) ||
+				!slices.Contains(view.State.EffectiveAuthority.MemoryScopes, fact.Target)) {
 			return false
 		}
 		switch fact.Kind {
@@ -487,10 +498,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				previous.stage = 4
 				invocations[fact.InvocationID] = previous
 			}
-		case "ModelDecision", "ToolDecision":
+		case "ModelDecision", "ToolDecision", "MemoryDecision":
 			expected := "model.invoke"
 			if fact.Kind == "ToolDecision" {
 				expected = "tool.invoke"
+			}
+			if fact.Kind == "MemoryDecision" {
+				expected = fact.Operation
 			}
 			if fact.InvocationID == "" || fact.Operation != expected || !validDecisionResult(fact.Result) ||
 				fact.PolicyRef == nil || view.State == nil || *fact.PolicyRef != view.State.PolicyRef {
@@ -507,7 +521,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		case "ProviderAttempt", "ProviderOutcome":
 			previous, exists := invocations[fact.InvocationID]
 			if !exists || fact.InvocationID == "" || fact.Operation != previous.operation ||
-				(previous.operation == "model.invoke" && fact.Target != previous.target) {
+				((previous.operation == "model.invoke" || memoryOperation(previous.operation)) && fact.Target != previous.target) {
 				return false
 			}
 			if fact.Kind == "ProviderAttempt" {

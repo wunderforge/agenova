@@ -41,7 +41,7 @@ it('accepts only explicit empty projections for Memory-requesting Work', async (
   expect((await connectedSource.request('private-test')).contentRedactions).toHaveLength(2);
 });
 
-it('rejects Memory evidence until its reader and privacy slice is enabled', async () => {
+it('rejects unrelated Memory metadata and unbound decisions on legacy evidence', async () => {
   const record: View = {
     version: 'agenova.evidence/v0', requestRef: 'synthetic',
     request: {

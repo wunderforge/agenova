@@ -5,6 +5,16 @@ import type { Fact } from './contracts.generated';
 import { workerActions, demoWorkerActions, groupWorkerTurns } from './worker-activity-model';
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
+  it('shows Memory calls and outcomes without inventing model inference or executing a Deny',()=>{
+    const facts:Fact[]=[{...fact('d',1,'MemoryDecision','memory'),operation:'memory.write',result:'Allow'},
+      {...fact('a',2,'ProviderAttempt','memory'),operation:'memory.write'},
+      {...fact('o',3,'ProviderOutcome','memory','Failed'),operation:'memory.write',memory:{status:'WriteUncertain',count:0,durationMilliseconds:3,truncated:false}}];
+    const groups=groupWorkerTurns(workerActions(facts,'Running','#/activity'));
+    expect(groups[0].calls).toHaveLength(1);
+    expect(groups[0].calls[0]).toMatchObject({label:'Memory write',state:'WriteUncertain',active:false});
+    expect(workerActions([{...facts[0],result:'Deny'}],'Running','#/activity')[0]).toMatchObject({label:'Memory access',state:'Deny',active:false});
+    expect(workerActions(facts.slice(0,2),'Running','#/activity')[1]).toMatchObject({label:'Memory write',active:true});
+  });
   it('retains format-retry evidence without marking successful inference as failed',()=>{
     const facts:Fact[]=[
       {...fact('turn',1,'WorkerActivity'),operation:'TurnStarted',target:'Turn 4'},
