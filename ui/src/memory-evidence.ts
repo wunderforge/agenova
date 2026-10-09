@@ -90,9 +90,9 @@ export function validMemoryEvidence(work: View, expectedRef = work.requestRef): 
       if (f.memory || f.invocationId && calls.has(f.invocationId)) return false;
       continue;
     }
-    if (!authority || !bound || f.claimId !== claim.id || !f.invocationId || !samePolicy(f.policyRef, state.policyRef) || !validFact(f)) return false;
+    if (!authority || !bound || !running || f.claimId !== claim.id || !f.invocationId || !samePolicy(f.policyRef, state.policyRef) || !validFact(f)) return false;
     if (f.kind === 'MemoryDecision') {
-      if (f.result === 'Allow' && (!running || !!terminal || !grant.memoryOperations?.includes(f.operation!.slice(7)) || !grant.memoryScopes?.includes(f.target!))) return false;
+      if (f.result === 'Allow' && (!!terminal || !grant.memoryOperations?.includes(f.operation!.slice(7)) || !grant.memoryScopes?.includes(f.target!))) return false;
       calls.set(f.invocationId, {operation: f.operation!, target: f.target, stage: f.result === 'Allow' ? 1 : 0});
       continue;
     }

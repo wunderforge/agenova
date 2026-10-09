@@ -225,6 +225,53 @@ func TestMemoryReaderSharedVectors(t *testing.T) {
 	}
 }
 
+func TestMemoryReaderDenialRequiresPriorRunning(t *testing.T) {
+	data, err := os.ReadFile("../../work/0179-scoped-memory/memory-reader-vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vectors struct {
+		DenialLifecycles []struct {
+			Name   string
+			Phase  v0.ClaimPhase
+			Events []string
+			Accept bool
+		}
+	}
+	if err := json.Unmarshal(data, &vectors); err != nil || len(vectors.DenialLifecycles) == 0 {
+		t.Fatal("cannot load shared Memory denial lifecycles")
+	}
+	for _, test := range vectors.DenialLifecycles {
+		t.Run(test.Name, func(t *testing.T) {
+			view := memoryReaderView(t)
+			deny := view.Facts[12]
+			view.State.Claim.Phase = test.Phase
+			view.State.Evidence.RuntimeEvents = []v0.EvidenceRuntimeEvent{}
+			view.Facts = view.Facts[:3]
+			for _, event := range test.Events {
+				f := facts.Fact{Kind: "Runtime", RequestRef: view.RequestRef, ClaimID: view.State.Claim.ID, Operation: event}
+				if event == "Deny" {
+					f = deny
+				} else {
+					view.State.Evidence.RuntimeEvents = append(view.State.Evidence.RuntimeEvents, v0.EvidenceRuntimeEvent{Kind: event})
+					if event == "Bound" {
+						f.BackendIdentity = view.State.Claim.BackendIdentity
+					}
+				}
+				f.ID, f.Sequence, f.Timestamp = "fact:lifecycle:"+strconv.Itoa(len(view.Facts)+1), uint64(len(view.Facts)+1), view.Facts[0].Timestamp
+				view.Facts = append(view.Facts, f)
+			}
+			encoded, err := evidence.MarshalPublic(view)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := decodeView(encoded, view.RequestRef); (err == nil) != test.Accept {
+				t.Fatalf("denial acceptance = %v, want %v: %v", err == nil, test.Accept, err)
+			}
+		})
+	}
+}
+
 func TestMemoryReaderTerminalClosureAndCrossWorkIdentity(t *testing.T) {
 	view := memoryReaderView(t)
 	view.Facts = view.Facts[:8]

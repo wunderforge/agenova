@@ -37,6 +37,18 @@
       {"id": "fact:13", "sequence": 13, "timestamp": "2026-10-09T00:00:00Z", "kind": "MemoryDecision", "requestRef": "memory-reader", "claimId": "claim:memory-reader", "invocationId": "inv:denied", "operation": "memory.invalid", "result": "Deny", "reasonCode": "memory-invalid-input", "policyRef": {"id": "policy:demo", "version": "1"}}
     ]
   },
+  "denialLifecycles": [
+    {"name": "before Bound", "phase": "Bound", "events": ["Deny"], "accept": false},
+    {"name": "after Bound before Running", "phase": "Bound", "events": ["Bound", "Deny"], "accept": false},
+    {"name": "after BackendReady before Running", "phase": "Bound", "events": ["Bound", "BackendReady", "Deny"], "accept": false},
+    {"name": "startup failed without Running", "phase": "Failed", "events": ["Bound", "BackendReady", "StartFailed", "Deny"], "accept": false},
+    {"name": "Running recorded after denial", "phase": "Running", "events": ["Bound", "BackendReady", "Deny", "Running"], "accept": false},
+    {"name": "active Running", "phase": "Running", "events": ["Bound", "BackendReady", "Running", "Deny"], "accept": true},
+    {"name": "after Failed", "phase": "Failed", "events": ["Bound", "BackendReady", "Running", "Failed", "Deny"], "accept": true},
+    {"name": "after Cancelled", "phase": "Failed", "events": ["Bound", "BackendReady", "Running", "Cancelled", "Deny"], "accept": true},
+    {"name": "after Expired", "phase": "Expired", "events": ["Bound", "BackendReady", "Running", "Expired", "Deny"], "accept": true},
+    {"name": "after Succeeded", "phase": "Succeeded", "events": ["Bound", "BackendReady", "Running", "Succeeded", "Deny"], "accept": true}
+  ],
   "corruptions": [
     {"name": "missing projection", "path": ["contentRedactions"], "value": []},
     {"name": "private input", "path": ["request", "spec", "task", "input"], "value": {"objective": "private-input-sentinel"}},

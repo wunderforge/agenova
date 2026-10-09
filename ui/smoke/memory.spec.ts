@@ -60,3 +60,36 @@ test('Memory reader keeps uncertain writes and denied checks distinct',async({pa
   await expect(page.locator('.portal-head .portal-badge')).toHaveText('WriteUncertain');
   await expect(page.locator('.portal-fact').filter({hasText:'Returned count'})).toContainText('0');
 });
+test('Memory reader rejects pre-Running denial without displaying activity',async({page},info)=>{
+  const current = structuredClone(vectors.view), deny = current.facts[12];
+  current.state!.claim!.phase = 'Bound';
+  current.state!.evidence.runtimeEvents = current.state!.evidence.runtimeEvents!.slice(0,2);
+  current.facts = [...current.facts.slice(0,5),deny];
+  await api(page,()=>current);
+  await page.goto('/?mode=connected#/work/memory-reader');
+  await expect(page.getByRole('alert')).toContainText('incomplete work record');
+  await expect(page.locator('.portal-worker-actions')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'memory-reader',exact:true})).toHaveCount(0);
+  await page.screenshot({path:info.outputPath('memory-denial-rejected.png'),fullPage:true});
+});
+test('Memory reader preserves denial after a Running cancellation',async({page},info)=>{
+  await page.setViewportSize({width:390,height:1000});
+  const current = structuredClone(vectors.view), deny = current.facts[12];
+  current.state!.claim!.phase = 'Failed';
+  current.state!.evidence.runtimeEvents!.push({kind:'Cancelled'});
+  const cancelled = {id:'fact:cancelled',sequence:7,timestamp:deny.timestamp,kind:'Runtime',
+    requestRef:current.requestRef,claimId:current.state!.claim!.id,operation:'Cancelled'};
+  deny.sequence = 8; deny.operation = 'memory.read'; deny.target = 'team-docs'; deny.reasonCode = 'memory-claim-inactive';
+  current.facts = [...current.facts.slice(0,6),cancelled,deny];
+  await api(page,()=>current);
+  await page.goto('/?mode=connected#/work/memory-reader');
+  await expect(page.getByRole('heading',{name:'memory-reader',exact:true})).toBeVisible();
+  const actions = page.locator('.portal-worker-actions');
+  await expect(actions).toContainText('Deny');
+  await expect(actions.locator('li')).toHaveCount(1);
+  await expect(actions.locator('[data-active="true"]')).toHaveCount(0);
+  await expect(page.locator('.portal-activity-help')).toContainText('Access checks only; no execution calls recorded.');
+  await expect(page.locator('.portal-turn summary')).toContainText('1 check');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('memory-denial-after-cancelled.png'),fullPage:true});
+});

@@ -29,6 +29,11 @@ or expiry without fabricating rollback; late reads are content-free
 Cancelled/Timeout. A post-terminal denial is inspectable before RunOutcome, but
 no new Allow can start. Facts after final RunOutcome remain invalid.
 
+The later [P2 lifecycle correction](reader-lifecycle-review.md) requires an
+earlier Running fact for every Memory decision, including Deny. Bound/readiness
+or a Running fact after the denial is insufficient; legitimate post-terminal
+denial from a previously Running session remains supported.
+
 ## Behavioral Evidence
 
 - [Shared vectors](../../../work/0179-scoped-memory/memory-reader-vectors.json)

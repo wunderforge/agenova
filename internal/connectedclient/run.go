@@ -455,10 +455,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
+			// A bound Memory session requires prior Running, even for later denials.
 			memoryDeny := fact.Kind == "MemoryDecision" && fact.Result == v0.DecisionResultDeny
 			lateOutcome := (runtimeTerminalOperation == "Cancelled" || runtimeTerminalOperation == "Expired") &&
 				(fact.Kind == "ProviderOutcome" && fact.ProviderStatus == "Cancelled" || lateMemoryOutcome(fact))
-			if !memoryDeny && (!runningRecorded || runtimeTerminal && !lateOutcome) {
+			if !runningRecorded || runtimeTerminal && !memoryDeny && !lateOutcome {
 				return false
 			}
 		}

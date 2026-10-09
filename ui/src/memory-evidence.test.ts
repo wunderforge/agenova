@@ -5,7 +5,7 @@ import vectors from '../../work/0179-scoped-memory/memory-reader-vectors.json';
 import { connectedSource, type View } from './connected-source';
 import { validMemoryEvidence } from './memory-evidence';
 import { shapeDiagnostics } from './shape-check';
-import type { Fact } from './contracts.generated';
+import type { ClaimPhase, Fact } from './contracts.generated';
 
 const base = vectors.view as View;
 afterEach(() => vi.unstubAllGlobals());
@@ -29,6 +29,32 @@ it.each(vectors.corruptions)('rejects shared corruption: $name', async ({path, v
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url === '/api/requests' ? [view] : view))));
   await expect(connectedSource.request(base.requestRef)).rejects.toMatchObject({status: 502});
   await expect(connectedSource.list()).rejects.toMatchObject({status: 502});
+});
+it.each(vectors.denialLifecycles)('requires prior Running for denial: $name', async ({phase, events, accept}) => {
+  const view = structuredClone(base), deny = view.facts[12];
+  view.state!.claim!.phase = phase as ClaimPhase;
+  view.state!.evidence.runtimeEvents = [];
+  view.facts = view.facts.slice(0,3);
+  for (const event of events) {
+    const fact: Fact = event === 'Deny' ? {...deny} : {kind:'Runtime',operation:event,
+      requestRef:view.requestRef,claimId:view.state!.claim!.id,id:'',sequence:0,timestamp:deny.timestamp};
+    if (event !== 'Deny') {
+      view.state!.evidence.runtimeEvents.push({kind:event});
+      if (event === 'Bound') fact.backendIdentity = view.state!.claim!.backendIdentity;
+    }
+    fact.id = `fact:lifecycle:${view.facts.length + 1}`; fact.sequence = view.facts.length + 1;
+    view.facts.push(fact);
+  }
+  expect(shapeDiagnostics('View', view)).toEqual([]);
+  expect(validMemoryEvidence(view)).toBe(accept);
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url === '/api/requests' ? [view] : view))));
+  if (accept) {
+    expect((await connectedSource.request(view.requestRef)).facts.at(-1)?.result).toBe('Deny');
+    expect(await connectedSource.list()).toHaveLength(1);
+  } else {
+    await expect(connectedSource.request(view.requestRef)).rejects.toMatchObject({status:502});
+    await expect(connectedSource.list()).rejects.toMatchObject({status:502});
+  }
 });
 it.each(['Empty','Unavailable','Unsupported','Timeout','Cancelled','Failed','WriteUncertain'])('keeps %s distinct', status => {
   const view = structuredClone(base), f = view.facts[8];
