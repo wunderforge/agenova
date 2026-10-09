@@ -1,0 +1,15 @@
+=== RUN   TestReadinessSQLRejectsAdministrativeRolesAndOwnership
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT r.rolsuper"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT r.rolbypassrls"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT r.rolcreaterole"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT r.rolcreatedb"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT r.rolreplication"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "left(r.rolname, 3) <> 'pg_'"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "pg_has_role(current_user, r.oid, 'MEMBER')"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT pg_has_role(current_user, n.nspowner, 'MEMBER')"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "NOT pg_has_role(current_user, d.datdba, 'MEMBER')"
+    readiness_test.go:90: readiness lacks administrative/ownership guard "d.datname = current_database()"
+--- FAIL: TestReadinessSQLRejectsAdministrativeRolesAndOwnership (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	0.808s
+FAIL

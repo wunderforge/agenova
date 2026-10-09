@@ -15,7 +15,7 @@ import (
 
 func TestReadinessSQLRejectsTenantColumnUpdate(t *testing.T) {
 	start := strings.Index(readinessSQL, "(SELECT count(*) = 2 AND bool_and(")
-	end := strings.Index(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	end := strings.LastIndex(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
 	if start < 0 || end <= start {
 		t.Fatal("missing separate tenant-table safety aggregate")
 	}
@@ -30,7 +30,7 @@ func TestReadinessSQLRejectsTenantColumnUpdate(t *testing.T) {
 
 func TestReadinessSQLRejectsUnexpectedTablePrivileges(t *testing.T) {
 	start := strings.Index(readinessSQL, "(SELECT count(*) = 2 AND bool_and(")
-	marker := strings.Index(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	marker := strings.LastIndex(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
 	if start < 0 || marker <= start {
 		t.Fatal("missing separate readiness aggregates")
 	}
@@ -49,7 +49,7 @@ func TestReadinessSQLRejectsUnexpectedTablePrivileges(t *testing.T) {
 func TestReadinessSQLRequiresReadOnlySchemaVersion(t *testing.T) {
 	// Independent query-shape assertions complement scripted result handling;
 	// neither executes PostgreSQL or proves effective live privileges.
-	start := strings.Index(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
+	start := strings.LastIndex(readinessSQL, "(SELECT count(*) = 1 AND bool_and(")
 	if start < 0 {
 		t.Fatal("missing separate schema-version safety aggregate")
 	}
@@ -75,6 +75,21 @@ func TestReadinessSQLRequiresReadOnlySchemaVersion(t *testing.T) {
 	}
 	if strings.Contains(guard, "\n   AND has_table_privilege(current_user, c.oid, 'INSERT')") {
 		t.Fatal("schema marker incorrectly requires INSERT")
+	}
+}
+
+func TestReadinessSQLRejectsAdministrativeRolesAndOwnership(t *testing.T) {
+	for _, required := range []string{
+		"NOT r.rolsuper", "NOT r.rolbypassrls", "NOT r.rolcreaterole", "NOT r.rolcreatedb", "NOT r.rolreplication",
+		"left(r.rolname, 3) <> 'pg_'", "pg_has_role(current_user, r.oid, 'MEMBER')",
+		"NOT pg_has_role(current_user, n.nspowner, 'MEMBER')",
+		"NOT pg_has_role(current_user, d.datdba, 'MEMBER')",
+		"NOT has_database_privilege(current_user, d.oid, 'CREATE')",
+		"d.datname = current_database()",
+	} {
+		if !strings.Contains(readinessSQL, required) {
+			t.Errorf("readiness lacks administrative/ownership guard %q", required)
+		}
 	}
 }
 

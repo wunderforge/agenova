@@ -37,8 +37,16 @@ var _ memory.Backend = (*Backend)(nil)
 
 const readinessSQL = `SELECT
  (SELECT version = 1 FROM agenova_memory.schema_version WHERE singleton),
- (SELECT NOT rolsuper AND NOT rolbypassrls AND NOT rolcreaterole AND NOT rolcreatedb FROM pg_catalog.pg_roles WHERE rolname = current_user),
- NOT has_schema_privilege(current_user, 'agenova_memory', 'CREATE'),
+ (SELECT count(*) > 0 AND bool_and(NOT r.rolsuper AND NOT r.rolbypassrls
+   AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolreplication
+   AND left(r.rolname, 3) <> 'pg_')
+  FROM pg_catalog.pg_roles r WHERE pg_has_role(current_user, r.oid, 'MEMBER')),
+ (SELECT count(*) = 1 AND bool_and(NOT pg_has_role(current_user, n.nspowner, 'MEMBER')
+   AND NOT has_schema_privilege(current_user, n.oid, 'CREATE'))
+  FROM pg_catalog.pg_namespace n WHERE n.nspname = 'agenova_memory')
+ AND (SELECT NOT pg_has_role(current_user, d.datdba, 'MEMBER')
+   AND NOT has_database_privilege(current_user, d.oid, 'CREATE')
+  FROM pg_catalog.pg_database d WHERE d.datname = current_database()),
  (SELECT count(*) = 2 AND bool_and(c.relrowsecurity AND c.relforcerowsecurity
    AND NOT pg_has_role(current_user, c.relowner, 'MEMBER')
    AND has_table_privilege(current_user, c.oid, 'SELECT')

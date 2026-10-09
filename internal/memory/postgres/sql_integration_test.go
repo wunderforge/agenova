@@ -55,6 +55,107 @@ GRANT SELECT ON agenova_memory.schema_version TO memory_app;
 GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memory_app;`)
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
 
+	t.Run("administrative roles reject readiness", func(t *testing.T) {
+		for _, attribute := range []string{"SUPERUSER", "BYPASSRLS", "CREATEROLE", "CREATEDB", "REPLICATION"} {
+			for _, role := range []string{"memory_app", "memory_inherited"} {
+				t.Run(attribute+"/"+role, func(t *testing.T) {
+					fixture := &sqlFixture{t: t, id: d.id}
+					fixture.sql("", "ALTER ROLE "+role+" "+attribute+";")
+					if role == "memory_inherited" {
+						fixture.sql("", "GRANT memory_inherited TO memory_app;")
+					}
+					t.Cleanup(func() {
+						fixture.sql("", "ALTER ROLE "+role+" NO"+attribute+";")
+						if role == "memory_inherited" {
+							fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+						}
+						fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+					})
+					column := "rol" + strings.ToLower(attribute)
+					if attribute == "SUPERUSER" {
+						column = "rolsuper"
+					}
+					fixture.expect("", "SELECT "+column+" FROM pg_catalog.pg_roles WHERE rolname='"+role+"'", "t")
+					if role == "memory_inherited" {
+						fixture.expect("memory_app", "SELECT pg_has_role(current_user, 'memory_inherited', 'MEMBER')", "t")
+					}
+					fixture.expectUnsafeFlag(1)
+				})
+			}
+		}
+	})
+
+	t.Run("predefined server roles reject readiness", func(t *testing.T) {
+		for _, role := range []string{"pg_read_server_files", "pg_write_server_files", "pg_execute_server_program", "pg_monitor", "pg_read_all_data", "pg_write_all_data"} {
+			t.Run(role, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				fixture.sql("", "GRANT "+role+" TO memory_inherited; GRANT memory_inherited TO memory_app;")
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE memory_inherited FROM memory_app; REVOKE "+role+" FROM memory_inherited;")
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect("memory_app", "SELECT pg_has_role(current_user, '"+role+"', 'MEMBER')", "t")
+				fixture.expectUnsafeFlag(1)
+			})
+		}
+	})
+
+	t.Run("schema and database owners reject readiness", func(t *testing.T) {
+		for _, role := range []string{"memory_app", "memory_inherited"} {
+			for _, object := range []string{"schema", "database"} {
+				t.Run(object+"/"+role, func(t *testing.T) {
+					fixture := &sqlFixture{t: t, id: d.id}
+					if role == "memory_inherited" {
+						fixture.sql("", "GRANT memory_inherited TO memory_app;")
+					}
+					if object == "schema" {
+						fixture.sql("", "ALTER SCHEMA agenova_memory OWNER TO "+role+"; REVOKE CREATE ON SCHEMA agenova_memory FROM "+role+";")
+					} else {
+						fixture.sql("", "ALTER DATABASE postgres OWNER TO "+role+";")
+					}
+					t.Cleanup(func() {
+						if object == "schema" {
+							fixture.sql("", "ALTER SCHEMA agenova_memory OWNER TO memory_owner; GRANT CREATE ON SCHEMA agenova_memory TO memory_owner; GRANT USAGE ON SCHEMA agenova_memory TO memory_app;")
+						} else {
+							fixture.sql("", "ALTER DATABASE postgres OWNER TO postgres;")
+						}
+						if role == "memory_inherited" {
+							fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+						}
+						fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+					})
+					if object == "schema" {
+						fixture.expect("memory_app", "SELECT has_schema_privilege(current_user, n.oid, 'CREATE'), pg_has_role(current_user, n.nspowner, 'MEMBER') FROM pg_catalog.pg_namespace n WHERE n.nspname='agenova_memory'", "f|t")
+					} else {
+						fixture.expect("memory_app", "SELECT pg_has_role(current_user, d.datdba, 'MEMBER') FROM pg_catalog.pg_database d WHERE d.datname=current_database()", "t")
+					}
+					fixture.expectUnsafeFlag(2)
+				})
+			}
+		}
+	})
+
+	t.Run("database CREATE rejects readiness", func(t *testing.T) {
+		for _, grantee := range []string{"memory_app", "memory_inherited", "PUBLIC"} {
+			t.Run(grantee, func(t *testing.T) {
+				fixture := &sqlFixture{t: t, id: d.id}
+				if grantee == "memory_inherited" {
+					fixture.sql("", "GRANT memory_inherited TO memory_app;")
+				}
+				fixture.sql("", "GRANT CREATE ON DATABASE postgres TO "+grantee+";")
+				t.Cleanup(func() {
+					fixture.sql("", "REVOKE CREATE ON DATABASE postgres FROM "+grantee+";")
+					if grantee == "memory_inherited" {
+						fixture.sql("", "REVOKE memory_inherited FROM memory_app;")
+					}
+					fixture.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				fixture.expect("memory_app", "SELECT has_database_privilege(current_user, current_database(), 'CREATE')", "t")
+				fixture.expectUnsafeFlag(2)
+			})
+		}
+	})
+
 	t.Run("unexpected table privileges reject readiness", func(t *testing.T) {
 		for _, object := range []string{"records", "receipts", "schema_version"} {
 			for _, privilege := range []string{"TRIGGER", "REFERENCES", "MAINTAIN"} {
@@ -261,6 +362,14 @@ func (d *sqlFixture) expect(role, statement, expected string) {
 	d.t.Helper()
 	if d.sql(role, statement) != expected {
 		d.t.Fatal("live SQL assertion failed; private result withheld")
+	}
+}
+
+func (d *sqlFixture) expectUnsafeFlag(index int) {
+	d.t.Helper()
+	flags := strings.Split(d.sql("memory_app", readinessSQL), "|")
+	if len(flags) != 5 || flags[index] != "f" {
+		d.t.Fatal("live readiness accepted an administrative role or ownership")
 	}
 }
 
