@@ -27,7 +27,7 @@ type StateReader interface {
 
 type FactSink interface {
 	// Append is a bounded local publication and must not call the state owner;
-	// admission publishes decision/attempt while holding its lifecycle boundary.
+	// admission/completion facts publish while holding the lifecycle boundary.
 	Append(facts.Fact) (facts.Fact, error)
 }
 
@@ -276,36 +276,48 @@ func (s *Session) invoke(ctx context.Context, request Request, receiptID string)
 	if err == nil {
 		result = s.reply(result, request, route, records)
 	}
-	// A known commit stays Written; revocation cannot promise rollback. Read
-	// content is never delivered when the admitted context has ended.
-	if request.Operation == v0.MemoryRead && (callCtx.Err() != nil || s.ctx.Err() != nil || !time.Now().Before(deadline) || !s.current()) {
-		result.Entries, result.Truncated = nil, false
-		result.Status = Cancelled
-		if errors.Is(callCtx.Err(), context.DeadlineExceeded) || !time.Now().Before(deadline) {
-			result.Status = Timeout
+	var outcomeErr error
+	outcomeObserved := false
+	// Read eligibility and outcome publication use one lifecycle snapshot.
+	// Terminal publication cannot split a successful read's final check/fact.
+	// This boundary contains only local validation/publication, never backend IO.
+	s.service.states.ObserveState(s.state.Claim.ID, func(current *v0.IssuedState) {
+		outcomeObserved = true
+		// A known commit stays Written; revocation cannot promise rollback. Read
+		// content is never delivered when the admitted context has ended.
+		if request.Operation == v0.MemoryRead && (callCtx.Err() != nil || s.ctx.Err() != nil || !time.Now().Before(deadline) || !s.matchesCurrent(current)) {
+			result.Entries, result.Truncated = nil, false
+			result.Status = Cancelled
+			if errors.Is(callCtx.Err(), context.DeadlineExceeded) || !time.Now().Before(deadline) {
+				result.Status = Timeout
+			}
 		}
-	}
-	if result.Status != Written && result.Status != Found && result.Status != Empty {
-		result.ReasonCode = "memory-" + strings.ToLower(string(result.Status))
-		if result.Status == WriteUncertain {
-			result.ReasonCode = "memory-write-uncertain"
+		if result.Status != Written && result.Status != Found && result.Status != Empty {
+			result.ReasonCode = "memory-" + strings.ToLower(string(result.Status))
+			if result.Status == WriteUncertain {
+				result.ReasonCode = "memory-write-uncertain"
+			}
 		}
+		metadata := &facts.MemoryMetadata{Status: string(result.Status), DurationMilliseconds: int(time.Since(started).Milliseconds()), Truncated: result.Truncated}
+		if result.Reference != "" {
+			metadata.References = []string{result.Reference}
+		}
+		for _, entry := range result.Entries {
+			metadata.References = append(metadata.References, entry.Reference)
+		}
+		metadata.Count = len(metadata.References)
+		fact.Kind, fact.ProviderStatus, fact.ReasonCode, fact.Memory = "ProviderOutcome", "Failed", result.ReasonCode, metadata
+		if result.Status == Written || result.Status == Found || result.Status == Empty {
+			fact.ProviderStatus = "Succeeded"
+		} else if result.Status == Cancelled {
+			fact.ProviderStatus = "Cancelled"
+		}
+		_, outcomeErr = s.service.facts.Append(fact)
+	})
+	if !outcomeObserved {
+		return Result{}, ErrBinding
 	}
-	metadata := &facts.MemoryMetadata{Status: string(result.Status), DurationMilliseconds: int(time.Since(started).Milliseconds()), Truncated: result.Truncated}
-	if result.Reference != "" {
-		metadata.References = []string{result.Reference}
-	}
-	for _, entry := range result.Entries {
-		metadata.References = append(metadata.References, entry.Reference)
-	}
-	metadata.Count = len(metadata.References)
-	fact.Kind, fact.ProviderStatus, fact.ReasonCode, fact.Memory = "ProviderOutcome", "Failed", result.ReasonCode, metadata
-	if result.Status == Written || result.Status == Found || result.Status == Empty {
-		fact.ProviderStatus = "Succeeded"
-	} else if result.Status == Cancelled {
-		fact.ProviderStatus = "Cancelled"
-	}
-	if _, err := s.service.facts.Append(fact); err != nil {
+	if outcomeErr != nil {
 		return Result{}, ErrEvidence
 	}
 	return result, nil

@@ -1,0 +1,15 @@
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/read-completion/read
+    memory_admission_test.go:210: unexpected Memory result: Found, delivered entries=1
+    memory_admission_test.go:231: read success published after terminal authority
+    memory_admission_test.go:235: real lifecycle/Memory evidence is rejected by connected reader
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/read-completion/read
+    memory_admission_test.go:210: unexpected Memory result: Found, delivered entries=1
+    memory_admission_test.go:231: read success published after terminal authority
+    memory_admission_test.go:235: real lifecycle/Memory evidence is rejected by connected reader
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/read-completion/read (0.00s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/read-completion/read (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/connectedclient	0.519s
+FAIL

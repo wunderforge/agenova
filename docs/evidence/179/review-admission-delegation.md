@@ -39,7 +39,7 @@ See Go's [AfterFunc contract](https://pkg.go.dev/context#AfterFunc).
 
 Twenty final race-enabled repetitions exercise 320 lifecycle interleavings and
 80 delayed-callback cases, plus existing retry handoffs. The
-[16 public producer traces](../../../work/0179-scoped-memory/memory-admission-traces.json)
+[16 public producer traces](https://github.com/wunderforge/agenova/blob/b4bf8f38ab395e4c0d4144cdc377cb8d4d4b1362/work/0179-scoped-memory/memory-admission-traces.json)
 were captured with explicit `AGENOVA_MEMORY_ADMISSION_TRACES` through the public
 serializer, checked for private sentinels, and accepted by Portal request/list
 readers. Normal/repeated tests do not write artifacts. Regeneration preserves

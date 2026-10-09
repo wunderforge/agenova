@@ -1,0 +1,5 @@
+ok  	github.com/wunderforge/agenova/internal/memory	3.473s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	2.663s
+ok  	github.com/wunderforge/agenova/internal/facts	3.034s
+ok  	github.com/wunderforge/agenova/internal/app	3.423s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	4.863s

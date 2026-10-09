@@ -24,10 +24,23 @@ import (
 // without sleeps, scheduler assumptions or a production hook.
 type admissionReader struct {
 	*app.RunService
-	observing atomic.Bool
+	observing       atomic.Bool
+	completionReady atomic.Bool
+	interrupt       func()
+}
+
+func (r *admissionReader) State(id string) *v0.IssuedState {
+	state := r.RunService.State(id)
+	if r.completionReady.CompareAndSwap(true, false) {
+		r.interrupt() // terminal publication overtakes the old completion snapshot.
+	}
+	return state
 }
 
 func (r *admissionReader) ObserveState(id string, observe func(*v0.IssuedState)) {
+	if r.completionReady.CompareAndSwap(true, false) {
+		r.interrupt() // let terminal win before the corrected completion boundary.
+	}
 	r.RunService.ObserveState(id, func(state *v0.IssuedState) {
 		r.observing.Store(true)
 		defer r.observing.Store(false)
@@ -53,6 +66,7 @@ type admissionRuntime struct{ claim string }
 type admissionBackend struct {
 	readerBackend
 	beforeCall func()
+	afterCall  func()
 }
 
 func (b *admissionBackend) Write(ctx context.Context, n memory.Namespace, in memory.WriteInput) (memory.Record, error) {
@@ -65,7 +79,11 @@ func (b *admissionBackend) Search(ctx context.Context, n memory.Namespace, in me
 	if b.beforeCall != nil {
 		b.beforeCall()
 	}
-	return b.readerBackend.Search(ctx, n, in)
+	records, err := b.readerBackend.Search(ctx, n, in)
+	if b.afterCall != nil {
+		b.afterCall()
+	}
+	return records, err
 }
 
 func (r *admissionRuntime) Allocate(in runtime.AllocateRequest) (runtime.Allocation, error) {
@@ -84,8 +102,11 @@ func (*admissionRuntime) Cleanup(id v0.SandboxClaimBackendIdentity) (runtime.Cle
 func TestMemoryAdmissionCorrelatesWithTerminalTransitions(t *testing.T) {
 	var traces []evidence.View
 	for _, interrupt := range []string{"cancel", "expire"} {
-		for _, boundary := range []string{"MemoryDecision", "ProviderAttempt", "terminal-first", "backend-in-flight"} {
+		for _, boundary := range []string{"MemoryDecision", "ProviderAttempt", "terminal-first", "backend-in-flight", "read-completion"} {
 			for _, operation := range []string{v0.MemoryRead, v0.MemoryWrite} {
+				if boundary == "read-completion" && operation == v0.MemoryWrite {
+					continue
+				}
 				name := interrupt + "/" + boundary + "/" + operation
 				t.Run(name, func(t *testing.T) {
 					view := memoryReaderView(t)
@@ -140,9 +161,12 @@ func TestMemoryAdmissionCorrelatesWithTerminalTransitions(t *testing.T) {
 							}
 						}
 						sink := &admissionSink{Journal: journal, kind: boundary, hook: interruptRun}
+						reader.interrupt = interruptRun
 						if boundary == "backend-in-flight" {
 							// Terminal publication must proceed while IO is in flight.
 							backend.beforeCall = interruptRun
+						} else if boundary == "read-completion" {
+							backend.afterCall = func() { reader.completionReady.Store(true) }
 						}
 						service, err := memory.New(reader, sink, backend, []memory.Namespace{{Team: "team-a", Project: "payments", Scope: "team-docs"}})
 						if err != nil {
@@ -170,7 +194,7 @@ func TestMemoryAdmissionCorrelatesWithTerminalTransitions(t *testing.T) {
 						t.Fatalf("unexpected run result: %v", runErr)
 					}
 					wantCalls := 0
-					if boundary == "backend-in-flight" {
+					if boundary == "backend-in-flight" || boundary == "read-completion" {
 						wantCalls = 1
 					}
 					if final == nil || backend.calls != wantCalls {
@@ -183,7 +207,7 @@ func TestMemoryAdmissionCorrelatesWithTerminalTransitions(t *testing.T) {
 						wantStatus = memory.Written // preserve a known commit after revocation.
 					}
 					if result.Status != wantStatus || len(result.Entries) != 0 {
-						t.Fatalf("unexpected Memory result: %s", result.Status)
+						t.Errorf("unexpected Memory result: %s, delivered entries=%d", result.Status, len(result.Entries))
 					}
 					outcomeStatus := "Failed"
 					if interrupt == "expire" {
@@ -202,6 +226,9 @@ func TestMemoryAdmissionCorrelatesWithTerminalTransitions(t *testing.T) {
 						}
 						if terminalSeen && (f.Kind == "MemoryDecision" && f.Result == v0.DecisionResultAllow || f.Kind == "ProviderAttempt") {
 							t.Error("new Memory admission published after terminal authority")
+						}
+						if terminalSeen && f.Kind == "ProviderOutcome" && f.Operation == "memory.read" && f.Memory != nil && f.Memory.Status == string(memory.Found) {
+							t.Error("read success published after terminal authority")
 						}
 					}
 					if !terminalSeen || !validEvidenceView(view, view.RequestRef) {
