@@ -12,8 +12,11 @@ taking #155 and reported no existing kind context. The Ticket is assigned to
 The internal host-only boundary captures a typed opaque reference, exact
 operator allowlist, explicit qualified resolver identity/version and immutable
 binding. Scoped use resolves once per call under the caller/five-second minimum
-deadline, bounds values to 64 KiB, clears owned buffers and returns only stable
+resolution deadline, bounds values to 64 KiB, clears owned buffers and returns only stable
 errors. Registry/binding/registration formatting and JSON/YAML are redacted.
+The [review correction](review-boundary.md) releases the resolver child before
+the consumer uses its original invocation context and replaces immutable Secret
+data strings with clearable encoded projections.
 Raw callback bytes remain trusted adapter-private data; Go cannot prevent a
 trusted consumer copying them. This is best-effort hygiene, not hostile-host
 isolation, general secret management or a new authority issuer.
@@ -69,9 +72,10 @@ generated frontend contracts and baseline tests are unchanged.
 | Repeated | `go test -count=20 ./internal/credentials/...` | pass |
 | Repository | `pwsh -NoProfile -File ./scripts/check.ps1 -All` | pass, all Go / 124 frontend tests / build / 52 browser cases |
 
-[Final source output](../../../work/0155-host-credentials/slice1-host-boundary-linux.log)
+[Foundation source output](../../../work/0155-host-credentials/slice1-host-boundary-linux.log)
 owns these results. Only evidence/publication documentation followed the passing
-source run. The [publication gate](../../../work/0155-host-credentials/slice1-publication-linux.log)
+foundation source run; subsequent review fixes have their own [campaign](review-boundary.md).
+The [foundation publication gate](../../../work/0155-host-credentials/slice1-publication-linux.log)
 records documentation, PR-body and whole-branch whitespace checks. Staging first
 detected extra EOF blank lines in three packet files; the initial commit was
 pushed before handling that failure. A follow-up removes those lines and reruns

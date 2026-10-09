@@ -5,8 +5,8 @@
 package kubernetes
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -86,19 +86,33 @@ func (r *Resolver) Resolve(ctx context.Context, ref credentials.Reference) ([]by
 			Name      string `json:"name"`
 			Namespace string `json:"namespace"`
 		} `json:"metadata"`
-		Type string            `json:"type"`
-		Data map[string]string `json:"data"`
+		Type string                     `json:"type"`
+		Data map[string]json.RawMessage `json:"data"`
 	}
+	defer func() { clearData(secret.Data) }()
 	if json.Unmarshal(raw, &secret) != nil || secret.APIVersion != "v1" || secret.Kind != "Secret" ||
 		secret.Metadata.Name != ref.Name || secret.Metadata.Namespace != r.namespace || secret.Type != "Opaque" {
 		return nil, credentials.ErrUnavailable
 	}
-	encoded, ok := secret.Data[ref.Key]
-	if !ok || len(encoded) == 0 || len(encoded) > base64.StdEncoding.EncodedLen(credentials.MaxValueBytes) {
+	return selectedValue(secret.Data, ref.Key)
+}
+
+func clearData(data map[string]json.RawMessage) {
+	for _, encoded := range data {
+		clear(encoded)
+	}
+}
+
+func selectedValue(data map[string]json.RawMessage, key string) ([]byte, error) {
+	defer clearData(data)
+	encoded := bytes.TrimSpace(data[key])
+	if len(encoded) < 2 || encoded[0] != '"' || encoded[len(encoded)-1] != '"' {
 		return nil, credentials.ErrUnavailable
 	}
-	value, err := base64.StdEncoding.Strict().DecodeString(encoded)
-	if err != nil || len(value) == 0 || len(value) > credentials.MaxValueBytes {
+	// The Secret JSON byte codec decodes only the selected field. RawMessage
+	// keeps every owned encoded projection clearable, including unrelated keys.
+	var value []byte
+	if json.Unmarshal(encoded, &value) != nil || len(value) == 0 || len(value) > credentials.MaxValueBytes {
 		clear(value)
 		return nil, credentials.ErrUnavailable
 	}

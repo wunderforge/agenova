@@ -185,3 +185,39 @@ func TestKubectlOutputBoundCannotBeBypassedByReaderFrom(t *testing.T) {
 		t.Fatal("oversized command output accepted")
 	}
 }
+
+func TestSelectedValueClearsAllOwnedEncodedFields(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		raw  []byte
+		ok   bool
+	}{
+		{"selected", []byte(`"c3ludGhldGlj"`), true},
+		{"escaped selected", []byte(`"\u0063\u0033ludGhldGlj"`), true},
+		{"missing", nil, false},
+		{"empty", []byte(`""`), false},
+		{"invalid base64", []byte(`"private-not-base64"`), false},
+		{"null", []byte(`null`), false},
+		{"array is not Secret byte encoding", []byte(`[1,2,3]`), false},
+		{"oversized", encode(t, base64.StdEncoding.EncodeToString(make([]byte, credentials.MaxValueBytes+1))), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			unrelated := []byte(`"unrelated-private-not-base64"`)
+			data := map[string]json.RawMessage{ref.Key: tc.raw, "unrelated": unrelated}
+			value, err := selectedValue(data, ref.Key)
+			defer clear(value)
+			if tc.ok {
+				if err != nil || !bytes.Equal(value, []byte("synthetic")) {
+					t.Fatal("selected value rejected or unrelated value decoded")
+				}
+			} else if err != credentials.ErrUnavailable || value != nil {
+				t.Fatal("invalid selected value not rejected")
+			}
+			for _, encoded := range data {
+				if !bytes.Equal(encoded, make([]byte, len(encoded))) {
+					t.Fatal("owned encoded Secret data not cleared")
+				}
+			}
+		})
+	}
+}

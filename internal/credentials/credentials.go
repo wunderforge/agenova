@@ -142,12 +142,16 @@ func (b *Binding) Use(ctx context.Context, consume func(context.Context, []byte)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
-	defer cancel()
-	raw, err := b.resolver.Resolve(ctx, b.ref)
+	resolution, cancel := context.WithTimeout(ctx, CallTimeout)
+	raw, err := b.resolver.Resolve(resolution, b.ref)
+	resolutionErr := resolution.Err()
+	cancel()
 	defer clear(raw)
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if resolutionErr != nil {
+		return resolutionErr
 	}
 	if err != nil || len(raw) == 0 || len(raw) > MaxValueBytes {
 		return ErrUnavailable

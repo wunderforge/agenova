@@ -208,6 +208,46 @@ func TestCancellationAndDeadlineStopBeforeUse(t *testing.T) {
 	}
 }
 
+func TestResolutionDeadlineDoesNotLimitConsumer(t *testing.T) {
+	for _, callerTimeout := range []time.Duration{0, time.Second, 20 * time.Second} {
+		t.Run(callerTimeout.String(), func(t *testing.T) {
+			caller := context.Background()
+			if callerTimeout != 0 {
+				var cancel context.CancelFunc
+				caller, cancel = context.WithTimeout(caller, callerTimeout)
+				defer cancel()
+			}
+			var resolution context.Context
+			r, err := credentials.New([]credentials.Registration{{ID: testRef.Resolver, Version: "0.1.0", Allowed: []credentials.Reference{testRef}, Resolver: resolverFunc(func(ctx context.Context, _ credentials.Reference) ([]byte, error) {
+				resolution = ctx
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) > credentials.CallTimeout {
+					t.Fatal("resolver deadline missing or unbounded")
+				}
+				return []byte("synthetic-material"), nil
+			})}})
+			if err != nil {
+				t.Fatal("setup failed")
+			}
+			b, err := r.Bind(testRef)
+			if err != nil {
+				t.Fatal("binding failed")
+			}
+			if err := b.Use(caller, func(ctx context.Context, _ []byte) error {
+				if ctx != caller {
+					t.Error("consumer inherited the resolver timeout instead of caller context")
+				}
+				if resolution.Err() != context.Canceled || ctx.Err() != nil {
+					t.Error("resolution context not released independently of live consumer")
+				}
+				return nil
+			}); err != nil {
+				t.Fatalf("consumer failed: %v", err)
+			}
+		})
+	}
+}
+
 func TestConcurrentUsesHaveIndependentClearedBuffers(t *testing.T) {
 	m := &memoryResolver{values: map[credentials.Reference][]byte{testRef: []byte("synthetic")}}
 	_, b := binding(t, m)

@@ -31,6 +31,9 @@ This is best-effort memory hygiene, not proof against a trusted adapter copying
 bytes. The adapter must never put callback material into public outputs.
 Errors from resolvers become stable non-disclosing errors; no diagnostic wrapping
 of raw provider strings. Check caller cancellation and bound resolution deadlines.
+The resolver gets a dedicated caller/five-second-minimum child context, released
+before consumption. The consumer receives the original invocation context, so
+credential resolution does not shorten Tool/Model provider calls.
 Scoped use returns stable errors only. Adapters retain their own typed business
 outcome separately and must not infer rollback or write certainty from a use error.
 
@@ -42,6 +45,11 @@ the contract but not RBAC. The first reference adapter selects Opaque Secrets
 only, accepts at most 64 KiB of selected material and 2 MiB of JSON transport,
 and requires the [Kubernetes Secret name/key rules](https://kubernetes.io/docs/concepts/configuration/secret/#constraints-on-secret-names-and-data).
 ServiceAccount token Secrets are not external provider credentials in this scope.
+The private JSON projection keeps data fields as owned RawMessage buffers, not
+immutable encoded strings. Standard Secret JSON byte decoding is applied only
+to the selected string field. Raw/encoded owned material is cleared on every
+return; successful decoded bytes transfer to scoped use. Runtime/library
+temporaries remain outside the owned-buffer cleanup proof.
 Missing/forbidden/wrong-kind/backend failure collapse
 to a non-disclosing resolution failure. A selected real integration gate must
 require explicit context/namespace and report the absent environment.

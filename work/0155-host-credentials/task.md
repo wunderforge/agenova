@@ -24,6 +24,7 @@ Additional task-specific context:
 - [Platform contract](../../api/v1alpha1/platform.go), [resolution](../../internal/platform/resolve.go), [registry types](../../internal/adapterregistry/types.go), and [bundled adapters](../../internal/adapters/bundled/)
 - [Model gateway](../../internal/modelgateway/), [Tool gateway](../../internal/toolgateway/), [installed composition](../../cmd/agenova-control-plane/main.go), and [Agent Sandbox tests](../../internal/runtime/agentsandbox/)
 - [Host credentials](../../internal/credentials/credentials.go), [contract tests](../../internal/credentials/credentials_test.go), [Gateway composition tests](../../internal/credentials/gateway_test.go), [Secret adapter](../../internal/credentials/kubernetes/secret.go), [bounded transport](../../internal/credentials/kubernetes/kubectl.go), [adapter tests](../../internal/credentials/kubernetes/secret_test.go) and [foundation evidence](../../docs/evidence/155/host-boundary.md)
+- [Boundary review corrections and evidence](../../docs/evidence/155/review-boundary.md): resolver/consumer deadline separation and owned encoded Secret-buffer cleanup
 - Consumers: [#175](https://github.com/wunderforge/agenova/issues/175), [#178](https://github.com/wunderforge/agenova/issues/178), [#179](https://github.com/wunderforge/agenova/issues/179); parent [#176](https://github.com/wunderforge/agenova/issues/176)
 
 ## Scope
@@ -61,6 +62,7 @@ Out of scope:
 - [x] Assignee self-review: Task/Spec/Design matches the accepted Ticket, PRD and architecture; no authority/identity product expansion or separate packet approval is required.
 - [x] Slice 1: host-only typed reference, immutable explicit registry/binding, scoped material and deterministic spy tests.
 - [x] Slice 1: bounded Kubernetes Secret resolver and named synthetic negative/rotation/privacy tests; no live backend claim.
+- [x] Review corrections: separate resolver timeout from caller-owned provider invocation; replace immutable Secret value strings with clearable encoded storage and decode only the selected value; focused/race/repeated/full gates passed. Independent re-review remains required.
 - [ ] Slice 2: accepted Platform reference shape, resolver registry activation/readiness and consumer composition, preserving #36 and unsupported behavior.
 - [ ] Slice 3: explicit-context Secret/RBAC/rotation integration campaign, worker/public secret scans and independent reproduction.
 - [ ] Run each slice's focused/race gate and `./scripts/check.ps1 -All`, then review and publish exact evidence.
@@ -103,3 +105,9 @@ Out of scope:
 - The first WSL full gate stopped because the Windows managed-worktree gitdir was not understood by Linux Git. The final ignored runner maps `GIT_DIR`/`GIT_WORK_TREE` and uses a Windows/WSL-compatible dependency junction; package-lock hashes match. No harness checks or source/dependency requirements were weakened.
 - The [final source campaign](slice1-host-boundary-linux.log) passed focused tests, race checks, 20 repeated credential-package runs and `check.ps1 -All`: all Go, generated contracts, 124 frontend tests, build and 52 browser cases. Only documentation/publication edits followed. [Evidence](../../docs/evidence/155/host-boundary.md) records exact gates and residual gaps. Keep #155 open; independent review, Platform wiring and real Secret integration remain outstanding.
 - Publication staging found three packet files with an extra blank line at EOF. The initial commit was pushed before that failure was handled; a follow-up removes the blank lines and reruns the documentation, PR-body, staged and whole-branch whitespace gates. No implementation changed after the passing source campaign.
+
+## Boundary Review Corrections - 2026-10-09
+
+- Draft #213 at `a9eabf4` passed baseline CI. Its two P2 findings are addressed before expanding Platform work: the resolver child deadline is released before the consumer receives its original caller-owned invocation context, and encoded Secret values now use owned clearable RawMessage projections instead of immutable value strings. Only the selected JSON byte field is decoded; all owned encoded projections are cleared even on identity/selection failure.
+- The context regression failed before the production change for background/short/long caller contexts. Cleanup regressions cover valid/escaped selected data and missing/empty/null/non-string/invalid/oversized data, with unrelated data never decoded. Buffer cleanup is best-effort and does not claim erasure of all runtime/library temporaries or trusted consumer copies.
+- The [final review campaign](review-boundary-linux.log) passed focused/race checks, 20 repeated credential-package runs and `check.ps1 -All`: all Go, generated contracts, 124 frontend tests, build and 52 browser cases. Only documentation/publication edits followed; [review evidence](../../docs/evidence/155/review-boundary.md) owns exact results and limits. Platform activation/installed wiring, no-context live Secret/RBAC/reload and independent acceptance remain outstanding. Keep #155 open and #213 draft.

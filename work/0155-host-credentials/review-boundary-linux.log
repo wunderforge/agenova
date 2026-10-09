@@ -1,0 +1,1276 @@
+=== RUN   TestReferenceRegistryAndBindingAreFailClosed
+--- PASS: TestReferenceRegistryAndBindingAreFailClosed (0.00s)
+=== RUN   TestScopedMaterialRedactionReleaseAndRotation
+--- PASS: TestScopedMaterialRedactionReleaseAndRotation (0.00s)
+=== RUN   TestUnavailableResolutionNeverCallsConsumer
+=== RUN   TestUnavailableResolutionNeverCallsConsumer/missing
+=== RUN   TestUnavailableResolutionNeverCallsConsumer/empty
+=== RUN   TestUnavailableResolutionNeverCallsConsumer/oversized
+=== RUN   TestUnavailableResolutionNeverCallsConsumer/provider_fault
+--- PASS: TestUnavailableResolutionNeverCallsConsumer (0.00s)
+    --- PASS: TestUnavailableResolutionNeverCallsConsumer/missing (0.00s)
+    --- PASS: TestUnavailableResolutionNeverCallsConsumer/empty (0.00s)
+    --- PASS: TestUnavailableResolutionNeverCallsConsumer/oversized (0.00s)
+    --- PASS: TestUnavailableResolutionNeverCallsConsumer/provider_fault (0.00s)
+=== RUN   TestCancellationAndDeadlineStopBeforeUse
+--- PASS: TestCancellationAndDeadlineStopBeforeUse (0.01s)
+=== RUN   TestResolutionDeadlineDoesNotLimitConsumer
+=== RUN   TestResolutionDeadlineDoesNotLimitConsumer/0s
+=== RUN   TestResolutionDeadlineDoesNotLimitConsumer/1s
+=== RUN   TestResolutionDeadlineDoesNotLimitConsumer/20s
+--- PASS: TestResolutionDeadlineDoesNotLimitConsumer (0.00s)
+    --- PASS: TestResolutionDeadlineDoesNotLimitConsumer/0s (0.00s)
+    --- PASS: TestResolutionDeadlineDoesNotLimitConsumer/1s (0.00s)
+    --- PASS: TestResolutionDeadlineDoesNotLimitConsumer/20s (0.00s)
+=== RUN   TestConcurrentUsesHaveIndependentClearedBuffers
+--- PASS: TestConcurrentUsesHaveIndependentClearedBuffers (0.00s)
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/positive_control
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/Pending
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/Bound
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/Succeeded
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/Failed
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/Expired
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/unknown_claim
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/ungranted_profile
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/worker_credential
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/evidence_failure
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/missing_admitted_credential
+=== RUN   TestModelAdmissionPrecedesCredentialAndExternalCalls/worker_cannot_retarget_host_binding
+--- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/positive_control (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/Pending (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/Bound (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/Succeeded (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/Failed (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/Expired (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/unknown_claim (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/ungranted_profile (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/worker_credential (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/evidence_failure (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/missing_admitted_credential (0.00s)
+    --- PASS: TestModelAdmissionPrecedesCredentialAndExternalCalls/worker_cannot_retarget_host_binding (0.00s)
+=== RUN   TestToolAdmissionPrecedesCredentialAndExternalCalls
+=== RUN   TestToolAdmissionPrecedesCredentialAndExternalCalls/positive_control
+=== RUN   TestToolAdmissionPrecedesCredentialAndExternalCalls/terminal
+=== RUN   TestToolAdmissionPrecedesCredentialAndExternalCalls/ungranted_tool
+=== RUN   TestToolAdmissionPrecedesCredentialAndExternalCalls/ungranted_scope
+--- PASS: TestToolAdmissionPrecedesCredentialAndExternalCalls (0.00s)
+    --- PASS: TestToolAdmissionPrecedesCredentialAndExternalCalls/positive_control (0.00s)
+    --- PASS: TestToolAdmissionPrecedesCredentialAndExternalCalls/terminal (0.00s)
+    --- PASS: TestToolAdmissionPrecedesCredentialAndExternalCalls/ungranted_tool (0.00s)
+    --- PASS: TestToolAdmissionPrecedesCredentialAndExternalCalls/ungranted_scope (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/credentials	0.028s
+=== RUN   TestSecretLookupIsExactBoundedAndImmutable
+--- PASS: TestSecretLookupIsExactBoundedAndImmutable (0.00s)
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/missing
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/forbidden
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/unavailable
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_kind
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_version
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/foreign_name
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/foreign_namespace
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_Secret_type
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/missing_key
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/invalid_base64
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/empty_value
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/oversized_value
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/malformed_JSON
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/trailing_JSON
+=== RUN   TestSecretFailuresAreNonDisclosingAndStopConsumer/oversized_JSON
+--- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/missing (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/forbidden (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/unavailable (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_kind (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_version (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/foreign_name (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/foreign_namespace (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/wrong_Secret_type (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/missing_key (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/invalid_base64 (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/empty_value (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/oversized_value (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/malformed_JSON (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/trailing_JSON (0.00s)
+    --- PASS: TestSecretFailuresAreNonDisclosingAndStopConsumer/oversized_JSON (0.00s)
+=== RUN   TestSecretConstructionAndCancellationHaveZeroCalls
+--- PASS: TestSecretConstructionAndCancellationHaveZeroCalls (0.00s)
+=== RUN   TestKubectlUsesExplicitIdentityAndSanitizesOutput
+--- PASS: TestKubectlUsesExplicitIdentityAndSanitizesOutput (0.00s)
+=== RUN   TestKubectlOutputBoundCannotBeBypassedByReaderFrom
+--- PASS: TestKubectlOutputBoundCannotBeBypassedByReaderFrom (0.00s)
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/selected
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/escaped_selected
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/missing
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/empty
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/invalid_base64
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/null
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/array_is_not_Secret_byte_encoding
+=== RUN   TestSelectedValueClearsAllOwnedEncodedFields/oversized
+--- PASS: TestSelectedValueClearsAllOwnedEncodedFields (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/selected (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/escaped_selected (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/missing (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/empty (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/invalid_base64 (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/null (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/array_is_not_Secret_byte_encoding (0.00s)
+    --- PASS: TestSelectedValueClearsAllOwnedEncodedFields/oversized (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/credentials/kubernetes	0.016s
+=== RUN   TestAgentTemplateFixtures
+=== RUN   TestAgentTemplateFixtures/agent-template.valid.engineer
+=== RUN   TestAgentTemplateFixtures/agent-template.invalid.missing-artifact
+=== RUN   TestAgentTemplateFixtures/agent-template.invalid.missing-entrypoint
+=== RUN   TestAgentTemplateFixtures/agent-template.invalid.capability-ceiling
+=== RUN   TestAgentTemplateFixtures/agent-template.invalid.issued-authority
+=== RUN   TestAgentTemplateFixtures/agent-template.invalid.secret-value
+--- PASS: TestAgentTemplateFixtures (0.02s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.valid.engineer (0.00s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.invalid.missing-artifact (0.00s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.invalid.missing-entrypoint (0.00s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.invalid.capability-ceiling (0.00s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.invalid.issued-authority (0.00s)
+    --- PASS: TestAgentTemplateFixtures/agent-template.invalid.secret-value (0.00s)
+=== RUN   TestValidateAgentTemplateRequiresNonBlankName
+=== RUN   TestValidateAgentTemplateRequiresNonBlankName/name=
+=== RUN   TestValidateAgentTemplateRequiresNonBlankName/name=___
+--- PASS: TestValidateAgentTemplateRequiresNonBlankName (0.00s)
+    --- PASS: TestValidateAgentTemplateRequiresNonBlankName/name= (0.00s)
+    --- PASS: TestValidateAgentTemplateRequiresNonBlankName/name=___ (0.00s)
+=== RUN   TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint
+=== RUN   TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/blank_artifact_image
+=== RUN   TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/empty_command
+=== RUN   TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/blank_command_element
+--- PASS: TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint (0.00s)
+    --- PASS: TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/blank_artifact_image (0.00s)
+    --- PASS: TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/empty_command (0.00s)
+    --- PASS: TestValidateAgentTemplateRequiresRunnableArtifactAndEntrypoint/blank_command_element (0.00s)
+=== RUN   TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny
+=== RUN   TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny/missing
+=== RUN   TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny/explicitly_empty
+--- PASS: TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny (0.00s)
+    --- PASS: TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny/missing (0.00s)
+    --- PASS: TestValidateAgentTemplateCapabilityCeilingPresenceAndDefaultDeny/explicitly_empty (0.00s)
+=== RUN   TestValidateAgentTemplateRejectsDefaultsOutsideCeiling
+=== RUN   TestValidateAgentTemplateRejectsDefaultsOutsideCeiling/model_profile
+=== RUN   TestValidateAgentTemplateRejectsDefaultsOutsideCeiling/memory_scope
+--- PASS: TestValidateAgentTemplateRejectsDefaultsOutsideCeiling (0.00s)
+    --- PASS: TestValidateAgentTemplateRejectsDefaultsOutsideCeiling/model_profile (0.00s)
+    --- PASS: TestValidateAgentTemplateRejectsDefaultsOutsideCeiling/memory_scope (0.00s)
+=== RUN   TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues
+=== RUN   TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/blank_list_value
+=== RUN   TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/duplicate_list_value
+=== RUN   TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/non-positive_timeout
+--- PASS: TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues (0.00s)
+    --- PASS: TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/blank_list_value (0.00s)
+    --- PASS: TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/duplicate_list_value (0.00s)
+    --- PASS: TestValidateAgentTemplateRejectsInvalidCapabilityCeilingValues/non-positive_timeout (0.00s)
+=== RUN   TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath
+=== RUN   TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/issued_authority
+=== RUN   TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/credential-bearing_environment
+=== RUN   TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/other_credential-like_field
+=== RUN   TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/similar_authority_field
+--- PASS: TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath (0.00s)
+    --- PASS: TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/issued_authority (0.00s)
+    --- PASS: TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/credential-bearing_environment (0.00s)
+    --- PASS: TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/other_credential-like_field (0.00s)
+    --- PASS: TestParseAgentTemplateYAMLClassifiesReservedFieldsByExactPath/similar_authority_field (0.00s)
+=== RUN   TestParseAgentTemplateYAMLDoesNotScanValuesForSecrets
+--- PASS: TestParseAgentTemplateYAMLDoesNotScanValuesForSecrets (0.00s)
+=== RUN   TestParseAgentTemplateYAMLRejectsUnknownNestedField
+--- PASS: TestParseAgentTemplateYAMLRejectsUnknownNestedField (0.00s)
+=== RUN   TestParseAgentTemplateYAMLRejectsMultipleDocuments
+--- PASS: TestParseAgentTemplateYAMLRejectsMultipleDocuments (0.00s)
+=== RUN   TestClaimRequestFixtures
+=== RUN   TestClaimRequestFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestClaimRequestFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestClaimRequestFixtures/claim-request.invalid.missing-template
+=== RUN   TestClaimRequestFixtures/claim-request.invalid.missing-task
+=== RUN   TestClaimRequestFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestClaimRequestFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestClaimRequestFixtures/claim-request.invalid.secret-value
+--- PASS: TestClaimRequestFixtures (0.02s)
+    --- PASS: TestClaimRequestFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestClaimRequestFixtures/claim-request.invalid.secret-value (0.00s)
+=== RUN   TestClaimRequestSurfacesAreSemanticallyEquivalent
+--- PASS: TestClaimRequestSurfacesAreSemanticallyEquivalent (0.00s)
+=== RUN   TestValidateClaimRequestRequiredFields
+=== RUN   TestValidateClaimRequestRequiredFields/blank_metadata_name
+=== RUN   TestValidateClaimRequestRequiredFields/blank_templateRef
+=== RUN   TestValidateClaimRequestRequiredFields/missing_task
+=== RUN   TestValidateClaimRequestRequiredFields/blank_task_type
+=== RUN   TestValidateClaimRequestRequiredFields/missing_runtime
+=== RUN   TestValidateClaimRequestRequiredFields/blank_runtime_profileRef
+=== RUN   TestValidateClaimRequestRequiredFields/missing_runtime_timeout
+=== RUN   TestValidateClaimRequestRequiredFields/wrong_apiVersion
+=== RUN   TestValidateClaimRequestRequiredFields/wrong_kind
+=== RUN   TestValidateClaimRequestRequiredFields/blank_requested_tool
+=== RUN   TestValidateClaimRequestRequiredFields/duplicate_requested_tool
+--- PASS: TestValidateClaimRequestRequiredFields (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/blank_metadata_name (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/blank_templateRef (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/missing_task (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/blank_task_type (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/missing_runtime (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/blank_runtime_profileRef (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/missing_runtime_timeout (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/wrong_apiVersion (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/wrong_kind (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/blank_requested_tool (0.00s)
+    --- PASS: TestValidateClaimRequestRequiredFields/duplicate_requested_tool (0.00s)
+=== RUN   TestValidateClaimRequestOptionalSurfaces
+=== RUN   TestValidateClaimRequestOptionalSurfaces/absent_task_input
+=== RUN   TestValidateClaimRequestOptionalSurfaces/empty_task_input
+=== RUN   TestValidateClaimRequestOptionalSurfaces/empty_requested_access_is_default-deny
+=== RUN   TestValidateClaimRequestOptionalSurfaces/explicitly_empty_surfaces_parse_from_YAML
+--- PASS: TestValidateClaimRequestOptionalSurfaces (0.00s)
+    --- PASS: TestValidateClaimRequestOptionalSurfaces/absent_task_input (0.00s)
+    --- PASS: TestValidateClaimRequestOptionalSurfaces/empty_task_input (0.00s)
+    --- PASS: TestValidateClaimRequestOptionalSurfaces/empty_requested_access_is_default-deny (0.00s)
+    --- PASS: TestValidateClaimRequestOptionalSurfaces/explicitly_empty_surfaces_parse_from_YAML (0.00s)
+=== RUN   TestClaimRequestJSONRoundTrip
+--- PASS: TestClaimRequestJSONRoundTrip (0.00s)
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_requestedAccess_is_default-deny
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_task_input
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_requested_list
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_reserved_paths_keep_their_category
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_optional_scalar_is_empty
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_runtime
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/profileRef
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/kind
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/metadata_name
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/templateRef
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/task_type
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/timeout
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/apiVersion
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_metadata
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_spec
+=== RUN   TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_task
+--- PASS: TestParseClaimRequestTreatsNullAsEmpty (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_requestedAccess_is_default-deny (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_task_input (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_requested_list (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_reserved_paths_keep_their_category (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_optional_scalar_is_empty (0.00s)
+    --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_runtime (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/profileRef (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/kind (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/metadata_name (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/templateRef (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/task_type (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/timeout (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/apiVersion (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_metadata (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_spec (0.00s)
+        --- PASS: TestParseClaimRequestTreatsNullAsEmpty/null_required_fields_report_required-field/whole_task (0.00s)
+=== RUN   TestClaimRequestYAMLRoundTrip
+--- PASS: TestClaimRequestYAMLRoundTrip (0.00s)
+=== RUN   TestClaimRequestStructuredTaskInput
+--- PASS: TestClaimRequestStructuredTaskInput (0.00s)
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/timestamp_tag
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/infinite_float
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/alias_value
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/custom_tag
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/nan_float
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/nested_bad_item
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/non-string_key
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/duplicate_key
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/merge_key
+=== RUN   TestParseClaimRequestRejectsNonJSONTaskInput/binary_tag
+--- PASS: TestParseClaimRequestRejectsNonJSONTaskInput (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/timestamp_tag (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/infinite_float (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/alias_value (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/custom_tag (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/nan_float (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/nested_bad_item (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/non-string_key (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/duplicate_key (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/merge_key (0.00s)
+    --- PASS: TestParseClaimRequestRejectsNonJSONTaskInput/binary_tag (0.00s)
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/cyclic_slice
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/typed_bad_element
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/pointer_value
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/NaN_float
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/time_value
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/named_binary_value
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/nested_bad_item
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/non-string-key_map
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/cyclic_map
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/infinite_float
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/binary_value
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/empty_named_bytes
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/raw_JSON_object
+=== RUN   TestValidateClaimRequestRejectsNonJSONTaskInputValues/nested_bad_map
+--- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/cyclic_slice (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/typed_bad_element (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/pointer_value (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/NaN_float (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/time_value (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/named_binary_value (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/nested_bad_item (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/non-string-key_map (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/cyclic_map (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/infinite_float (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/binary_value (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/empty_named_bytes (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/raw_JSON_object (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonJSONTaskInputValues/nested_bad_map (0.00s)
+=== RUN   TestValidateClaimRequestAcceptsTypedTaskInputContainers
+--- PASS: TestValidateClaimRequestAcceptsTypedTaskInputContainers (0.00s)
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/YAML_nested_input
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/JSON_nested_input
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/direct_Go_typed_nested_map
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/Azure_client_secret_across_parsers_and_direct_Go
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/GH_TOKEN
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/GH_ENTERPRISE_TOKEN
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/GITHUB_ENTERPRISE_TOKEN
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/NPM_TOKEN
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/GITLAB_TOKEN
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/SSH_PRIVATE_KEY
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/_auth
+=== RUN   TestClaimRequestRejectsCredentialBearingTaskInputFields/_authToken
+--- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/YAML_nested_input (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/JSON_nested_input (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/direct_Go_typed_nested_map (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/Azure_client_secret_across_parsers_and_direct_Go (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/GH_TOKEN (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/GH_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/GITHUB_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/NPM_TOKEN (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/GITLAB_TOKEN (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/SSH_PRIVATE_KEY (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/_auth (0.00s)
+    --- PASS: TestClaimRequestRejectsCredentialBearingTaskInputFields/_authToken (0.00s)
+=== RUN   TestValidateClaimRequestRejectsNonPositiveTimeout
+=== RUN   TestValidateClaimRequestRejectsNonPositiveTimeout/0s
+=== RUN   TestValidateClaimRequestRejectsNonPositiveTimeout/-5m0s
+--- PASS: TestValidateClaimRequestRejectsNonPositiveTimeout (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonPositiveTimeout/0s (0.00s)
+    --- PASS: TestValidateClaimRequestRejectsNonPositiveTimeout/-5m0s (0.00s)
+=== RUN   TestParseClaimRequestFailsClosed
+=== RUN   TestParseClaimRequestFailsClosed/multiple_YAML_documents
+=== RUN   TestParseClaimRequestFailsClosed/empty_document
+=== RUN   TestParseClaimRequestFailsClosed/JSON_surface_rejects_non-JSON_input
+=== RUN   TestParseClaimRequestFailsClosed/unknown_field_fails_closed
+=== RUN   TestParseClaimRequestFailsClosed/reserved_principal_path_on_the_YAML_surface
+=== RUN   TestParseClaimRequestFailsClosed/reserved_secrets_path_on_the_YAML_surface
+=== RUN   TestParseClaimRequestFailsClosed/non-positive_timeout
+--- PASS: TestParseClaimRequestFailsClosed (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/multiple_YAML_documents (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/empty_document (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/JSON_surface_rejects_non-JSON_input (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/unknown_field_fails_closed (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/reserved_principal_path_on_the_YAML_surface (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/reserved_secrets_path_on_the_YAML_surface (0.00s)
+    --- PASS: TestParseClaimRequestFailsClosed/non-positive_timeout (0.00s)
+=== RUN   TestReservedCredentialFieldNameUsesExactNormalizedVocabulary
+--- PASS: TestReservedCredentialFieldNameUsesExactNormalizedVocabulary (0.00s)
+=== RUN   TestFindReservedCredentialFieldNameIsStable
+--- PASS: TestFindReservedCredentialFieldNameIsStable (0.00s)
+=== RUN   TestPlatformContractParsesEquivalentYAMLAndJSON
+--- PASS: TestPlatformContractParsesEquivalentYAMLAndJSON (0.00s)
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/unknown_field
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/unknown_adapter
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/unknown_backend
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/credential_reference
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/API_key_reference
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/token_reference
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/password_reference
+=== RUN   TestPlatformContractRejectsInvalidShapesAndReferences/direct_secret
+--- PASS: TestPlatformContractRejectsInvalidShapesAndReferences (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/unknown_field (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/unknown_adapter (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/unknown_backend (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/credential_reference (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/API_key_reference (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/token_reference (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/password_reference (0.00s)
+    --- PASS: TestPlatformContractRejectsInvalidShapesAndReferences/direct_secret (0.00s)
+=== RUN   TestPlatformContractRejectsMultipleDocumentsAndNonJSONConfig
+--- PASS: TestPlatformContractRejectsMultipleDocumentsAndNonJSONConfig (0.00s)
+=== RUN   TestIssuedStateFixtures
+=== RUN   TestIssuedStateFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestIssuedStateFixtures/issued-state.valid.team-b-denial
+=== RUN   TestIssuedStateFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestIssuedStateFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestIssuedStateFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestIssuedStateFixtures (0.02s)
+    --- PASS: TestIssuedStateFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestIssuedStateFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestIssuedStateFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestIssuedStateFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestIssuedStateFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestValidateIssuedState_AllowRequiresClaimAndAuthority
+--- PASS: TestValidateIssuedState_AllowRequiresClaimAndAuthority (0.00s)
+=== RUN   TestValidateIssuedState_AllowRequiresEffectiveAuthority
+--- PASS: TestValidateIssuedState_AllowRequiresEffectiveAuthority (0.00s)
+=== RUN   TestValidateIssuedState_DenyMustNotCarryClaimOrAuthority
+--- PASS: TestValidateIssuedState_DenyMustNotCarryClaimOrAuthority (0.00s)
+=== RUN   TestValidateIssuedState_EvidenceDecisionIdsMustContainDecision
+--- PASS: TestValidateIssuedState_EvidenceDecisionIdsMustContainDecision (0.00s)
+=== RUN   TestValidateIssuedState_EvidenceClaimIdRequiresAllow
+--- PASS: TestValidateIssuedState_EvidenceClaimIdRequiresAllow (0.00s)
+=== RUN   TestValidateIssuedState_PendingClaimWithoutBackendIdentityIsValid
+--- PASS: TestValidateIssuedState_PendingClaimWithoutBackendIdentityIsValid (0.00s)
+=== RUN   TestValidateIssuedState_PendingClaimRejectsBackendIdentity
+--- PASS: TestValidateIssuedState_PendingClaimRejectsBackendIdentity (0.00s)
+=== RUN   TestValidateIssuedState_ApprovalRequiredIsNotGrantedAuthority
+--- PASS: TestValidateIssuedState_ApprovalRequiredIsNotGrantedAuthority (0.00s)
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_policyRef.id
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_policyRef.version
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_decision.reason
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_action.project
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_action.templateRef_and_claim.templateRef
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.templateRef_alone
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.id
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_effectiveAuthority.id_and_claim.authorityRef
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.authorityRef_alone
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_effectiveAuthority.runtime.profileRef
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/unknown_claim.phase
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.phase
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/claim.templateRef_mismatched_with_action.templateRef
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_backendIdentity.backend
+=== RUN   TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_backendIdentity.workerId
+--- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_policyRef.id (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_policyRef.version (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_decision.reason (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_action.project (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_action.templateRef_and_claim.templateRef (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.templateRef_alone (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.id (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_effectiveAuthority.id_and_claim.authorityRef (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.authorityRef_alone (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_effectiveAuthority.runtime.profileRef (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/unknown_claim.phase (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_claim.phase (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/claim.templateRef_mismatched_with_action.templateRef (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_backendIdentity.backend (0.00s)
+    --- PASS: TestValidateIssuedState_FailsClosedOnBlankOrInvalidFields/blank_backendIdentity.workerId (0.00s)
+=== RUN   TestParseSystemIssuedState_RejectsMalformedTimeoutSyntax
+--- PASS: TestParseSystemIssuedState_RejectsMalformedTimeoutSyntax (0.00s)
+=== RUN   TestValidateIssuedState_RejectsNonPositiveTimeout
+--- PASS: TestValidateIssuedState_RejectsNonPositiveTimeout (0.00s)
+=== RUN   TestParseCallerIssuedState_IgnoresSpoofedSourceField
+--- PASS: TestParseCallerIssuedState_IgnoresSpoofedSourceField (0.00s)
+=== RUN   TestParseCallerIssuedState_RejectsEffectiveAuthority
+--- PASS: TestParseCallerIssuedState_RejectsEffectiveAuthority (0.00s)
+=== RUN   TestParseCallerIssuedState_RejectsBackendIdentity
+--- PASS: TestParseCallerIssuedState_RejectsBackendIdentity (0.00s)
+=== RUN   TestParseSystemIssuedState_AcceptsSystemManagedFields
+--- PASS: TestParseSystemIssuedState_AcceptsSystemManagedFields (0.00s)
+=== RUN   TestParseIssuedState_RejectsDecisionResultOutsideVocabulary
+--- PASS: TestParseIssuedState_RejectsDecisionResultOutsideVocabulary (0.00s)
+=== RUN   TestIssuedStateFixtures_RoundTrip
+=== RUN   TestIssuedStateFixtures_RoundTrip/issued-state.valid.team-a-engineer
+=== RUN   TestIssuedStateFixtures_RoundTrip/issued-state.valid.team-b-denial
+--- PASS: TestIssuedStateFixtures_RoundTrip (0.01s)
+    --- PASS: TestIssuedStateFixtures_RoundTrip/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestIssuedStateFixtures_RoundTrip/issued-state.valid.team-b-denial (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.090s
+=== RUN   TestNormalizeParameterKey
+--- PASS: TestNormalizeParameterKey (0.00s)
+=== RUN   TestReservedCredentialKey
+--- PASS: TestReservedCredentialKey (0.00s)
+=== RUN   TestFindReservedCredentialKey
+--- PASS: TestFindReservedCredentialKey (0.00s)
+=== RUN   TestFindReservedCredentialKeyIsDeterministic
+--- PASS: TestFindReservedCredentialKeyIsDeterministic (0.00s)
+=== RUN   TestAmbiguousResourceScope
+--- PASS: TestAmbiguousResourceScope (0.00s)
+=== RUN   TestSequenceIDSource
+--- PASS: TestSequenceIDSource (0.00s)
+=== RUN   TestRandomIDSource
+--- PASS: TestRandomIDSource (0.00s)
+=== RUN   TestAllowedOutcome
+--- PASS: TestAllowedOutcome (0.00s)
+=== RUN   TestOutcomeNormalizeFailsClosed
+--- PASS: TestOutcomeNormalizeFailsClosed (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/gateway	0.007s
+=== RUN   TestGatewayAllowCorrelatesDecisionAttemptAndFact
+--- PASS: TestGatewayAllowCorrelatesDecisionAttemptAndFact (0.00s)
+=== RUN   TestGatewayPolicyCannotMutateAdapterRequestParameters
+--- PASS: TestGatewayPolicyCannotMutateAdapterRequestParameters (0.00s)
+=== RUN   TestGatewayUsesAdapterPrivateProviderConfiguration
+--- PASS: TestGatewayUsesAdapterPrivateProviderConfiguration (0.00s)
+=== RUN   TestGatewayIssuesFreshTrustedIDBeforeValidation
+--- PASS: TestGatewayIssuesFreshTrustedIDBeforeValidation (0.00s)
+=== RUN   TestGatewayIssuesInvocationIDBeforePolicyEvaluation
+--- PASS: TestGatewayIssuesInvocationIDBeforePolicyEvaluation (0.00s)
+=== RUN   TestGatewayAllowCarriesPolicyReason
+--- PASS: TestGatewayAllowCarriesPolicyReason (0.00s)
+=== RUN   TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy
+=== RUN   TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/forbidden_tool
+=== RUN   TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/wrong_repository
+=== RUN   TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/missing_authority
+=== RUN   TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/mismatched_authority
+--- PASS: TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy (0.00s)
+    --- PASS: TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/forbidden_tool (0.00s)
+    --- PASS: TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/wrong_repository (0.00s)
+    --- PASS: TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/missing_authority (0.00s)
+    --- PASS: TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy/mismatched_authority (0.00s)
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_claim
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_tool
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_action
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/empty_scope
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/wildcard_scope
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/reserved_credential
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/OAuth_client_secret
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/Azure_client_secret
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_enterprise_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_enterprise_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/NPM_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitLab_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/SSH_private_key
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth_token
+--- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_claim (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_tool (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_action (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/empty_scope (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/wildcard_scope (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/reserved_credential (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/OAuth_client_secret (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/Azure_client_secret (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_enterprise_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_enterprise_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/NPM_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitLab_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/SSH_private_key (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth_token (0.00s)
+=== RUN   TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact
+=== RUN   TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact/unknown
+=== RUN   TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact/unavailable
+--- PASS: TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact (0.00s)
+    --- PASS: TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact/unknown (0.00s)
+    --- PASS: TestGatewayUnknownOrUnavailableClaimViewCreatesNoFact/unavailable (0.00s)
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation/Pending
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation/Bound
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation/Succeeded
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation/Failed
+=== RUN   TestGatewayUsesAuthoritativeRunningValidation/Expired
+--- PASS: TestGatewayUsesAuthoritativeRunningValidation (0.00s)
+    --- PASS: TestGatewayUsesAuthoritativeRunningValidation/Pending (0.00s)
+    --- PASS: TestGatewayUsesAuthoritativeRunningValidation/Bound (0.00s)
+    --- PASS: TestGatewayUsesAuthoritativeRunningValidation/Succeeded (0.00s)
+    --- PASS: TestGatewayUsesAuthoritativeRunningValidation/Failed (0.00s)
+    --- PASS: TestGatewayUsesAuthoritativeRunningValidation/Expired (0.00s)
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/deny
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/approval
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/invalid
+--- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/deny (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/approval (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/invalid (0.00s)
+=== RUN   TestGatewayAdapterFailureRemainsSeparateFromAllowDecision
+--- PASS: TestGatewayAdapterFailureRemainsSeparateFromAllowDecision (0.00s)
+=== RUN   TestGatewayFailsClosedWithoutAdapterAndAcceptsNilOptionalDependencies
+--- PASS: TestGatewayFailsClosedWithoutAdapterAndAcceptsNilOptionalDependencies (0.00s)
+=== RUN   TestGatewayPreservesExperimentalParentScopeWithoutMakingLineageRequired
+--- PASS: TestGatewayPreservesExperimentalParentScopeWithoutMakingLineageRequired (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.035s
+=== RUN   TestGatewayAllowCorrelatesDecisionAttemptAndFact
+--- PASS: TestGatewayAllowCorrelatesDecisionAttemptAndFact (0.00s)
+=== RUN   TestGatewayPolicyCannotMutateAdapterRequestParameters
+--- PASS: TestGatewayPolicyCannotMutateAdapterRequestParameters (0.00s)
+=== RUN   TestGatewayUsesAdapterPrivateProviderConfiguration
+--- PASS: TestGatewayUsesAdapterPrivateProviderConfiguration (0.00s)
+=== RUN   TestGatewayIssuesInvocationIDBeforePolicyEvaluation
+--- PASS: TestGatewayIssuesInvocationIDBeforePolicyEvaluation (0.00s)
+=== RUN   TestGatewayAllowCarriesPolicyReason
+--- PASS: TestGatewayAllowCarriesPolicyReason (0.00s)
+=== RUN   TestGatewayEnforcesEffectiveModelProfileBeforePolicy
+--- PASS: TestGatewayEnforcesEffectiveModelProfileBeforePolicy (0.00s)
+=== RUN   TestGatewayRejectsMissingOrMismatchedModelAuthority
+=== RUN   TestGatewayRejectsMissingOrMismatchedModelAuthority/missing
+=== RUN   TestGatewayRejectsMissingOrMismatchedModelAuthority/mismatched
+--- PASS: TestGatewayRejectsMissingOrMismatchedModelAuthority (0.00s)
+    --- PASS: TestGatewayRejectsMissingOrMismatchedModelAuthority/missing (0.00s)
+    --- PASS: TestGatewayRejectsMissingOrMismatchedModelAuthority/mismatched (0.00s)
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_claim
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_profile
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/reserved_credential
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/OAuth_client_secret
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/Azure_client_secret
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_enterprise_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GITHUB_enterprise_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/NPM_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitLab_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/SSH_private_key
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth_token
+=== RUN   TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_enterprise_token
+--- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_claim (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/missing_profile (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/reserved_credential (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/OAuth_client_secret (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/Azure_client_secret (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_CLI_enterprise_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GITHUB_enterprise_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/NPM_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitLab_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/SSH_private_key (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/npm_auth_token (0.00s)
+    --- PASS: TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter/GitHub_enterprise_token (0.00s)
+=== RUN   TestGatewayUnknownAndInactiveClaimsFailClosed
+--- PASS: TestGatewayUnknownAndInactiveClaimsFailClosed (0.00s)
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/deny
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/approval
+=== RUN   TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/invalid
+--- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/deny (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/approval (0.00s)
+    --- PASS: TestGatewayPolicyOutcomesAreTypedAndNeverBypassAdapter/invalid (0.00s)
+=== RUN   TestGatewayDoesNotAdoptCallerIdentifier
+--- PASS: TestGatewayDoesNotAdoptCallerIdentifier (0.00s)
+=== RUN   TestGatewayAdapterFailureAndUnconfiguredAdapterRemainExecutionErrors
+--- PASS: TestGatewayAdapterFailureAndUnconfiguredAdapterRemainExecutionErrors (0.00s)
+=== RUN   TestGatewayPreservesExperimentalParentScope
+--- PASS: TestGatewayPreservesExperimentalParentScope (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/modelgateway	0.033s
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Bound
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/BackendReady
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Running
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Succeeded
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Failed
+--- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Bound (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/BackendReady (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Running (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Succeeded (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Failed (0.00s)
+=== RUN   TestRunContextCancellationBeforeAllocationMakesZeroBackendCalls
+--- PASS: TestRunContextCancellationBeforeAllocationMakesZeroBackendCalls (0.00s)
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-a
+    reference_admission_test.go:77: fixture_sha256=778d101e8ef88c245fe3433d1901020b16cd138a4848c921e5a7e4daccbe7915 principal=user:team-a-engineer result=Allow continuation_calls=1 claim_present=false
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-b
+    reference_admission_test.go:77: fixture_sha256=778d101e8ef88c245fe3433d1901020b16cd138a4848c921e5a7e4daccbe7915 principal=user:team-b-engineer result=Deny continuation_calls=0 claim_present=false
+--- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB (0.00s)
+    --- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-a (0.00s)
+    --- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-b (0.00s)
+=== RUN   TestReferenceAssignmentRejectsReservedPrincipalBeforeAuthorization
+--- PASS: TestReferenceAssignmentRejectsReservedPrincipalBeforeAuthorization (0.00s)
+=== RUN   TestReferenceAssignmentIgnoresIdentityStringsInOpaqueTaskInput
+--- PASS: TestReferenceAssignmentIgnoresIdentityStringsInOpaqueTaskInput (0.00s)
+=== RUN   TestReferencePrincipalSourceFailsClosedAndReturnsCopies
+--- PASS: TestReferencePrincipalSourceFailsClosedAndReturnsCopies (0.00s)
+=== RUN   TestReferenceAssignmentRequiresEvaluator
+--- PASS: TestReferenceAssignmentRequiresEvaluator (0.00s)
+=== RUN   TestReferenceTemplateCompatibilityBeforeRegistration
+--- PASS: TestReferenceTemplateCompatibilityBeforeRegistration (0.00s)
+=== RUN   TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence
+--- PASS: TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence (0.00s)
+=== RUN   TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot
+--- PASS: TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot (0.00s)
+=== RUN   TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge
+--- PASS: TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge (0.00s)
+=== RUN   TestRunServiceStartFailureNeverPublishesRunningAndStillTearsDown
+--- PASS: TestRunServiceStartFailureNeverPublishesRunningAndStillTearsDown (0.00s)
+=== RUN   TestRunServiceWaitsForReadinessBeforeStart
+--- PASS: TestRunServiceWaitsForReadinessBeforeStart (0.00s)
+=== RUN   TestRunServiceDrivesReferenceBackend
+--- PASS: TestRunServiceDrivesReferenceBackend (0.00s)
+=== RUN   TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate
+--- PASS: TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate (0.00s)
+=== RUN   TestRunServiceRejectsLaunchForDifferentRuntimeProfile
+--- PASS: TestRunServiceRejectsLaunchForDifferentRuntimeProfile (0.00s)
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_ENTERPRISE_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_ENTERPRISE_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/NPM_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITLAB_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/SSH_PRIVATE_KEY
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_auth
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_authToken
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/client_secret
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/AZURE_CLIENT_SECRET
+--- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/NPM_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITLAB_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/SSH_PRIVATE_KEY (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_auth (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_authToken (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/client_secret (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/AZURE_CLIENT_SECRET (0.00s)
+=== RUN   TestRunServiceWorkFailurePublishesFailedBeforeTeardown
+--- PASS: TestRunServiceWorkFailurePublishesFailedBeforeTeardown (0.00s)
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_before_allocation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation_failure
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Bound_after_observation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Running_after_work
+--- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_before_allocation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation_failure (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Bound_after_observation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Running_after_work (0.00s)
+=== RUN   TestRunServiceExpiresWhileWorkCallbackIsStillExecuting
+--- PASS: TestRunServiceExpiresWhileWorkCallbackIsStillExecuting (0.00s)
+=== RUN   TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim
+--- PASS: TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim (0.00s)
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome/terminate
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome/cleanup
+--- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome (0.00s)
+    --- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome/terminate (0.00s)
+    --- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome/cleanup (0.00s)
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence/allocation
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence/observation
+--- PASS: TestRunServiceRejectsMismatchedBackendEvidence (0.00s)
+    --- PASS: TestRunServiceRejectsMismatchedBackendEvidence/allocation (0.00s)
+    --- PASS: TestRunServiceRejectsMismatchedBackendEvidence/observation (0.00s)
+=== RUN   TestRunServiceRejectsInvalidAndLateTransitions
+--- PASS: TestRunServiceRejectsInvalidAndLateTransitions (0.00s)
+=== RUN   TestRunServiceReaderIsSafeDuringRunningWork
+--- PASS: TestRunServiceReaderIsSafeDuringRunningWork (0.00s)
+=== RUN   TestObserveStateKeepsLifecycleAndJournalReadAtomic
+--- PASS: TestObserveStateKeepsLifecycleAndJournalReadAtomic (0.02s)
+=== RUN   TestNewRuntimeHostsMemoryBackend
+=== PAUSE TestNewRuntimeHostsMemoryBackend
+=== RUN   TestNewRuntimeRejectsProviderBackends
+=== PAUSE TestNewRuntimeRejectsProviderBackends
+=== RUN   TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim
+--- PASS: TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim (0.00s)
+=== RUN   TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation
+--- PASS: TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation (0.00s)
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/secret
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/principal
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/template
+--- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/secret (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/principal (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/template (0.00s)
+=== RUN   TestPrincipalPresetFromEnv
+--- PASS: TestPrincipalPresetFromEnv (0.00s)
+=== RUN   TestSubmitRejectsMalformedYAMLBeforeAllocation
+--- PASS: TestSubmitRejectsMalformedYAMLBeforeAllocation (0.00s)
+=== RUN   TestReferenceAgentTemplateMatchesCanonicalFixture
+--- PASS: TestReferenceAgentTemplateMatchesCanonicalFixture (0.00s)
+=== RUN   TestReferenceAgentTemplateRejectsUnknownTemplate
+--- PASS: TestReferenceAgentTemplateRejectsUnknownTemplate (0.00s)
+=== CONT  TestNewRuntimeHostsMemoryBackend
+--- PASS: TestNewRuntimeHostsMemoryBackend (0.00s)
+=== CONT  TestNewRuntimeRejectsProviderBackends
+--- PASS: TestNewRuntimeRejectsProviderBackends (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/app	0.050s
+=== RUN   TestAddTemplateRendersNoCredentialInjectionSurface
+--- PASS: TestAddTemplateRendersNoCredentialInjectionSurface (0.00s)
+=== RUN   TestLegacyStartClaim_doesNotGrantRunningFromReadiness
+--- PASS: TestLegacyStartClaim_doesNotGrantRunningFromReadiness (0.00s)
+=== RUN   TestLegacyExpirePendingClaim_bookkeepingOnly
+--- PASS: TestLegacyExpirePendingClaim_bookkeepingOnly (0.00s)
+=== RUN   TestResourceName
+--- PASS: TestResourceName (0.00s)
+=== RUN   TestRequirePhase_notFound
+--- PASS: TestRequirePhase_notFound (0.00s)
+=== RUN   TestRequirePhase_wrongPhase
+--- PASS: TestRequirePhase_wrongPhase (0.00s)
+=== RUN   TestRequirePhase_match
+--- PASS: TestRequirePhase_match (0.00s)
+=== RUN   TestClaim_returnsLocalState
+--- PASS: TestClaim_returnsLocalState (0.00s)
+=== RUN   TestClaim_notFound
+--- PASS: TestClaim_notFound (0.00s)
+=== RUN   TestPoolStatus_notFound
+--- PASS: TestPoolStatus_notFound (0.00s)
+=== RUN   TestHasCondition
+--- PASS: TestHasCondition (0.00s)
+=== RUN   TestAddClaim_duplicateRejected
+--- PASS: TestAddClaim_duplicateRejected (0.00s)
+=== RUN   TestAllocate_bindsAndReturnsUpstreamIdentity
+--- PASS: TestAllocate_bindsAndReturnsUpstreamIdentity (0.00s)
+=== RUN   TestAllocate_rejectsClaimIDHeldByLegacyPathBothWays
+--- PASS: TestAllocate_rejectsClaimIDHeldByLegacyPathBothWays (0.00s)
+=== RUN   TestAllocate_applyErrorWithUnobservedWorkerRetainsRecovery
+--- PASS: TestAllocate_applyErrorWithUnobservedWorkerRetainsRecovery (0.00s)
+=== RUN   TestAllocate_lateBindingDuringRecoveryRetainsRecord
+--- PASS: TestAllocate_lateBindingDuringRecoveryRetainsRecord (0.00s)
+=== RUN   TestAllocate_applyErrorButServerCreatedAndBound_confirmsWorkerRemoval
+--- PASS: TestAllocate_applyErrorButServerCreatedAndBound_confirmsWorkerRemoval (0.00s)
+=== RUN   TestAllocate_bindReadFailure_leavesRecoveryPendingAndRetryResumesWithoutReapply
+--- PASS: TestAllocate_bindReadFailure_leavesRecoveryPendingAndRetryResumesWithoutReapply (0.00s)
+=== RUN   TestAllocate_claimGoneButWorkerRemains_staysUnconfirmed
+--- PASS: TestAllocate_claimGoneButWorkerRemains_staysUnconfirmed (0.02s)
+=== RUN   TestAllocate_bindTimeoutRetainsRecordUntilWorkerIsProvenAbsent
+--- PASS: TestAllocate_bindTimeoutRetainsRecordUntilWorkerIsProvenAbsent (0.02s)
+=== RUN   TestAllocate_identityConflictLeavesExistingWorkerIntact
+--- PASS: TestAllocate_identityConflictLeavesExistingWorkerIntact (0.00s)
+=== RUN   TestAllocate_concurrentRecoveryOfSameClaimIsSerialised
+--- PASS: TestAllocate_concurrentRecoveryOfSameClaimIsSerialised (0.00s)
+=== RUN   TestObserve_readinessIsBoundLevelEvidenceOnly
+--- PASS: TestObserve_readinessIsBoundLevelEvidenceOnly (0.00s)
+=== RUN   TestObserve_rejectsReadinessOfADifferentWorker
+--- PASS: TestObserve_rejectsReadinessOfADifferentWorker (0.00s)
+=== RUN   TestObserve_queryFailurePropagates
+--- PASS: TestObserve_queryFailurePropagates (0.00s)
+=== RUN   TestIdentity_unknownAndForeignBackendRejected
+--- PASS: TestIdentity_unknownAndForeignBackendRejected (0.00s)
+=== RUN   TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent
+--- PASS: TestCleanup_releasedOnlyWhenClaimAndSandboxConfirmedAbsent (0.00s)
+=== RUN   TestCleanup_sandboxStillPresentIsNotReleased
+--- PASS: TestCleanup_sandboxStillPresentIsNotReleased (0.02s)
+=== RUN   TestCleanup_queryFailureIsNotReleaseEvidence
+--- PASS: TestCleanup_queryFailureIsNotReleaseEvidence (0.00s)
+=== RUN   TestCleanup_deleteFailureReturnsIdentityAndNoRelease
+--- PASS: TestCleanup_deleteFailureReturnsIdentityAndNoRelease (0.00s)
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/different_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker
+=== RUN   TestCleanup_validatesCurrentBindingBeforeDelete/read_failure
+--- PASS: TestCleanup_validatesCurrentBindingBeforeDelete (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/different_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/missing_binding (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/empty_worker (0.00s)
+    --- PASS: TestCleanup_validatesCurrentBindingBeforeDelete/read_failure (0.00s)
+=== RUN   TestReducedContractSupportMatrix
+    allocation_test.go:687: support matrix: Allocate=translated Observe=translated(readiness only) Start=unsupported Terminate=unsupported Cleanup=translated(confirmed release; replacement not observable) BackendIdentity=translated(process-local) Durability=unsupported Filesystem=unsupported Isolation=unknown; retained #66 kind evidence covers this bounded slice
+--- PASS: TestReducedContractSupportMatrix (0.00s)
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/apply-response-error
+    allocation_test.go:720: path=apply-response-error result=allocation second failed: apply sandbox claim "agenova-claim-second": response lost after server accepted and bound second claim; recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/bind-status-error
+    allocation_test.go:720: path=bind-status-error result=allocation second failed: get claim status: temporary bind status query failure; recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+=== RUN   TestAllocate_recoveryIdentityConflictProtectsExistingWorker/resumed-recovery
+    allocation_test.go:720: path=resumed-recovery result=allocation second retry: recovery refused for second: agentsandbox: upstream worker already associated with another claim: upstream worker shared-worker is already associated with claim first; upstream claim agenova-claim-second was left in place to protect it deletes=0 first-worker-present=true
+--- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/apply-response-error (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/bind-status-error (0.00s)
+    --- PASS: TestAllocate_recoveryIdentityConflictProtectsExistingWorker/resumed-recovery (0.00s)
+=== RUN   TestAllocate_recoveryReservationSurvivesDeleteFailure
+--- PASS: TestAllocate_recoveryReservationSurvivesDeleteFailure (0.00s)
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=other-worker
+=== RUN   TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=
+--- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete (0.00s)
+    --- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding=other-worker (0.00s)
+    --- PASS: TestAllocate_recoveryRejectsChangedBindingBeforeDelete/binding= (0.00s)
+=== RUN   TestAllocate_concurrentBindingCannotAcquireRecoveringWorker
+--- PASS: TestAllocate_concurrentBindingCannotAcquireRecoveringWorker (0.00s)
+=== RUN   TestControlledAdapter_realStartStopAreSeparateFromReadyAndDelete
+--- PASS: TestControlledAdapter_realStartStopAreSeparateFromReadyAndDelete (0.00s)
+=== RUN   TestControlledAdapter_wrongIdentityAndStaleBindingFailClosed
+--- PASS: TestControlledAdapter_wrongIdentityAndStaleBindingFailClosed (0.00s)
+=== RUN   TestControlledAdapter_uncertainStopCannotBeCleanedUp
+--- PASS: TestControlledAdapter_uncertainStopCannotBeCleanedUp (0.00s)
+=== RUN   TestControlledAdapter_uncertainStartRequiresConfirmedCancelBeforeCleanup
+--- PASS: TestControlledAdapter_uncertainStartRequiresConfirmedCancelBeforeCleanup (0.00s)
+=== RUN   TestControlledAdapter_prestartTerminationCancelsStart
+--- PASS: TestControlledAdapter_prestartTerminationCancelsStart (0.00s)
+=== RUN   TestControlledAdapter_encodesEverySystemIssuedClaimForWorkerProtocol
+--- PASS: TestControlledAdapter_encodesEverySystemIssuedClaimForWorkerProtocol (0.00s)
+=== RUN   TestControlledAdapter_terminateWaitsForInFlightStartThenStops
+--- PASS: TestControlledAdapter_terminateWaitsForInFlightStartThenStops (0.05s)
+=== RUN   TestControlledAdapter_waitsForControlServerBeforeStart
+--- PASS: TestControlledAdapter_waitsForControlServerBeforeStart (0.20s)
+=== RUN   TestControlledAdapter_requiresStableStartResult
+--- PASS: TestControlledAdapter_requiresStableStartResult (0.00s)
+=== RUN   TestKubectlWorkerControl_usesExactContextNamespaceAndPod
+--- PASS: TestKubectlWorkerControl_usesExactContextNamespaceAndPod (0.00s)
+=== RUN   TestControlledAdapter_cleanupSerializesWithStart
+--- PASS: TestControlledAdapter_cleanupSerializesWithStart (0.05s)
+=== RUN   TestControlledAdapter_concurrentCleanupSharesFailureThenAllowsRetry
+--- PASS: TestControlledAdapter_concurrentCleanupSharesFailureThenAllowsRetry (0.05s)
+=== RUN   TestControlledAdapter_failedCleanupNeverReopensStart
+--- PASS: TestControlledAdapter_failedCleanupNeverReopensStart (0.00s)
+=== RUN   TestControlledAdapter_concurrentTerminateCannotClobberStop
+--- PASS: TestControlledAdapter_concurrentTerminateCannotClobberStop (0.05s)
+=== RUN   TestControlledAdapter_concurrentTerminateSharesFailureThenAllowsRetry
+--- PASS: TestControlledAdapter_concurrentTerminateSharesFailureThenAllowsRetry (0.05s)
+=== RUN   TestReActExhaustionWithoutFinalRecordIsTurnLimit
+--- PASS: TestReActExhaustionWithoutFinalRecordIsTurnLimit (0.00s)
+=== RUN   TestExecutionFailureCategoriesSurviveTransport
+=== RUN   TestExecutionFailureCategoriesSurviveTransport/missing-final-result
+=== RUN   TestExecutionFailureCategoriesSurviveTransport/mismatched-final-result
+--- PASS: TestExecutionFailureCategoriesSurviveTransport (0.00s)
+    --- PASS: TestExecutionFailureCategoriesSurviveTransport/missing-final-result (0.00s)
+    --- PASS: TestExecutionFailureCategoriesSurviveTransport/mismatched-final-result (0.00s)
+=== RUN   TestExecutionExchangeTaskDependentResult
+--- PASS: TestExecutionExchangeTaskDependentResult (0.00s)
+=== RUN   TestExecutionExchangeRejectsBeforeCallback
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/oversized
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/result_before_model
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/both
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/malformed
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/unknown_field
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/trailing_JSON
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/missing
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/foreign
+=== RUN   TestExecutionExchangeRejectsBeforeCallback/wrong_prompt
+--- PASS: TestExecutionExchangeRejectsBeforeCallback (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/oversized (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/result_before_model (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/both (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/malformed (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/unknown_field (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/trailing_JSON (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/missing (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/foreign (0.00s)
+    --- PASS: TestExecutionExchangeRejectsBeforeCallback/wrong_prompt (0.00s)
+=== RUN   TestExecutionExchangeNoLateOperationsOrFabricatedResult
+=== RUN   TestExecutionExchangeNoLateOperationsOrFabricatedResult/duplicate_result
+=== RUN   TestExecutionExchangeNoLateOperationsOrFabricatedResult/late_operation
+=== RUN   TestExecutionExchangeNoLateOperationsOrFabricatedResult/fabricated_result
+--- PASS: TestExecutionExchangeNoLateOperationsOrFabricatedResult (0.00s)
+    --- PASS: TestExecutionExchangeNoLateOperationsOrFabricatedResult/duplicate_result (0.00s)
+    --- PASS: TestExecutionExchangeNoLateOperationsOrFabricatedResult/late_operation (0.00s)
+    --- PASS: TestExecutionExchangeNoLateOperationsOrFabricatedResult/fabricated_result (0.00s)
+=== RUN   TestExecutionExchangeCancellationAndDenial
+--- PASS: TestExecutionExchangeCancellationAndDenial (0.00s)
+=== RUN   TestExecutionOperationLimitAndInputBound
+--- PASS: TestExecutionOperationLimitAndInputBound (0.00s)
+=== RUN   TestExecutionPinsKubernetesArguments
+--- PASS: TestExecutionPinsKubernetesArguments (0.00s)
+=== RUN   TestReActTransportKeepsFinalAndActionEvidence
+--- PASS: TestReActTransportKeepsFinalAndActionEvidence (0.00s)
+=== RUN   TestExecutionRequiresStartedAndObservedBinding
+--- PASS: TestExecutionRequiresStartedAndObservedBinding (0.00s)
+=== RUN   TestExecutionCommandCancellationUnblocksPipes
+--- PASS: TestExecutionCommandCancellationUnblocksPipes (0.10s)
+=== RUN   TestExecutionCommandFailureSanitizesStderr
+--- PASS: TestExecutionCommandFailureSanitizesStderr (0.00s)
+=== RUN   TestExecutionHelperProcess
+--- PASS: TestExecutionHelperProcess (0.00s)
+=== RUN   TestIssuedClaimIDAllocatesWithKubernetesSafeResourceName
+--- PASS: TestIssuedClaimIDAllocatesWithKubernetesSafeResourceName (0.01s)
+=== RUN   TestExists_presentWhenNameReturned
+--- PASS: TestExists_presentWhenNameReturned (0.00s)
+=== RUN   TestExists_absentOnlyOnCleanExitWithEmptyOutput
+--- PASS: TestExists_absentOnlyOnCleanExitWithEmptyOutput (0.00s)
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/credential_plugin
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/not_found_in_diag
+=== RUN   TestExists_queryFailureIsAnErrorNotAbsence/connection_refused
+--- PASS: TestExists_queryFailureIsAnErrorNotAbsence (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/credential_plugin (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/not_found_in_diag (0.00s)
+    --- PASS: TestExists_queryFailureIsAnErrorNotAbsence/connection_refused (0.00s)
+=== RUN   TestRunner_appliesCommandDeadline
+--- PASS: TestRunner_appliesCommandDeadline (0.20s)
+=== RUN   TestExecKubectl_killsHungSubprocess
+--- PASS: TestExecKubectl_killsHungSubprocess (1.15s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	1.994s
+ok  	github.com/wunderforge/agenova/internal/credentials	1.040s
+ok  	github.com/wunderforge/agenova/internal/credentials/kubernetes	1.081s
+ok  	github.com/wunderforge/agenova/internal/gateway	1.025s
+ok  	github.com/wunderforge/agenova/internal/toolgateway	1.069s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	1.069s
+ok  	github.com/wunderforge/agenova/internal/credentials	0.244s
+ok  	github.com/wunderforge/agenova/internal/credentials/kubernetes	0.078s
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /mnt/c/Users/medicalstudent/.codex/worktrees/host-credentials/agenova/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+warning: in the working copy of 'go.sum', CRLF will be replaced by LF the next time Git touches it
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.324s
+ok  	github.com/wunderforge/agenova/cmd/agenova	21.330s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.040s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	0.012s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	0.008s
+ok  	github.com/wunderforge/agenova/examples/engineer	0.032s
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/harness/e2e	0.027s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	2.249s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	0.023s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	0.026s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	0.044s
+ok  	github.com/wunderforge/agenova/internal/app	0.077s
+ok  	github.com/wunderforge/agenova/internal/authority	0.372s
+ok  	github.com/wunderforge/agenova/internal/authorization	0.091s
+ok  	github.com/wunderforge/agenova/internal/cli	0.097s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	0.231s
+ok  	github.com/wunderforge/agenova/internal/console	0.146s
+ok  	github.com/wunderforge/agenova/internal/credentials	0.036s
+ok  	github.com/wunderforge/agenova/internal/credentials/kubernetes	0.023s
+ok  	github.com/wunderforge/agenova/internal/evidence	0.009s
+ok  	github.com/wunderforge/agenova/internal/facts	0.011s
+ok  	github.com/wunderforge/agenova/internal/gateway	0.011s
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+ok  	github.com/wunderforge/agenova/internal/governance	0.008s
+ok  	github.com/wunderforge/agenova/internal/issuance	0.156s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	0.086s
+ok  	github.com/wunderforge/agenova/internal/modelprovider	0.064s
+ok  	github.com/wunderforge/agenova/internal/operator	12.788s
+ok  	github.com/wunderforge/agenova/internal/platform	0.009s
+ok  	github.com/wunderforge/agenova/internal/platformapply	0.044s
+ok  	github.com/wunderforge/agenova/internal/policy	0.009s
+ok  	github.com/wunderforge/agenova/internal/registration	0.009s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	2.009s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.046s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	0.003s
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.153s
+[pass] go test ./...
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] Agent Sandbox integration package compiles
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	(cached) [no tests to run]
+[pass] opt-in controlled Agent Sandbox integration package compiles
+
+> @agenova/fixture-storyboard@0.0.0 check
+> npm run contracts:check && npm run typecheck && npm test -- --run && npm run build && npm run test:smoke
+
+
+> @agenova/fixture-storyboard@0.0.0 contracts:check
+> node scripts/contracts.mjs check && vitest run src/fixture-source.test.ts
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.06s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.04s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.01s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.107s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.0 [39m[90m/mnt/c/Users/medicalstudent/.codex/worktrees/host-credentials/agenova/ui[39m
+
+ [32m✓[39m src/fixture-source.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 16:11:22
+[2m   Duration [22m 23.57s[2m (environment 88%, transform 11%)[22m
+
+
+> @agenova/fixture-storyboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+> @agenova/fixture-storyboard@0.0.0 test
+> vitest --run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.0 [39m[90m/mnt/c/Users/medicalstudent/.codex/worktrees/host-credentials/agenova/ui[39m
+
+ [32m✓[39m src/WorkerActivity.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/RunFlow.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/record-presentation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/local-api-target.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/fixture-source.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/connected-source.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 388[2mms[22m[39m
+ [32m✓[39m src/console.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+ [32m✓[39m src/work-name.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[32m124 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 16:11:52
+[2m   Duration [22m 23.28s[2m (environment 87%, transform 8%, import 4%)[22m
+
+
+> @agenova/fixture-storyboard@0.0.0 build
+> node scripts/contracts.mjs check && tsc --noEmit && vite build
+
+=== RUN   TestConsoleNarrowing
+--- PASS: TestConsoleNarrowing (0.06s)
+=== RUN   TestCanonicalFixtures
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-json
+=== RUN   TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-template
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-task
+=== RUN   TestCanonicalFixtures/claim-request.invalid.missing-runtime
+=== RUN   TestCanonicalFixtures/claim-request.invalid.self-asserted-principal
+=== RUN   TestCanonicalFixtures/claim-request.invalid.secret-value
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-a-engineer
+=== RUN   TestCanonicalFixtures/issued-state.valid.team-b-denial
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-effective-authority
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-claim-phase
+=== RUN   TestCanonicalFixtures/issued-state.invalid.caller-backend-identity
+--- PASS: TestCanonicalFixtures (0.03s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-json (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.valid.team-a-engineer-yaml (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-template (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-task (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.missing-runtime (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.self-asserted-principal (0.00s)
+    --- PASS: TestCanonicalFixtures/claim-request.invalid.secret-value (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-a-engineer (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.valid.team-b-denial (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-effective-authority (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-claim-phase (0.00s)
+    --- PASS: TestCanonicalFixtures/issued-state.invalid.caller-backend-identity (0.00s)
+=== RUN   TestBindingsTrackEnumsAndDuration
+--- PASS: TestBindingsTrackEnumsAndDuration (0.01s)
+PASS
+ok  	github.com/wunderforge/agenova/ui/contractgen	0.104s
+
+[pass] deliberate requestRef binding drift rejected
+[pass] unchanged canonical bindings still pass
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 41 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.37 kB │ gzip:  0.27 kB
+dist/assets/index-D22QsjIV.css   38.71 kB │ gzip:  8.09 kB
+dist/assets/index-BE7xwp6s.js   309.17 kB │ gzip: 84.55 kB
+
+✓ built in 5.18s
+[33m[PLUGIN_TIMINGS] [0mPlugin hooks ran for 5.0s of this 5.2s build (96%).
+The slowest hooks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - agenova-v0-fixtures load (92%, 4.8s, 39 calls)
+Additional hook time came from hooks under 1s.
+See https://rolldown.rs/reference/InputOptions.checks#plugintimings for more details.
+
+
+> @agenova/fixture-storyboard@0.0.0 test:smoke
+> playwright test
+
+
+Running 52 tests using 5 workers
+
+  ✓   5 smoke/storyboard.spec.ts:14:3 › request-only: claim-request.valid.team-a-engineer-json (912ms)
+  ✓   3 smoke/console.spec.ts:18:5 › console 1100 allowed (1.3s)
+  ✓   6 smoke/storyboard.spec.ts:14:3 › allow-running: issued-state.valid.team-a-engineer (859ms)
+  ✓   7 smoke/console.spec.ts:18:5 › console 1100 narrowed (1.0s)
+  ✓   2 smoke/portal.spec.ts:8:1 › portal journey keeps work evidence scoped and shows narrowed authority (2.4s)
+  ✓   8 smoke/storyboard.spec.ts:14:3 › deny-no-claim: issued-state.valid.team-b-denial (594ms)
+  ✓   1 smoke/motion.spec.ts:5:1 › lightweight dark portal keeps lifecycle static and preserves navigation (2.9s)
+  ✓   4 smoke/connected.spec.ts:31:1 › work name is separate from full instructions and identity (3.1s)
+  ✓   9 smoke/console.spec.ts:18:5 › console 1100 denied (747ms)
+  ✓  11 smoke/storyboard.spec.ts:14:3 › invalid-caller-state: issued-state.invalid.caller-effective-authority (597ms)
+  ✓  10 smoke/portal.spec.ts:37:1 › new example request stays pending with no invented grant or worker (1.1s)
+  ✓  14 smoke/storyboard.spec.ts:14:3 › missing-field: derived.missing-field (920ms)
+  ✓  12 smoke/connected.spec.ts:63:1 › connected Portal rejects an unrelated local demo API (981ms)
+  ✓  13 smoke/console.spec.ts:18:5 › console 1100 loading (1.0s)
+  ✓  15 smoke/portal.spec.ts:55:1 › named demo work keeps full instructions behind a disclosure (812ms)
+  ✓  18 smoke/console.spec.ts:18:5 › console 1100 not-found (449ms)
+  ✓  16 smoke/storyboard.spec.ts:14:3 › unknown-field: derived.unknown-field (482ms)
+  ✓  19 smoke/portal.spec.ts:66:1 › research work uses a topic, not a repository field (562ms)
+  ✓  21 smoke/storyboard.spec.ts:37:1 › mobile selection stays usable without horizontal overflow (375ms)
+  ✓  20 smoke/console.spec.ts:18:5 › console 1100 malformed (420ms)
+  ✓  22 smoke/portal.spec.ts:79:1 › platform activity aggregates example records and links back to one work (548ms)
+  ✓  23 smoke/console.spec.ts:18:5 › console 1100 unavailable (722ms)
+  ✓  25 smoke/console.spec.ts:18:5 › console 390 allowed (802ms)
+  ✓  24 smoke/portal.spec.ts:93:1 › portal remains usable at mobile width (1.1s)
+  ✓  26 smoke/console.spec.ts:18:5 › console 390 narrowed (386ms)
+  ✓  27 smoke/portal.spec.ts:103:1 › connected view keeps the route but never shows illustrative work or a false empty result (685ms)
+  ✓  28 smoke/console.spec.ts:18:5 › console 390 denied (375ms)
+  ✓  30 smoke/console.spec.ts:18:5 › console 390 loading (243ms)
+  ✓  31 smoke/console.spec.ts:18:5 › console 390 not-found (245ms)
+  ✓  29 smoke/portal.spec.ts:120:1 › connected pages explain unavailable capabilities without leaking demo records (740ms)
+  ✓  32 smoke/console.spec.ts:18:5 › console 390 malformed (255ms)
+  ✓  33 smoke/portal.spec.ts:145:1 › connected status stays readable on mobile (258ms)
+  ✓  34 smoke/console.spec.ts:18:5 › console 390 unavailable (246ms)
+  ✓  17 smoke/connected.spec.ts:70:1 › connected Work polling does not repeatedly query Platform setup (5.0s)
+  ✓  35 smoke/console.spec.ts:57:1 › console direct claim route, reload, navigation and browser history (2.7s)
+  ✓  37 smoke/console.spec.ts:74:1 › console keyboard, focus, semantic structure and source announcements (313ms)
+  ✓  36 smoke/connected.spec.ts:84:1 › idle connected setup is revalidated without one-second Kubernetes polling (31.9s)
+  ✓  38 smoke/connected.spec.ts:101:1 › legacy task title uses its first sentence but retains complete instructions (415ms)
+  ✓  39 smoke/connected.spec.ts:116:1 › failed work shows a separate red outcome, reason and failed detail record without recoloring successful calls (577ms)
+  ✓  40 smoke/connected.spec.ts:143:1 › format retry explains the failing turn without counting checks as calls (479ms)
+  ✓  41 smoke/connected.spec.ts:170:1 › historical missing failure reason is explicit, not inferred from successful model calls (251ms)
+  ✓  42 smoke/connected.spec.ts:179:1 › connected motion follows provider and cleanup evidence without resetting DOM or scroll (3.9s)
+  ✓  43 smoke/connected.spec.ts:211:1 › cobalt light locates real pending calls and separates success from failure (5.2s)
+  ✓  44 smoke/connected.spec.ts:259:1 › malformed connected percent escapes show an error instead of a blank page (190ms)
+  ✓  45 smoke/connected.spec.ts:274:1 › worker follows recorded ReAct turns, tool observation and final model response (4.9s)
+  ✓  46 smoke/connected.spec.ts:317:1 › live source submits canonical intent then polls actual result and narrowed authority (2.0s)
+  ✓  47 smoke/connected.spec.ts:354:1 › new work suggests the active policy project instead of a demo constant (296ms)
+  ✓  48 smoke/connected.spec.ts:364:1 › denial shows request evidence without invented claim worker or model result (312ms)
+  ✓  49 smoke/connected.spec.ts:379:1 › pending live request never invents grant or result and malformed response stays unavailable (376ms)
+  ✓  50 smoke/connected.spec.ts:392:1 › successful result remains visible when cleanup fails and configuration is not health (408ms)
+  ✓  51 smoke/connected.spec.ts:405:1 › terminal authority keeps refreshing until final result and cleanup report arrive (1.6s)
+  ✓  52 smoke/connected.spec.ts:416:1 › queued cancellation overrides pending claim and stops automatic refresh (259ms)
+
+  52 passed (1.3m)
+[pass] frontend contracts, types, components, production build and browser smoke

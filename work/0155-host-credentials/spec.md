@@ -23,9 +23,11 @@ adapter invocation/lifecycle. One shared contract serves Tool, Model and Memory.
 ## Requirements
 
 - Given a trusted host binding for a supported reference, resolve only that captured reference with a bounded deadline and value size; never consume a worker-supplied retargeting field.
+- The resolver's timeout is resolution-only. After successful resolution, release its child context and pass the original caller-owned invocation context to the trusted consumer; provider deadlines remain the Gateway/adapter owner's responsibility.
 - Given malformed or unauthorized input, deny before resolver I/O or consumer external calls. Registry lookup has no implicit defaults or fallback.
 - Given an unavailable/missing/forbidden/wrong-kind source, return one stable non-disclosing resolution failure without raw backend text or unrelated existence details.
 - Given a resolved value, expose bytes only through host-owned scoped use. Registry/binding formatting and JSON/YAML serialization are redacted; errors never echo material. Trusted callback code must not copy bytes into public structs or diagnostics.
+- Secret JSON projections keep encoded field values in clearable owned bytes, decode only the selected string field, and clear raw/encoded/failed decoded buffers. This is owned-buffer hygiene, not heap-wide erasure of library/runtime temporaries.
 - Given Platform validate/plan, inspect reference shape and explicit resolver identity without retrieving values. Apply/readiness performs only authorized resolver checks; status remains metadata-only.
 - Given rotation, later resolution after supported restart/reconcile observes the replacement; in-flight uses retain their captured value and active claim authority is unchanged. No persistent secret cache is implied.
 - Given no real backend configuration, a selected integration campaign fails explicitly. Unit/synthetic tests are not backend acceptance.
