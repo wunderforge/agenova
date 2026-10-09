@@ -165,8 +165,8 @@ func tenant(t *testing.T, n memory.Namespace) step {
 	}}
 }
 func TestReadinessRejectsUnsafeRolesAndSchema(t *testing.T) {
-	for disabled := -1; disabled < 4; disabled++ {
-		flags := []driver.Value{true, true, true, true}
+	for disabled := -1; disabled < 5; disabled++ {
+		flags := []driver.Value{true, true, true, true, true}
 		if disabled >= 0 {
 			flags[disabled] = false
 		}

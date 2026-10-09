@@ -47,7 +47,18 @@ const readinessSQL = `SELECT
    AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
    AND NOT has_table_privilege(current_user, c.oid, 'TRUNCATE'))
   FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'agenova_memory' AND c.relname IN ('records', 'receipts'))`
+  WHERE n.nspname = 'agenova_memory' AND c.relname IN ('records', 'receipts')),
+ (SELECT count(*) = 1 AND bool_and(
+   NOT pg_has_role(current_user, c.relowner, 'MEMBER')
+   AND has_table_privilege(current_user, c.oid, 'SELECT')
+   AND NOT has_table_privilege(current_user, c.oid, 'INSERT')
+   AND NOT has_table_privilege(current_user, c.oid, 'UPDATE')
+   AND NOT has_table_privilege(current_user, c.oid, 'DELETE')
+   AND NOT has_table_privilege(current_user, c.oid, 'TRUNCATE')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'INSERT')
+   AND NOT has_any_column_privilege(current_user, c.oid, 'UPDATE'))
+  FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'agenova_memory' AND c.relname = 'schema_version')`
 
 // New receives a host-owned connection pool after governed credential resolution.
 // It accepts no DSN, secret, task path, or implicit environment configuration.
@@ -58,11 +69,11 @@ func New(ctx context.Context, db *sql.DB) (*Backend, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, memory.CallTimeout)
 	defer cancel()
-	var version, role, schema, tables bool
-	if err := db.QueryRowContext(ctx, readinessSQL).Scan(&version, &role, &schema, &tables); err != nil {
+	var version, role, schema, tables, marker bool
+	if err := db.QueryRowContext(ctx, readinessSQL).Scan(&version, &role, &schema, &tables, &marker); err != nil {
 		return nil, fault(err)
 	}
-	if !version || !role || !schema || !tables {
+	if !version || !role || !schema || !tables || !marker {
 		return nil, memory.ErrUnavailable
 	}
 	return &Backend{db: db}, nil
