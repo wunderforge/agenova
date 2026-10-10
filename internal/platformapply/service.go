@@ -86,6 +86,15 @@ type CompositionValidator interface {
 	ValidateComposition(DeploymentRequest) error
 }
 
+// ReadinessChecker is an optional deployment-owned check for external
+// prerequisites. Only confirmed Apply invokes it, after any required target
+// preflight and before local activation or target mutation. Validate, Plan and
+// Status remain metadata-only; unchanged Apply still checks prerequisites.
+// Errors must be sanitized by the deployment adapter.
+type ReadinessChecker interface {
+	CheckReadiness(context.Context, DeploymentRequest) error
+}
+
 type Service struct {
 	Adapters *adapterregistry.Lifecycle
 	Policies PolicyAvailability
@@ -213,23 +222,25 @@ func (s Service) ApplyPlanned(ctx context.Context, resolved *platform.ResolvedPl
 }
 
 func (s Service) applyWithPlan(ctx context.Context, resolved *platform.ResolvedPlatform, lock *platform.PlatformLock, plan Plan) (ApplyResult, error) {
-	if !plan.Changed() {
-		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), ReadinessScope: ReadinessScopeInstallation, Components: plan.Components}, nil
+	request, adapter, err := s.deployment(resolved, lock)
+	if err != nil {
+		return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation}, err
 	}
-	var request DeploymentRequest
-	var adapter DeploymentAdapter
-	var err error
+	request.TargetChanges = append(make([]Change, 0, len(plan.targetChanges)), plan.targetChanges...)
 	if plan.targetChanged {
-		request, adapter, err = s.deployment(resolved, lock)
-		if err != nil {
-			return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation}, err
-		}
-		request.TargetChanges = append([]Change(nil), plan.targetChanges...)
 		// Target authority is checked before even the local adapter lock changes.
 		// The deployment adapter still rechecks at mutation time to narrow TOCTOU.
 		if err := adapter.Preflight(ctx, request); err != nil {
 			return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation}, fmt.Errorf("preflight target %s: %w", plan.Target, err)
 		}
+	}
+	if checker, ok := adapter.(ReadinessChecker); ok {
+		if err := checker.CheckReadiness(ctx, request); err != nil {
+			return ApplyResult{Plan: plan, ReadinessScope: ReadinessScopeInstallation, Components: plan.Components}, fmt.Errorf("check target readiness %s: %w", plan.Target, err)
+		}
+	}
+	if !plan.Changed() {
+		return ApplyResult{Plan: plan, Ready: allReady(plan.Components), ReadinessScope: ReadinessScopeInstallation, Components: plan.Components}, nil
 	}
 	activated := false
 	for _, requirement := range resolved.Adapters {

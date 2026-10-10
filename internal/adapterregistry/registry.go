@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	idPattern      = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.(?:[a-z0-9.-]+)/(?:deployment|runtime|model|tool|memory|telemetry)/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$`)
+	idPattern      = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.(?:[a-z0-9.-]+)/(?:deployment|runtime|model|credential|tool|memory|telemetry)/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$`)
 	versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?$`)
 	namePattern    = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$`)
 )
@@ -141,7 +141,7 @@ func validateRegistration(input Registration) (Registration, error) {
 		if i > 0 && capability == manifest.Capabilities[i-1] {
 			return Registration{}, fmt.Errorf("adapter %s@%s repeats capability %q", manifest.ID, manifest.Version, capability)
 		}
-		if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+		if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel && capability != platform.CapabilityCredential {
 			return Registration{}, fmt.Errorf("adapter %s@%s advertises unsupported capability %q", manifest.ID, manifest.Version, capability)
 		}
 		if input.Factories[capability] == nil {
@@ -293,7 +293,7 @@ func identityCapability(id string) (platform.Capability, error) {
 		return "", fmt.Errorf("invalid qualified adapter ID %q", id)
 	}
 	capability := platform.Capability(parts[1])
-	if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+	if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel && capability != platform.CapabilityCredential {
 		return "", fmt.Errorf("adapter ID category %q is not supported", parts[1])
 	}
 	return capability, nil

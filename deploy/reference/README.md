@@ -37,3 +37,19 @@ For a drifted install, `apply` writes only the target resources named in the
 confirmed plan.
 
 The Platform file owns Kubernetes context and namespace. There are intentionally no root `--kube-context` or `--namespace` flags.
+
+The [credentialed model example](platform.credentials.example.yaml) selects one
+explicit `credential` adapter, its namespace, and a typed model-backend
+`credentialRef` (`resolverRef`, `name`, `key`). Configure a real HTTPS endpoint
+and provision the selected Opaque Secret through the operator's trusted backend
+before applying. Raw values and credential references inside arbitrary `config`
+maps are rejected. The reference permits one bundled resolver in the installed
+namespace and one consistent credential selection across model backends.
+
+Validation and planning retrieve no Secret values. Every actual apply, including
+an unchanged plan, checks the selected source before reporting readiness. The
+installed process checks it before starting; later admitted model invocations
+resolve it again and observe replacements. The installed Role grants only
+`get` for the selected Secret name, with no Secret list/watch. Startup/readiness
+checks do not test provider authentication or health. Tool and Memory credential
+integration remains the responsibility of their separate consumer adapters.

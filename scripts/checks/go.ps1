@@ -112,6 +112,14 @@ function Test-Go {
       Pass "go test -race ./..."
     }
 
+    go test -run '^$' -tags integration ./internal/credentials/kubernetes/
+    if ($LASTEXITCODE -ne 0) { Fail "opt-in credential integration package does not compile" }
+    Pass "opt-in credential integration package compiles"
+
+    go test -run '^$' -tags integration ./internal/adapters/bundled/
+    if ($LASTEXITCODE -ne 0) { Fail "opt-in installed credential integration package does not compile" }
+    Pass "opt-in installed credential integration package compiles"
+
     go test -run '^$' -tags integration ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "Agent Sandbox integration package does not compile" }
     Pass "Agent Sandbox integration package compiles"

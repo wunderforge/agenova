@@ -1,0 +1,132 @@
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /mnt/c/Users/medicalstudent/.codex/worktrees/host-credentials/agenova/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] PR delivery contract
+warning: in the working copy of '.codexignore', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of '.dockerignore', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of '.gitattributes', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of '.githooks/pre-commit', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of '.gitignore', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'LICENSE', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'NOTICE', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'deploy/reference/Dockerfile', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/agent-sandbox/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/reference-contract/cleanup-binding-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/reference-contract/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/reference-contract/source-sha256.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/consumers-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/integration-compile-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/integration-context-guard-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/race-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/source-sha256.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/30/repository-baseline/wrapper-context-guard-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/40/architecture-boundary/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/40/cli-smoke/binary-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/40/cli-smoke/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/40/repository-baseline/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/41/cli-smoke/binary-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/48/agent-sandbox-mapping/baseline-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/48/agent-sandbox-mapping/docs-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/48/agent-sandbox-mapping/focused-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/48/agent-sandbox-mapping/source-sha256.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/59/frontend/baseline.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/baseline-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/docs-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/source-sha256.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/substrate-down.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/agent-sandbox-mapping/substrate-up.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/source-refresh/baseline-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/source-refresh/docs-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/source-refresh/focused-output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-S1/source-refresh/source-sha256.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'docs/evidence/E8-T3/agent-sandbox-substrate/output.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'go.sum', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/e2e/ui-failure-diagnostics.mjs', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/e2e/ui-kind-checkpoint.mjs', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/invalid-missing-runtime.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/invalid-missing-task.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/invalid-missing-template.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/invalid-secret-value.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/invalid-self-asserted-principal.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/issued-state/invalid-caller-backend-identity.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/issued-state/invalid-caller-claim-phase.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/issued-state/invalid-caller-effective-authority.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/issued-state/valid-team-b-denial.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/inputs/platform/valid-reference.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/fixtures/contract/v0/manifest.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'harness/integration/agentsandbox/testworker/Dockerfile', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/index.html', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/installed/installed.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/local-api-target.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/package-lock.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/package.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/playwright.config.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/playwright.installed.config.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/scripts/contracts.mjs', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/scripts/inspect-work-layout.mjs', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/scripts/profile-motion.mjs', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/connected.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/console.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/motion.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/portal.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/server.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/smoke/storyboard.spec.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/App.test.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/App.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/ClaimConsole.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/ConnectedPortal.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/Portal.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/RunFlow.test.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/RunFlow.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/TaskInstructions.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/WorkDetailLayout.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/WorkerActivity.test.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/WorkerActivity.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/connected-source.test.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/connected-source.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/console-fixture-source.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/console-load.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/console-route.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/console.css', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/console.test.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/contracts.generated.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/evidence-source.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/fixture-source.test.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/fixture-source.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/local-api-target.test.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/main.tsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/portal-data.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/portal-motion.css', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/portal-motion.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/portal.css', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/record-presentation.test.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/record-presentation.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/shape-check.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/style.css', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/useConnection.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/virtual.d.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/work-name.test.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/work-name.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/src/worker-activity-model.ts', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/tsconfig.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'ui/vite.config.ts', CRLF will be replaced by LF the next time Git touches it

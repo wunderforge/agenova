@@ -27,6 +27,7 @@ const (
 	CapabilityDeployment Capability = "deployment"
 	CapabilityRuntime    Capability = "runtime"
 	CapabilityModel      Capability = "model"
+	CapabilityCredential Capability = "credential"
 )
 
 type ErrorCategory string
@@ -88,10 +89,11 @@ type ResolvedAdapter struct {
 }
 
 type ResolvedInstance struct {
-	Category   Capability     `json:"category"`
-	Name       string         `json:"name"`
-	AdapterRef string         `json:"adapterRef"`
-	Config     map[string]any `json:"config"`
+	CredentialRef *v1alpha1.PlatformCredentialReference `json:"credentialRef,omitempty"`
+	Category      Capability                            `json:"category"`
+	Name          string                                `json:"name"`
+	AdapterRef    string                                `json:"adapterRef"`
+	Config        map[string]any                        `json:"config"`
 }
 
 type ResolvedProfile struct {
@@ -167,7 +169,7 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 	}
 	sort.Slice(adapters, func(i, j int) bool { return adapters[i].Name < adapters[j].Name })
 
-	instances := make([]ResolvedInstance, 0, 1+len(input.Spec.Infrastructure.RuntimeBackends)+len(input.Spec.Services.ModelBackends))
+	instances := make([]ResolvedInstance, 0, 1+len(input.Spec.Infrastructure.RuntimeBackends)+len(input.Spec.Services.ModelBackends)+len(input.Spec.Services.CredentialResolvers))
 	instanceByKey := map[string]ResolvedInstance{}
 	descriptorByKey := map[string]Descriptor{}
 	if failure := resolveInstance(CapabilityDeployment, "spec.infrastructure.deployment", *input.Spec.Infrastructure.Deployment, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
@@ -175,6 +177,11 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 	}
 	for i, instance := range input.Spec.Infrastructure.RuntimeBackends {
 		if failure := resolveInstance(CapabilityRuntime, fmt.Sprintf("spec.infrastructure.runtimeBackends[%d]", i), instance, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
+			return nil, nil, failure
+		}
+	}
+	for i, instance := range input.Spec.Services.CredentialResolvers {
+		if failure := resolveInstance(CapabilityCredential, fmt.Sprintf("spec.services.credentialResolvers[%d]", i), instance, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
 			return nil, nil, failure
 		}
 	}
@@ -245,7 +252,7 @@ func resolveInstance(capability Capability, path string, input v1alpha1.Platform
 	if validationErr := v1alpha1.ValidatePlatformConfig(canonical); validationErr != nil {
 		return &ResolveError{Category: ErrorInvalidConfig, FieldPath: path + ".config", Detail: validationErr.Error()}
 	}
-	resolved := ResolvedInstance{Category: capability, Name: input.Name, AdapterRef: input.AdapterRef, Config: canonical}
+	resolved := ResolvedInstance{Category: capability, Name: input.Name, AdapterRef: input.AdapterRef, Config: canonical, CredentialRef: cloneCredentialReference(input.CredentialRef)}
 	*output = append(*output, resolved)
 	key := instanceKey(capability, input.Name)
 	byKey[key] = resolved
@@ -286,7 +293,14 @@ type revisionPayload struct {
 func lockFromResolved(resolved *ResolvedPlatform) (*PlatformLock, *ResolveError) {
 	lock := &PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Adapters: append([]ResolvedAdapter(nil), resolved.Adapters...), ModelRoutes: append([]ModelRoute(nil), resolved.ModelRoutes...), InitialPolicyRef: resolved.InitialPolicyRef}
 	for _, instance := range resolved.Instances {
-		digest, err := digestValue(instance.Config)
+		var digestInput any = instance.Config
+		if instance.CredentialRef != nil {
+			digestInput = struct {
+				Config        map[string]any                        `json:"config"`
+				CredentialRef *v1alpha1.PlatformCredentialReference `json:"credentialRef"`
+			}{instance.Config, instance.CredentialRef}
+		}
+		digest, err := digestValue(digestInput)
 		if err != nil {
 			return nil, &ResolveError{Category: ErrorCanonicalEncoding, FieldPath: "instances." + instance.Name, Detail: err.Error()}
 		}
@@ -355,6 +369,14 @@ func hasCapability(values []Capability, target Capability) bool {
 
 func instanceKey(capability Capability, name string) string {
 	return string(capability) + "\x00" + name
+}
+
+func cloneCredentialReference(ref *v1alpha1.PlatformCredentialReference) *v1alpha1.PlatformCredentialReference {
+	if ref == nil {
+		return nil
+	}
+	copy := *ref
+	return &copy
 }
 
 func cloneConfig(input map[string]any) map[string]any {
