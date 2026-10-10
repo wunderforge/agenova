@@ -11,6 +11,7 @@ import (
 
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
+	"github.com/wunderforge/agenova/internal/platform"
 )
 
 func TestAdapterCommandsStableJSONLifecycle(t *testing.T) {
@@ -26,8 +27,14 @@ func TestAdapterCommandsStableJSONLifecycle(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Adapters) != 3 || catalog.Adapters[0].ID != bundled.KubernetesDeploymentID || catalog.Adapters[2].ID != bundled.AgentSandboxRuntimeID {
+	wantIDs := []string{bundled.KubernetesSecretCredentialID, bundled.KubernetesDeploymentID, bundled.OpenAICompatibleModelID, bundled.AgentSandboxRuntimeID}
+	if len(catalog.Adapters) != len(wantIDs) {
 		t.Fatalf("catalog = %#v", catalog.Adapters)
+	}
+	for index, want := range wantIDs {
+		if catalog.Adapters[index].ID != want {
+			t.Fatalf("catalog[%d] = %q, want %q", index, catalog.Adapters[index].ID, want)
+		}
 	}
 
 	reference := bundled.AgentSandboxRuntimeID + "@" + bundled.ReferenceVersion
@@ -80,6 +87,82 @@ func TestAdapterInitYAMLIsReviewablePlatformFragment(t *testing.T) {
 	}
 	if strings.Contains(stdout, "credential") || strings.Contains(stdout, "authority") {
 		t.Fatalf("init output implied forbidden state: %s", stdout)
+	}
+}
+
+func TestCredentialAdapterCLIActivationAndInitContainMetadataOnly(t *testing.T) {
+	bundledRegistry, err := bundled.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest adapterregistry.Manifest
+	for _, candidate := range bundledRegistry.Catalog() {
+		if candidate.ID == bundled.KubernetesSecretCredentialID {
+			manifest = candidate
+		}
+	}
+	descriptor, ok := bundledRegistry.Lookup(manifest.ID, manifest.Version)
+	if !ok {
+		t.Fatal("credential descriptor is unavailable")
+	}
+	constructCalls := 0
+	registry, err := adapterregistry.New(adapterregistry.Registration{
+		Manifest: manifest, Descriptor: descriptor,
+		Factories: map[platform.Capability]adapterregistry.Factory{
+			platform.CapabilityCredential: func() (any, error) { constructCalls++; return &struct{}{}, nil },
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := adapterregistry.NewMemoryStore()
+	factory := AdapterLifecycleFactory(func(string) (*adapterregistry.Lifecycle, error) {
+		return adapterregistry.NewLifecycle(registry, store)
+	})
+	reference := bundled.KubernetesSecretCredentialID + "@" + bundled.ReferenceVersion
+	wantInstall := `{"adapter":{"id":"agenova.io/credential/kubernetes-secret","version":"0.1.0","protocol":"agenova.adapter/v1alpha1","capabilities":["credential"]},"changed":true}` + "\n"
+	for index := 0; index < 2; index++ {
+		stdout, stderr, code := runAdapterCLI([]string{"agenova", "adapters", "install", reference, "--json"}, factory)
+		want := wantInstall
+		if index > 0 {
+			want = strings.Replace(want, `"changed":true`, `"changed":false`, 1)
+		}
+		if code != 0 || stderr != "" || stdout != want {
+			t.Fatalf("credential activation = %d, %q, %q", code, stdout, stderr)
+		}
+	}
+	stdout, stderr, code := runAdapterCLI([]string{"agenova", "adapters", "inspect", reference, "--json"}, factory)
+	var inspected adapterregistry.InspectResult
+	if code != 0 || stderr != "" || json.Unmarshal([]byte(stdout), &inspected) != nil || !inspected.Installed || len(inspected.Manifest.InstanceSchema.Fields) != 1 || inspected.Manifest.InstanceSchema.Fields[0].Path != "namespace" || len(inspected.Manifest.ProfileSchema.Fields) != 0 {
+		t.Fatalf("credential inspection = %d, %q, %q", code, stdout, stderr)
+	}
+	stdout, stderr, code = runAdapterCLI([]string{"agenova", "adapters", "init", reference, "--name", "host-secrets", "--json"}, factory)
+	var fragment adapterregistry.PlatformFragment
+	if code != 0 || stderr != "" || json.Unmarshal([]byte(stdout), &fragment) != nil || fragment.Spec.Services == nil || len(fragment.Spec.Services.CredentialResolvers) != 1 || fragment.Spec.Infrastructure != nil {
+		t.Fatalf("credential init = %d, %q, %q", code, stdout, stderr)
+	}
+	resolver := fragment.Spec.Services.CredentialResolvers[0]
+	if resolver.Name != "host-secrets" || resolver.AdapterRef != "host-secrets" || resolver.CredentialRef != nil || len(resolver.Config) != 1 || resolver.Config["namespace"] != "agenova-system" || len(fragment.Spec.Services.ModelBackends) != 0 || len(fragment.Spec.Services.ModelProfiles) != 0 {
+		t.Fatal("credential init invented a selected credential or consumer")
+	}
+	// Activation and initialization produce catalog metadata and never construct
+	// a live Getter or resolve Secret material. A reference is selected later in
+	// the operator's typed model-backend field.
+	stdout, stderr, code = runAdapterCLI([]string{"agenova", "adapters", "list", "--json"}, factory)
+	wantList := `{"apiVersion":"agenova.io/v1alpha1","kind":"AdapterLock","adapters":[{"id":"agenova.io/credential/kubernetes-secret","version":"0.1.0","protocol":"agenova.adapter/v1alpha1","capabilities":["credential"]}]}` + "\n"
+	if code != 0 || stderr != "" || stdout != wantList {
+		t.Fatalf("credential list = %d, %q, %q", code, stdout, stderr)
+	}
+	if constructCalls != 0 {
+		t.Fatal("metadata command constructed a credential backend")
+	}
+	// Positive control connects the counter to the same active registration.
+	lifecycle, err := factory("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lifecycle.Construct(manifest.ID, manifest.Version, platform.CapabilityCredential); err != nil || constructCalls != 1 {
+		t.Fatal("credential construction spy is disconnected")
 	}
 }
 

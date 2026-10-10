@@ -40,10 +40,22 @@ adapter invocation/lifecycle. One shared contract serves Tool, Model and Memory.
 
 ## Compatibility
 
-- Existing #36 exact-name public/worker credential rejection remains enforced. Platform credential references stay unsupported until the coordinated Platform slice enables an explicit typed path; no parser-wide exception is introduced by the internal foundation.
+- Existing #36 exact-name public/worker credential rejection remains enforced. The coordinated Platform slice enables only the dedicated typed model-backend path; arbitrary config maps retain their rejection rules.
 - ClaimRequest, AgentTemplate, claim, authority, Policy and worker identity semantics are unchanged. Kubernetes/provider types remain inside their adapters.
 - Cross-provider consumers may prototype against the producer tests but cannot claim accepted/live integration before review and real evidence.
 
 ## Open Decisions
 
-- No product/architecture expansion is requested. The user reports no kind context; live Secret/RBAC/reload and independent reproduction are outstanding environmental/review gates.
+- No product/architecture expansion is requested. Verification records remain local at the Owner's request. Independent human review and public reproduction in an explicitly selected environment remain outstanding.
+
+
+## Platform Slice Refinement - 2026-10-10
+
+- Accept one dedicated `PlatformInstance.credentialRef` only for model backend instances: `{resolverRef, name, key}`. `resolverRef` selects an explicit local resolver instance, not a worker field or implicit resolver ID. All credential-shaped fields inside arbitrary config, profiles, deployment/runtime instances and requests remain rejected.
+- Add optional `spec.services.credentialResolvers` instances using the explicit adapter registry's new `credential` category. The reference Kubernetes resolver configuration contains only its namespace; its exact name/key allowlist is captured from the operator's typed model backend references. No independent secret-discovery list or default credential reference is introduced.
+- Catalog, validation, canonical resolution and planning perform zero Secret retrieval. Only apply/installed startup readiness checks selected references; per-invocation model resolution follows existing Gateway admission. The first reference composition permits one bundled resolver in the Control Plane namespace and one consistent credential selection for its existing shared endpoint.
+- Least-privilege reference RBAC grants only `get` on explicitly selected Secret resourceNames, without list/watch. Tool/Memory/provider-specific integrations remain their consumer work; unaccepted branches are not stacked.
+- Later model calls resolve replacement material; supported restart/reconcile rechecks startup readiness without altering active claim authority. Public revision/status/manifests contain only reference metadata; resolved values remain callback/request-local with owned buffers cleared.
+
+- Every actual apply, including unchanged and adapter-activation-only plans, checks selected credentials before reporting readiness or changing local/target state. Validate, plan and status remain Secret-free.
+- A model provider success that echoes the exact resolved value in a returned completion, response identifier or configured model is rejected with a fixed error and empty result. HTTP/runtime internal copies are outside owned-buffer erasure guarantees.

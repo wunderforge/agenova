@@ -22,6 +22,7 @@ Additional task-specific context:
 - [Playbooks](../../docs/harness/playbooks.md): Start a GitHub Ticket, Change a Core Contract and Elaborate Parallel Work
 - [Accepted credential boundary](../0036-credential-boundary/task.md), [field validation](../../api/v1alpha1/credential_fields.go), [gateway validation](../../internal/gateway/validate.go), and [worker launch](../../internal/app/run_service.go)
 - [Platform contract](../../api/v1alpha1/platform.go), [resolution](../../internal/platform/resolve.go), [registry types](../../internal/adapterregistry/types.go), and [bundled adapters](../../internal/adapters/bundled/)
+- [Installation readiness](../../internal/platformapply/service.go) and [readiness checks](../../internal/adapters/bundled/credentials.go)
 - [Model gateway](../../internal/modelgateway/), [Tool gateway](../../internal/toolgateway/), [installed composition](../../cmd/agenova-control-plane/main.go), and [Agent Sandbox tests](../../internal/runtime/agentsandbox/)
 - [Host credentials](../../internal/credentials/credentials.go), [contract tests](../../internal/credentials/credentials_test.go), [Gateway composition tests](../../internal/credentials/gateway_test.go), [Secret adapter](../../internal/credentials/kubernetes/secret.go), [bounded transport](../../internal/credentials/kubernetes/kubectl.go), [adapter tests](../../internal/credentials/kubernetes/secret_test.go) and [foundation evidence](../../docs/evidence/155/host-boundary.md)
 - [Boundary review corrections and evidence](../../docs/evidence/155/review-boundary.md): resolver/consumer deadline separation and owned encoded Secret-buffer cleanup
@@ -63,9 +64,10 @@ Out of scope:
 - [x] Slice 1: host-only typed reference, immutable explicit registry/binding, scoped material and deterministic spy tests.
 - [x] Slice 1: bounded Kubernetes Secret resolver and named synthetic negative/rotation/privacy tests; no live backend claim.
 - [x] Review corrections: separate resolver timeout from caller-owned provider invocation; replace immutable Secret value strings with clearable encoded storage and decode only the selected value; focused/race/repeated/full gates passed. Independent re-review remains required.
-- [ ] Slice 2: accepted Platform reference shape, resolver registry activation/readiness and consumer composition, preserving #36 and unsupported behavior.
-- [ ] Slice 3: explicit-context Secret/RBAC/rotation integration campaign, worker/public secret scans and independent reproduction.
-- [ ] Run each slice's focused/race gate and `./scripts/check.ps1 -All`, then review and publish exact evidence.
+- [x] Slice 2: accepted Platform reference shape, resolver registry activation/readiness and consumer composition, preserving #36 and unsupported behavior.
+- [x] Slice 3: add opt-in Secret/RBAC/update and installed startup harnesses with synthetic-only fixtures, guarded cleanup and public/host-Pod scans. Execution records remain local.
+- [ ] Independent human reproduction and acceptance of the credential producer.
+- [ ] Independent reproduction of focused/race/full and real backend gates; continuation execution records are local by the Owner's publication choice.
 - [ ] Obtain independent review; do not mark #155 complete or unblock live E17 merely because unit tests pass.
 
 ## Quality Gates
@@ -92,6 +94,7 @@ Out of scope:
 ## Decisions and Blockers
 
 - User explicitly authorized taking #155 on 2026-10-09 and reported no existing kind context. Keep real Kubernetes integration blocked; do not create a cluster.
+- The Owner requested a code-only public update. Continuation verification records and operational metadata remain local; public backend acceptance requires independent reproduction using an explicitly selected environment.
 - Independent producer worktree and `codex/0155-host-credentials` start at accepted main `ebb4c04f7b8cc76d63036c820e04c62af68fad3d`; E17 remains on its separate draft branch.
 - #155 assigned to the current GitHub account (`yanyang15037755`) after authorization; independent reviewer/reproduction is not yet named.
 - First implementation slice is the host-only boundary plus bounded Secret adapter. Platform/public acceptance and installed consumers are separate Todo slices, not implied by a test resolver.
@@ -111,3 +114,11 @@ Out of scope:
 - Draft #213 at `a9eabf4` passed baseline CI. Its two P2 findings are addressed before expanding Platform work: the resolver child deadline is released before the consumer receives its original caller-owned invocation context, and encoded Secret values now use owned clearable RawMessage projections instead of immutable value strings. Only the selected JSON byte field is decoded; all owned encoded projections are cleared even on identity/selection failure.
 - The context regression failed before the production change for background/short/long caller contexts. Cleanup regressions cover valid/escaped selected data and missing/empty/null/non-string/invalid/oversized data, with unrelated data never decoded. Buffer cleanup is best-effort and does not claim erasure of all runtime/library temporaries or trusted consumer copies.
 - The [final review campaign](review-boundary-linux.log) passed focused/race checks, 20 repeated credential-package runs and `check.ps1 -All`: all Go, generated contracts, 124 frontend tests, build and 52 browser cases. Only documentation/publication edits followed; [review evidence](../../docs/evidence/155/review-boundary.md) owns exact results and limits. Platform activation/installed wiring, no-context live Secret/RBAC/reload and independent acceptance remain outstanding. Keep #155 open and #213 draft.
+
+
+## Platform Implementation and Publication Scope
+
+- The dedicated model reference and explicit credential category activate immutable host bindings without Secret reads in metadata paths. Every actual apply checks selected material before local activation or target mutation, including unchanged and activation-only plans. Installed startup checks precede readiness; admitted model invocations resolve independently and reject exact-value response echoes.
+- The reference resolver uses namespace-only config and captures exact name/key selections from typed model references. Secret permissions are exact named get; unsupported Tool/Memory and additional reference combinations remain separate consumer work.
+- Opt-in source and installed startup harnesses are executable code, require an explicit existing context and a new task namespace, use synthetic material, and guard deletion with resource UIDs. They do not establish external provider health or an installed credentialed worker run.
+- Only code, tests and implementation instructions are published in this continuation. Raw verification records, execution targets and image/resource identities remain local at the Owner's request. Independent human review and public reproduction remain required; keep #155 open and #213 draft.

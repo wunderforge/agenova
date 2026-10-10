@@ -136,6 +136,8 @@ func (l *Lifecycle) Init(reference, localName string) (PlatformFragment, error) 
 			return PlatformFragment{}, err
 		}
 		fragment.Spec.Services = &FragmentServices{ModelBackends: []v1alpha1.PlatformInstance{instance}, ModelProfiles: []v1alpha1.PlatformProfile{profile}}
+	case platform.CapabilityCredential:
+		fragment.Spec.Services = &FragmentServices{CredentialResolvers: []v1alpha1.PlatformInstance{instance}}
 	default:
 		return PlatformFragment{}, fmt.Errorf("adapter capability %q cannot initialize a Platform fragment", capability)
 	}

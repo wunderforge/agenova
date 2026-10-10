@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,14 +54,26 @@ type PlatformInfrastructure struct {
 }
 
 type PlatformServices struct {
-	ModelBackends []PlatformInstance `json:"modelBackends,omitempty" yaml:"modelBackends,omitempty"`
-	ModelProfiles []PlatformProfile  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
+	CredentialResolvers []PlatformInstance `json:"credentialResolvers,omitempty" yaml:"credentialResolvers,omitempty"`
+	ModelBackends       []PlatformInstance `json:"modelBackends,omitempty" yaml:"modelBackends,omitempty"`
+	ModelProfiles       []PlatformProfile  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
 }
 
+// PlatformCredentialReference is operator-selected opaque metadata. ResolverRef
+// selects a local resolver instance; the reference cannot grant claim authority.
+type PlatformCredentialReference struct {
+	ResolverRef string `json:"resolverRef" yaml:"resolverRef"`
+	Name        string `json:"name" yaml:"name"`
+	Key         string `json:"key" yaml:"key"`
+}
+
+// PlatformInstance references credentials only through the typed model-backend
+// field. Adapter config remains secret-free and cannot create another channel.
 type PlatformInstance struct {
-	Name       string         `json:"name" yaml:"name"`
-	AdapterRef string         `json:"adapterRef" yaml:"adapterRef"`
-	Config     map[string]any `json:"config,omitempty" yaml:"config,omitempty"`
+	CredentialRef *PlatformCredentialReference `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Name          string                       `json:"name" yaml:"name"`
+	AdapterRef    string                       `json:"adapterRef" yaml:"adapterRef"`
+	Config        map[string]any               `json:"config,omitempty" yaml:"config,omitempty"`
 }
 
 type PlatformProfile struct {
@@ -179,9 +193,20 @@ func ValidatePlatform(platform *Platform) *ValidationError {
 		return err
 	}
 
+	resolverNames, err := validatePlatformInstances("spec.services.credentialResolvers", platform.Spec.Services.CredentialResolvers, adapterNames)
+	if err != nil {
+		return err
+	}
 	modelNames, err := validatePlatformInstances("spec.services.modelBackends", platform.Spec.Services.ModelBackends, adapterNames)
 	if err != nil {
 		return err
+	}
+	for i, instance := range platform.Spec.Services.ModelBackends {
+		if instance.CredentialRef != nil {
+			if _, ok := resolverNames[instance.CredentialRef.ResolverRef]; !ok {
+				return validationError(ValidationCategoryInvalidValue, fmt.Sprintf("spec.services.modelBackends[%d].credentialRef.resolverRef", i), "unknown credential resolver instance")
+			}
+		}
 	}
 	if err := validatePlatformProfiles("spec.services.modelProfiles", platform.Spec.Services.ModelProfiles, modelNames); err != nil {
 		return err
@@ -220,7 +245,30 @@ func validatePlatformInstance(path string, instance PlatformInstance, adapterNam
 	if _, ok := adapterNames[instance.AdapterRef]; !ok {
 		return validationError(ValidationCategoryInvalidValue, path+".adapterRef", "unknown adapter requirement")
 	}
+	if instance.CredentialRef != nil {
+		if !strings.HasPrefix(path, "spec.services.modelBackends[") {
+			return validationError(ValidationCategorySecretValue, path+".credentialRef", "credential references are supported only on model backend instances")
+		}
+		if err := validatePlatformCredentialReference(path+".credentialRef", instance.CredentialRef); err != nil {
+			return err
+		}
+	}
 	return validatePlatformConfigValues(path+".config", instance.Config)
+}
+
+func validatePlatformCredentialReference(path string, ref *PlatformCredentialReference) *ValidationError {
+	if err := validatePlatformName(path+".resolverRef", ref.ResolverRef); err != nil {
+		return err
+	}
+	for _, field := range []struct{ name, value string }{{"name", ref.Name}, {"key", ref.Key}} {
+		if err := validateBoundedToken(path+"."+field.name, field.value, 256); err != nil {
+			return err
+		}
+		if !utf8.ValidString(field.value) || strings.ContainsFunc(field.value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+			return validationError(ValidationCategoryInvalidValue, path+"."+field.name, "reference metadata must be normalized and bounded")
+		}
+	}
+	return nil
 }
 
 func validatePlatformProfiles(path string, profiles []PlatformProfile, backendNames map[string]struct{}) *ValidationError {
@@ -359,6 +407,7 @@ func validatePlatformInfrastructureShape(node *yaml.Node, path string) *Validati
 func validatePlatformServicesShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
 		"modelBackends": nullable(validatePlatformInstancesShape), "modelProfiles": nullable(validatePlatformProfilesShape),
+		"credentialResolvers": nullable(validatePlatformInstancesShape),
 	}, nil)
 }
 
@@ -377,6 +426,13 @@ func validatePlatformProfilesShape(node *yaml.Node, path string) *ValidationErro
 func validatePlatformInstanceShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
 		"name": nullable(validateStringScalar), "adapterRef": nullable(validateStringScalar), "config": nullable(validatePlatformConfigShape),
+		"credentialRef": nullable(validatePlatformCredentialReferenceShape),
+	}, nil)
+}
+
+func validatePlatformCredentialReferenceShape(node *yaml.Node, path string) *ValidationError {
+	return validateMapping(node, path, map[string]nodeValidator{
+		"resolverRef": nullable(validateStringScalar), "name": nullable(validateStringScalar), "key": nullable(validateStringScalar),
 	}, nil)
 }
 

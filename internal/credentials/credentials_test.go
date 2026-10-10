@@ -248,6 +248,62 @@ func TestResolutionDeadlineDoesNotLimitConsumer(t *testing.T) {
 	}
 }
 
+// terminalCaller uses a real cancellation signal with a controlled terminal error
+// so both caller outcomes are exercised without timer/scheduler races.
+type terminalCaller struct {
+	context.Context
+	terminal error
+}
+
+func (c *terminalCaller) Err() error {
+	if c.Context.Err() != nil {
+		return c.terminal
+	}
+	return nil
+}
+
+func TestConsumerPreservesCallerTermination(t *testing.T) {
+	for _, terminal := range []error{context.Canceled, context.DeadlineExceeded} {
+		for _, result := range []string{"context", "wrapped-context", "private-error", "nil"} {
+			t.Run(terminal.Error()+"/"+result, func(t *testing.T) {
+				base, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				caller := &terminalCaller{Context: base, terminal: terminal}
+				m := &memoryResolver{values: map[credentials.Reference][]byte{testRef: []byte("synthetic-consumer-credential")}}
+				_, b := binding(t, m)
+				var retained []byte
+				calls := 0
+				err := b.Use(caller, func(ctx context.Context, value []byte) error {
+					calls++
+					if ctx != caller {
+						t.Fatal("consumer context changed")
+					}
+					retained = value
+					cancel()
+					switch result {
+					case "context":
+						return ctx.Err()
+					case "wrapped-context":
+						return fmt.Errorf("private-consumer-detail: %w", ctx.Err())
+					case "private-error":
+						return errors.New("private-consumer-detail")
+					default:
+						return nil
+					}
+				})
+				if err != terminal || calls != 1 || m.calls != 1 {
+					t.Fatalf("caller termination lost: error=%v consumer=%d resolver=%d", err, calls, m.calls)
+				}
+				for _, value := range append(m.returned, retained) {
+					if !bytes.Equal(value, make([]byte, len(value))) {
+						t.Fatal("terminal consumer material not cleared")
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestConcurrentUsesHaveIndependentClearedBuffers(t *testing.T) {
 	m := &memoryResolver{values: map[credentials.Reference][]byte{testRef: []byte("synthetic")}}
 	_, b := binding(t, m)

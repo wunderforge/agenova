@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	k8scredentials "github.com/wunderforge/agenova/internal/credentials/kubernetes"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
@@ -82,6 +83,9 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 	}
 	if count != 1 {
 		return fmt.Errorf("reference Control Plane requires exactly one runtime backend")
+	}
+	if _, err := referenceCredentialSelection(request.Platform, namespace); err != nil {
+		return err
 	}
 	backends := map[string]string{}
 	for _, instance := range request.Platform.Instances {
@@ -285,7 +289,8 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	ready := recordReady && deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
 	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
-	roleReady := managedObjectMatches(role, roleObject(namespace))
+	secretNames, _ := referenceSecretNames(request.Platform, namespace)
+	roleReady := managedObjectMatches(role, roleObject(namespace, secretNames...))
 	bindingReady := managedObjectMatches(roleBinding, roleBindingObject(namespace))
 	var changes []platformapply.Change
 	if !namespaceReady {
@@ -356,6 +361,9 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		return nil, false, fmt.Errorf("Kubernetes target changed before apply; review the new plan and retry")
 	}
 	request.TargetChanges = currentChanges
+	if err := k.CheckReadiness(ctx, request); err != nil {
+		return failedStatuses(request.Platform.Revision), false, err
+	}
 	if len(currentChanges) == 0 {
 		return currentStatuses, false, nil
 	}
@@ -575,7 +583,14 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
 	}
-	return k.preflight(ctx, contextName, namespace, request.TargetChanges)
+	if err := k.ValidateComposition(request); err != nil {
+		return err
+	}
+	secretNames, err := referenceSecretNames(request.Platform, namespace)
+	if err != nil {
+		return err
+	}
+	return k.preflight(ctx, contextName, namespace, request.TargetChanges, secretNames...)
 }
 
 func plannedComponent(changes []platformapply.Change, component string) bool {
@@ -587,7 +602,7 @@ func plannedComponent(changes []platformapply.Change, component string) bool {
 	return false
 }
 
-func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
+func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, namespace string, changes []platformapply.Change, secretNames ...string) error {
 	// A changed Deployment needs a rollout watch after mutation. ConfigMap or
 	// Service-only plans are verified by read-only re-planning instead.
 	if plannedComponent(changes, controlPlaneName) {
@@ -663,7 +678,7 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 		}
 	}
 	if plannedComponent(changes, controlPlaneRole) || plannedComponent(changes, controlPlaneRole+"-binding") {
-		if err := k.preflightRoleAuthority(ctx, contextName, namespace, changes); err != nil {
+		if err := k.preflightRoleAuthority(ctx, contextName, namespace, changes, secretNames...); err != nil {
 			return err
 		}
 	}
@@ -673,7 +688,7 @@ func (k *KubernetesDeployment) preflight(ctx context.Context, contextName, names
 // Kubernetes checks contained permissions in addition to create/patch on
 // Roles and RoleBindings. Check both authorization routes before any manifest
 // is written, so a restricted installer cannot partially install the stack.
-func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, contextName, namespace string, changes []platformapply.Change) error {
+func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, contextName, namespace string, changes []platformapply.Change, secretNames ...string) error {
 	roleResource := "roles.rbac.authorization.k8s.io/" + controlPlaneRole
 	needRole := plannedComponent(changes, controlPlaneRole)
 	needBinding := plannedComponent(changes, controlPlaneRole+"-binding")
@@ -684,7 +699,7 @@ func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, conte
 	if (!needRole || checkSpecial("escalate")) && (!needBinding || checkSpecial("bind")) {
 		return nil
 	}
-	for _, entry := range roleObject(namespace)["rules"].([]any) {
+	for _, entry := range roleObject(namespace, secretNames...)["rules"].([]any) {
 		rule := entry.(map[string]any)
 		for _, groupValue := range rule["apiGroups"].([]any) {
 			group := groupValue.(string)
@@ -699,14 +714,23 @@ func (k *KubernetesDeployment) preflightRoleAuthority(ctx context.Context, conte
 				}
 				for _, verbValue := range rule["verbs"].([]any) {
 					verb := verbValue.(string)
-					args := []string{"--context", contextName, "auth", "can-i", verb, resource}
-					if subresource != "" {
-						args = append(args, "--subresource="+subresource)
+					resources := []string{resource}
+					if names, ok := rule["resourceNames"].([]any); ok {
+						resources = nil
+						for _, name := range names {
+							resources = append(resources, resource+"/"+name.(string))
+						}
 					}
-					args = append(args, "--namespace", namespace)
-					result, err := k.run(ctx, nil, args...)
-					if err != nil || strings.TrimSpace(result.stdout) != "yes" {
-						return fmt.Errorf("current Kubernetes identity cannot grant reference Role permission %s %s in namespace %s; grant that permission or explicit escalate/bind authority before apply", verb, resource, namespace)
+					for _, selectedResource := range resources {
+						args := []string{"--context", contextName, "auth", "can-i", verb, selectedResource}
+						if subresource != "" {
+							args = append(args, "--subresource="+subresource)
+						}
+						args = append(args, "--namespace", namespace)
+						result, err := k.run(ctx, nil, args...)
+						if err != nil || strings.TrimSpace(result.stdout) != "yes" {
+							return fmt.Errorf("current Kubernetes identity cannot grant reference Role permission %s %s in namespace %s; grant that permission or explicit escalate/bind authority before apply", verb, selectedResource, namespace)
+						}
 					}
 				}
 			}
@@ -805,12 +829,16 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	if err != nil {
 		return nil, fmt.Errorf("encode active reference policy: %w", err)
 	}
+	secretNames, err := referenceSecretNames(request.Platform, namespace)
+	if err != nil {
+		return nil, err
+	}
 	steps := []manifestStep{
 		{name: platformRecord, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": platformRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"platform-lock.json": lockJSON, "effective-platform.json": string(effectiveJSON)}}},
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
 		{name: activePolicyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": activePolicyRecord, "namespace": namespace, "labels": managedLabels()}, "data": map[string]any{"reference.json": string(activeRef)}}},
 		{name: controlPlaneName + "-account", category: "deployment", object: serviceAccountObject(namespace)},
-		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace)},
+		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace, secretNames...)},
 		{name: controlPlaneRole + "-binding", category: "deployment", object: roleBindingObject(namespace)},
 		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
 		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},
@@ -856,11 +884,18 @@ func serviceAccountObject(namespace string) map[string]any {
 	return map[string]any{"apiVersion": "v1", "kind": "ServiceAccount", "metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels()}}
 }
 
-func roleObject(namespace string) map[string]any {
+func roleObject(namespace string, secretNames ...string) map[string]any {
 	// The installed setup API enumerates Agenova-managed template records in
 	// this dedicated namespace. Kubernetes RBAC cannot scope list by label.
 	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get", "list"}}}
 	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
+	if len(secretNames) > 0 {
+		names := make([]any, len(secretNames))
+		for i, name := range secretNames {
+			names[i] = name
+		}
+		rules = append(rules, map[string]any{"apiGroups": []any{""}, "resources": []any{"secrets"}, "resourceNames": names, "verbs": []any{"get"}})
+	}
 	return map[string]any{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role", "metadata": map[string]any{"name": controlPlaneRole, "namespace": namespace, "labels": managedLabels()}, "rules": rules}
 }
 
@@ -1113,4 +1148,25 @@ func failedStatuses(revision string) []platformapply.ComponentStatus {
 	statuses := []platformapply.ComponentStatus{{Name: platformRecord, Category: "deployment", State: "failed", Reference: revision}, {Name: controlPlaneName, Category: "deployment", State: "failed"}, {Name: controlPlaneName + "-service", Category: "deployment", State: "failed"}, {Name: policyRecord, Category: "policy", State: "failed"}, {Name: activePolicyRecord, Category: "policy", State: "failed"}}
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
 	return statuses
+}
+
+// CheckReadiness is invoked on every authorized apply, including an unchanged
+// plan. Secret checks remain absent from validate, plan and metadata status.
+func (k *KubernetesDeployment) CheckReadiness(ctx context.Context, request platformapply.DeploymentRequest) error {
+	contextName, namespace, err := deploymentCoordinates(request.Config)
+	if err != nil {
+		return err
+	}
+	selected, err := referenceCredentialSelection(request.Platform, namespace)
+	if err != nil || selected == nil {
+		return err
+	}
+	get := k.credentialGetter
+	if get == nil {
+		get, err = k8scredentials.NewKubectl(contextName)
+		if err != nil {
+			return err
+		}
+	}
+	return CheckReferenceCredentials(ctx, request.Platform, namespace, get)
 }

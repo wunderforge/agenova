@@ -23,6 +23,8 @@ import (
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/credentials"
+	k8scredentials "github.com/wunderforge/agenova/internal/credentials/kubernetes"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
@@ -158,6 +160,14 @@ func configuredService(path string) (*console.Service, error) {
 		if profile.Capability == platform.CapabilityRuntime {
 			runtimeProfiles[profile.Name] = true
 		}
+	}
+	get, err := k8scredentials.NewKubectl("in-cluster")
+	if err != nil {
+		return nil, err
+	}
+	modelConfig.Credential, err = installedModelCredential(context.Background(), &resolved, namespace, get)
+	if err != nil {
+		return nil, err
 	}
 	modelConfig.AllowDockerHostHTTP = strings.HasPrefix(modelConfig.Endpoint, "http://host.docker.internal:")
 	provider, err := modelprovider.New(modelConfig)
@@ -332,4 +342,17 @@ func handler() http.Handler {
 		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
+}
+
+// Startup completes the authorized check before either readiness or Work starts.
+// The returned handle captures metadata only; each model invocation resolves anew.
+func installedModelCredential(ctx context.Context, resolved *platform.ResolvedPlatform, namespace string, get k8scredentials.Getter) (*credentials.Binding, error) {
+	binding, err := bundled.ReferenceModelCredential(resolved, namespace, get)
+	if err != nil || binding == nil {
+		return binding, err
+	}
+	if err := binding.Use(ctx, func(context.Context, []byte) error { return nil }); err != nil {
+		return nil, err
+	}
+	return binding, nil
 }

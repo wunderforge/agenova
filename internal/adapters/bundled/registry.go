@@ -7,18 +7,21 @@ package bundled
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/wunderforge/agenova/internal/adapterregistry"
+	k8scredentials "github.com/wunderforge/agenova/internal/credentials/kubernetes"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 )
 
 const (
-	KubernetesDeploymentID  = "agenova.io/deployment/kubernetes"
-	AgentSandboxRuntimeID   = "agenova.io/runtime/agent-sandbox"
-	OpenAICompatibleModelID = "agenova.io/model/openai-compatible"
-	ReferenceVersion        = "0.1.0"
+	KubernetesDeploymentID       = "agenova.io/deployment/kubernetes"
+	AgentSandboxRuntimeID        = "agenova.io/runtime/agent-sandbox"
+	OpenAICompatibleModelID      = "agenova.io/model/openai-compatible"
+	KubernetesSecretCredentialID = k8scredentials.ResolverID
+	ReferenceVersion             = "0.1.0"
 	// This reference distribution includes only the controlled demo worker.
 	// Other images need their own reviewed compatibility contract/adapter.
 	referenceControlledWorkerImage = "agenova-testworker:kind"
@@ -26,15 +29,23 @@ const (
 
 // These types are capability-owned construction results. #45 can define the
 // narrow operational interfaces it needs without a universal adapter API.
-type KubernetesDeployment struct{ runner kubectlRunner }
+type KubernetesDeployment struct {
+	runner           kubectlRunner
+	credentialGetter k8scredentials.Getter
+}
 type AgentSandboxRuntime struct{}
 type OpenAICompatibleModel struct{}
+
+// KubernetesSecretCredential is a side-effect-free catalog marker. Host
+// composition supplies the selected identity, namespace and captured allowlist.
+type KubernetesSecretCredential struct{}
 
 func NewRegistry() (*adapterregistry.Registry, error) {
 	return adapterregistry.New(
 		kubernetesDeploymentRegistration(),
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
+		kubernetesSecretCredentialRegistration(),
 	)
 }
 
@@ -107,6 +118,39 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 			platform.CapabilityModel: func() (any, error) { return &OpenAICompatibleModel{}, nil },
 		},
 	}
+}
+
+func kubernetesSecretCredentialRegistration() adapterregistry.Registration {
+	manifest := adapterregistry.Manifest{
+		ID: KubernetesSecretCredentialID, Version: ReferenceVersion, Protocol: adapterregistry.ProtocolVersion,
+		Capabilities: []platform.Capability{platform.CapabilityCredential},
+		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
+			{Path: "namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace captured by the trusted Secret resolver", Default: "agenova-system"},
+		}},
+	}
+	return adapterregistry.Registration{
+		Manifest: manifest,
+		Descriptor: platform.Descriptor{
+			ID: manifest.ID, Version: manifest.Version, Capabilities: manifest.Capabilities,
+			CanonicalizeInstance: canonicalizeKubernetesSecretCredential,
+		},
+		Factories: map[platform.Capability]adapterregistry.Factory{
+			platform.CapabilityCredential: func() (any, error) { return &KubernetesSecretCredential{}, nil },
+		},
+	}
+}
+
+var credentialNamespace = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?$`)
+
+func canonicalizeKubernetesSecretCredential(_ platform.Capability, input map[string]any) (map[string]any, error) {
+	if err := onlyKeys(input, "namespace"); err != nil {
+		return nil, err
+	}
+	namespace, err := requiredString(input, "namespace")
+	if err != nil || !credentialNamespace.MatchString(namespace) {
+		return nil, platform.NewAdapterConfigError("invalid-namespace", "namespace")
+	}
+	return map[string]any{"namespace": namespace}, nil
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
@@ -231,6 +275,8 @@ func DescribeImplementation(value any) string {
 		return fmt.Sprintf("%s@%s", KubernetesDeploymentID, ReferenceVersion)
 	case *AgentSandboxRuntime:
 		return fmt.Sprintf("%s@%s", AgentSandboxRuntimeID, ReferenceVersion)
+	case *KubernetesSecretCredential:
+		return fmt.Sprintf("%s@%s", KubernetesSecretCredentialID, ReferenceVersion)
 	case *OpenAICompatibleModel:
 		return fmt.Sprintf("%s@%s", OpenAICompatibleModelID, ReferenceVersion)
 	default:

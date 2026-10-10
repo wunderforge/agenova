@@ -88,3 +88,35 @@ is no implicit environment lookup, persistent secret cache or claim restoration.
 - A stable host resolver contract does not make credentialed installed consumers ready. Platform integration, real Secret evidence and independent review remain required.
 - Kubernetes namespace/allowlist is trusted operator state; caller intent or a bare secret name cannot create authority.
 - Rotation has no automatic hot-cache guarantee. Restart/reconcile must refresh subsequent host bindings without widening active claim authority.
+
+
+## Coordinated Platform Slice - 2026-10-10
+
+The coordinated implementation includes explicit-context opt-in harnesses. Use
+only an exclusive campaign namespace and synthetic material, never existing
+Secret values. Execution records remain local at the Owner's request; independent
+reproduction is still required. No cluster creation or unaccepted E17/#192/#207
+source is needed.
+
+The typed public reference is separate from adapter config and selects a local
+credential resolver instance plus opaque name/key. Namespace remains inside the
+bundled Kubernetes adapter configuration. Capture the exact allowlist from the
+operator's typed model backend references; this avoids duplicating grant-like
+configuration while preserving immutable host bindings and Kubernetes authority.
+The explicit registry gains a credential category consistently across manifests,
+locks, fragments and resolved revision. Model refs remain limited to the existing
+reference HTTP model consumer; other consumer activation is unsupported.
+
+Reference validation/plan remain side-effect-free with respect to Secrets.
+Apply validates the selected Secret bindings even for identical reapply, and
+installed startup refuses readiness if resolution fails. Generated RBAC limits
+get to the selected names and checks installer authority for those exact names.
+The model adapter receives an immutable Binding rather than retaining resolved
+material in Config.APIKey, resolves after Gateway admission per request, validates
+Bearer material before dispatch and removes its request authorization header on
+return. Provider-owned invocation deadlines stay separate from resolution.
+
+The existing single-endpoint reference service requires one consistent credential
+selection across its routed model profiles. First scope permits one bundled
+resolver ID in the deployment namespace; unsupported combinations fail closed.
+Neither a credential reference nor resolver availability changes claim authority.

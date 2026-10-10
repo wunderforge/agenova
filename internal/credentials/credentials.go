@@ -159,8 +159,12 @@ func (b *Binding) Use(ctx context.Context, consume func(context.Context, []byte)
 	value := bytes.Clone(raw)
 	clear(raw)
 	defer clear(value)
-	if consume(ctx, value) != nil {
+	useErr := consume(ctx, value)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if useErr != nil {
 		return ErrUse
 	}
-	return ctx.Err()
+	return nil
 }

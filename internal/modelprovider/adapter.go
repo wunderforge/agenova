@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/wunderforge/agenova/internal/credentials"
 )
 
 const (
@@ -56,7 +58,10 @@ type Config struct {
 	AllowDockerHostHTTP bool
 	Models              map[string]string
 	APIKey              string
-	MaxTokens           int
+	// Credential is an immutable operator-bound handle. It is resolved for each
+	// admitted invocation; resolved values never populate APIKey or Adapter state.
+	Credential *credentials.Binding
+	MaxTokens  int
 	// OutputSchema is trusted, private provider configuration, never worker authority.
 	OutputSchema json.RawMessage
 	Timeout      time.Duration
@@ -67,6 +72,7 @@ type Adapter struct {
 	endpoint     string
 	models       map[string]string
 	apiKey       string
+	credential   *credentials.Binding
 	maxTokens    int
 	outputSchema json.RawMessage
 	timeout      time.Duration
@@ -84,7 +90,7 @@ func New(cfg Config) (*Adapter, error) {
 	if u.Scheme != "https" && (u.Scheme != "http" || (!loopback(u.Hostname()) && !trustedDockerHost)) {
 		return nil, errors.New("model provider requires HTTPS or explicit loopback HTTP")
 	}
-	if strings.ContainsAny(cfg.APIKey, "\r\n") {
+	if strings.ContainsAny(cfg.APIKey, "\r\n") || (cfg.APIKey != "" && cfg.Credential != nil) {
 		return nil, errors.New("model provider credentials are invalid")
 	}
 	if len(cfg.Models) == 0 {
@@ -120,7 +126,7 @@ func New(cfg Config) (*Adapter, error) {
 	if len(cfg.OutputSchema) > 8192 || (len(cfg.OutputSchema) > 0 && !json.Valid(cfg.OutputSchema)) {
 		return nil, errors.New("model output schema is invalid or oversized")
 	}
-	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, maxTokens: cfg.MaxTokens, outputSchema: append(json.RawMessage(nil), cfg.OutputSchema...), timeout: cfg.Timeout, client: client}, nil
+	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, credential: cfg.Credential, maxTokens: cfg.MaxTokens, outputSchema: append(json.RawMessage(nil), cfg.OutputSchema...), timeout: cfg.Timeout, client: client}, nil
 }
 
 func loopback(host string) bool {
@@ -167,6 +173,62 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 	if err != nil || len(body) > maxRequestBytes {
 		return Result{}, errors.New("model provider request is oversized or invalid")
 	}
+	if a.credential == nil {
+		legacy := []byte(a.apiKey)
+		defer clear(legacy)
+		return a.completeHTTP(ctx, model, body, legacy)
+	}
+	var result Result
+	var providerErr error
+	useErr := a.credential.Use(ctx, func(invocation context.Context, value []byte) error {
+		if !validBearerMaterial(value) {
+			providerErr = errors.New("model provider credentials are invalid")
+			return providerErr
+		}
+		result, providerErr = a.completeHTTP(invocation, model, body, value)
+		// A provider response is untrusted. Reject an exact resolved value in
+		// any returned field rather than exposing it as ordinary business data.
+		if providerErr == nil && (bytes.Contains([]byte(result.Text), value) || bytes.Contains([]byte(result.ResponseID), value) || bytes.Contains([]byte(result.Model), value)) {
+			result = Result{}
+			providerErr = errors.New("model provider response contains private credential material")
+		}
+		return providerErr
+	})
+	if useErr != nil {
+		// The scoped boundary sanitizes callback errors. Preserve this adapter's
+		// already sanitized provider outcome, including its own child deadline;
+		// caller termination and resolver errors remain owned by the boundary.
+		if errors.Is(useErr, credentials.ErrUse) && providerErr != nil {
+			return Result{}, providerErr
+		}
+		return Result{}, useErr
+	}
+	return result, providerErr
+}
+
+// validBearerMaterial enforces the RFC 6750 token grammar before HTTP dispatch.
+// Resolved material remains callback-local; net/http may make internal copies.
+func validBearerMaterial(value []byte) bool {
+	if len(value) == 0 || len(value) > credentials.MaxValueBytes {
+		return false
+	}
+	padding := false
+	for i, b := range value {
+		if b == '=' {
+			if i == 0 {
+				return false
+			}
+			padding = true
+			continue
+		}
+		if padding || !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || strings.ContainsRune("-._~+/", rune(b))) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *Adapter) completeHTTP(ctx context.Context, model string, body, token []byte) (Result, error) {
 	boundedCtx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 	httpReq, err := http.NewRequestWithContext(boundedCtx, http.MethodPost, a.endpoint, bytes.NewReader(body))
@@ -175,8 +237,9 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	if a.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+a.apiKey)
+	if len(token) > 0 {
+		httpReq.Header.Set("Authorization", "Bearer "+string(token))
+		defer httpReq.Header.Del("Authorization")
 	}
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
