@@ -72,6 +72,104 @@ GRANT SELECT, INSERT ON agenova_memory.records, agenova_memory.receipts TO memor
 	d.expect("memory_app", "SELECT current_user = 'memory_app' AND session_user = 'memory_app' AND system_user = 'scram-sha-256:memory_app'", "t")
 	d.expect("memory_app", readinessSQL, "t|t|t|t|t")
 
+	t.Run("RLS policy definitions reject drift", func(t *testing.T) {
+		fixture := &sqlFixture{t: t, id: d.id}
+		t.Logf("installed policy definitions: %s", fixture.sql("memory_app", `SELECT c.relname, p.polname, p.polcmd, p.polpermissive, p.polroles,
+pg_catalog.pg_get_expr(p.polqual, p.polrelid, false), pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid, false)
+FROM pg_catalog.pg_policy p JOIN pg_catalog.pg_class c ON c.oid = p.polrelid
+JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'agenova_memory' ORDER BY c.relname, p.polname`))
+		const expression = "team = current_setting('agenova.team', true) AND project = current_setting('agenova.project', true) AND scope = current_setting('agenova.scope', true)"
+		fixture.sql("", `INSERT INTO agenova_memory.records (team, project, scope, id, body, source_claim)
+VALUES ('victim-team', 'victim-project', 'victim-scope', 'memory:00000000000000000000000000000099', 'private-policy-drift-data', 'claim:policy-victim');
+INSERT INTO agenova_memory.receipts (team, project, scope, invocation_id, request_digest, memory_id)
+VALUES ('victim-team', 'victim-project', 'victim-scope', 'invocation:policy-victim', repeat('9',64), 'memory:00000000000000000000000000000099')`)
+		t.Cleanup(func() {
+			fixture.sql("", "DELETE FROM agenova_memory.receipts WHERE team = 'victim-team'; DELETE FROM agenova_memory.records WHERE team = 'victim-team'")
+		})
+		for _, object := range []string{"records", "receipts"} {
+			for _, tc := range []struct {
+				name, change, restore string
+				readLeak, writeLeak   bool
+			}{
+				{"extra permissive SELECT", "CREATE POLICY drift_extra ON agenova_memory." + object + " FOR SELECT USING (true)", "DROP POLICY drift_extra ON agenova_memory." + object, true, false},
+				{"extra permissive INSERT", "CREATE POLICY drift_extra ON agenova_memory." + object + " FOR INSERT WITH CHECK (true)", "DROP POLICY drift_extra ON agenova_memory." + object, false, true},
+				{"extra restrictive", "CREATE POLICY drift_extra ON agenova_memory." + object + " AS RESTRICTIVE FOR SELECT USING (true)", "DROP POLICY drift_extra ON agenova_memory." + object, false, false},
+				{"SELECT true", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (true)", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (" + expression + ")", true, false},
+				{"INSERT true", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (true)", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (" + expression + ")", false, true},
+				{"SELECT false", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (false)", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (" + expression + ")", false, false},
+				{"SELECT roles", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " TO memory_owner", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " TO PUBLIC", false, false},
+				{"INSERT roles", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " TO memory_owner", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " TO PUBLIC", false, false},
+				{"SELECT name", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " RENAME TO drift_renamed", "ALTER POLICY drift_renamed ON agenova_memory." + object + " RENAME TO " + object + "_select", false, false},
+				{"missing SELECT", "DROP POLICY " + object + "_select ON agenova_memory." + object, "CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT USING (" + expression + ")", false, false},
+				{"missing INSERT", "DROP POLICY " + object + "_insert ON agenova_memory." + object, "CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT WITH CHECK (" + expression + ")", false, false},
+				{"SELECT no expression", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT USING (" + expression + ")", false, false},
+				{"SELECT restrictive", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " AS RESTRICTIVE FOR SELECT USING (" + expression + ")", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT USING (" + expression + ")", false, false},
+				{"SELECT ALL command", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR ALL USING (" + expression + ")", "DROP POLICY " + object + "_select ON agenova_memory." + object + "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT USING (" + expression + ")", false, false},
+				{"INSERT no expression", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT WITH CHECK (" + expression + ")", false, false},
+				{"INSERT false", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (false)", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (" + expression + ")", false, false},
+				{"INSERT restrictive", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " AS RESTRICTIVE FOR INSERT WITH CHECK (" + expression + ")", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT WITH CHECK (" + expression + ")", false, false},
+				{"INSERT UPDATE command", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR UPDATE USING (" + expression + ") WITH CHECK (" + expression + ")", "DROP POLICY " + object + "_insert ON agenova_memory." + object + "; CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT WITH CHECK (" + expression + ")", false, false},
+				{"INSERT name", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " RENAME TO drift_renamed", "ALTER POLICY drift_renamed ON agenova_memory." + object + " RENAME TO " + object + "_insert", false, false},
+				{"SELECT omitted scope", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (team = current_setting('agenova.team', true) AND project = current_setting('agenova.project', true))", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " USING (" + expression + ")", false, false},
+				{"INSERT changed setting", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (team = current_setting('agenova.other-team', true) AND project = current_setting('agenova.project', true) AND scope = current_setting('agenova.scope', true))", "ALTER POLICY " + object + "_insert ON agenova_memory." + object + " WITH CHECK (" + expression + ")", false, false},
+				{"SELECT mixed roles", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " TO memory_app, memory_owner", "ALTER POLICY " + object + "_select ON agenova_memory." + object + " TO PUBLIC", false, false},
+			} {
+				t.Run(object+"/"+tc.name, func(t *testing.T) {
+					f := &sqlFixture{t: t, id: d.id}
+					f.sql("", tc.change)
+					t.Cleanup(func() { f.sql("", tc.restore); f.expect("memory_app", readinessSQL, "t|t|t|t|t") })
+					if tc.name == "SELECT mixed roles" {
+						f.expect("memory_app", "SELECT cardinality(p.polroles) = 2 AND NOT (0::oid = ANY(p.polroles)) FROM pg_catalog.pg_policy p WHERE p.polrelid = 'agenova_memory."+object+"'::regclass AND p.polname = '"+object+"_select'", "t")
+					}
+					if tc.readLeak {
+						f.expect("memory_app", "BEGIN;"+sqlNamespace("other-team", "other-project", "other-scope")+"SELECT count(*) = 1 FROM agenova_memory."+object+" WHERE team = 'victim-team'; ROLLBACK", "t")
+					}
+					if tc.writeLeak {
+						insert := "INSERT INTO agenova_memory.records (team,project,scope,id,body,source_claim) VALUES ('victim-team','victim-project','victim-scope','memory:00000000000000000000000000000098','synthetic-drift-write','claim:policy-drift')"
+						if object == "receipts" {
+							insert = "INSERT INTO agenova_memory.receipts (team,project,scope,invocation_id,request_digest,memory_id) VALUES ('victim-team','victim-project','victim-scope','invocation:policy-drift',repeat('8',64),'memory:00000000000000000000000000000099')"
+						}
+						f.expect("memory_app", "BEGIN;"+sqlNamespace("other-team", "other-project", "other-scope")+insert+"; SELECT true; ROLLBACK", "t")
+					}
+					f.expectUnsafeFlag(3)
+				})
+			}
+			t.Run(object+"/namespace collation", func(t *testing.T) {
+				f := &sqlFixture{t: t, id: d.id}
+				policies := "; CREATE POLICY " + object + "_select ON agenova_memory." + object + " FOR SELECT USING (" + expression + "); CREATE POLICY " + object + "_insert ON agenova_memory." + object + " FOR INSERT WITH CHECK (" + expression + ")"
+				alter := "DROP POLICY " + object + "_select ON agenova_memory." + object + "; DROP POLICY " + object + "_insert ON agenova_memory." + object + "; ALTER TABLE agenova_memory." + object + " ALTER COLUMN team TYPE text COLLATE "
+				f.sql("", alter+`pg_catalog."C"`+policies)
+				t.Cleanup(func() {
+					f.sql("", alter+`pg_catalog."default"`+policies)
+					f.expect("memory_app", readinessSQL, "t|t|t|t|t")
+				})
+				f.expectUnsafeFlag(3)
+			})
+		}
+		t.Run("deparse namespace", func(t *testing.T) {
+			f := &sqlFixture{t: t, id: d.id}
+			flags := strings.Split(f.sql("memory_app", "SET search_path = public, pg_catalog; "+readinessSQL), "|")
+			if len(flags) != 5 || flags[3] != "f" {
+				t.Fatal("readiness accepted policy deparsing without builtin namespace precedence")
+			}
+		})
+		t.Run("shadowed readiness aggregate", func(t *testing.T) {
+			f := &sqlFixture{t: t, id: d.id}
+			f.sql("", `CREATE FUNCTION public.policy_drift_bool(boolean, boolean) RETURNS boolean LANGUAGE sql AS 'SELECT true';
+CREATE AGGREGATE public.bool_and(boolean) (SFUNC = public.policy_drift_bool, STYPE = boolean, INITCOND = 'true');
+ALTER POLICY records_select ON agenova_memory.records USING (true)`)
+			t.Cleanup(func() {
+				f.sql("", "ALTER POLICY records_select ON agenova_memory.records USING ("+expression+"); DROP AGGREGATE public.bool_and(boolean); DROP FUNCTION public.policy_drift_bool(boolean, boolean)")
+				f.expect("memory_app", readinessSQL, "t|t|t|t|t")
+			})
+			f.expect("memory_app", "SET search_path = public, pg_catalog; BEGIN;"+sqlNamespace("other-team", "other-project", "other-scope")+"SELECT count(*) = 1 FROM agenova_memory.records WHERE team = 'victim-team'; ROLLBACK", "t")
+			flags := strings.Split(f.sql("memory_app", "SET search_path = public, pg_catalog; "+readinessSQL), "|")
+			if len(flags) != 5 || flags[3] != "f" {
+				t.Fatal("readiness namespace guard was bypassed by a shadowed aggregate")
+			}
+		})
+	})
+
 	t.Run("authenticated identity rejects session authorization masking", func(t *testing.T) {
 		for _, login := range []string{"", "memory_privileged"} {
 			t.Run("login_"+login, func(t *testing.T) {

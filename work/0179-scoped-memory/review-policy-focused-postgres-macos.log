@@ -1,0 +1,107 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift
+    sql_integration_test.go:77: installed policy definitions: receipts|receipts_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        receipts|receipts_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+        records|records_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        records|records_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_SELECT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_INSERT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_true
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_true
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_false
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_name
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_SELECT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_INSERT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_no_expression
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_ALL_command
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_no_expression
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_false
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_UPDATE_command
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_name
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_omitted_scope
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_changed_setting
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_mixed_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/namespace_collation
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_SELECT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_INSERT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_true
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_true
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_false
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_name
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_SELECT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_INSERT
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_no_expression
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_ALL_command
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_no_expression
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_false
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_restrictive
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_UPDATE_command
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_name
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_omitted_scope
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_changed_setting
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_mixed_roles
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/namespace_collation
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/deparse_namespace
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate
+--- PASS: TestPostgresSQLIntegration (14.48s)
+    --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift (12.96s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_SELECT (0.26s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_INSERT (0.36s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_restrictive (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_true (0.31s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_true (0.41s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_false (0.42s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_roles (0.31s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_roles (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_name (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_SELECT (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_INSERT (0.21s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_no_expression (0.20s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_restrictive (0.21s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_ALL_command (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_no_expression (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_false (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_restrictive (0.41s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_UPDATE_command (0.54s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_name (0.36s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_omitted_scope (0.29s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_changed_setting (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_mixed_roles (0.32s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/namespace_collation (0.24s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_SELECT (0.34s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_INSERT (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_restrictive (0.23s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_true (0.26s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_true (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_false (0.27s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_roles (0.27s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_roles (0.23s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_name (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_SELECT (0.27s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_INSERT (0.20s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_no_expression (0.19s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_restrictive (0.21s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_ALL_command (0.27s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_no_expression (0.19s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_false (0.20s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_restrictive (0.24s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_UPDATE_command (0.23s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_name (0.23s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_omitted_scope (0.21s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_changed_setting (0.21s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_mixed_roles (0.28s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/namespace_collation (0.22s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/deparse_namespace (0.06s)
+        --- PASS: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate (0.35s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	16.421s

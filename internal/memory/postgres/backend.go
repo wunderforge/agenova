@@ -35,6 +35,10 @@ type Backend struct{ db *sql.DB }
 
 var _ memory.Backend = (*Backend)(nil)
 
+// PostgreSQL 18 deparses the version-one ownership filter to this exact form.
+// Readiness pins its argument types, collation and builtin namespace precedence.
+const namespacePolicySQL = `'((team = current_setting(''agenova.team''::text, true)) AND (project = current_setting(''agenova.project''::text, true)) AND (scope = current_setting(''agenova.scope''::text, true)))'`
+
 const readinessSQL = `SELECT
  (SELECT version = 1 FROM agenova_memory.schema_version WHERE singleton),
  (SELECT count(*) > 0 AND bool_and(NOT r.rolsuper AND NOT r.rolbypassrls
@@ -55,7 +59,22 @@ const readinessSQL = `SELECT
  AND (SELECT NOT pg_has_role(current_user, d.datdba, 'MEMBER')
    AND NOT has_database_privilege(current_user, d.oid, 'CREATE')
   FROM pg_catalog.pg_database d WHERE d.datname = current_database()),
- (SELECT count(*) = 2 AND bool_and(c.relrowsecurity AND c.relforcerowsecurity
+ ((pg_catalog.current_schemas(true))[1] OPERATOR(pg_catalog.=) 'pg_catalog'::pg_catalog.name)
+ AND (SELECT count(*) = 2 AND bool_and(c.relrowsecurity AND c.relforcerowsecurity
+   AND (SELECT count(*) = 3 AND bool_and(NOT a.attisdropped
+     AND a.atttypid = 'pg_catalog.text'::regtype
+     AND a.attcollation = 'pg_catalog."default"'::regcollation)
+    FROM pg_catalog.pg_attribute a WHERE a.attrelid = c.oid
+     AND a.attname IN ('team', 'project', 'scope'))
+   AND (SELECT count(*) = 2 AND bool_and(COALESCE(p.polpermissive
+     AND p.polroles = ARRAY[0]::oid[]
+     AND ((p.polname = c.relname || '_select' AND p.polcmd = 'r'
+       AND p.polwithcheck IS NULL
+       AND pg_catalog.pg_get_expr(p.polqual, p.polrelid, false) = ` + namespacePolicySQL + `)
+      OR (p.polname = c.relname || '_insert' AND p.polcmd = 'a'
+       AND p.polqual IS NULL
+       AND pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid, false) = ` + namespacePolicySQL + `)), false))
+    FROM pg_catalog.pg_policy p WHERE p.polrelid = c.oid)
    AND NOT pg_has_role(current_user, c.relowner, 'MEMBER')
    AND has_table_privilege(current_user, c.oid, 'SELECT')
    AND has_table_privilege(current_user, c.oid, 'INSERT')

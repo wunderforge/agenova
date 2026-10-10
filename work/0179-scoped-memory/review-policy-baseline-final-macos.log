@@ -1,0 +1,156 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift
+    sql_integration_test.go:77: installed policy definitions: receipts|receipts_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        receipts|receipts_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+        records|records_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        records|records_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_SELECT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_INSERT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_true
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_true
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_false
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_name
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_SELECT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_INSERT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_no_expression
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_ALL_command
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_no_expression
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_false
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_UPDATE_command
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_name
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_omitted_scope
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_changed_setting
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_mixed_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/namespace_collation
+    sql_integration_test.go:146: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_SELECT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_INSERT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_true
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_true
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_false
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_name
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_SELECT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_INSERT
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_no_expression
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_ALL_command
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_no_expression
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_false
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_restrictive
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_UPDATE_command
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_name
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_omitted_scope
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_changed_setting
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_mixed_roles
+    sql_integration_test.go:134: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/namespace_collation
+    sql_integration_test.go:146: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/deparse_namespace
+    sql_integration_test.go:153: readiness accepted policy deparsing without builtin namespace precedence
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate
+    sql_integration_test.go:168: readiness namespace guard was bypassed by a shadowed aggregate
+--- FAIL: TestPostgresSQLIntegration (12.45s)
+    --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift (10.75s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_SELECT (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_permissive_INSERT (0.27s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/extra_restrictive (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_true (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_true (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_false (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_roles (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_roles (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_name (0.19s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_SELECT (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/missing_INSERT (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_no_expression (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_restrictive (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_ALL_command (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_no_expression (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_false (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_restrictive (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_UPDATE_command (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_name (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_omitted_scope (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/INSERT_changed_setting (0.19s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/SELECT_mixed_roles (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/records/namespace_collation (0.18s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_SELECT (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_permissive_INSERT (0.27s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/extra_restrictive (0.20s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_true (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_true (0.28s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_false (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_roles (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_roles (0.20s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_name (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_SELECT (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/missing_INSERT (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_no_expression (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_restrictive (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_ALL_command (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_no_expression (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_false (0.20s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_restrictive (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_UPDATE_command (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_name (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_omitted_scope (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/INSERT_changed_setting (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/SELECT_mixed_roles (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/receipts/namespace_collation (0.20s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/deparse_namespace (0.06s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate (0.26s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	12.869s
+FAIL
