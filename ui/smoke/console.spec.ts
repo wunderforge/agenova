@@ -92,10 +92,10 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   await expect(page.getByText('Requested, not granted: github.pull-request')).toBeVisible();
   const select = page.getByLabel('Fixture presentation scenario');
   await select.focus();
-  await page.keyboard.press('Home');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+  await expect(select).toBeFocused();
+  // Native select keyboard shortcuts vary by OS; test the source announcement
+  // through Playwright's option-selection action after the keyboard checks.
+  await select.selectOption('loading');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
   await expect(page.getByText('Allow', { exact: true })).toHaveCount(0);

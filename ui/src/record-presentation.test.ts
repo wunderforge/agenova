@@ -15,4 +15,11 @@ describe('evidence presentation independent of React and transport',()=>{
     expect(category({...fact,kind:'ProviderOutcome',operation:'tool.invoke'})).toBe('Tool Gateway');
     expect(category({...fact,kind:'ProviderOutcome',operation:'model.invoke'})).toBe('Model Gateway');
   });
+  it('keeps Memory result classes and interface labels distinct from model calls',()=>{
+    const memory = {...fact,kind:'ProviderOutcome',operation:'memory.read',providerStatus:'Succeeded',memory:{status:'Empty',count:0,durationMilliseconds:2,truncated:false}};
+    expect(category(memory)).toBe('Memory Interface');
+    expect(recordStatus(memory)).toBe('Empty');
+    expect(recordTitle(memory)).toBe('Memory search finished');
+    expect(recordStatus({...memory,operation:'memory.write',providerStatus:'Failed',memory:{...memory.memory,status:'WriteUncertain'}})).toBe('WriteUncertain');
+  });
 });

@@ -1,0 +1,31 @@
+ok  	github.com/wunderforge/agenova/internal/memory	11.444s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	1.722s
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.18s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.13s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.12s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.00s)
+        memory_admission_test.go:177: backend calls=1, want 0
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/read (0.00s)
+        memory_admission_test.go:177: backend calls=1, want 0
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.13s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write (0.00s)
+        memory_admission_test.go:177: backend calls=1, want 0
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.12s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.00s)
+        memory_admission_test.go:177: backend calls=1, want 0
+--- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.13s)
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+    --- FAIL: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write (0.01s)
+        memory_admission_test.go:177: backend calls=1, want 0
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/connectedclient	3.409s
+FAIL

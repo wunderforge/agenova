@@ -1,0 +1,17 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/masked_privileged_session_rejects_readiness
+    sql_integration_test.go:63: readiness accepted a privileged login masked by a data-only current role
+=== RUN   TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness
+=== RUN   TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness/memory_app
+    sql_integration_test.go:95: live readiness accepted an unsafe application role or privilege
+=== RUN   TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness/memory_bridge
+    sql_integration_test.go:95: live readiness accepted an unsafe application role or privilege
+--- FAIL: TestPostgresSQLIntegration (2.27s)
+    --- FAIL: TestPostgresSQLIntegration/masked_privileged_session_rejects_readiness (0.12s)
+    --- FAIL: TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness (0.95s)
+        --- FAIL: TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness/memory_app (0.30s)
+        --- FAIL: TestPostgresSQLIntegration/non_inheriting_SET_roles_reject_readiness/memory_bridge (0.36s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	2.671s
+FAIL

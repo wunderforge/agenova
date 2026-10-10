@@ -53,6 +53,10 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	}
 
 	model := request.Spec.RequestedAccess.ModelProfile
+	memoryOperations := exactIntersection(request.Spec.RequestedAccess.MemoryOperations, ceiling.MemoryOperations)
+	if len(request.Spec.RequestedAccess.MemoryOperations) > 0 && (len(memoryOperations) == 0 || len(memory) == 0) {
+		return nil, invalid("spec.requestedAccess.memoryOperations", "memory operations require both a granted operation and a granted scope")
+	}
 	if model != "" && !contains(ceiling.ModelProfiles, model) {
 		return nil, invalid("spec.requestedAccess.modelProfile", "requested model profile is outside the template ceiling")
 	}
@@ -69,10 +73,11 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	}
 
 	return &v1alpha1.EffectiveAuthority{
-		Tools:          tools,
-		ResourceScopes: resources,
-		ModelProfile:   model,
-		MemoryScopes:   memory,
+		Tools:            tools,
+		ResourceScopes:   resources,
+		ModelProfile:     model,
+		MemoryScopes:     memory,
+		MemoryOperations: memoryOperations,
 		Runtime: v1alpha1.EffectiveAuthorityRuntime{
 			ProfileRef: runtimeProfile,
 			Timeout:    timeout,

@@ -306,6 +306,7 @@ func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) i
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
+		view = evidence.ProjectPublic(view)
 		if parsed.json {
 			return printJSON(stdout, stderr, view)
 		}
@@ -322,6 +323,16 @@ func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) i
 			}
 			if view.Outcome.Text != "" {
 				fmt.Fprintf(stdout, "result: %s\n", view.Outcome.Text)
+			}
+		}
+		if len(view.ContentRedactions) > 0 {
+			fmt.Fprintln(stdout, "content: withheld")
+		}
+		for _, fact := range view.Facts {
+			if fact.Kind == "MemoryDecision" && fact.Result == "Deny" {
+				fmt.Fprintf(stdout, "memory: %s scope=%s status=Denied invocation=%s\n", fact.Operation, fact.Target, fact.InvocationID)
+			} else if fact.Kind == "ProviderOutcome" && fact.Memory != nil {
+				fmt.Fprintf(stdout, "memory: %s scope=%s status=%s count=%d truncated=%t duration-ms=%d invocation=%s\n", fact.Operation, fact.Target, fact.Memory.Status, fact.Memory.Count, fact.Memory.Truncated, fact.Memory.DurationMilliseconds, fact.InvocationID)
 			}
 		}
 		return 0
@@ -636,7 +647,11 @@ func printRunReport(stdout io.Writer, report RunReport, jsonOutput bool) error {
 		if report.Evidence == nil {
 			return fmt.Errorf("shared evidence view is unavailable")
 		}
-		return json.NewEncoder(stdout).Encode(report.Evidence)
+		data, err := evidence.MarshalPublic(report.Evidence)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(stdout).Encode(json.RawMessage(data))
 	}
 	fmt.Fprintf(stdout, "request: %s\n", report.RequestRef)
 	fmt.Fprintf(stdout, "decision: %s\n", report.Decision)
@@ -800,6 +815,15 @@ func adapterUsageError(stderr io.Writer, message string) int {
 }
 
 func printJSON(stdout, stderr io.Writer, value any) int {
+	switch value.(type) {
+	case evidence.View, *evidence.View, []evidence.View:
+		data, err := evidence.MarshalPublic(value)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		value = json.RawMessage(data)
+	}
 	encoder := json.NewEncoder(stdout)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(value); err != nil {

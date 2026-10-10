@@ -1,0 +1,15 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift
+    sql_integration_test.go:77: installed policy definitions: receipts|receipts_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        receipts|receipts_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+        records|records_insert|a|t|{0}||((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))
+        records|records_select|r|t|{0}|((team = current_setting('agenova.team'::text, true)) AND (project = current_setting('agenova.project'::text, true)) AND (scope = current_setting('agenova.scope'::text, true)))|
+=== RUN   TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate
+    sql_integration_test.go:165: readiness namespace guard was bypassed by a shadowed aggregate
+--- FAIL: TestPostgresSQLIntegration (2.21s)
+    --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift (0.43s)
+        --- FAIL: TestPostgresSQLIntegration/RLS_policy_definitions_reject_drift/shadowed_readiness_aggregate (0.28s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	2.694s
+FAIL

@@ -1,0 +1,17 @@
+=== RUN   TestMemoryAdmissionRechecksRunCancellationBeforeDispatch
+=== RUN   TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/MemoryDecision/read
+    admission_test.go:87: cancelled run dispatched before AfterFunc delivery: status=Cancelled calls=1 err=<nil>
+=== RUN   TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/MemoryDecision/write
+    admission_test.go:87: cancelled run dispatched before AfterFunc delivery: status=Written calls=1 err=<nil>
+=== RUN   TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/ProviderAttempt/read
+    admission_test.go:87: cancelled run dispatched before AfterFunc delivery: status=Cancelled calls=1 err=<nil>
+=== RUN   TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/ProviderAttempt/write
+    admission_test.go:87: cancelled run dispatched before AfterFunc delivery: status=Written calls=1 err=<nil>
+--- FAIL: TestMemoryAdmissionRechecksRunCancellationBeforeDispatch (0.00s)
+    --- FAIL: TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/MemoryDecision/read (0.00s)
+    --- FAIL: TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/MemoryDecision/write (0.00s)
+    --- FAIL: TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/ProviderAttempt/read (0.00s)
+    --- FAIL: TestMemoryAdmissionRechecksRunCancellationBeforeDispatch/ProviderAttempt/write (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory	0.533s
+FAIL

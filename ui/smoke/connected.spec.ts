@@ -6,8 +6,12 @@ import type { ClaimRequest,IssuedState,AgentTemplate,Fact } from '../src/contrac
 import type { Setup,View } from '../src/connected-source';
 const request=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/claim-request/valid-team-a-engineer.json',import.meta.url),'utf8')) as ClaimRequest;
 const state=JSON.parse(readFileSync(new URL('../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json',import.meta.url),'utf8')) as IssuedState;
+// Ordinary Work regression fixtures remain non-Memory; canonical files are unchanged.
+delete request.spec.requestedAccess?.memoryScopes;
+delete state.effectiveAuthority?.memoryScopes;
 const template:AgentTemplate={apiVersion:'agenova.io/v1alpha1',kind:'AgentTemplate',metadata:{name:'engineer'},spec:{artifact:{image:'example-worker'},entrypoint:{command:['worker']},defaults:{modelProfile:'approved-coding-model',memoryScopes:['team-docs']},capabilityCeiling:{tools:['git.read','git.write'],resourceScopes:['repo:acme/payments'],modelProfiles:['approved-coding-model'],memoryScopes:['team-docs'],runtimeProfiles:['standard-isolated'],maxTimeout:'30m'}}};
 const setup:Setup={installation:{kind:'installed',platform:'reference-kind',revision:'sha256:'+'a'.repeat(64)},principal:state.principal,template,policy:{ID:state.policyRef.id,Version:state.policyRef.version,Rules:[{team:'team-a',action:'claim.create',project:'payments',templateRef:'engineer'}]},capabilities:{taskSubmission:'ready',runtime:'configured',model:'configured',tool:'notConnected',memory:'notConnected'}};
+delete template.spec.defaults?.memoryScopes;
 function work(phase:'Running'|'Succeeded'='Running'):View{
  const copy=structuredClone(state);
 copy.claim!.phase=phase;
@@ -26,6 +30,30 @@ return route.fulfill({status:202,json:current()[0]});
   const ref=decodeURIComponent(path.split('/')[3]||'');
 const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
+ });
+}
+
+for(const width of [1100,390]){
+ test(`Memory projection withholds task and result at ${width}px`,async({page},info)=>{
+  await page.setViewportSize({width,height:1000});
+  const current=work('Succeeded');
+  current.request.spec.requestedAccess={memoryScopes:['team-docs'],memoryOperations:['read']};
+  current.request.spec.task!.input={};
+  current.contentRedactions=['request.spec.task.input','outcome.text'];
+  delete current.outcome!.text;
+  await api(page,()=>[current]);
+  await page.goto(`/?mode=connected#/work/${encodeURIComponent(current.requestRef)}`);
+  await expect(page.getByText('Task instructions: Content withheld',{exact:true})).toBeVisible();
+  await expect(page.locator('.portal-result')).toContainText('Content withheld');
+  await expect(page.locator('.portal-result')).not.toContainText('bounded retry');
+  await expect(page.locator('.portal-task-instructions')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath(`memory-redacted-${width}.png`),fullPage:true});
+  current.request.spec.task!.input={objective:'private-input-sentinel'};
+  await page.reload();
+  await expect(page.getByRole('alert')).toContainText('incomplete work record');
+  await expect(page.getByText('private-input-sentinel',{exact:true})).toHaveCount(0);
  });
 }
 test('work name is separate from full instructions and identity', async({page},info)=>{

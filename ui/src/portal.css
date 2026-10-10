@@ -59,7 +59,7 @@ body:has(.portal-shell) { background:var(--portal-paper); color:var(--portal-ink
 .portal-work-title:hover,.portal-record-row a:hover,.portal-platform-row a:hover { text-decoration:underline; }
 .portal-badge { display:inline-flex; align-items:center; width:max-content; gap:7px; border-radius:20px; padding:7px 10px; background:#e6f6f1; color:#006e5f; font-size:11px; font-weight:750; white-space:nowrap; }
 .portal-badge:before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
-.portal-badge.denied,.portal-badge.failed { color:#a24444; background:#ffebed; }
+.portal-badge.denied,.portal-badge.deny,.portal-badge.failed { color:#a24444; background:#ffebed; }
 .portal-badge.pending,.portal-badge.example,.portal-badge.fixture { color:#946221; background:#fff5e4; }
 .portal-badge.recorded,.portal-badge.mock,.portal-badge.todo,.portal-badge.planned { color:#546e78; background:#edf2f4; }
 .portal-badge.not-connected { color:#546e78; background:#edf2f4; }

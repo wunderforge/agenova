@@ -144,6 +144,7 @@ type RunService struct {
 	runMu         sync.Mutex
 	mu            sync.RWMutex
 	state         map[string]*v1alpha1.IssuedState
+	deadlines     map[string]time.Time
 	identityOwner map[v1alpha1.SandboxClaimBackendIdentity]string
 }
 
@@ -179,6 +180,7 @@ func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*
 		poll:          poll,
 		onEvent:       options.OnEvent,
 		state:         make(map[string]*v1alpha1.IssuedState),
+		deadlines:     make(map[string]time.Time),
 		identityOwner: make(map[v1alpha1.SandboxClaimBackendIdentity]string),
 	}, nil
 }
@@ -271,6 +273,9 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		return s.current(claimID), err
 	}
 	deadline := s.now().Add(time.Duration(initial.EffectiveAuthority.Runtime.Timeout))
+	s.mu.Lock()
+	s.deadlines[claimID] = deadline
+	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return interrupted()
 	}
@@ -614,8 +619,21 @@ func (s *RunService) State(claimID string) *v1alpha1.IssuedState {
 	return s.current(claimID)
 }
 
+// ClaimDeadline exposes the run-owned deadline without letting an invocation
+// extend the lifetime of its claim.
+func (s *RunService) ClaimDeadline(claimID string) (time.Time, bool) {
+	if s == nil {
+		return time.Time{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	deadline, ok := s.deadlines[claimID]
+	return deadline, ok
+}
+
 // ObserveState holds the lifecycle read lock while the caller reads its
-// correlated journal projection. Runtime transitions append their event while
+// correlated journal projection or publishes bounded invocation admission.
+// Runtime transitions append their event while
 // holding the write lock, so observers cannot combine a new phase with an old
 // Runtime fact (or an old phase with a new Runtime fact). The callback must not
 // call RunService methods or retain the state pointer for mutation.
@@ -666,6 +684,7 @@ func cloneEffectiveAuthority(source v1alpha1.EffectiveAuthority) v1alpha1.Effect
 	copy.Tools = append([]string(nil), source.Tools...)
 	copy.ResourceScopes = append([]string(nil), source.ResourceScopes...)
 	copy.MemoryScopes = append([]string(nil), source.MemoryScopes...)
+	copy.MemoryOperations = append([]string(nil), source.MemoryOperations...)
 	return copy
 }
 

@@ -1,0 +1,18 @@
+Commands (sequential; stop on first nonzero exit):
+go test -count=1 ./internal/memory ./internal/memory/postgres ./internal/facts ./internal/app ./internal/connectedclient
+go test -race -count=1 ./internal/memory ./internal/memory/postgres ./internal/facts ./internal/app ./internal/connectedclient
+go test -race -count=20 ./internal/memory/postgres -run 'Readiness'
+go vet -tags memorypostgres ./internal/memory/postgres
+
+ok  	github.com/wunderforge/agenova/internal/memory	1.217s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	0.642s
+ok  	github.com/wunderforge/agenova/internal/facts	1.892s
+ok  	github.com/wunderforge/agenova/internal/app	3.656s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	5.493s
+ok  	github.com/wunderforge/agenova/internal/memory	4.429s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	5.743s
+ok  	github.com/wunderforge/agenova/internal/facts	2.584s
+ok  	github.com/wunderforge/agenova/internal/app	6.793s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	8.472s
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	1.672s
+All four commands exited 0; vet produced no diagnostics.

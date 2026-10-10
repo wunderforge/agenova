@@ -84,12 +84,13 @@ type AgentTemplateDefaults struct {
 }
 
 type AgentTemplateCapabilityCeiling struct {
-	Tools           []string  `json:"tools,omitempty" yaml:"tools,omitempty"`
-	ResourceScopes  []string  `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
-	ModelProfiles   []string  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
-	MemoryScopes    []string  `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
-	RuntimeProfiles []string  `json:"runtimeProfiles,omitempty" yaml:"runtimeProfiles,omitempty"`
-	MaxTimeout      *Duration `json:"maxTimeout,omitempty" yaml:"maxTimeout,omitempty"`
+	Tools            []string  `json:"tools,omitempty" yaml:"tools,omitempty"`
+	ResourceScopes   []string  `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
+	ModelProfiles    []string  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
+	MemoryScopes     []string  `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
+	MemoryOperations []string  `json:"memoryOperations,omitempty" yaml:"memoryOperations,omitempty"`
+	RuntimeProfiles  []string  `json:"runtimeProfiles,omitempty" yaml:"runtimeProfiles,omitempty"`
+	MaxTimeout       *Duration `json:"maxTimeout,omitempty" yaml:"maxTimeout,omitempty"`
 }
 
 // Duration preserves the human-authored Go duration syntax used by the v0
@@ -211,6 +212,9 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 	}
 
 	defaults := template.Spec.Defaults
+	if err := validateMemoryOperations("spec.capabilityCeiling.memoryOperations", ceiling.MemoryOperations, ValidationCategoryInvalidCapabilityCeiling); err != nil {
+		return err
+	}
 	if defaults.ModelProfile != "" && !contains(ceiling.ModelProfiles, defaults.ModelProfile) {
 		return validationError(ValidationCategoryInvalidCapabilityCeiling, "spec.defaults.modelProfile", "default is outside capability ceiling")
 	}
@@ -303,12 +307,13 @@ func validateCapabilityCeilingShape(node *yaml.Node, path string) *ValidationErr
 		return validationError(ValidationCategoryInvalidCapabilityCeiling, path, "expected a mapping")
 	}
 	return validateMapping(node, path, map[string]nodeValidator{
-		"tools":           validateCapabilitySequence,
-		"resourceScopes":  validateCapabilitySequence,
-		"modelProfiles":   validateCapabilitySequence,
-		"memoryScopes":    validateCapabilitySequence,
-		"runtimeProfiles": validateCapabilitySequence,
-		"maxTimeout":      validatePositiveDurationScalar,
+		"tools":            validateCapabilitySequence,
+		"resourceScopes":   validateCapabilitySequence,
+		"modelProfiles":    validateCapabilitySequence,
+		"memoryScopes":     validateCapabilitySequence,
+		"memoryOperations": validateCapabilitySequence,
+		"runtimeProfiles":  validateCapabilitySequence,
+		"maxTimeout":       validatePositiveDurationScalar,
 	}, nil)
 }
 

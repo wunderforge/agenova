@@ -1,0 +1,36 @@
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/backend-in-flight/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/backend-in-flight/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/write
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/backend-in-flight/read
+=== RUN   TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/backend-in-flight/write
+--- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions (0.01s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/MemoryDecision/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/ProviderAttempt/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/terminal-first/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/backend-in-flight/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/cancel/backend-in-flight/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/MemoryDecision/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/ProviderAttempt/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/terminal-first/write (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/backend-in-flight/read (0.00s)
+    --- PASS: TestMemoryAdmissionCorrelatesWithTerminalTransitions/expire/backend-in-flight/write (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/connectedclient	0.261s

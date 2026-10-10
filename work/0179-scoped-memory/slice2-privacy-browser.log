@@ -1,0 +1,11 @@
+
+> @agenova/fixture-storyboard@0.0.0 test:smoke
+> playwright test --grep Memory projection
+
+
+Running 2 tests using 1 worker
+
+  ✓  1 smoke/connected.spec.ts:37:2 › Memory projection withholds task and result at 1100px (824ms)
+  ✓  2 smoke/connected.spec.ts:37:2 › Memory projection withholds task and result at 390px (608ms)
+
+  2 passed (5.6s)

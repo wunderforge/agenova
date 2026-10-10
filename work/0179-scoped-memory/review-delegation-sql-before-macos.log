@@ -1,0 +1,82 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT_(body)/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT_(body)/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT_(request_digest)/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT_(request_digest)/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT_(version)/memory_app
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_USAGE/memory_app
+    sql_integration_test.go:108: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT_(body)/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT_(body)/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT_(request_digest)/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT_(request_digest)/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT_(version)/memory_inherited
+    sql_integration_test.go:89: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/grant_options_reject_readiness/schema_USAGE/memory_inherited
+    sql_integration_test.go:108: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/role_membership_administration_rejects_readiness
+=== RUN   TestPostgresSQLIntegration/role_membership_administration_rejects_readiness/memory_app
+    sql_integration_test.go:131: live readiness accepted an administrative role or ownership
+=== RUN   TestPostgresSQLIntegration/role_membership_administration_rejects_readiness/memory_delegate
+    sql_integration_test.go:131: live readiness accepted an administrative role or ownership
+--- FAIL: TestPostgresSQLIntegration (8.44s)
+    --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness (6.32s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT/memory_app (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT_(body)/memory_app (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT_(body)/memory_app (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT/memory_app (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT_(request_digest)/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT_(request_digest)/memory_app (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT_(version)/memory_app (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_USAGE/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT/memory_inherited (0.32s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/SELECT_(body)/memory_inherited (0.31s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT/memory_inherited (0.33s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/records/INSERT_(body)/memory_inherited (0.35s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT/memory_inherited (0.35s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/SELECT_(request_digest)/memory_inherited (0.33s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT/memory_inherited (0.34s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/receipts/INSERT_(request_digest)/memory_inherited (0.34s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT/memory_inherited (0.34s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_version/SELECT_(version)/memory_inherited (0.37s)
+        --- FAIL: TestPostgresSQLIntegration/grant_options_reject_readiness/schema_USAGE/memory_inherited (0.35s)
+    --- FAIL: TestPostgresSQLIntegration/role_membership_administration_rejects_readiness (0.76s)
+        --- FAIL: TestPostgresSQLIntegration/role_membership_administration_rejects_readiness/memory_app (0.33s)
+        --- FAIL: TestPostgresSQLIntegration/role_membership_administration_rejects_readiness/memory_delegate (0.38s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	8.834s
+FAIL

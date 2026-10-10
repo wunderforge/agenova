@@ -1,0 +1,100 @@
+=== RUN   TestPostgresSQLIntegration
+    sql_integration_test.go:45: image=postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336; server=18.6 (Debian 18.6-1.pgdg13+2); network=none; transport=container-local socket
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC
+    sql_integration_test.go:80: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/records
+    sql_integration_test.go:101: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/receipts
+    sql_integration_test.go:101: live SQL assertion failed; private result withheld
+=== RUN   TestPostgresSQLIntegration/column_references_reject_readiness/schema_version
+    sql_integration_test.go:101: live SQL assertion failed; private result withheld
+--- FAIL: TestPostgresSQLIntegration (9.81s)
+    --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness (7.60s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_app (0.27s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/memory_inherited (0.31s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/TRIGGER/PUBLIC (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_app (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/memory_inherited (0.49s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/REFERENCES/PUBLIC (0.21s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/memory_inherited (0.35s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/records/MAINTAIN/PUBLIC (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_app (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/memory_inherited (0.42s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/TRIGGER/PUBLIC (0.24s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_app (0.27s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/memory_inherited (0.36s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/REFERENCES/PUBLIC (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_app (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/memory_inherited (0.33s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/receipts/MAINTAIN/PUBLIC (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_app (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/memory_inherited (0.31s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/TRIGGER/PUBLIC (0.22s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/memory_inherited (0.33s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/REFERENCES/PUBLIC (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_app (0.23s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/memory_inherited (0.37s)
+        --- FAIL: TestPostgresSQLIntegration/unexpected_table_privileges_reject_readiness/schema_version/MAINTAIN/PUBLIC (0.25s)
+    --- FAIL: TestPostgresSQLIntegration/column_references_reject_readiness (0.75s)
+        --- FAIL: TestPostgresSQLIntegration/column_references_reject_readiness/records (0.26s)
+        --- FAIL: TestPostgresSQLIntegration/column_references_reject_readiness/receipts (0.25s)
+        --- FAIL: TestPostgresSQLIntegration/column_references_reject_readiness/schema_version (0.25s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	10.183s
+FAIL

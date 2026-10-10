@@ -1,0 +1,450 @@
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/commit-ack-lost
+=== RUN   TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/no-commit
+--- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest (0.00s)
+    --- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/commit-ack-lost (0.00s)
+    --- PASS: TestUncertainWriteRetryPreservesReceiptAndImmutableRequest/no-commit (0.00s)
+=== RUN   TestRetryContinuationCannotBeForgedOrMovedToAnotherSession
+--- PASS: TestRetryContinuationCannotBeForgedOrMovedToAnotherSession (0.00s)
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/terminal
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/grant-revoked
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/scope-revoked
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/worker-changed
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/deadline
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/ownership
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/caller-cancelled
+=== RUN   TestRetryRechecksAuthorityAndContextsBeforeBackend/run-cancelled
+--- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/terminal (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/grant-revoked (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/scope-revoked (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/worker-changed (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/deadline (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/ownership (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/caller-cancelled (0.00s)
+    --- PASS: TestRetryRechecksAuthorityAndContextsBeforeBackend/run-cancelled (0.00s)
+=== RUN   TestRetryTransientFaultsKeepSameReceiptWithoutAutomaticRetries
+--- PASS: TestRetryTransientFaultsKeepSameReceiptWithoutAutomaticRetries (0.00s)
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/MemoryDecision
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/ProviderAttempt
+=== RUN   TestRetryEvidenceFailureDisablesAllCopies/ProviderOutcome
+--- PASS: TestRetryEvidenceFailureDisablesAllCopies (0.00s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/MemoryDecision (0.00s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/ProviderAttempt (0.00s)
+    --- PASS: TestRetryEvidenceFailureDisablesAllCopies/ProviderOutcome (0.00s)
+=== RUN   TestConcurrentRetryCopiesResolveOnlyOnce
+--- PASS: TestConcurrentRetryCopiesResolveOnlyOnce (0.00s)
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission/caller-cancelled
+=== RUN   TestWaitingRetryCanCancelBeforeAdmission/run-cancelled
+--- PASS: TestWaitingRetryCanCancelBeforeAdmission (0.02s)
+    --- PASS: TestWaitingRetryCanCancelBeforeAdmission/caller-cancelled (0.01s)
+    --- PASS: TestWaitingRetryCanCancelBeforeAdmission/run-cancelled (0.01s)
+=== RUN   TestSuccessfulWriteSearchEmptyAndMetadataPrivacy
+--- PASS: TestSuccessfulWriteSearchEmptyAndMetadataPrivacy (0.00s)
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/foreign_target
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/unknown_claim
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/no_operations
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/no_scope
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/foreign_scope
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/cross_team
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/cross_project
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/read_only_write
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/changed_worker
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/changed_issued_grant
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/expired_deadline
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/unknown_operation
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/blank_query
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/long_query
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/invalid_utf8
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/negative_limit
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/large_limit
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/extra_write_body
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/long_body
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Pending
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Bound
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Succeeded
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Failed
+=== RUN   TestDenialsNeverCallBackendOrAttributeVictim/Expired
+--- PASS: TestDenialsNeverCallBackendOrAttributeVictim (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/foreign_target (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/unknown_claim (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/no_operations (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/no_scope (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/foreign_scope (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/cross_team (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/cross_project (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/read_only_write (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/changed_worker (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/changed_issued_grant (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/expired_deadline (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/unknown_operation (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/blank_query (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/long_query (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/invalid_utf8 (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/negative_limit (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/large_limit (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/extra_write_body (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/long_body (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Pending (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Bound (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Succeeded (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Failed (0.00s)
+    --- PASS: TestDenialsNeverCallBackendOrAttributeVictim/Expired (0.00s)
+=== RUN   TestBindingAndRouteCopies
+--- PASS: TestBindingAndRouteCopies (0.00s)
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unsupported
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unavailable
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Timeout
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Cancelled
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/Failed
+=== RUN   TestTypedBackendFaultsWithoutRawErrorsOrRetries/WriteUncertain
+--- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unsupported (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Unavailable (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Timeout (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Cancelled (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/Failed (0.00s)
+    --- PASS: TestTypedBackendFaultsWithoutRawErrorsOrRetries/WriteUncertain (0.00s)
+=== RUN   TestDeadlineAndRunCancellationWithholdReadData
+--- PASS: TestDeadlineAndRunCancellationWithholdReadData (0.04s)
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/MemoryDecision
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderAttempt
+=== RUN   TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderOutcome
+--- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork (0.00s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/MemoryDecision (0.00s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderAttempt (0.00s)
+    --- PASS: TestEvidenceFailureStopsDispatchOrFailsCommittedWork/ProviderOutcome (0.00s)
+=== RUN   TestReplyBoundsAndMisrouting
+--- PASS: TestReplyBoundsAndMisrouting (0.00s)
+=== RUN   TestConcurrentCallsKeepIndependentInvocationFacts
+--- PASS: TestConcurrentCallsKeepIndependentInvocationFacts (0.00s)
+=== RUN   TestKnownWriteCommitIsNotReportedAsRollback
+--- PASS: TestKnownWriteCommitIsNotReportedAsRollback (0.00s)
+=== RUN   TestEmptyNonMemoryGrantsAndCallerDeadline
+--- PASS: TestEmptyNonMemoryGrantsAndCallerDeadline (0.00s)
+=== RUN   TestNULTextDeniedBeforeBackendDispatch
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"\u0000private-nul-sentinel"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000tail"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/read/"\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"\u0000private-nul-sentinel"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000tail"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000"
+=== RUN   TestNULTextDeniedBeforeBackendDispatch/write/"\u0000"
+--- PASS: TestNULTextDeniedBeforeBackendDispatch (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"\u0000private-nul-sentinel" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000tail" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"private-nul-sentinel\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/read/"\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"\u0000private-nul-sentinel" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000tail" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"private-nul-sentinel\u0000" (0.00s)
+    --- PASS: TestNULTextDeniedBeforeBackendDispatch/write/"\u0000" (0.00s)
+=== RUN   TestTextContractPreservesNonNULData
+=== RUN   TestTextContractPreservesNonNULData/line__second
+=== RUN   TestTextContractPreservesNonNULData/知识_📚
+=== RUN   TestTextContractPreservesNonNULData/%___SQL-like_'_\u0000
+--- PASS: TestTextContractPreservesNonNULData (0.00s)
+    --- PASS: TestTextContractPreservesNonNULData/line__second (0.00s)
+    --- PASS: TestTextContractPreservesNonNULData/知识_📚 (0.00s)
+    --- PASS: TestTextContractPreservesNonNULData/%___SQL-like_'_\u0000 (0.00s)
+=== RUN   TestNULBackendReplyWithheld
+--- PASS: TestNULBackendReplyWithheld (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory	0.571s
+=== RUN   TestReadinessRejectsUnsafeRolesAndSchema
+--- PASS: TestReadinessRejectsUnsafeRolesAndSchema (0.00s)
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/success
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/lost_acknowledgement
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/completion_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_completion_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_resolution_unknown
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_cancellation
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_timeout
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_rollback
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/serialization_failure
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_constraint
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/deadlock
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/integrity_constraint
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/failed_transaction
+=== RUN   TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_rollback
+--- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/success (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/lost_acknowledgement (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/completion_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_completion_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_resolution_unknown (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_cancellation (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/commit_timeout (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_rollback (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/serialization_failure (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/transaction_constraint (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/deadlock (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/integrity_constraint (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/failed_transaction (0.00s)
+    --- PASS: TestWriteCommitsRowAndReceiptTogetherAndSanitizesCommitFault/wrapped_rollback (0.00s)
+=== RUN   TestReceiptReplayNeverWritesAndDifferentBodyFails
+--- PASS: TestReceiptReplayNeverWritesAndDifferentBodyFails (0.00s)
+=== RUN   TestReceiptFailureRollsBackWithoutCommit
+--- PASS: TestReceiptFailureRollsBackWithoutCommit (0.00s)
+=== RUN   TestSearchUsesLiteralParametersReadonlyTransactionAndResetsOwnership
+--- PASS: TestSearchUsesLiteralParametersReadonlyTransactionAndResetsOwnership (0.00s)
+=== RUN   TestInvalidInputAndTypedFaults
+--- PASS: TestInvalidInputAndTypedFaults (0.00s)
+=== RUN   TestMigrationScopeAndDenyByDefault
+--- PASS: TestMigrationScopeAndDenyByDefault (0.00s)
+=== RUN   TestReadinessSQLRejectsTenantColumnUpdate
+--- PASS: TestReadinessSQLRejectsTenantColumnUpdate (0.00s)
+=== RUN   TestReadinessSQLRequiresReadOnlySchemaVersion
+--- PASS: TestReadinessSQLRequiresReadOnlySchemaVersion (0.00s)
+=== RUN   TestReadinessSchemaVersionResult
+=== RUN   TestReadinessSchemaVersionResult/read-only_non-owner
+=== RUN   TestReadinessSchemaVersionResult/unsafe_or_missing_marker
+=== RUN   TestReadinessSchemaVersionResult/unknown_safety
+=== RUN   TestReadinessSchemaVersionResult/invalid_safety_result
+--- PASS: TestReadinessSchemaVersionResult (0.00s)
+    --- PASS: TestReadinessSchemaVersionResult/read-only_non-owner (0.00s)
+    --- PASS: TestReadinessSchemaVersionResult/unsafe_or_missing_marker (0.00s)
+    --- PASS: TestReadinessSchemaVersionResult/unknown_safety (0.00s)
+    --- PASS: TestReadinessSchemaVersionResult/invalid_safety_result (0.00s)
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/lost_acknowledgement
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/SQLSTATE_40003
+=== RUN   TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/wrapped_SQLSTATE_40003
+--- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement (0.00s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/lost_acknowledgement (0.00s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/SQLSTATE_40003 (0.00s)
+    --- PASS: TestGovernedRetryReusesPostgresReceiptAfterLostCommitAcknowledgement/wrapped_SQLSTATE_40003 (0.00s)
+=== RUN   TestGovernedDenialsNeverCallDatabase
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_prefix
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_middle
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/NUL_suffix
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/blank
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/invalid_UTF8
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/oversized
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/foreign_target
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/foreign_scope
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/no_operations
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/no_scopes
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/inactive
+=== RUN   TestGovernedDenialsNeverCallDatabase/read/wrong_owner
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_prefix
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_middle
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/NUL_suffix
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/blank
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/invalid_UTF8
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/oversized
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/foreign_target
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/foreign_scope
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/no_operations
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/no_scopes
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/inactive
+=== RUN   TestGovernedDenialsNeverCallDatabase/write/wrong_owner
+--- PASS: TestGovernedDenialsNeverCallDatabase (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_prefix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_middle (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/NUL_suffix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/blank (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/invalid_UTF8 (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/oversized (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/foreign_target (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/foreign_scope (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/no_operations (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/no_scopes (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/inactive (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/read/wrong_owner (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_prefix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_middle (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/NUL_suffix (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/blank (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/invalid_UTF8 (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/oversized (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/foreign_target (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/foreign_scope (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/no_operations (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/no_scopes (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/inactive (0.00s)
+    --- PASS: TestGovernedDenialsNeverCallDatabase/write/wrong_owner (0.00s)
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00body
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00tail
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00
+=== RUN   TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00
+--- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00body (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00tail (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/body\x00 (0.00s)
+    --- PASS: TestAdapterNULTextRejectedBeforeDatabaseAccess/\x00 (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/memory/postgres	0.862s
+=== RUN   TestJournalInvocationAttemptOutcomeOrdering
+--- PASS: TestJournalInvocationAttemptOutcomeOrdering (0.00s)
+=== RUN   TestJournalAuthorityAndBackendCannotBeReassigned
+--- PASS: TestJournalAuthorityAndBackendCannotBeReassigned (0.00s)
+=== RUN   TestJournalDefensiveAppendAndQuery
+--- PASS: TestJournalDefensiveAppendAndQuery (0.00s)
+=== RUN   TestJournalRejectsCrossClaimAndInvocation
+--- PASS: TestJournalRejectsCrossClaimAndInvocation (0.00s)
+=== RUN   TestJournalPreClaimTypedDecisionAndOrdering
+--- PASS: TestJournalPreClaimTypedDecisionAndOrdering (0.00s)
+=== RUN   TestJournalMemoryCorrelationAndMetadata
+--- PASS: TestJournalMemoryCorrelationAndMetadata (0.00s)
+=== RUN   TestMemoryMetadataCannotDecorateOtherProvider
+--- PASS: TestMemoryMetadataCannotDecorateOtherProvider (0.00s)
+=== RUN   TestStore_RecordAndQueryToolInvocations
+--- PASS: TestStore_RecordAndQueryToolInvocations (0.00s)
+=== RUN   TestStore_RecordAndQueryModelInvocations
+--- PASS: TestStore_RecordAndQueryModelInvocations (0.00s)
+=== RUN   TestStore_RecordAndQueryRuntimeEvents
+--- PASS: TestStore_RecordAndQueryRuntimeEvents (0.00s)
+=== RUN   TestStore_IsolatesByClaimID
+--- PASS: TestStore_IsolatesByClaimID (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/facts	1.219s
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Bound
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/BackendReady
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Running
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Succeeded
+=== RUN   TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Failed
+--- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Bound (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/BackendReady (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Running (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Succeeded (0.00s)
+    --- PASS: TestRunServiceEvidenceFailureNeverLeavesActiveAuthorityOrLeaksWorker/Failed (0.00s)
+=== RUN   TestRunContextCancellationBeforeAllocationMakesZeroBackendCalls
+--- PASS: TestRunContextCancellationBeforeAllocationMakesZeroBackendCalls (0.00s)
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-a
+    reference_admission_test.go:77: fixture_sha256=778d101e8ef88c245fe3433d1901020b16cd138a4848c921e5a7e4daccbe7915 principal=user:team-a-engineer result=Allow continuation_calls=1 claim_present=false
+=== RUN   TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-b
+    reference_admission_test.go:77: fixture_sha256=778d101e8ef88c245fe3433d1901020b16cd138a4848c921e5a7e4daccbe7915 principal=user:team-b-engineer result=Deny continuation_calls=0 claim_present=false
+--- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB (0.00s)
+    --- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-a (0.00s)
+    --- PASS: TestReferenceAssignmentSameYAMLAllowsTeamAAndDeniesTeamB/team-b (0.00s)
+=== RUN   TestReferenceAssignmentRejectsReservedPrincipalBeforeAuthorization
+--- PASS: TestReferenceAssignmentRejectsReservedPrincipalBeforeAuthorization (0.00s)
+=== RUN   TestReferenceAssignmentIgnoresIdentityStringsInOpaqueTaskInput
+--- PASS: TestReferenceAssignmentIgnoresIdentityStringsInOpaqueTaskInput (0.00s)
+=== RUN   TestReferencePrincipalSourceFailsClosedAndReturnsCopies
+--- PASS: TestReferencePrincipalSourceFailsClosedAndReturnsCopies (0.00s)
+=== RUN   TestReferenceAssignmentRequiresEvaluator
+--- PASS: TestReferenceAssignmentRequiresEvaluator (0.00s)
+=== RUN   TestReferenceTemplateCompatibilityBeforeRegistration
+--- PASS: TestReferenceTemplateCompatibilityBeforeRegistration (0.00s)
+=== RUN   TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence
+--- PASS: TestRunServiceSuccessOwnsLifecycleAndTeardownEvidence (0.00s)
+=== RUN   TestClaimDeadlineIsRunOwnedAndDoesNotExtendWithStateReads
+--- PASS: TestClaimDeadlineIsRunOwnedAndDoesNotExtendWithStateReads (0.00s)
+=== RUN   TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot
+--- PASS: TestRunServiceClaimAuthorityReturnsCorrelatedDefensiveSnapshot (0.00s)
+=== RUN   TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge
+--- PASS: TestRunServiceAllocationFailureUsesNarrowPendingToFailedEdge (0.00s)
+=== RUN   TestRunServiceStartFailureNeverPublishesRunningAndStillTearsDown
+--- PASS: TestRunServiceStartFailureNeverPublishesRunningAndStillTearsDown (0.00s)
+=== RUN   TestRunServiceWaitsForReadinessBeforeStart
+--- PASS: TestRunServiceWaitsForReadinessBeforeStart (0.00s)
+=== RUN   TestRunServiceDrivesReferenceBackend
+--- PASS: TestRunServiceDrivesReferenceBackend (0.00s)
+=== RUN   TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate
+--- PASS: TestRunServiceAcceptsResolvedRuntimeTemplateDistinctFromAgentTemplate (0.00s)
+=== RUN   TestRunServiceRejectsLaunchForDifferentRuntimeProfile
+--- PASS: TestRunServiceRejectsLaunchForDifferentRuntimeProfile (0.00s)
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_ENTERPRISE_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_ENTERPRISE_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/NPM_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITLAB_TOKEN
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/SSH_PRIVATE_KEY
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_auth
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_authToken
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/client_secret
+=== RUN   TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/AZURE_CLIENT_SECRET
+--- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GH_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITHUB_ENTERPRISE_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/NPM_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/GITLAB_TOKEN (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/SSH_PRIVATE_KEY (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_auth (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/_authToken (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/client_secret (0.00s)
+    --- PASS: TestRunServiceRejectsCredentialBearingLaunchInputBeforeAllocation/AZURE_CLIENT_SECRET (0.00s)
+=== RUN   TestRunServiceWorkFailurePublishesFailedBeforeTeardown
+--- PASS: TestRunServiceWorkFailurePublishesFailedBeforeTeardown (0.00s)
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_before_allocation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation_failure
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Bound_after_observation
+=== RUN   TestRunServiceDeadlineAtEachNonTerminalPhase/Running_after_work
+--- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_before_allocation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Pending_after_late_allocation_failure (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Bound_after_observation (0.00s)
+    --- PASS: TestRunServiceDeadlineAtEachNonTerminalPhase/Running_after_work (0.00s)
+=== RUN   TestRunServiceExpiresWhileWorkCallbackIsStillExecuting
+--- PASS: TestRunServiceExpiresWhileWorkCallbackIsStillExecuting (0.00s)
+=== RUN   TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim
+--- PASS: TestRunServiceRejectsBackendIdentityAlreadyOwnedByAnotherClaim (0.00s)
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome/terminate
+=== RUN   TestRunServiceTeardownFailuresNeverRewriteOutcome/cleanup
+--- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome (0.00s)
+    --- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome/terminate (0.00s)
+    --- PASS: TestRunServiceTeardownFailuresNeverRewriteOutcome/cleanup (0.00s)
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence/allocation
+=== RUN   TestRunServiceRejectsMismatchedBackendEvidence/observation
+--- PASS: TestRunServiceRejectsMismatchedBackendEvidence (0.00s)
+    --- PASS: TestRunServiceRejectsMismatchedBackendEvidence/allocation (0.00s)
+    --- PASS: TestRunServiceRejectsMismatchedBackendEvidence/observation (0.00s)
+=== RUN   TestRunServiceRejectsInvalidAndLateTransitions
+--- PASS: TestRunServiceRejectsInvalidAndLateTransitions (0.00s)
+=== RUN   TestRunServiceReaderIsSafeDuringRunningWork
+--- PASS: TestRunServiceReaderIsSafeDuringRunningWork (0.00s)
+=== RUN   TestObserveStateKeepsLifecycleAndJournalReadAtomic
+--- PASS: TestObserveStateKeepsLifecycleAndJournalReadAtomic (0.02s)
+=== RUN   TestNewRuntimeHostsMemoryBackend
+=== PAUSE TestNewRuntimeHostsMemoryBackend
+=== RUN   TestNewRuntimeRejectsProviderBackends
+=== PAUSE TestNewRuntimeRejectsProviderBackends
+=== RUN   TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim
+--- PASS: TestSubmitPaymentTimeoutAllowsTeamAAndRunsOneClaim (0.00s)
+=== RUN   TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation
+--- PASS: TestSubmitPaymentTimeoutDeniesTeamBWithoutAllocation (0.00s)
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/secret
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/principal
+=== RUN   TestSubmitRejectsInvalidFixturesBeforeAllocation/template
+--- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/secret (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/principal (0.00s)
+    --- PASS: TestSubmitRejectsInvalidFixturesBeforeAllocation/template (0.00s)
+=== RUN   TestPrincipalPresetFromEnv
+--- PASS: TestPrincipalPresetFromEnv (0.00s)
+=== RUN   TestSubmitRejectsMalformedYAMLBeforeAllocation
+--- PASS: TestSubmitRejectsMalformedYAMLBeforeAllocation (0.00s)
+=== RUN   TestReferenceAgentTemplateMatchesCanonicalFixture
+--- PASS: TestReferenceAgentTemplateMatchesCanonicalFixture (0.00s)
+=== RUN   TestReferenceAgentTemplateRejectsUnknownTemplate
+--- PASS: TestReferenceAgentTemplateRejectsUnknownTemplate (0.00s)
+=== CONT  TestNewRuntimeHostsMemoryBackend
+=== CONT  TestNewRuntimeRejectsProviderBackends
+--- PASS: TestNewRuntimeHostsMemoryBackend (0.00s)
+--- PASS: TestNewRuntimeRejectsProviderBackends (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/app	0.432s

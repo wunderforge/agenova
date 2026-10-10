@@ -8,7 +8,7 @@ const categories: Record<string, string> = {
   AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway',
   ProviderAttempt: 'Model Gateway', ProviderOutcome: 'Model Gateway',
   ToolDecision: 'Tool Gateway', RunOutcome: 'Outcome',
-  WorkerActivity: 'Worker',
+  WorkerActivity: 'Worker', MemoryDecision: 'Memory Interface',
 };
 const operationLabels: Record<string, string> = {
   Pending: 'Request received', Bound: 'Worker assigned',
@@ -17,8 +17,12 @@ const operationLabels: Record<string, string> = {
   TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
   TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
 };
-export const category = (fact: Observation) => fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
+export const category = (fact: Observation) => fact.operation?.startsWith('memory.') ? 'Memory Interface' : fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
 export function recordTitle(fact: Observation): string {
+  if (category(fact) === 'Memory Interface') {
+    const action = fact.operation === 'memory.write' ? 'write' : fact.operation === 'memory.read' ? 'search' : 'request';
+    return fact.kind === 'MemoryDecision' ? `Memory ${action} access` : `Memory ${action} ${fact.kind === 'ProviderAttempt' ? 'started' : 'finished'}`;
+  }
   if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return `${fact.target || 'Agent'} · Action format checked`;
   if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
   if (fact.kind === 'ProviderAttempt') return fact.operation === 'tool.invoke' ? 'Mock tool call started' : 'Model request started';
@@ -29,7 +33,7 @@ export function recordTitle(fact: Observation): string {
   return category(fact);
 }
 export const recordReason = (fact: Observation) => fact.reason || fact.decision?.reason || '';
-export const recordStatus = (fact: Observation) => fact.result || fact.providerStatus || fact.decision?.result
+export const recordStatus = (fact: Observation) => fact.memory?.status || fact.result || fact.providerStatus || fact.decision?.result
   || (fact.operation === 'ActionValidated' && fact.reasonCode === 'agent-action-invalid' ? 'Retry required'
     : ['Runtime', 'RunOutcome'].includes(fact.kind) && /Failed$/.test(fact.operation || '') ? 'Failed'
     : fact.kind === 'RunOutcome' && ['Succeeded', 'Cancelled', 'Expired'].includes(fact.operation || '') ? fact.operation! : 'Recorded');

@@ -245,10 +245,16 @@ func decodeStrictJSON(data []byte, value any) bool {
 
 func validEvidenceView(view evidence.View, ref string) bool {
 	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil || view.State == nil ||
-		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
+		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil || !evidence.ValidContentProjection(view) {
 		return false
 	}
 	if view.State != nil && (view.State.RequestRef != ref || v0.ValidateIssuedState(view.State) != nil) {
+		return false
+	}
+	if slices.ContainsFunc(view.Facts, func(f facts.Fact) bool {
+		return f.Kind == "MemoryDecision" || memoryOperation(f.Operation) || f.Memory != nil
+	}) &&
+		(view.State.Evidence.ModelInvocations == nil || view.State.Evidence.ToolInvocations == nil || view.State.Evidence.RuntimeEvents == nil) {
 		return false
 	}
 	if view.State != nil && (strings.TrimSpace(view.State.Principal.Team) == "" || strings.TrimSpace(view.State.Principal.AuthenticationContext) == "") {
@@ -297,6 +303,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
+		memoryFact := fact.Kind == "MemoryDecision" || memoryOperation(fact.Operation)
+		if memoryFact && (!evidence.MemoryRequested(view.Request) || !validMemoryFact(fact)) || !memoryFact && fact.Memory != nil {
+			return false
+		}
 		// RunOutcome is appended after worker teardown. No further activity for
 		// this Work can be part of a canonical terminal evidence view.
 		if runOutcomeSeen {
@@ -315,7 +325,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		switch fact.Kind {
-		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
+		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "MemoryDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
 		default:
 			return false
 		}
@@ -445,9 +455,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
-			if !runningRecorded || runtimeTerminal &&
-				(fact.Kind != "ProviderOutcome" || fact.ProviderStatus != "Cancelled" ||
-					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {
+			// A bound Memory session requires prior Running, even for later denials.
+			memoryDeny := fact.Kind == "MemoryDecision" && fact.Result == v0.DecisionResultDeny
+			lateOutcome := (runtimeTerminalOperation == "Cancelled" || runtimeTerminalOperation == "Expired") &&
+				(fact.Kind == "ProviderOutcome" && fact.ProviderStatus == "Cancelled" || lateMemoryOutcome(fact))
+			if !runningRecorded || runtimeTerminal && !memoryDeny && !lateOutcome {
 				return false
 			}
 		}
@@ -457,6 +469,11 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		if fact.Kind == "ModelDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || fact.Target == "" || fact.Target != view.State.EffectiveAuthority.ModelProfile) {
+			return false
+		}
+		if fact.Kind == "MemoryDecision" && fact.Result == v0.DecisionResultAllow &&
+			(view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.MemoryOperations, strings.TrimPrefix(fact.Operation, "memory.")) ||
+				!slices.Contains(view.State.EffectiveAuthority.MemoryScopes, fact.Target)) {
 			return false
 		}
 		switch fact.Kind {
@@ -482,10 +499,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				previous.stage = 4
 				invocations[fact.InvocationID] = previous
 			}
-		case "ModelDecision", "ToolDecision":
+		case "ModelDecision", "ToolDecision", "MemoryDecision":
 			expected := "model.invoke"
 			if fact.Kind == "ToolDecision" {
 				expected = "tool.invoke"
+			}
+			if fact.Kind == "MemoryDecision" {
+				expected = fact.Operation
 			}
 			if fact.InvocationID == "" || fact.Operation != expected || !validDecisionResult(fact.Result) ||
 				fact.PolicyRef == nil || view.State == nil || *fact.PolicyRef != view.State.PolicyRef {
@@ -502,7 +522,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		case "ProviderAttempt", "ProviderOutcome":
 			previous, exists := invocations[fact.InvocationID]
 			if !exists || fact.InvocationID == "" || fact.Operation != previous.operation ||
-				(previous.operation == "model.invoke" && fact.Target != previous.target) {
+				((previous.operation == "model.invoke" || memoryOperation(previous.operation)) && fact.Target != previous.target) {
 				return false
 			}
 			if fact.Kind == "ProviderAttempt" {
@@ -711,6 +731,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		{granted.Tools, wanted.Tools},
 		{granted.ResourceScopes, wanted.ResourceScopes},
 		{granted.MemoryScopes, wanted.MemoryScopes},
+		{granted.MemoryOperations, wanted.MemoryOperations},
 	} {
 		if len(pair.requested) > 0 && len(pair.granted) == 0 {
 			return false
@@ -734,6 +755,7 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 		{"tools", request.Spec.RequestedAccess.Tools, granted.Tools},
 		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, granted.ResourceScopes},
 		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, granted.MemoryScopes},
+		{"memoryOperations", request.Spec.RequestedAccess.MemoryOperations, granted.MemoryOperations},
 	} {
 		for _, value := range dimension.requested {
 			if !slices.Contains(dimension.effective, value) {
@@ -752,7 +774,7 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {
 	return a.ID == b.ID && slices.Equal(a.Tools, b.Tools) && slices.Equal(a.ResourceScopes, b.ResourceScopes) &&
-		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
+		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && slices.Equal(a.MemoryOperations, b.MemoryOperations) && a.Runtime == b.Runtime
 }
 
 func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedProfile string) bool {

@@ -1,0 +1,12 @@
+
+> @agenova/fixture-storyboard@0.0.0 test
+> vitest src/memory-evidence.test.ts
+
+
+ RUN  v5.0.0 /Users/qiqi/Codex/Agenova/ui
+
+
+ Test Files  1 passed (1)
+      Tests  79 passed (79)
+   Start at  01:14:50
+   Duration  700ms (environment 79%, transform 13%, tests 5%, import 3%)

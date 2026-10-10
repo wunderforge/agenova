@@ -1,0 +1,23 @@
+=== RUN   TestRetryCancellationAtGateHandoffStartsNoInvocation
+=== RUN   TestRetryCancellationAtGateHandoffStartsNoInvocation/caller-cancelled
+    retry_test.go:393: trial 3: cancellation at gate handoff admitted an invocation
+=== RUN   TestRetryCancellationAtGateHandoffStartsNoInvocation/run-cancelled
+    retry_test.go:393: trial 1: cancellation at gate handoff admitted an invocation
+--- FAIL: TestRetryCancellationAtGateHandoffStartsNoInvocation (0.00s)
+    --- FAIL: TestRetryCancellationAtGateHandoffStartsNoInvocation/caller-cancelled (0.00s)
+    --- FAIL: TestRetryCancellationAtGateHandoffStartsNoInvocation/run-cancelled (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory	0.556s
+=== RUN   TestReadinessSQLRejectsUnexpectedTablePrivileges
+    readiness_test.go:40: readiness permits unexpected TRIGGER privilege
+    readiness_test.go:40: readiness permits unexpected REFERENCES privilege
+    readiness_test.go:40: readiness permits unexpected MAINTAIN privilege
+    readiness_test.go:44: readiness permits column-level REFERENCES
+    readiness_test.go:40: readiness permits unexpected TRIGGER privilege
+    readiness_test.go:40: readiness permits unexpected REFERENCES privilege
+    readiness_test.go:40: readiness permits unexpected MAINTAIN privilege
+    readiness_test.go:44: readiness permits column-level REFERENCES
+--- FAIL: TestReadinessSQLRejectsUnexpectedTablePrivileges (0.00s)
+FAIL
+FAIL	github.com/wunderforge/agenova/internal/memory/postgres	0.921s
+FAIL

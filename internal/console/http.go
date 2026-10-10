@@ -4,7 +4,6 @@
 package console
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -14,6 +13,7 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
@@ -209,7 +209,7 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, httpError{Code: code, Message: message})
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
-	data, err := json.Marshal(value)
+	data, err := evidence.MarshalPublic(value)
 	if err != nil {
 		status = 500
 		data = []byte(`{"code":"response_failed","message":"The response is unavailable."}`)

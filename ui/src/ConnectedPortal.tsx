@@ -42,6 +42,7 @@ function Access({ value, runtime }: {
     <Field label="Tools" value={<Chips values={value.tools}/>}/>
     <Field label="Model profile" value={value.modelProfile || 'None'}/>
     <Field label="Memory scope" value={<Chips values={value.memoryScopes}/>}/>
+    <Field label="Memory operations" value={<Chips values={value.memoryOperations}/>}/>
     <Field label="Runtime" value={runtime}/>
   </div>;
 }
@@ -104,10 +105,10 @@ function WorkDetail({ work }: { work: View }) {
   const status = workStatus(work);
   const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
   const latestFacts = [...work.facts].reverse();
-  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
+  const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation === 'model.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
-    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
+    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision', 'MemoryDecision'].includes(fact.kind));
   const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
@@ -121,7 +122,9 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Agent" value={work.request.spec.templateRef}/>
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
-    <TaskInstructions text={work.request.spec.task?.input?.objective}/>
+    {work.contentRedactions?.includes('request.spec.task.input')
+      ? <p className="portal-source-note">Task instructions: Content withheld</p>
+      : <TaskInstructions text={work.request.spec.task?.input?.objective}/>}
     <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
@@ -150,8 +153,9 @@ function WorkDetail({ work }: { work: View }) {
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
           <a href={link('policy')}>View policy</a>
         </div>
-      </aside>} result={work.outcome?.text && <section className="portal-result">
-      <h2>Result</h2><pre>{work.outcome.text}</pre>
+      </aside>} result={work.outcome && (work.outcome.text || work.contentRedactions?.includes('outcome.text')) && <section className="portal-result">
+      <h2>Result</h2>{work.contentRedactions?.includes('outcome.text')
+        ? <p>Content withheld</p> : <pre>{work.outcome.text}</pre>}
       {work.outcome.model && <p className="portal-source-note">
         Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens
@@ -203,6 +207,8 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
   if (selected) {
     if (!fact) return <Heading title="Record not found"/>;
     const policy = fact.policyRef || fact.decision?.policyRef;
+    const memoryDecision = category(fact) === 'Memory Interface' && fact.invocationId
+      ? work.facts.find(item => item.kind === 'MemoryDecision' && item.invocationId === fact.invocationId) : undefined;
     return <>
       <nav className="portal-crumbs"><a href={link(`${workLink(work)}/activity`)}>Activity</a></nav>
       <Heading title={recordTitle(fact)}
@@ -215,11 +221,17 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
         <p>{recordReason(fact) || recordTitle(fact)}</p>
         <div className="portal-fact-grid">
           <Field label="Kind" value={category(fact)}/><Field label="Target" value={fact.target}/>
-          <Field label="Permission" value={fact.result || fact.decision?.result}/>
+          <Field label="Permission" value={fact.result || fact.decision?.result || memoryDecision?.result}/>
           <Field label="Provider outcome" value={fact.providerStatus}/>
           <Field label="Claim" value={fact.claimId}/><Field label="Invocation" value={fact.invocationId}/>
           <Field label="Policy" value={policy ? `${policy.id} / ${policy.version}` : undefined}/>
+          {memoryDecision && <Field label="Reason code" value={fact.reasonCode}/>}
+          {fact.memory && <><Field label="Memory result" value={fact.memory.status}/>
+            <Field label="Returned count" value={fact.memory.count}/><Field label="Duration (ms)" value={fact.memory.durationMilliseconds}/>
+            <Field label="Truncated" value={fact.memory.truncated ? 'Yes' : 'No'}/>
+            <Field label="References" value={<Chips values={fact.memory.references}/>}/></>}
         </div>
+        {category(fact) === 'Memory Interface' && <p className="portal-source-note">Memory content: Content withheld</p>}
         {fact.effectiveAuthority && <><h3>Effective authority at resolution</h3>
           <Access value={fact.effectiveAuthority}
             runtime={`${fact.effectiveAuthority.runtime.profileRef} · ${fact.effectiveAuthority.runtime.timeout}`}/>
@@ -271,13 +283,13 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
     </>;
   }
   const observed = (kinds: string[], key: string) => works.flatMap(work => work.facts)
-    .some(fact => kinds.includes(fact.kind) && (key !== 'model' || category(fact) === 'Model Gateway'));
+    .some(fact => kinds.includes(fact.kind) && (key !== 'model' || category(fact) === 'Model Gateway') && (key !== 'memory' || category(fact) === 'Memory Interface'));
   const capabilities: [string, string, string[]][] = [
     ['Task submission', 'taskSubmission', ['RequestReceived']],
     ['Runtime', 'runtime', ['Runtime']],
     ['Model Gateway', 'model', ['ModelDecision', 'ProviderAttempt', 'ProviderOutcome']],
     ['Tool Gateway', 'tool', ['ToolDecision']],
-    ['Memory Interface', 'memory', ['Memory']],
+    ['Memory Interface', 'memory', ['MemoryDecision', 'ProviderAttempt', 'ProviderOutcome']],
   ];
   return <>
     <Heading title="Platform" subtitle={`${setup.installation.platform} · ${setup.installation.revision.slice(0, 19)} · configured capabilities and recorded use.`}/>
