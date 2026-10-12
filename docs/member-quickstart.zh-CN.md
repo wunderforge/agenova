@@ -1,0 +1,85 @@
+# Agenova 新人上手
+
+## 1. 注册并获得权限
+
+打开 <https://app.agenova.app/login>，点击 **Continue with Google**，使用自己的 Google 账号登录，不需要另设 Agenova 密码。
+
+首次登录若显示等待授权，请联系管理员。管理员在 **Members → Pending access requests** 中批准账号，并分配项目角色：
+
+- 日常提交任务：Account Member + 对应项目的 Member。
+- 只查看任务：对应项目的 Viewer。
+- 项目管理：Project Admin，由 Owner 授予。
+
+批准后重新登录。普通成员不需要 AWS 账号、AK/SK、kubectl 或集群权限。
+
+## 2. 安装 CLI（macOS）
+
+已有 CLI 可直接检查：
+
+```bash
+agenova --version
+```
+
+本指南验证版本为 `0.1.0-preview.20261012.1`。目前是预览版，公开 Homebrew tap 尚未发布；不要使用不存在的公共安装命令。新电脑安装见文末。
+
+## 3. 登录 CLI
+
+```bash
+agenova login --server https://app.agenova.app
+```
+
+在浏览器选择刚才获批的 Google 账号，终端显示 `login succeeded` 即完成。CLI 会记住服务器。
+
+macOS 若询问钥匙串访问，确认是自己安装的 Agenova 后可选择 **Always Allow**，输入 Mac 登录密码。不要把密码发给管理员。程序升级或钥匙串锁定后仍可能再次询问。
+
+## 4. 提交第一个任务
+
+将以下内容保存为当前目录下的 `work.yaml`（也可使用[示例文件](examples/member-work.yaml)）（示例需要 `payments` 项目权限）：
+
+```yaml
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: newcomer-payment-analysis-20261013
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Explain why resetting a five-second timeout on every payment retry can exceed an overall deadline, and suggest a fix. Use only this description; do not access repositories or tools.
+  requestedAccess:
+    tools: []
+    resourceScopes: []
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m
+```
+
+```bash
+agenova run -f work.yaml
+agenova work list
+agenova work show <上一步返回的request-ref>
+```
+
+`Succeeded` 表示执行流程成功，仍需检查回答是否满足任务要求。也可打开网页的 Work 页面查看。
+每个新任务使用新的 `metadata.name`。本例只调用获准的模型，不访问仓库。
+账号授权由管理员批准一次；任务通常自动检查 Policy/Template，不逐次人工批准。角色不能绕过模型、工具和项目限制。
+
+退出 CLI：`agenova logout`。网页退出使用 **Log out**，两者是独立登录会话。
+
+## 新电脑的预览版安装
+
+需要已安装 Homebrew 和 Git。下面从项目官方仓库固定提交建立本地 tap，不是已经发布的公共 tap：
+
+```bash
+git clone --no-checkout https://github.com/wunderforge/agenova.git agenova-cli
+cd agenova-cli
+git checkout 64fffe1
+brew tap agenova/preview "$PWD"
+brew install agenova/preview/agenova
+agenova --version
+```
+
+如果电脑已有 `agenova/preview` tap，请沿用现有安装，不重复添加。本次安装验证范围为 macOS Apple Silicon；其他系统不在本指南的实测范围内。

@@ -381,3 +381,12 @@ upgrading, sign in once with `agenova login --server https://app.agenova.app`, t
 use `agenova work list` or `agenova run -f work.yaml`. Existing Keychain ACLs may
 still require user-selected Always Allow; zero-prompt operation on this user's
 existing item has not been verified and is not claimed.
+
+## New-member guide walkthrough
+
+Added a concise [Chinese newcomer guide](../../docs/member-quickstart.zh-CN.md)
+and runnable YAML. [Live walkthrough evidence](evidence/new-member-guide.md)
+records successful installed CLI login, remembered-server run/list/show and Portal
+verification. This reused an existing approved account, not a fresh registration.
+The Nova Micro call succeeded but its answer was inadequate; do not treat execution
+success as answer-quality acceptance. No live role changes were made.
