@@ -18,7 +18,7 @@ async function refresh() {
    const row = document.createElement('li');
    const detail = document.createElement('div');
    const email = document.createElement('strong'); email.textContent = invite.email;
-   const project = document.createElement('small'); project.textContent = `${invite.project} · ${invite.role}`;
+   const project = document.createElement('small'); project.textContent = `Account: ${invite.accountRole || "member"} · ${invite.project}: ${invite.role}`;
    const status = document.createElement('span'); status.className = 'badge'; status.textContent = invite.status;
    detail.append(email,project);
    if(invite.linkManaged && ['pending','expired','reserved','cancelled'].includes(invite.status)) {
@@ -37,7 +37,7 @@ async function refresh() {
 form.addEventListener('submit', async e => {
  e.preventDefault(); send.disabled = true; notice.textContent = 'Creating invitation…';
  try {
-  const response = await fetch('/api/invitations', {method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.elements.namedItem('email').value.trim().toLowerCase(),project:form.elements.namedItem('project').value.trim(),role:form.elements.namedItem('role').value})});
+  const response = await fetch('/api/invitations', {method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.elements.namedItem('email').value.trim().toLowerCase(),project:form.elements.namedItem('project').value.trim(),role:form.elements.namedItem('role').value,accountRole:form.elements.namedItem('accountRole').value})});
   if (!response.ok) throw new Error(response.status === 403 ? 'Your role cannot send this invitation. Only the Owner can invite an Admin.' : 'The invitation was not confirmed. Refresh the list and review its status before trying again.');
   const invitation = await response.json();
   if (invitation.acceptanceUrl) {
@@ -79,6 +79,21 @@ function roleForm(member, owner, project) {
  form.append(label,button); form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:project?'project-role':'account-role',role:select.value,...(project ? {project:project.project} : {})},button);});
  return form;
 }
+function dutyForm(member, team) {
+ const form=node('form');form.className='member-actions';
+ const who=member.email || member.principal;
+ const role=node('select');role.setAttribute('aria-label',`Additional role for ${who}`);
+ for(const [value,title] of [['governance-admin','Governance Admin'],['platform-operator','Platform Operator']]) { const option=node('option',title);option.value=value;role.append(option); }
+ const scope=node('select');scope.setAttribute('aria-label',`Role scope for ${who}`);
+ const ref=node('input');ref.required=true;ref.maxLength=128;ref.setAttribute('aria-label',`Scope reference for ${who}`);
+ function scopes() { scope.replaceChildren();for(const value of (role.value==='platform-operator'?['installation']:['project','account'])) {const option=node('option',value);option.value=value;scope.append(option);}reference(); }
+ function reference() {ref.readOnly=scope.value==='account';ref.value=ref.readOnly?team:'';ref.placeholder=scope.value==='installation'?'Installed Platform name':'Existing project';}
+ role.addEventListener('change',scopes);scope.addEventListener('change',reference);scopes();
+ const button=node('button','Grant additional role');button.type='submit';
+ form.append(role,scope,ref,button);
+ form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'grant-role',role:role.value,scopeKind:scope.value,scopeRef:ref.value.trim()},button);});
+ return form;
+}
 async function refreshMembers() {
  memberLoading.textContent = 'Loading members…';
  try {
@@ -87,6 +102,10 @@ async function refreshMembers() {
   const rows = await response.json(); const me = await meResponse.json();
   if(!Array.isArray(rows)) throw new Error('Member list unavailable.');
   const isOwner = rows.some(m=>m.principal===me.subject && m.accountRole==='owner');
+  const isAccountAdmin = isOwner || rows.some(m=>m.principal===me.subject && m.accountRole==='admin');
+ document.querySelector('#account-role').disabled=!isOwner;
+ if(!isOwner) document.querySelector('#account-role').value='member';
+ document.querySelector('#role option[value=admin]').disabled=!isOwner;
   memberList.replaceChildren();
   for(const member of rows) {
    const row = node('article'); row.className = 'member';
@@ -97,21 +116,18 @@ async function refreshMembers() {
     if(isOwner && member.active) {const remove=node('button','Revoke role');remove.type='button';remove.addEventListener('click',()=>changeMember({principal:member.principal,action:'revoke-role',...grant},remove));line.append(remove);}
     row.append(line);
    }
-   if(isOwner && member.active) {
-    const form=node('form');form.className='member-actions';
-    const role=node('select');role.setAttribute('aria-label',`Additional role for ${member.email || member.principal}`);
-    for(const [v,t] of [['governance-admin','Governance Admin'],['platform-operator','Platform Operator']]){const o=node('option',t);o.value=v;role.append(o);}
-    const scope=node('select');scope.setAttribute('aria-label','Role scope');
-    function scopes(){scope.replaceChildren();for(const v of role.value==='platform-operator'?['installation']:['project','account']){const o=node('option',v);o.value=v;scope.append(o);}}scopes();role.addEventListener('change',scopes);
-    const ref=node('input');ref.required=true;ref.maxLength=128;ref.placeholder='Exact scope identifier';ref.setAttribute('aria-label','Role scope identifier');
-    const add=node('button','Grant additional role');add.type='submit';form.append(role,scope,ref,add);
-    form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'grant-role',role:role.value,scopeKind:scope.value,scopeRef:ref.value.trim()},add);});
-    row.append(form,node('small','Additional duties do not grant AWS/EKS access. Policy management remains unavailable until a scoped registration boundary is enabled.'));
-   }
+   if(isOwner && member.active) { const duties=node('details');duties.append(node('summary','Assign additional duties'),dutyForm(member,me.team));row.append(duties); }
    const canManage = member.accountRole !== 'owner' && (isOwner || member.accountRole !== 'admin');
    if(canManage) {
     const details = node('details'); details.append(node('summary','Manage access'));
     if(isOwner) details.append(roleForm(member,true,null));
+    if(isOwner && member.active && member.accountRole==='admin') {
+     const transfer=node('form');transfer.className='member-actions';
+     const label=node('label',`Transfer ownership: type ${member.email || member.principal}`);
+     const confirm=node('input');confirm.required=true;confirm.autocomplete='off';confirm.setAttribute('aria-label',`Confirm ownership transfer to ${member.email || member.principal}`);label.append(confirm);
+     const button=node('button','Transfer ownership');button.type='submit';transfer.append(label,button,node('small','You will become Account Admin. This member becomes the only Owner. Project grants stay unchanged.'));
+     transfer.addEventListener('submit',e=>{e.preventDefault();if(confirm.value!==(member.email || member.principal)){memberNotice.textContent='Type the recipient exactly to confirm.';return;}changeMember({principal:member.principal,action:'transfer-owner',confirmation:member.principal},button);});details.append(transfer);
+    }
     if(member.active) {
      for(const project of member.projects) if(isOwner || project.role!=='admin') details.append(roleForm(member,isOwner,project));
      const grantForm=node('form');grantForm.className='member-actions';
@@ -119,8 +135,8 @@ async function refreshMembers() {
      const grant=node('button','Add as Member');grant.type='submit';grantForm.append(label,grant);
      grantForm.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'project-role',project:input.value.trim(),role:'member'},grant);});details.append(grantForm);
     }
-    const toggle = node('button',member.active?'Disable member':'Enable member'); toggle.type='button';toggle.className='quiet';
-    toggle.addEventListener('click',()=>changeMember({principal:member.principal,action:member.active?'disable':'enable'},toggle)); details.append(toggle); row.append(details);
+    if(isAccountAdmin) { const toggle = node('button',member.active?'Disable member':'Enable member'); toggle.type='button';toggle.className='quiet';
+    toggle.addEventListener('click',()=>changeMember({principal:member.principal,action:member.active?'disable':'enable'},toggle)); details.append(toggle); } row.append(details);
    }
    memberList.append(row);
   }

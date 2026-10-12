@@ -45,7 +45,7 @@ func TestGoogleInviteBindingAndReplay(t *testing.T) {
 	if _, err := s.AcceptGoogleInvitation(ctx, ownerID, proof); err == nil {
 		t.Fatal("invitation replay")
 	}
-	invite, proof, err := s.ReserveGoogleInvitation(ctx, owner, invitations.Request{Email: "admin@gmail.com", Project: "project", Role: Admin})
+	invite, proof, err := s.ReserveGoogleInvitation(ctx, owner, invitations.Request{Email: "admin@gmail.com", Project: "project", Role: Admin, AccountRole: Admin})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,6 +25,9 @@ const maxSubmissionBytes = 128 << 10
 
 // Setup describes operator configuration, not a live health assessment.
 type Setup struct {
+	Project      string               `json:"project,omitempty"`
+	Projects     []string             `json:"projects,omitempty"`
+	Templates    []string             `json:"templates,omitempty"`
 	Principal    v0.Principal         `json:"principal"`
 	Template     *v0.AgentTemplate    `json:"template"`
 	Policy       policy.PolicyBundle  `json:"policy"`
@@ -120,28 +123,36 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			if !requireMethod(w, r, http.MethodGet) {
 				return
 			}
-			setup, err := service.setup()
+			var setup Setup
+			var err error
+			if auth != nil && service.setupFor != nil {
+				setup, err = service.setupFor(r.Context(), principal, r.URL.Query().Get("project"), r.URL.Query().Get("template"))
+			} else {
+				setup, err = service.setup()
+			}
 			if err != nil {
 				writeError(w, 503, "setup_unavailable", "Registered platform setup is unavailable.")
 				return
 			}
 			if auth != nil {
 				setup.Principal = principal
-				rules := []policy.Rule{}
-				for _, rule := range setup.Policy.Rules {
-					if rule.Team == principal.Team && service.access.Authorize(r.Context(), principal, "work.submit", rule.Project) == nil {
-						rules = append(rules, rule)
+				if service.setupFor == nil {
+					rules := []policy.Rule{}
+					for _, rule := range setup.Policy.Rules {
+						if rule.Team == principal.Team && service.access.Authorize(r.Context(), principal, "work.submit", rule.Project) == nil {
+							rules = append(rules, rule)
+						}
 					}
-				}
-				setup.Policy.Rules = rules
-				visible := false
-				for _, rule := range rules {
-					if setup.Template != nil && rule.Action == "claim.create" && rule.TemplateRef == setup.Template.Metadata.Name {
-						visible = true
+					setup.Policy.Rules = rules
+					visible := false
+					for _, rule := range rules {
+						if setup.Template != nil && rule.Action == "claim.create" && rule.TemplateRef == setup.Template.Metadata.Name {
+							visible = true
+						}
 					}
-				}
-				if !visible {
-					setup.Template = nil
+					if !visible {
+						setup.Template = nil
+					}
 				}
 			}
 			// An empty default-deny policy is valid. Keep the HTTP collection

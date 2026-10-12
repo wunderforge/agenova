@@ -270,6 +270,8 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	invitationService := invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
 	mux.Handle("/members", invitations.Page(invitationService, d.boundary))
 	mux.Handle("/api/invitations", invitations.Handler(invitationService, d.boundary))
+	mux.Handle("/api/platform/authorize", d.platformAuthorizationHandler())
+	mux.Handle("/api/governance", d.governanceHandler())
 	mux.Handle("/api/members", invitations.MemberHandler(d.store, d.boundary))
 	if d.google != nil {
 		mux.Handle("/api/invitations/manage", invitations.ManageHandler(d.store, d.boundary, d.config.Origin))

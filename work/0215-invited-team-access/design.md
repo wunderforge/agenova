@@ -121,3 +121,35 @@ Latest Owner override: do not configure database backups. Earlier references to
 backup/restore gates in this design are superseded by the storage decision in the
 spec. Keep restart/crash recovery, safe migrations and non-destructive rollback.
 The database is managed RDS, Single-AZ; it is not described as HA. Automated backups are disabled per the Owner decision. Storage remains billable while stopped.
+
+## Operational role layers (Owner decision, 12 October)
+
+Account membership and project grants are independent. An invitation defaults to
+account Member even when its project role is Admin. Only Owner appoints account
+or project administrators and additional duties. Transfer requires a named active
+Account Admin, explicit confirmation and an audited transaction; generic edits
+cannot remove the last Owner. Project administrators see/manage only their projects.
+
+Governance Admin is an explicit account or project grant, not inherited from
+Owner. Migration 007 adds account/project-qualified immutable Policy and Template
+records. Policy version registration, active-pointer change and audit commit
+atomically; changing content at an existing identity conflicts. A project writer
+cannot register another team's/project's rules. Runtime compatibility remains an
+operator-controlled check. New Work resolves its own project registry, falling
+back to installed defaults only for absent records, never database errors. Portal
+configuration is selected by authorized project and template and uses the same
+registry; Work admission independently rechecks membership and claim policy.
+This is narrow create/identical-reapply and version activation, not arbitrary CRUD.
+
+Platform Operator adds an authenticated CLI authorization check for a named
+installation before validate/plan/apply/status. The exact validated configuration
+or saved status snapshot is reused after this check. Deployment still runs
+locally under the operator's own cloud and Kubernetes identity; no API executes
+cluster mutations or returns cloud credentials. An application grant does not
+restrict or replace separately held cloud administrator powers. Existing local
+operator workflows remain available under those independent IAM/RBAC boundaries.
+
+Migration 007 is additive but older binaries reject newer schemas. Do not roll
+back by dropping tables/data; a rollback binary must understand migration 007.
+Runtime needs SELECT/INSERT on immutable registry tables and SELECT/INSERT/UPDATE
+on the active pointer; it must not receive DDL or audit UPDATE/DELETE privileges.

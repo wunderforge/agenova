@@ -29,8 +29,14 @@ func invitationActor(ctx context.Context, tx *sql.Tx, p v0.Principal, role strin
 	if tx.QueryRowContext(ctx, `SELECT account_role FROM agenova_members WHERE principal=$1 AND team=$2 AND active FOR UPDATE`, p.Subject, p.Team).Scan(&account) != nil {
 		return authentication.ErrForbidden
 	}
-	if account != Owner && (account != Admin || role == Admin || role == Owner) {
+	if account != Owner && (role == Admin || role == Owner) {
 		return authentication.ErrForbidden
+	}
+	if account != Owner && account != Admin {
+		var projectAdmin bool
+		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND role='admin')`, p.Subject, p.Team).Scan(&projectAdmin) != nil || !projectAdmin {
+			return authentication.ErrForbidden
+		}
 	}
 	return nil
 }
@@ -72,6 +78,9 @@ func (s Store) reserve(ctx context.Context, p v0.Principal, issuer string, r inv
 	}
 
 	if !bootstrap {
+		if err = invitationActor(ctx, tx, p, r.AccountRole); err != nil {
+			return invitations.Invitation{}, err
+		}
 		var permitted bool
 		if tx.QueryRowContext(ctx, `SELECT m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, p.Subject, p.Team, r.Project).Scan(&permitted) != nil || !permitted {
 			return invitations.Invitation{}, authentication.ErrForbidden
@@ -92,12 +101,13 @@ func (s Store) reserve(ctx context.Context, p v0.Principal, issuer string, r inv
 	}
 	invite := invitations.Invitation{ID: id, Email: r.Email, Project: r.Project, Role: r.Role, Team: p.Team, Issuer: issuer, Status: "reserved", ExpiresAt: time.Now().Add(7 * 24 * time.Hour)}
 	account := MemberRole
-	if r.Role == Admin {
+	if r.AccountRole == Admin {
 		account = Admin
 	}
 	if bootstrap {
 		account = Owner
 	}
+	invite.AccountRole = account
 	_, err = tx.ExecContext(ctx, `INSERT INTO agenova_invitations(id,team,email,actor,project,account_role,project_role,issuer,status,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'reserved',$9)`, id, p.Team, r.Email, p.Subject, r.Project, account, r.Role, issuer, invite.ExpiresAt)
 	if err != nil {
 		return invitations.Invitation{}, errors.New("invitation conflicts or project is unavailable")
@@ -148,6 +158,12 @@ func (s Store) bind(ctx context.Context, p v0.Principal, id, subject string, boo
 	} else if err = invitationActor(ctx, tx, p, account); err != nil {
 		return i, err
 	}
+	if !bootstrap {
+		if err = invitationActor(ctx, tx, p, i.Role); err != nil {
+			return i, err
+		}
+	}
+	i.AccountRole = account
 	i.Subject = subject
 	i.Principal = "user:" + id
 	i.Status = "pending"
@@ -208,7 +224,7 @@ func (s Store) ListInvitations(ctx context.Context, p v0.Principal) ([]invitatio
 	if err = invitationActor(ctx, tx, p, MemberRole); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,email,project,project_role,CASE WHEN status IN ('pending','reserved') AND expires_at<=now() THEN 'expired' ELSE status END,expires_at,(issuer='https://accounts.google.com' AND subject IS NULL AND account_role<>'owner') FROM agenova_invitations WHERE team=$1 ORDER BY created_at DESC LIMIT 200`, p.Team)
+	rows, err := tx.QueryContext(ctx, `SELECT id,email,project,project_role,account_role,CASE WHEN status IN ('pending','reserved') AND expires_at<=now() THEN 'expired' ELSE status END,expires_at,(issuer='https://accounts.google.com' AND subject IS NULL AND account_role<>'owner') FROM agenova_invitations i WHERE team=$1 AND (EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$2 AND m.team=i.team AND m.account_role IN ('owner','admin')) OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=$2 AND g.team=i.team AND g.project=i.project AND g.role='admin')) ORDER BY created_at DESC LIMIT 200`, p.Team, p.Subject)
 	if err != nil {
 		return nil, invitations.ErrUnavailable
 	}
@@ -216,7 +232,7 @@ func (s Store) ListInvitations(ctx context.Context, p v0.Principal) ([]invitatio
 	result := []invitations.Invitation{}
 	for rows.Next() {
 		var i invitations.Invitation
-		if rows.Scan(&i.ID, &i.Email, &i.Project, &i.Role, &i.Status, &i.ExpiresAt, &i.LinkManaged) != nil {
+		if rows.Scan(&i.ID, &i.Email, &i.Project, &i.Role, &i.AccountRole, &i.Status, &i.ExpiresAt, &i.LinkManaged) != nil {
 			return nil, invitations.ErrUnavailable
 		}
 		result = append(result, i)

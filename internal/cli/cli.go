@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,19 +50,21 @@ type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, 
 type RegistrationServiceFactory func(stateDirectory string) (registration.Service, error)
 
 type Services struct {
-	Login           func(string) error
-	Logout          func(string) error
-	HTTPS           func(string) (Services, error)
-	NewRuntime      RuntimeFactory
-	Run             RunHandler
-	RunConnected    ConnectedRunHandler
-	ShowConnected   ConnectedShowHandler
-	ListConnected   ConnectedListHandler
-	ConnectAPI      APIConnectHandler
-	NewAdapters     AdapterLifecycleFactory
-	NewPlatform     PlatformServiceFactory
-	NewRegistration RegistrationServiceFactory
-	Input           io.Reader
+	ApplyGovernance   func(project, kind, document string) (registration.Result, error)
+	AuthorizePlatform func(installation, action string) error
+	Login             func(string) error
+	Logout            func(string) error
+	HTTPS             func(string) (Services, error)
+	NewRuntime        RuntimeFactory
+	Run               RunHandler
+	RunConnected      ConnectedRunHandler
+	ShowConnected     ConnectedShowHandler
+	ListConnected     ConnectedListHandler
+	ConnectAPI        APIConnectHandler
+	NewAdapters       AdapterLifecycleFactory
+	NewPlatform       PlatformServiceFactory
+	NewRegistration   RegistrationServiceFactory
+	Input             io.Reader
 }
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
@@ -156,27 +159,31 @@ const platformHelpText = `Usage:
 
 Validate and plan never mutate the selected target. Apply uses the context and
 namespace from the deployment adapter config and the caller's current identity.
+Add --server https://service --installation NAME to check the current Agenova
+Platform Operator grant before using the caller's local cloud/cluster identity.
 `
 
 type parsedArgs struct {
-	server     string
-	serverSet  bool
-	help       bool
-	version    bool
-	command    string
-	backend    string
-	backendSet bool
-	file       string
-	fileSet    bool
-	json       bool
-	stateDir   string
-	stateSet   bool
-	name       string
-	nameSet    bool
-	yes        bool
-	port       int
-	portSet    bool
-	operands   []string
+	project      string
+	installation string
+	server       string
+	serverSet    bool
+	help         bool
+	version      bool
+	command      string
+	backend      string
+	backendSet   bool
+	file         string
+	fileSet      bool
+	json         bool
+	stateDir     string
+	stateSet     bool
+	name         string
+	nameSet      bool
+	yes          bool
+	port         int
+	portSet      bool
+	operands     []string
 }
 
 // Main preserves the reduced composition entrypoint used by existing tests.
@@ -260,6 +267,7 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 			return ExitUsage
 		}
 		services.RunConnected, services.ShowConnected, services.ListConnected = remote.RunConnected, remote.ShowConnected, remote.ListConnected
+		services.ApplyGovernance, services.AuthorizePlatform = remote.ApplyGovernance, remote.AuthorizePlatform
 	}
 	if parsed.version || parsed.command == "version" {
 		return printVersion(stdout, stderr, parsed.backend, services.NewRuntime)
@@ -291,7 +299,7 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		return printPlatform(stdout, stderr, parsed, services)
 	}
 	if parsed.command == "policy" || parsed.command == "agent-template" {
-		return printRegistration(stdout, stderr, parsed, services.NewRegistration)
+		return printMemberRegistration(stdout, stderr, parsed, services)
 	}
 
 	fmt.Fprintf(stderr, "unknown command %q\n", parsed.command)
@@ -467,17 +475,66 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 		fmt.Fprintln(stderr, err.Error())
 		return 1
 	}
+	var checkedPlatform *platform.ResolvedPlatform
+	var checkedLock *platform.PlatformLock
+	var checkedState *platformapply.AppliedState
+	validate := func() (*platform.ResolvedPlatform, *platform.PlatformLock, error) {
+		if checkedPlatform != nil {
+			return checkedPlatform, checkedLock, nil
+		}
+		return service.ValidateFile(parsed.file)
+	}
+	if parsed.serverSet {
+		if parsed.installation == "" || services.AuthorizePlatform == nil {
+			return platformUsageError(stderr, "authenticated platform operation requires --installation")
+		}
+		if parsed.fileSet {
+			resolved, lock, err := validate()
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
+			}
+			checkedPlatform, checkedLock = resolved, lock
+			if resolved.PlatformName != parsed.installation {
+				return platformUsageError(stderr, "Platform name does not match authorized installation")
+			}
+		}
+		if subcommand == "status" {
+			if service.State == nil {
+				return platformUsageError(stderr, "applied Platform state is required")
+			}
+			state, err := service.State.Load()
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
+			}
+			checkedState = state
+			if state.Platform.PlatformName != parsed.installation {
+				return platformUsageError(stderr, "Platform state does not match authorized installation")
+			}
+		}
+		if err := services.AuthorizePlatform(parsed.installation, subcommand); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+	}
 	ctx := context.Background()
 	switch subcommand {
 	case "status":
-		plan, err := service.Status(ctx)
+		var plan platformapply.Plan
+		var err error
+		if checkedState != nil {
+			plan, err = service.Plan(ctx, &checkedState.Platform, &checkedState.Lock)
+		} else {
+			plan, err = service.Status(ctx)
+		}
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
 		return printPlatformStatus(stdout, stderr, plan, parsed.json, parsed.stateDir)
 	case "validate":
-		resolved, _, err := service.ValidateFile(parsed.file)
+		resolved, _, err := validate()
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
 			return 1
@@ -493,14 +550,19 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 		fmt.Fprintf(stdout, "valid: %s\nrevision: %s\n", resolved.PlatformName, resolved.Revision)
 		return 0
 	case "plan":
-		plan, err := service.PlanFile(ctx, parsed.file)
+		resolved, lock, err := validate()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		plan, err := service.Plan(ctx, resolved, lock)
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
 			return 1
 		}
 		return printPlatformPlan(stdout, stderr, plan, parsed.json)
 	case "apply":
-		resolved, lock, err := service.ValidateFile(parsed.file)
+		resolved, lock, err := validate()
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
 			return 1
@@ -873,6 +935,22 @@ func parseArgs(argv []string) (parsedArgs, error) {
 				return parsedArgs{}, fmt.Errorf("-- is only valid after agenova work show")
 			}
 			literalOperand = true
+		case arg == "--project" || arg == "--installation":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("%s requires a scope", arg)
+			}
+			i++
+			if arg == "--project" {
+				if parsed.project != "" {
+					return parsedArgs{}, fmt.Errorf("duplicate project")
+				}
+				parsed.project = argv[i]
+			} else {
+				if parsed.installation != "" {
+					return parsedArgs{}, fmt.Errorf("duplicate installation")
+				}
+				parsed.installation = argv[i]
+			}
 		case arg == "--server":
 			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
 				return parsedArgs{}, fmt.Errorf("--server requires an HTTPS origin")
@@ -972,12 +1050,24 @@ func parseArgs(argv []string) (parsedArgs, error) {
 		}
 	}
 	if parsed.serverSet && !parsed.help {
-		if parsed.command != "run" && parsed.command != "work" && parsed.command != "login" && parsed.command != "logout" {
-			return parsed, fmt.Errorf("--server is only valid for member login/logout/run/work")
+		if parsed.command == "platform" && parsed.installation == "" {
+			return parsed, fmt.Errorf("authenticated platform operation requires --installation")
 		}
-		if parsed.backendSet || parsed.stateSet || parsed.version {
+		if (parsed.command == "policy" || parsed.command == "agent-template") && parsed.project == "" {
+			return parsed, fmt.Errorf("authenticated governance requires --project")
+		}
+		if parsed.command != "run" && parsed.command != "work" && parsed.command != "login" && parsed.command != "logout" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" {
+			return parsed, fmt.Errorf("--server is only valid for login/logout/run/work, governance registration or platform operations")
+		}
+		if parsed.backendSet || (parsed.stateSet && parsed.command != "platform") || parsed.version {
 			return parsed, fmt.Errorf("--server cannot be combined with operator/reference configuration")
 		}
+	}
+	if parsed.project != "" && (!parsed.serverSet || (parsed.command != "policy" && parsed.command != "agent-template")) {
+		return parsed, fmt.Errorf("--project requires authenticated governance apply")
+	}
+	if parsed.installation != "" && (!parsed.serverSet || parsed.command != "platform") {
+		return parsed, fmt.Errorf("--installation requires authenticated platform operation")
 	}
 	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
 		return parsed, fmt.Errorf("-f is only valid with agenova run, platform, policy or agent-template")
@@ -1061,4 +1151,39 @@ func flagName(arg string) string {
 
 func looksLikeFlag(arg string) bool {
 	return strings.HasPrefix(arg, "-") && arg != "-"
+}
+
+func printMemberRegistration(stdout, stderr io.Writer, parsed parsedArgs, services Services) int {
+	if !parsed.serverSet {
+		return printRegistration(stdout, stderr, parsed, services.NewRegistration)
+	}
+	if parsed.project == "" || len(parsed.operands) != 1 || parsed.operands[0] != "apply" || !parsed.fileSet || services.ApplyGovernance == nil {
+		fmt.Fprintln(stderr, "Use policy/agent-template apply -f file --server HTTPS_ORIGIN --project PROJECT")
+		return ExitUsage
+	}
+	file, err := os.Open(parsed.file)
+	if err != nil {
+		fmt.Fprintln(stderr, "document unavailable")
+		return 1
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+	if err != nil || len(data) > 1<<20 {
+		fmt.Fprintln(stderr, "document unavailable or too large")
+		return 1
+	}
+	kind := "policy"
+	if parsed.command == "agent-template" {
+		kind = "template"
+	}
+	result, err := services.ApplyGovernance(parsed.project, kind, string(data))
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if parsed.json {
+		return printJSON(stdout, stderr, result)
+	}
+	fmt.Fprintf(stdout, "%s: %s (project %s)\n", result.Kind, result.Name, parsed.project)
+	return 0
 }

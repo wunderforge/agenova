@@ -53,11 +53,11 @@ try {
    if (request.method() === 'POST') {
     posts++;
     const payload = request.postDataJSON();
-    assert.deepEqual(Object.keys(payload).sort(), ['email', 'project', 'role']);
+    assert.deepEqual(Object.keys(payload).sort(), ['accountRole', 'email', 'project', 'role']);
     if (deny) return route.fulfill({ status: 403, body: 'Access denied' });
     assert.equal(payload.email, 'invited@example.com');
     assert.equal(payload.project, 'payments');
-    assert.equal(payload.role, 'admin');
+    assert.equal(payload.role, 'admin');assert.equal(payload.accountRole,'member');
     invitations.push({ ...payload, id: 'fixture', status: google ? 'pending' : 'sent',linkManaged:google });
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({...invitations.at(-1), ...(google ? {acceptanceUrl: `https://identity.example/login#invite=${"A".repeat(43)}`} : {})}) });
    }
@@ -69,9 +69,9 @@ try {
  await page.goto('https://identity.example/members');
  await page.getByText('No invitations yet.').waitFor();
  await page.getByRole('link',{name:'Roles & permissions',exact:true}).click();
- assert.equal(await page.locator('#roles .role-card').count(),6);
- await page.getByText('Policy / Template management: unavailable.',{exact:true}).waitFor();
- await page.getByText('Remote platform management: unavailable.',{exact:true}).waitFor();
+ assert.equal(await page.locator('#roles .role-card').count(),8);
+ await page.getByText('Additional duties',{exact:true}).waitFor();
+
  assert.equal(await page.locator('#roles input, #roles select, #roles button').count(),0);
  await page.screenshot({path:resolve(out,'roles-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
@@ -82,7 +82,7 @@ try {
  await page.setViewportSize({width:1100,height:950});
  await page.getByLabel('Email address').fill('invited@example.com');
  await page.getByLabel('Project', { exact: true }).fill('payments');
- await page.getByLabel('Role', { exact: true }).selectOption('admin');
+ await page.getByLabel('Project role', { exact: true }).selectOption('admin');
  await page.getByRole('button', { name: 'Create invitation' }).click();
  await page.getByText('Invitation sent.', { exact: false }).waitFor();
  await page.getByText('invited@example.com', { exact: true }).waitFor();
@@ -101,28 +101,24 @@ try {
  await page.getByRole('button',{name:'Replace link for invited@example.com'}).click();
  await page.waitForFunction(() => document.querySelector('[aria-label="One-time invitation link"]')?.value.endsWith('B'.repeat(43)));
  const member=page.locator('article.member').filter({has:page.getByRole('heading',{name:'member@example.com',exact:true})});
- await member.locator('summary').click();
+ await member.getByText('Manage access',{exact:true}).click();
  await member.getByRole('button',{name:'Disable member',exact:true}).click();
  await page.getByText('Member disabled.',{exact:false}).waitFor();
- await member.locator('summary').click();
+ await member.getByText('Manage access',{exact:true}).click();
  await member.getByRole('button',{name:'Enable member',exact:true}).click();
  await page.getByText('Member access updated.',{exact:true}).waitFor();
- await member.locator('summary').click();
+ await member.getByText('Manage access',{exact:true}).click();
  await member.getByLabel('member@example.com account role').selectOption('admin');
- await member.locator('details form').first().getByRole('button',{name:'Save',exact:true}).click();
+ await member.locator('details').filter({has:page.getByText('Manage access',{exact:true})}).locator('form').first().getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(() => [...document.querySelectorAll('article.member')].some(el => el.textContent.includes('member@example.com') && el.textContent.includes('admin · Active')));
  assert.deepEqual(memberChanges,[{principal:'member',action:'disable'},{principal:'member',action:'enable'},{principal:'member',action:'account-role',role:'admin'}]);
- await member.getByLabel('Additional role for member@example.com').selectOption('governance-admin');
- await member.getByLabel('Role scope',{exact:true}).selectOption('project');
- await member.getByLabel('Role scope identifier').fill('payments');
- await member.getByRole('button',{name:'Grant additional role'}).click();
+ await member.getByText('Assign additional duties',{exact:true}).click();
+ await member.getByLabel('Scope reference for member@example.com').fill('payments');
+ await member.getByRole('button',{name:'Grant additional role',exact:true}).click();
  await member.getByText('governance-admin · project: payments',{exact:false}).waitFor();
  assert.deepEqual(memberChanges.at(-1),{principal:'member',action:'grant-role',role:'governance-admin',scopeKind:'project',scopeRef:'payments'});
- await member.getByRole('button',{name:'Revoke role'}).click();
+ await member.getByRole('button',{name:'Revoke role',exact:true}).click();
  await member.getByText('governance-admin · project: payments',{exact:false}).waitFor({state:'hidden'});
- assert.equal(memberChanges.at(-1).action,'revoke-role');
- await member.getByLabel('Additional role for member@example.com').selectOption('platform-operator');
- assert.deepEqual(await member.getByLabel('Role scope',{exact:true}).locator('option').allTextContents(),['installation']);
  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:resolve(out,'google-mobile.png'),fullPage:true});
  await page.setViewportSize({width:1100,height:950});

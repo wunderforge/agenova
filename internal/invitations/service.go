@@ -20,11 +20,13 @@ var ErrUnavailable = errors.New("invitation delivery is unconfirmed; inspect its
 var ErrInvalid = errors.New("provide a valid email, project and role")
 
 type Request struct {
-	Email   string `json:"email"`
-	Project string `json:"project"`
-	Role    string `json:"role"`
+	AccountRole string `json:"accountRole,omitempty"`
+	Email       string `json:"email"`
+	Project     string `json:"project"`
+	Role        string `json:"role"`
 }
 type Invitation struct {
+	AccountRole   string    `json:"accountRole"`
 	LinkManaged   bool      `json:"linkManaged,omitempty"`
 	AcceptanceURL string    `json:"acceptanceUrl,omitempty"`
 	ID            string    `json:"id"`
@@ -42,7 +44,7 @@ type Invitation struct {
 
 func Validate(r Request) bool {
 	address, err := mail.ParseAddress(r.Email)
-	return err == nil && address.Address == r.Email && address.Name == "" && len(r.Email) <= 254 && strings.TrimSpace(r.Email) == r.Email && r.Email == strings.ToLower(r.Email) && r.Project != "" && len(r.Project) <= 128 && (r.Role == "admin" || r.Role == "member" || r.Role == "viewer")
+	return (r.AccountRole == "" || r.AccountRole == "member" || r.AccountRole == "admin") && err == nil && address.Address == r.Email && address.Name == "" && len(r.Email) <= 254 && strings.TrimSpace(r.Email) == r.Email && r.Email == strings.ToLower(r.Email) && r.Project != "" && len(r.Project) <= 128 && (r.Role == "admin" || r.Role == "member" || r.Role == "viewer")
 }
 
 // Create reserves a directory identity without sending mail. Send is explicit;

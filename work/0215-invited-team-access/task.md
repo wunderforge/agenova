@@ -252,3 +252,52 @@ assignment, not custom permission editing. The member page now describes six
 duties and compatibility Account Admin behavior, scopes, limitations and unavailable
 management capabilities; it links to existing assignment controls. Service
 identities remain separate. No backend permissions are expanded by this UI.
+
+## Live member validation deployment
+
+Owner requested full cutover preparation for hands-on testing. Added an independent
+member endpoint on the existing EKS/ALB, managed RDS, runtime SQL role and private
+Owner bootstrap. Read [deployment evidence](evidence/eks-member-deployment.md) and
+[member-edge dependencies](../../infra/member-edge/README.md) before any cleanup.
+The old service is retained until acceptance; the paused destruction automation
+must stay paused. Real human Google login is now required to continue the two-user
+campaign. Persistent database data must not be destroyed to roll back application
+code. Long-term AUD100 hosting feasibility is still an explicit unresolved gate.
+
+## Explicit account/project roles and protected ownership transfer
+
+Owner approved separate account/project invitation choices on 12 October. Omitted
+accountRole defaults to member, never derives from project Admin. Existing stored
+memberships/invitations retain their explicit grants. Separate management controls
+must describe both scopes. Project administrators can administer only their own
+projects, not account roles; Owner alone appoints administrators. Planned governance
+and installation duties are read-only/unassignable until their capabilities exist;
+existing grants remain visible and revocable. Add atomic transfer to an existing
+active account Admin with explicit confirmation, auditing and no ownerless interval;
+ordinary demotion/disable of Owner stays forbidden. Test escalation, cross-project
+reads/writes, invitation acceptance, transfer rollback/concurrency and rendered UI.
+No live ownership transfer or actual permission changes are part of deployment.
+
+### Superseding decision: operational duties, not placeholders
+
+Owner explicitly requested all three role layers be operational, superseding the
+Policy/Template deferral and the proposed unassignable placeholder end state.
+Finish role separation first, then implement scoped immutable Policy/Template
+registration and installed-service consumption, with genuine API/CLI authorization
+and project isolation. Platform Operator uses Agenova installation authorization
+AND the operator's own existing AWS/Kubernetes credentials; no hosted deployment
+agent, cloud key upload or implicit cluster permission. Do not deploy placeholder
+role UI as completion of this request. Existing platform and claim invariants stay
+unchanged. Ownership transfer may be tested with disposable identities only;
+never transfer the real Owner during validation.
+
+## Operational role implementation and rollout
+
+Implemented the superseding role decision with scoped governance storage/API/CLI,
+local-identity platform authorization, separate account/project roles, protected
+ownership transfer and project-aware Portal setup. Focused real PostgreSQL/race
+checks and the full gate pass (55 browser smokes). Migration 007 and the member
+image are deployed; existing Owner login remains usable. See [role-layer evidence](evidence/role-layers.md)
+for exact results, immutable image and pending two-user/native CLI acceptance.
+The Fisher administrator invitation is prepared pending the browser-required
+per-action confirmation; no membership or real ownership was changed by rollout.

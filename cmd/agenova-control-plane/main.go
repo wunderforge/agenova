@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -251,7 +252,19 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
 		PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
-			bundle, err := store.ActivePolicy()
+			var source interface {
+				ActivePolicy() (policy.PolicyBundle, error)
+				Template(string) (*v0.AgentTemplate, error)
+				Lookup(string) (*v0.AgentTemplate, error)
+			} = store
+			if memberStore, ok := access.(identitydb.Store); ok {
+				request, err := v0.ParseClaimRequestJSON(data)
+				if err != nil {
+					return app.PreparedAssignment{}, err
+				}
+				source = identitydb.ProjectRegistry{Store: memberStore, Team: p.Team, Project: request.Spec.ProjectRef, Fallback: store}
+			}
+			bundle, err := source.ActivePolicy()
 			if err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
 			}
@@ -259,11 +272,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			if err := loader.Load(bundle); err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
 			}
-			prepared, err := app.PrepareAssignment(data, requestPrincipal{p}, loader, store)
+			prepared, err := app.PrepareAssignment(data, requestPrincipal{p}, loader, source)
 			if err != nil {
 				request, parseErr := v0.ParseClaimRequestJSON(data)
 				if parseErr == nil {
-					if _, lookupErr := store.Template(request.Spec.TemplateRef); lookupErr != nil {
+					if _, lookupErr := source.Template(request.Spec.TemplateRef); lookupErr != nil {
 						return prepared, &console.SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: err}
 					}
 				}
@@ -295,6 +308,60 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			}
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
+	}
+	if memberStore, ok := access.(identitydb.Store); ok {
+		options.SetupFor = func(ctx context.Context, p v0.Principal, project, template string) (console.Setup, error) {
+			view, err := options.Setup()
+			if err != nil {
+				return view, err
+			}
+			projects, err := memberStore.ConfigurationProjects(ctx, p)
+			if err != nil {
+				return console.Setup{}, err
+			}
+			view.Principal = p
+			view.Projects = projects
+			if project == "" && len(projects) > 0 {
+				project = projects[0]
+			}
+			if project == "" {
+				view.Template = nil
+				view.Policy = policy.PolicyBundle{ID: "no-project-access", Version: "1", Rules: []policy.Rule{}}
+				return view, nil
+			}
+			if !slices.Contains(projects, project) {
+				return console.Setup{}, fmt.Errorf("project configuration access denied")
+			}
+			registry := identitydb.ProjectRegistry{Store: memberStore, Team: p.Team, Project: project, Fallback: store}
+			view.Project = project
+			view.Policy, err = registry.ActivePolicy()
+			if err != nil {
+				return console.Setup{}, err
+			}
+			visible := []policy.Rule{}
+			for _, rule := range view.Policy.Rules {
+				if rule.Team == p.Team && rule.Project == project {
+					visible = append(visible, rule)
+				}
+			}
+			view.Policy.Rules = visible
+			defaults := []string{}
+			if view.Template != nil {
+				defaults = append(defaults, view.Template.Metadata.Name)
+			}
+			view.Templates, err = registry.TemplateNames(defaults)
+			if err != nil {
+				return console.Setup{}, err
+			}
+			if template == "" && len(view.Templates) > 0 {
+				template = view.Templates[0]
+			}
+			if !slices.Contains(view.Templates, template) {
+				return console.Setup{}, fmt.Errorf("template unavailable")
+			}
+			view.Template, err = registry.Template(template)
+			return view, err
+		}
 	}
 	options.Access = access
 	options.Durable = durable

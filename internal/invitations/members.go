@@ -34,12 +34,13 @@ type MemberView struct {
 	Projects    []ProjectGrant `json:"projects"`
 }
 type MemberChange struct {
-	ScopeKind string `json:"scopeKind,omitempty"`
-	ScopeRef  string `json:"scopeRef,omitempty"`
-	Principal string `json:"principal"`
-	Action    string `json:"action"`
-	Role      string `json:"role,omitempty"`
-	Project   string `json:"project,omitempty"`
+	Confirmation string `json:"confirmation,omitempty"`
+	ScopeKind    string `json:"scopeKind,omitempty"`
+	ScopeRef     string `json:"scopeRef,omitempty"`
+	Principal    string `json:"principal"`
+	Action       string `json:"action"`
+	Role         string `json:"role,omitempty"`
+	Project      string `json:"project,omitempty"`
 }
 type MemberStore interface {
 	ListMembers(context.Context, v0.Principal) ([]MemberView, error)

@@ -39,6 +39,10 @@ func (s Store) ManageGoogleInvitation(ctx context.Context, p v0.Principal, id, a
 	if err = invitationActor(ctx, tx, p, account); err != nil {
 		return i, "", err
 	}
+	if err = invitationActor(ctx, tx, p, i.Role); err != nil {
+		return i, "", err
+	}
+	i.AccountRole = account
 	var scoped bool
 	if tx.QueryRowContext(ctx, `SELECT m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, p.Subject, p.Team, i.Project).Scan(&scoped) != nil || !scoped {
 		return i, "", authentication.ErrForbidden

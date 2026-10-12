@@ -168,6 +168,8 @@ func memberServices(server string) (cli.Services, error) {
 	}
 	client := connectedclient.Client{Server: server, AccessToken: auth.AccessToken}
 	return cli.Services{
+		ApplyGovernance:   client.ApplyGovernance,
+		AuthorizePlatform: client.AuthorizePlatform,
 		RunConnected: func(path, _ string) (cli.RunReport, error) {
 			v, err := client.RunFile(path)
 			if v.RequestRef == "" {

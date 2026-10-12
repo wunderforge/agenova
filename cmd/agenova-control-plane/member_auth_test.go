@@ -194,6 +194,37 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if w := call("/api/provider-observations", "valid"); w.Code != 403 {
 		t.Fatal("operator diagnostics exposed")
 	}
+	// Management routes require current explicit duties, not just a valid login.
+	t.Setenv("AGENOVA_PLATFORM_NAME", "sydney")
+	post := func(path, body string) int {
+		r := httptest.NewRequest("POST", c.Origin+path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer valid")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
+		t.Fatal("implicit platform access", code)
+	}
+	if _, err = db.Exec(`INSERT INTO agenova_scoped_roles VALUES('person','team','platform-operator','installation','sydney')`); err != nil {
+		t.Fatal(err)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
+		t.Fatal("scoped platform authorization", code)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
+		t.Fatal("foreign installation", code)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"destroy"}`); code != 400 {
+		t.Fatal("unknown action", code)
+	}
+	if _, err = db.Exec(`DELETE FROM agenova_scoped_roles WHERE principal='person'`); err != nil {
+		t.Fatal(err)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"status"}`); code != 403 {
+		t.Fatal("revoked operator", code)
+	}
 	m.Active = false
 	if err = store.PutMember(context.Background(), "operator", m); err != nil {
 		t.Fatal(err)

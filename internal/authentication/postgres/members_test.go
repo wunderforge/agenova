@@ -25,7 +25,11 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	}
 	principals := map[string]v0.Principal{"owner": owner}
 	for _, name := range []string{"admin", "member", "viewer"} {
-		_, proof, err = s.ReserveGoogleInvitation(ctx, owner, invitations.Request{Email: name + "@gmail.com", Project: "project", Role: name})
+		accountRole := MemberRole
+		if name == Admin {
+			accountRole = Admin
+		}
+		_, proof, err = s.ReserveGoogleInvitation(ctx, owner, invitations.Request{AccountRole: accountRole, Email: name + "@gmail.com", Project: "project", Role: name})
 		if err != nil {
 			t.Fatal(err)
 		}

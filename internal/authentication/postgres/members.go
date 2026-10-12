@@ -28,7 +28,7 @@ func (s Store) ListMembers(ctx context.Context, p v0.Principal) ([]invitations.M
 		return nil, err
 	}
 	// Team-qualified SQL; never return raw IdP subjects, session records or tokens.
-	rows, err := tx.QueryContext(ctx, `SELECT m.principal,COALESCE(i.email,''),m.account_role,m.active,COALESCE(g.project,''),COALESCE(g.role,'') FROM agenova_members m LEFT JOIN agenova_invitations i ON i.principal=m.principal AND i.team=m.team AND i.status='accepted' LEFT JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.team=$1 ORDER BY m.principal,g.project`, p.Team)
+	rows, err := tx.QueryContext(ctx, `SELECT m.principal,COALESCE(i.email,''),m.account_role,m.active,COALESCE(g.project,''),COALESCE(g.role,'') FROM agenova_members m LEFT JOIN agenova_invitations i ON i.principal=m.principal AND i.team=m.team AND i.status='accepted' LEFT JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.team=$1 AND (EXISTS(SELECT 1 FROM agenova_members a WHERE a.principal=$2 AND a.team=m.team AND a.account_role IN ('owner','admin')) OR EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$2 AND a.team=g.team AND a.project=g.project AND a.role='admin')) ORDER BY m.principal,g.project`, p.Team, p.Subject)
 	if err != nil {
 		return nil, invitations.ErrUnavailable
 	}
@@ -53,7 +53,7 @@ func (s Store) ListMembers(ctx context.Context, p v0.Principal) ([]invitations.M
 	}
 	rows.Close()
 	for i := range result {
-		grants, err := tx.QueryContext(ctx, `SELECT role,scope_kind,scope_ref FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 ORDER BY role,scope_kind,scope_ref`, result[i].Principal, p.Team)
+		grants, err := tx.QueryContext(ctx, `SELECT role,scope_kind,scope_ref FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 AND EXISTS(SELECT 1 FROM agenova_members a WHERE a.principal=$3 AND a.team=$2 AND a.account_role IN ('owner','admin')) ORDER BY role,scope_kind,scope_ref`, result[i].Principal, p.Team, p.Subject)
 		if err != nil {
 			return nil, invitations.ErrUnavailable
 		}
@@ -76,12 +76,18 @@ func (s Store) ListMembers(ctx context.Context, p v0.Principal) ([]invitations.M
 }
 
 // ChangeMember serializes role/activation changes with grant edits and session
-// issuance. Owner is immutable here; ownership transfer is not a self-service path.
+// issuance. Owner can only change through the atomic, explicitly confirmed transfer path.
 func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.MemberChange) error {
 	if p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" {
 		return authentication.ErrForbidden
 	}
 	if c.Principal == "" || len(c.Principal) > 256 || len(c.Project) > 128 {
+		return invitations.ErrInvalid
+	}
+	if c.Action == "transfer-owner" {
+		return s.TransferOwner(ctx, p, c)
+	}
+	if c.Confirmation != "" {
 		return invitations.ErrInvalid
 	}
 	if c.Action == "grant-role" || c.Action == "revoke-role" {

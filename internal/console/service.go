@@ -52,6 +52,7 @@ type Service struct {
 	executeMu     chan struct{}
 	preset        app.ReferencePrincipalPreset
 	setup         func() (Setup, error)
+	setupFor      func(context.Context, v0.Principal, string, string) (Setup, error)
 	prepare       func([]byte) (app.PreparedAssignment, error)
 	prepareFor    func([]byte, v0.Principal) (app.PreparedAssignment, error)
 	configure     func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
@@ -80,6 +81,7 @@ type Options struct {
 	Prepare    func([]byte) (app.PreparedAssignment, error)
 	Configure  func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
 	Setup      func() (Setup, error)
+	SetupFor   func(context.Context, v0.Principal, string, string) (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -125,7 +127,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{durable: options.Durable, preset: preset, setup: options.Setup, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{durable: options.Durable, preset: preset, setup: options.Setup, setupFor: options.SetupFor, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err

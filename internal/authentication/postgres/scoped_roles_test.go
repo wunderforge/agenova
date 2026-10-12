@@ -66,7 +66,7 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 		t.Fatal("grant missing from API view")
 	}
 	c.Action = "revoke-role"
-	if err = s.ChangeMember(ctx, p("owner"), c); err != nil {
+	if err = s.ChangeScopedRole(ctx, p("owner"), c); err != nil {
 		t.Fatal(err)
 	}
 	if s.AuthorizeScoped(ctx, p("member"), "policy.register", "project", "project") == nil {
@@ -75,11 +75,11 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 	c.Action = "grant-role"
 	c.ScopeKind = "account"
 	c.ScopeRef = "other"
-	if s.ChangeMember(ctx, p("owner"), c) == nil {
+	if s.ChangeScopedRole(ctx, p("owner"), c) == nil {
 		t.Fatal("foreign account grant")
 	}
 	c.ScopeRef = "team"
-	if err = s.ChangeMember(ctx, p("owner"), c); err != nil {
+	if err = s.ChangeScopedRole(ctx, p("owner"), c); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.AuthorizeScoped(ctx, p("member"), "template.register", "project", "other-project"); err != nil {
@@ -88,7 +88,7 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 	c.Role = PlatformOperator
 	c.ScopeKind = "installation"
 	c.ScopeRef = "sydney"
-	if err = s.ChangeMember(ctx, p("owner"), c); err != nil {
+	if err = s.ChangeScopedRole(ctx, p("owner"), c); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.AuthorizeScoped(ctx, p("member"), "platform.configure", "installation", "sydney"); err != nil {

@@ -461,3 +461,30 @@ test('recovered interrupted work shows unknown model outcome without fabricated 
  await expect(page.getByText('Waiting for response',{exact:true})).toHaveCount(0);
  await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
 });
+
+test('project configuration selector reads the scoped policy and template',async({page},info)=>{
+ await api(page,()=>[]);
+ await page.route('**/api/setup*',route=>{
+  const query=new URL(route.request().url()).searchParams;
+  const project=query.get('project') || 'payments';
+  const name=query.get('template') || 'engineer';
+  return route.fulfill({json:{...setup,project,projects:['payments','analytics'],templates:['engineer','reviewer'],template:{...template,metadata:{name}},policy:{ID:project+'-policy',Version:'2',Rules:[{team:'team-a',action:'claim.create',project,templateRef:name}]}}});
+ });
+ await page.goto('/?mode=connected#/policy');
+ await expect(page.getByText('payments-policy',{exact:true})).toBeVisible();
+ await page.getByLabel('Configuration project').selectOption('analytics');
+ await expect(page.getByText('analytics-policy',{exact:true})).toBeVisible();
+ await page.getByLabel('Configuration template').selectOption('reviewer');
+ await expect(page.getByLabel('Configuration template')).toHaveValue('reviewer');
+ await expect(page.locator('tbody')).toContainText('reviewer');
+ await page.screenshot({path:info.outputPath('scoped-policy.png'),fullPage:true});
+});
+
+test('member without a template can still read permitted Work evidence',async({page})=>{
+ await api(page,()=>[work('Succeeded')],undefined,{...setup,template:null});
+ await page.goto('/?mode=connected#/work');
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ await page.goto('/?mode=connected#/work/new');
+ await expect(page.getByText('No approved template is available in this project.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Start work',exact:true})).toHaveCount(0);
+});

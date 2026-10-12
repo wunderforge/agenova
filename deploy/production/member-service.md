@@ -165,3 +165,61 @@ The Portal displays `Outcome unknown`; an Allow with no attempted call is `Not
 started`. These are observations about missing execution evidence, not a new
 permission or a successful inference result. The original provider effect may have
 completed, so recovery does not automatically retry it.
+
+## Current EKS validation deployment (12 October)
+
+`app.agenova.app` is routed through the existing ALB to the separate
+`agenova-member-control-plane` Deployment and NodePort 31090. The original service
+is retained pending real-user acceptance. `infra/member-edge` owns the additive
+entry resources; `infra/database` owns managed RDS. Both depend on the existing VPC.
+Do not resume old demo destruction or destroy the old ALB/cluster during validation.
+
+The deployed image includes the Portal: build `deploy/reference/Dockerfile`, then
+use `deploy/production/Dockerfile` with `CONTROL_PLANE_IMAGE` pointing to that build
+(prefer its immutable registry digest). The bundled `nginx.conf` forwards only the
+configured member host over the private same-Pod listener and uses writable `/tmp`
+for every nginx temporary directory. All credentials remain mounted Secret files.
+The manifest example records the validated deployment shape, not a generic install.
+
+Run migrations 001–006 as the database operator. Give the separate runtime login
+only schema USAGE, database CONNECT, required table DML and sequence access. Remove
+DDL capability, migration-table writes, and UPDATE/DELETE on audit/fact tables.
+Verify these privileges explicitly. Bootstrap uses a temporary private operator Pod;
+remove that Pod and its master-credential/SQL Secrets after preserving the private
+Owner link. Never mount the database master credential into the running service.
+
+A new Pod's first five-second DB connection failed during this deployment; verify
+connectivity from a ready Pod and repeat the transactional migration rather than
+weakening TLS or exposing the database. The executed migration was repeated safely.
+Runtime-role creation and Owner bootstrap are distinct operations and must not be
+blindly repeated after their first success.
+
+### Role-authorized management CLI
+
+Account and project roles are assigned independently. Owner can also grant
+`governance-admin` for an account/project and `platform-operator` for an installation.
+These duties do not add Work permissions or provider credentials. Governance uses
+immutable registration: a new Policy version may become active, while an existing
+identity with different content conflicts. Projects must already exist.
+
+```sh
+agenova login --server https://app.agenova.app
+agenova policy apply -f policy.yaml --server https://app.agenova.app --project payments
+agenova agent-template apply -f engineer.yaml --server https://app.agenova.app --project payments
+agenova platform plan -f platform.yaml --server https://app.agenova.app --installation YOUR_PLATFORM
+agenova platform apply -f platform.yaml --server https://app.agenova.app --installation YOUR_PLATFORM
+agenova platform status --server https://app.agenova.app --installation YOUR_PLATFORM
+```
+
+Platform operations also require the operator's local AWS profile/kubeconfig and
+cluster RBAC. The installation name must match the file or saved applied state.
+Ordinary members use `run`/`work` with `--server` and need no cluster credentials.
+Portal's project/template selectors display the corresponding registered
+configuration; role and policy checks still run on every submission.
+
+Before deploying this extension, run the explicit identity migration with an
+operator credential. Migration 007 requires runtime SELECT/INSERT on
+`agenova_project_policies` and `agenova_project_templates`, and
+SELECT/INSERT/UPDATE on `agenova_project_policy_active`. Older binaries reject
+schema 007; retain data and use a compatible rollback build. Do not rerun Owner
+bootstrap, rotate sessions or grant database superuser rights during this upgrade.
