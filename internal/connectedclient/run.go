@@ -32,6 +32,11 @@ import (
 )
 
 type Client struct {
+	// Server is an explicit authenticated HTTPS origin. It is mutually exclusive
+	// with the operator-only Kubernetes tunnel path.
+	Server      string
+	AccessToken func(context.Context) (string, error)
+
 	Context      string
 	Namespace    string
 	Executable   string
@@ -836,6 +841,17 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 	if err != nil {
 		return nil, errors.New("installed Work API request is invalid")
 	}
+	if c.Server != "" {
+		if endpoint != c.Server || !validServerOrigin(endpoint) || c.AccessToken == nil {
+			return nil, errors.New("authenticated HTTPS connection is invalid")
+		}
+		token, tokenErr := c.AccessToken(ctx)
+		if tokenErr != nil || token == "" || len(token) > 16<<10 || strings.ContainsAny(token, " \t\r\n") {
+			return nil, errors.New("login credentials are unavailable; sign in again")
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		defer req.Header.Del("Authorization")
+	}
 	req.Header.Set("Accept", "application/json")
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -850,8 +866,18 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 			},
 		}
 	}
-	response, err := client.Do(req)
+	// Enforce redirect isolation even with a caller-supplied trusted transport.
+	// A redirect must never carry a member's token to a different endpoint.
+	clientCopy := *client
+	clientCopy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if clientCopy.Timeout == 0 {
+		clientCopy.Timeout = 4 * time.Minute
+	}
+	response, err := clientCopy.Do(req)
 	if err != nil {
+		if c.Server != "" {
+			return nil, errors.New("authenticated Work API is unavailable; check the service address and network connection")
+		}
 		return nil, errors.New("installed Work API is unavailable; check Platform status and local tunnel")
 	}
 	defer response.Body.Close()
@@ -895,7 +921,24 @@ var safeAPIDiagnostic = map[string]string{
 	"not_found":                   "Work was not found in the installed service.",
 }
 
+func validServerOrigin(endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil &&
+		u.Path == "" && u.RawPath == "" && u.RawQuery == "" && !u.ForceQuery &&
+		u.Fragment == "" && u.Opaque == "" && endpoint == "https://"+u.Host
+}
+
 func (c Client) openTunnel(ctx context.Context) (string, func(), error) {
+	if c.Server != "" {
+		if !validServerOrigin(c.Server) || c.AccessToken == nil || c.Context != "" || c.Namespace != "" || c.OpenTunnel != nil || c.Executable != "" {
+			return "", nil, errors.New("use one explicit authenticated HTTPS origin without Kubernetes settings")
+		}
+		return c.Server, func() {}, nil
+	}
+	if c.AccessToken != nil {
+		return "", nil, errors.New("login credentials require an explicit HTTPS origin")
+	}
+
 	if c.Context == "" || c.Namespace == "" || c.Namespace == "default" {
 		return "", nil, errors.New("installed Kubernetes target is unavailable")
 	}
