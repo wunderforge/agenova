@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
@@ -25,6 +26,7 @@ import (
 	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
+	"github.com/wunderforge/agenova/internal/workstore"
 )
 
 var ErrConflict = errors.New("request already exists")
@@ -42,23 +44,26 @@ type record struct {
 }
 
 type Service struct {
-	access     AccessAuthorizer
-	mu         sync.RWMutex
-	executeMu  chan struct{}
-	preset     app.ReferencePrincipalPreset
-	setup      func() (Setup, error)
-	prepare    func([]byte) (app.PreparedAssignment, error)
-	prepareFor func([]byte, v0.Principal) (app.PreparedAssignment, error)
-	configure  func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner     *app.RunService
-	executor   Executor
-	provider   modelprovider.Client
-	journal    *facts.Journal
-	store      *facts.Store
-	records    map[string]*record
-	order      []string
-	closed     bool
-	wg         sync.WaitGroup
+	durable       DurableWork
+	persisted     sync.Map
+	storageFailed atomic.Bool
+	access        AccessAuthorizer
+	mu            sync.RWMutex
+	executeMu     chan struct{}
+	preset        app.ReferencePrincipalPreset
+	setup         func() (Setup, error)
+	prepare       func([]byte) (app.PreparedAssignment, error)
+	prepareFor    func([]byte, v0.Principal) (app.PreparedAssignment, error)
+	configure     func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner        *app.RunService
+	executor      Executor
+	provider      modelprovider.Client
+	journal       *facts.Journal
+	store         *facts.Store
+	records       map[string]*record
+	order         []string
+	closed        bool
+	wg            sync.WaitGroup
 }
 
 // AccessAuthorizer checks current server-owned project roles; it cannot grant
@@ -68,7 +73,8 @@ type AccessAuthorizer interface {
 }
 
 type Options struct {
-	Access AccessAuthorizer
+	Durable DurableWork
+	Access  AccessAuthorizer
 	// PrepareFor selects authenticated mode; reference Submit is then disabled.
 	PrepareFor func([]byte, v0.Principal) (app.PreparedAssignment, error)
 	Prepare    func([]byte) (app.PreparedAssignment, error)
@@ -119,12 +125,15 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{durable: options.Durable, preset: preset, setup: options.Setup, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
 	}
 	s.runner = runner
+	if err := s.configureDurability(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -134,7 +143,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if s.prepareFor != nil {
 		return evidence.View{}, errors.New("authenticated submission required")
 	}
-	return s.submit(data, v0.Principal{}, s.prepare, nil)
+	return s.submit(data, v0.Principal{}, s.prepare, nil, submissionKey{})
 }
 
 // SubmitFor accepts only a principal supplied by the trusted authentication boundary.
@@ -156,16 +165,35 @@ func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionC
 	if err := s.access.Authorize(context.Background(), principal, "work.submit", request.Spec.ProjectRef); err != nil {
 		return evidence.View{}, authentication.ErrForbidden
 	}
+	key := submissionKey{}
+	if s.durable != nil {
+		if s.storageFailed.Load() {
+			return evidence.View{}, workstore.ErrUnavailable
+		}
+		key = submissionKey{name: request.Metadata.Name, digest: workstore.Digest(request)}
+		view, existing, err := s.durable.Existing(context.Background(), principal, key.name, key.digest)
+		if err != nil {
+			return evidence.View{}, err
+		}
+		if existing {
+			return view, nil
+		}
+		request.Metadata.Name = workstore.Reference(principal, key.name)
+		data, err = json.Marshal(request)
+		if err != nil {
+			return evidence.View{}, err
+		}
+	}
 	return s.submit(data, principal, func(data []byte) (app.PreparedAssignment, error) {
 		p, err := s.prepareFor(data, principal)
 		if err == nil && (p.Admission.Principal != principal || (p.Issued != nil && p.Issued.Principal != principal)) {
 			return app.PreparedAssignment{}, errors.New("prepared identity mismatch")
 		}
 		return p, err
-	}, sessionCheck)
+	}, sessionCheck, key)
 }
 
-func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error), sessionCheck func(context.Context) error) (evidence.View, error) {
+func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error), sessionCheck func(context.Context) error, key submissionKey) (evidence.View, error) {
 	request, validationErr := v0.ParseClaimRequestJSON(data)
 	if validationErr != nil {
 		return evidence.View{}, validationErr
@@ -183,7 +211,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		s.mu.Unlock()
 		return evidence.View{}, ErrConflict
 	}
-	if len(s.records) >= 32 {
+	if len(s.records) >= 32 && s.durable == nil {
 		s.mu.Unlock()
 		return evidence.View{}, ErrCapacity
 	}
@@ -218,11 +246,17 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
+		if err := s.persistAdmission(owner, key, view); err != nil {
+			return evidence.View{}, err
+		}
 		s.mu.Lock()
 		s.records[ref] = &record{view: evidence.Clone(view), owner: owner, sessionCheck: sessionCheck}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
+	}
+	if err := s.persistAdmission(owner, key, view); err != nil {
+		return evidence.View{}, err
 	}
 	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
 		return evidence.View{}, err
@@ -242,6 +276,9 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		s.records[ref] = &record{view: evidence.Clone(view), owner: owner, sessionCheck: sessionCheck}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
+		if err := s.persistFinished(ref); err != nil {
+			return evidence.View{}, err
+		}
 		return s.QueryRequest(ref)
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
@@ -287,7 +324,13 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 }
 
 func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
-	_, err := s.journal.Append(facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef})
+	fact := facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef}
+	var err error
+	if s.durable == nil {
+		_, err = s.journal.Append(fact)
+	} else {
+		_, err = s.journal.AppendWithCommit(fact, func(f facts.Fact) error { return s.storageResult(s.durable.Append(context.Background(), f, state)) })
+	}
 	if err != nil {
 		return err
 	}
@@ -433,6 +476,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		if ctx.Err() != nil || observed == nil || strings.TrimSpace(text) == "" {
 			return errors.New("no active task-dependent model result")
 		}
+		if s.durable != nil {
+			if err := s.storageResult(s.durable.StageResult(context.Background(), ref, evidence.Outcome{Status: "Succeeded", Text: text, Model: observed})); err != nil {
+				return err
+			}
+		}
 		modelText = text
 		if err := step("FinalAnswer"); err != nil {
 			return err
@@ -462,6 +510,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	}
 	s.records[ref].view.Outcome = outcome
 	s.mu.Unlock()
+	_ = s.persistFinished(ref)
 }
 
 // Classify only trusted categories/facts. Never return arbitrary backend,

@@ -195,3 +195,15 @@ Preserve architecture invariants, immutable registration identities and existing
   be rolled back. Persistence/crash recovery remains a separate unfinished gate.
 
 - Current slice evidence and remaining gates: [Google service evidence](evidence/google-service.md).
+
+## Durable Work continuation
+
+- Added explicit migration 005, schema-scoped single-writer fencing, owner-scoped
+  idempotency and current-membership SQL reads. Admission and governed facts commit
+  before execution; lifecycle facts/snapshots commit atomically.
+- Real disposable PostgreSQL + HTTPS CLI tests retain completed evidence across
+  restart without a duplicate provider call. Failed attempt persistence blocks the
+  provider. Lost terminal-publication acknowledgement is repairable without replay.
+- Other interrupted Work still blocks startup pending reconciliation. The installed
+  production composition deliberately does not enable the incomplete recovery path.
+- [Durable Work evidence and remaining gates](evidence/durable-work.md).

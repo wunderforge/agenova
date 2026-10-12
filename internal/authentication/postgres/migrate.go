@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"errors"
+	"github.com/wunderforge/agenova/internal/workstore"
 	"time"
 )
 
@@ -22,7 +23,7 @@ var applicationSessionSchema string
 //go:embed 004-google-invitations.sql
 var googleInvitationSchema string
 
-var migrations = []string{Schema, invitationSchema, applicationSessionSchema, googleInvitationSchema}
+var migrations = []string{Schema, invitationSchema, applicationSessionSchema, googleInvitationSchema, workstore.Schema}
 
 // Migrate is an explicit operator action. Runtime credentials should have no DDL
 // rights. One transaction and advisory lock prevent partial/concurrent schemas.

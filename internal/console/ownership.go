@@ -15,6 +15,12 @@ import (
 // QueryFor checks ownership before observing any Work or runtime evidence.
 // Foreign and nonexistent references return the same error.
 func (s *Service) QueryFor(p v0.Principal, ref string, claim bool) (evidence.View, error) {
+	if s.durable != nil {
+		if claim {
+			return s.durable.GetClaimFor(context.Background(), p, ref)
+		}
+		return s.durable.GetFor(context.Background(), p, ref)
+	}
 	if p.Subject == "" || p.Team == "" || p.AuthenticationContext != "oidc" || s.access == nil {
 		return evidence.View{}, errors.New("record not found")
 	}
@@ -70,6 +76,9 @@ func (s *Service) ListFor(p v0.Principal) []evidence.View {
 // authorizeRun rechecks live member/project access at each governed operation.
 // The existing claim gateway still independently enforces effective authority.
 func (s *Service) authorizeRun(ctx context.Context, ref string) error {
+	if s.storageFailed.Load() {
+		return errors.New("durable evidence unavailable")
+	}
 	s.mu.RLock()
 	r := s.records[ref]
 	if r == nil || r.view.Request == nil {

@@ -4,6 +4,7 @@
 package facts
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -151,5 +152,53 @@ func TestJournalPreClaimTypedDecisionAndOrdering(t *testing.T) {
 	}
 	if _, err := j.Append(Fact{RequestRef: "denied", Kind: "Decision", Decision: &v0.Decision{Result: "true"}}); err == nil {
 		t.Fatal("untyped decision accepted")
+	}
+}
+
+func TestDurableJournalCommitFailureDoesNotPublishOrAuthorize(t *testing.T) {
+	failing := true
+	commits := 0
+	j, err := NewDurableJournal(90, func(f Fact) error {
+		commits++
+		if failing {
+			return fmt.Errorf("storage unavailable")
+		}
+		if f.Sequence != 91 {
+			t.Fatal("sequence advanced after failed commit")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.RegisterRequest("request", v0.Principal{Subject: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.BindClaim("request", v0.SandboxClaim{ID: "claim", RequestRef: "request", AuthorityRef: "authority"}); err != nil {
+		t.Fatal(err)
+	}
+	decision := Fact{Kind: "ModelDecision", RequestRef: "request", ClaimID: "claim", InvocationID: "inv", Result: v0.DecisionResultAllow, ReasonCode: "allowed", PolicyRef: &v0.PolicyReference{ID: "policy", Version: "1"}}
+	if _, err := j.Append(decision); err == nil {
+		t.Fatal("failed commit reported success")
+	}
+	if len(j.ForRequest("request")) != 0 {
+		t.Fatal("uncommitted fact published")
+	}
+	if _, err := j.Append(Fact{Kind: "ProviderAttempt", RequestRef: "request", ClaimID: "claim", InvocationID: "inv"}); err == nil {
+		t.Fatal("uncommitted decision authorized provider")
+	}
+	if commits != 1 {
+		t.Fatal("invalid attempt reached storage")
+	}
+	failing = false
+	if _, err := j.Append(decision); err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	if _, err := j.AppendWithCommit(Fact{Kind: "ProviderAttempt", RequestRef: "request", ClaimID: "claim", InvocationID: "inv"}, func(f Fact) error { seen = f.Sequence == 92; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !seen || commits != 2 || len(j.ForRequest("request")) != 2 {
+		t.Fatal("atomic override or sequence broken")
 	}
 }

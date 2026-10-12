@@ -18,6 +18,7 @@ import (
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/policy"
+	"github.com/wunderforge/agenova/internal/workstore"
 )
 
 const maxSubmissionBytes = 128 << 10
@@ -153,7 +154,12 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			switch r.Method {
 			case http.MethodGet:
 				if auth != nil {
-					writeJSON(w, 200, service.ListFor(principal))
+					views, err := service.ListForResult(principal)
+					if err != nil {
+						writeError(w, 503, "evidence_unavailable", "Durable evidence is unavailable.")
+						return
+					}
+					writeJSON(w, 200, views)
 				} else {
 					writeJSON(w, 200, service.List())
 				}
@@ -194,6 +200,10 @@ func handler(service *Service, auth Authenticator) http.Handler {
 					}
 				}
 				if err != nil {
+					if errors.Is(err, workstore.ErrUnavailable) {
+						writeError(w, 503, "storage_unavailable", "Work storage is unavailable.")
+						return
+					}
 					writeError(w, 404, "not_found", "The record was not found.")
 					return
 				}
@@ -242,8 +252,10 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, princi
 		switch {
 		case errors.Is(err, authentication.ErrForbidden):
 			writeError(w, 403, "access_denied", "This project operation is not permitted.")
-		case errors.Is(err, ErrConflict):
+		case errors.Is(err, ErrConflict), errors.Is(err, workstore.ErrConflict):
 			writeError(w, 409, "request_conflict", "This request reference already exists.")
+		case errors.Is(err, workstore.ErrUnavailable):
+			writeError(w, 503, "storage_unavailable", "Work storage is unavailable. Retry with the same request name.")
 		case errors.Is(err, ErrCapacity):
 			writeError(w, 429, "capacity_reached", "The local console has reached its record limit.")
 		case errors.As(err, &submission):

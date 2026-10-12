@@ -196,7 +196,17 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 	if err != nil {
 		return evidence.View{}, err
 	}
-	view, err := decodeView(response, request.Metadata.Name)
+	expectedRef := request.Metadata.Name
+	if c.Server != "" {
+		// The authenticated service scopes the idempotency name to the member. Only
+		// the name may change; task intent, requested access and runtime must match.
+		var candidate evidence.View
+		if !decodeStrictJSON(response, &candidate) || candidate.Request == nil || !sameRequestSpec(candidate.Request.Spec, request.Spec) || candidate.Request.APIVersion != request.APIVersion || candidate.Request.Kind != request.Kind || !validRequestRef(candidate.RequestRef) {
+			return evidence.View{}, errors.New("installed Work service returned mismatched submission")
+		}
+		expectedRef = candidate.RequestRef
+	}
+	view, err := decodeView(response, expectedRef)
 	if err != nil {
 		return evidence.View{}, err
 	}
@@ -213,11 +223,11 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 			return view, fmt.Errorf("waiting for Work evidence: %w", ctx.Err())
 		case <-time.After(interval):
 		}
-		response, err = c.call(ctx, endpoint, nil, request.Metadata.Name)
+		response, err = c.call(ctx, endpoint, nil, expectedRef)
 		if err != nil {
 			return view, err
 		}
-		view, err = decodeView(response, request.Metadata.Name)
+		view, err = decodeView(response, expectedRef)
 		if err != nil {
 			return evidence.View{}, err
 		}
@@ -225,6 +235,17 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 			return view, nil
 		}
 	}
+}
+
+// Compare the canonical JSON value, so YAML integers and decoded JSON numbers
+// do not make an otherwise identical task appear different.
+func sameRequestSpec(a, b v0.ClaimRequestSpec) bool {
+	left, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	right, err := json.Marshal(b)
+	return err == nil && bytes.Equal(left, right)
 }
 
 func decodeView(data []byte, expectedRef string) (evidence.View, error) {
