@@ -71,15 +71,3 @@ agenova work show <上一步返回的request-ref>
 账号授权由管理员批准一次；任务通常自动检查 Policy/Template，不逐次人工批准。角色不能绕过模型、工具和项目限制。
 
 退出 CLI：`agenova logout`。网页退出使用 **Log out**，两者是独立登录会话。
-
-## 已使用旧的本地 tap
-
-只有之前安装过 `agenova/preview` 的用户需要切换；新用户跳过：
-
-```bash
-brew uninstall agenova/preview/agenova
-brew untap agenova/preview
-brew install Leo1piece/agenova/agenova
-```
-
-切换后若出现钥匙串提示，按第 3 步处理。
