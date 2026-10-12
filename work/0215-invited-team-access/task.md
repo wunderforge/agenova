@@ -301,3 +301,37 @@ image are deployed; existing Owner login remains usable. See [role-layer evidenc
 for exact results, immutable image and pending two-user/native CLI acceptance.
 The Fisher administrator invitation is prepared pending the browser-required
 per-action confirmation; no membership or real ownership was changed by rollout.
+
+## Automatic invitation email (Owner request)
+
+Add automatic transactional invitation email using an isolated SES adapter and
+workload IAM, with fixed sender/origin, no cloud keys in Work/browser, no raw proof
+in logs or durable plaintext. Persist delivery attempt status independently of
+membership acceptance. SES acceptance is not inbox delivery. Unknown outcomes
+must not trigger blind retry; explicit replacement invalidates the old proof and
+resends under current inviter authorization. Preserve manual-link deployments
+when mail is unconfigured. Verify sender/DKIM through existing Route53; SES sandbox
+recipient restrictions and production-access approval are external release gates.
+Self-review: requested by Owner; preserves claim authority and immutable identity.
+
+## Superseding Owner decision: registration and administrator approval
+
+Automatic email delivery is cancelled. No SES resources or emails were created.
+For the operator-pinned account, verified Google sign-in creates an idempotent
+pending access request, bound to issuer and subject, with no application session,
+CLI authorization code, project grants or Work access. Existing disabled identities
+cannot register around revocation. Account Owner/Admin review requests; only Owner
+appoints administrators, and other approvals require the reviewer’s project Admin
+grant. Approval atomically writes membership, project grants, status and audit.
+Rejected requests do not automatically reopen. New accounts see a contact-admin
+message and sign in again after approval. Existing invitation-only installations
+retain their explicit configuration. Public tenant creation stays excluded.
+Tests must cover pending browser/native denial, repeated login, concurrent review,
+role escalation, team/project isolation, audit rollback and rendered approval UI.
+
+Registration/approval implementation, race/real-PostgreSQL checks, rendered UI,
+full gate and actual member-service rollout are complete for this slice.
+[Access approval evidence](evidence/access-approval.md) records the exact boundaries
+and the remaining real second-user login/approval/CLI acceptance. No real user
+roles were changed and no mail was sent. The existing pending invitation remains
+valid; normal Google login now uses the approval queue without that link.

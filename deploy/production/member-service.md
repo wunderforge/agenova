@@ -223,3 +223,26 @@ operator credential. Migration 007 requires runtime SELECT/INSERT on
 SELECT/INSERT/UPDATE on `agenova_project_policy_active`. Older binaries reject
 schema 007; retain data and use a compatible rollback build. Do not rerun Owner
 bootstrap, rotate sessions or grant database superuser rights during this upgrade.
+
+### Google registration with administrator approval
+
+Set `registrationTeam` to the existing account/team identifier in the private
+member-service JSON to enable reviewed registration. Omit it to retain the
+invitation-only flow. It requires Google authentication and an existing active
+Owner; login never creates an account container or an Owner.
+
+New users sign in with Google at `/login` and receive the Access pending page.
+Account Owner/Admin review them under `/members` → Pending access requests,
+selecting an existing project and explicit account/project roles. Only Owner may
+appoint administrators. Other reviewers need Project Admin for the target project.
+After approval users sign in again; CLI users rerun `agenova login --server URL`.
+No AWS credentials, invitation token or email delivery are required. Pending and
+declined users receive no application session or native CLI authorization code.
+Disabled members cannot register around revocation. Declined requests do not
+reopen on login. The bounded queue holds at most 10,000 registration records per
+account; reaching this limit fails closed and needs operator retention review.
+
+Migration 008 adds `agenova_access_requests`; grant the runtime role
+SELECT/INSERT/UPDATE on this table, with no DELETE/DDL. Approval, grants and audit
+commit together. Preserve the database and existing encryption keys. As with other
+versioned migrations, rollback requires a binary compatible with schema 008.

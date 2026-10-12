@@ -61,11 +61,12 @@ type Store interface {
 	ListInvitations(context.Context, v0.Principal) ([]Invitation, error)
 }
 type Service struct {
-	Google    bool
-	Origin    string
-	Issuer    string
-	Directory Directory
-	Store     Store
+	Registration bool
+	Google       bool
+	Origin       string
+	Issuer       string
+	Directory    Directory
+	Store        Store
 }
 
 func (s Service) Invite(ctx context.Context, actor v0.Principal, r Request) (Invitation, error) {

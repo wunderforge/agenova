@@ -107,3 +107,18 @@ predicates. General policy/template CRUD remains excluded. Existing immutable
 operator registration remains in place until a maintainer approves the required
 project-isolated registry/activation boundary. Grant management must not be
 represented as implemented remote governance or deployment commands.
+
+## Superseding Owner decision: registration and administrator approval
+
+Automatic email delivery is cancelled. No SES resources or emails were created.
+For the operator-pinned account, verified Google sign-in creates an idempotent
+pending access request, bound to issuer and subject, with no application session,
+CLI authorization code, project grants or Work access. Existing disabled identities
+cannot register around revocation. Account Owner/Admin review requests; only Owner
+appoints administrators, and other approvals require the reviewer’s project Admin
+grant. Approval atomically writes membership, project grants, status and audit.
+Rejected requests do not automatically reopen. New accounts see a contact-admin
+message and sign in again after approval. Existing invitation-only installations
+retain their explicit configuration. Public tenant creation stays excluded.
+Tests must cover pending browser/native denial, repeated login, concurrent review,
+role escalation, team/project isolation, audit rollback and rendered approval UI.

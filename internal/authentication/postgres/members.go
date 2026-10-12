@@ -28,7 +28,7 @@ func (s Store) ListMembers(ctx context.Context, p v0.Principal) ([]invitations.M
 		return nil, err
 	}
 	// Team-qualified SQL; never return raw IdP subjects, session records or tokens.
-	rows, err := tx.QueryContext(ctx, `SELECT m.principal,COALESCE(i.email,''),m.account_role,m.active,COALESCE(g.project,''),COALESCE(g.role,'') FROM agenova_members m LEFT JOIN agenova_invitations i ON i.principal=m.principal AND i.team=m.team AND i.status='accepted' LEFT JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.team=$1 AND (EXISTS(SELECT 1 FROM agenova_members a WHERE a.principal=$2 AND a.team=m.team AND a.account_role IN ('owner','admin')) OR EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$2 AND a.team=g.team AND a.project=g.project AND a.role='admin')) ORDER BY m.principal,g.project`, p.Team, p.Subject)
+	rows, err := tx.QueryContext(ctx, `SELECT m.principal,COALESCE(i.email,a.email,''),m.account_role,m.active,COALESCE(g.project,''),COALESCE(g.role,'') FROM agenova_members m LEFT JOIN agenova_invitations i ON i.principal=m.principal AND i.team=m.team AND i.status='accepted' LEFT JOIN agenova_access_requests a ON a.principal=m.principal AND a.team=m.team AND a.status='approved' LEFT JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.team=$1 AND (EXISTS(SELECT 1 FROM agenova_members a WHERE a.principal=$2 AND a.team=m.team AND a.account_role IN ('owner','admin')) OR EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$2 AND a.team=g.team AND a.project=g.project AND a.role='admin')) ORDER BY m.principal,g.project`, p.Team, p.Subject)
 	if err != nil {
 		return nil, invitations.ErrUnavailable
 	}

@@ -1,4 +1,6 @@
 'use strict';
+const registrationEnabled = document.body.dataset.registration === 'true';
+if(registrationEnabled){document.querySelector('#invite-section').hidden=true;document.querySelector('#invitation-list-section').hidden=true;}
 const form = document.querySelector('#invite');
 const notice = document.querySelector('#notice');
 const list = document.querySelector('#invitations');
@@ -51,7 +53,7 @@ form.addEventListener('submit', async e => {
  finally { send.disabled = false; }
 });
 document.querySelector('#refresh').addEventListener('click',refresh);
-refresh();
+if(!registrationEnabled) refresh();
 
 const memberList = document.querySelector('#members');
 const memberNotice = document.querySelector('#member-notice');
@@ -103,6 +105,7 @@ async function refreshMembers() {
   if(!Array.isArray(rows)) throw new Error('Member list unavailable.');
   const isOwner = rows.some(m=>m.principal===me.subject && m.accountRole==='owner');
   const isAccountAdmin = isOwner || rows.some(m=>m.principal===me.subject && m.accountRole==='admin');
+ if(registrationEnabled){document.querySelector('#access-section').hidden=!isAccountAdmin;if(isAccountAdmin){document.querySelector('#refresh-access').onclick=()=>refreshAccessRequests(isOwner);await refreshAccessRequests(isOwner);}}
  document.querySelector('#account-role').disabled=!isOwner;
  if(!isOwner) document.querySelector('#account-role').value='member';
  document.querySelector('#role option[value=admin]').disabled=!isOwner;
@@ -161,4 +164,31 @@ async function manageInvitation(id,action,button) {
   if(result.acceptanceUrl) showInvitationLink(result.acceptanceUrl);else notice.textContent='Invitation cancelled. Its previous link no longer grants access.';
   await refresh();
  }catch(error){notice.textContent=error.message || 'Invitation update failed.';}finally{button.disabled=false;}
+}
+
+async function refreshAccessRequests(isOwner) {
+ const notice=document.querySelector('#access-notice');const list=document.querySelector('#access-requests');
+ notice.textContent='Loading access requests…';
+ try {
+  const response=await fetch('/api/access-requests',{credentials:'same-origin',redirect:'error',cache:'no-store'});
+  if(!response.ok) throw new Error('Account Owner or Account Admin access is required.');
+  const requests=await response.json();list.replaceChildren();
+  for(const request of requests){
+   const row=node('article');row.className='member';row.append(node('h3',request.email));
+   const form=node('form');form.className='member-actions';
+   function select(label,choices){const wrapper=node('label',label);const field=node('select');field.setAttribute('aria-label',`${request.email} ${label}`);for(const [value,text] of choices){const opt=node('option',text);opt.value=value;field.append(opt);}wrapper.append(field);form.append(wrapper);return field;}
+   const account=select('Account role',[['member','Member'],...(isOwner?[['admin','Account Admin']]:[])]);
+   const label=node('label','Project');const project=node('input');project.required=true;project.maxLength=128;project.placeholder='Existing project';project.setAttribute('aria-label',`${request.email} project`);label.append(project);form.append(label);
+   const role=select('Project role',[['member','Member'],['viewer','Viewer'],...(isOwner?[['admin','Project Admin']]:[])]);
+   const approve=node('button','Approve access');approve.type='submit';const reject=node('button','Decline');reject.type='button';form.append(approve,reject);
+   async function review(action){approve.disabled=true;reject.disabled=true;notice.textContent='Saving access decision…';try{
+    const payload={id:request.id,action,...(action==='approve'?{accountRole:account.value,project:project.value.trim(),role:role.value}:{})};
+    const result=await fetch('/api/access-requests',{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!result.ok)throw new Error('Access decision not confirmed. Check your permissions and project, then refresh.');
+    await refreshMembers();notice.textContent=action==='approve'?'Access approved. The user can sign in again through Portal or CLI.':'Access request declined.';
+   }catch(error){notice.textContent=error.message;}finally{approve.disabled=false;reject.disabled=false;}}
+   form.addEventListener('submit',e=>{e.preventDefault();review('approve');});reject.addEventListener('click',()=>review('reject'));row.append(form);list.append(row);
+  }
+  notice.textContent=requests.length?`${requests.length} pending requests.`:'No pending access requests.';
+ }catch(error){list.replaceChildren();notice.textContent=error.message;}
 }

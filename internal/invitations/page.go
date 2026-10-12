@@ -45,6 +45,10 @@ func Page(s Service, auth Authenticator) http.Handler {
 		js := sha256.Sum256([]byte(pageJS))
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(css[:])+"'; script-src 'sha256-"+base64.StdEncoding.EncodeToString(js[:])+"'; form-action 'self'; frame-ancestors 'none'")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = io.WriteString(w, strings.Replace(strings.Replace(pageHTML, "{{styles}}", pageCSS, 1), "{{script}}", pageJS, 1))
+		page := strings.Replace(pageHTML, "{{registration}}", "false", 1)
+		if s.Registration {
+			page = strings.Replace(pageHTML, "{{registration}}", "true", 1)
+		}
+		_, _ = io.WriteString(w, strings.Replace(strings.Replace(page, "{{styles}}", pageCSS, 1), "{{script}}", pageJS, 1))
 	})
 }

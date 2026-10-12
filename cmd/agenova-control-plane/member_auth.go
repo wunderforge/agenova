@@ -33,16 +33,17 @@ import (
 // Operator configuration contains file references, never plaintext credentials.
 // Its presence selects authenticated mode. Invalid or partial config is fatal.
 type memberConfig struct {
-	GoogleOAuthFile string `json:"googleOAuthFile"`
-	Origin          string `json:"origin"`
-	Issuer          string `json:"issuer"`
-	OAuthOrigin     string `json:"oauthOrigin"`
-	NativeClientID  string `json:"nativeClientId"`
-	WebClientID     string `json:"webClientId"`
-	Scope           string `json:"scope"`
-	DatabaseURLFile string `json:"databaseUrlFile"`
-	SessionKeyFile  string `json:"sessionKeyFile"`
-	PortalDirectory string `json:"portalDirectory"`
+	RegistrationTeam string `json:"registrationTeam,omitempty"`
+	GoogleOAuthFile  string `json:"googleOAuthFile"`
+	Origin           string `json:"origin"`
+	Issuer           string `json:"issuer"`
+	OAuthOrigin      string `json:"oauthOrigin"`
+	NativeClientID   string `json:"nativeClientId"`
+	WebClientID      string `json:"webClientId"`
+	Scope            string `json:"scope"`
+	DatabaseURLFile  string `json:"databaseUrlFile"`
+	SessionKeyFile   string `json:"sessionKeyFile"`
+	PortalDirectory  string `json:"portalDirectory"`
 }
 
 func readBoundedFile(path string, limit int64) ([]byte, error) {
@@ -75,6 +76,9 @@ func loadMemberConfig(path string) (memberConfig, error) {
 	}
 	if !login.Origin(c.Origin) || !filepath.IsAbs(c.DatabaseURLFile) || !filepath.IsAbs(c.SessionKeyFile) || !filepath.IsAbs(c.PortalDirectory) {
 		return c, errors.New("complete member configuration required")
+	}
+	if c.RegistrationTeam != "" && (c.GoogleOAuthFile == "" || len(c.RegistrationTeam) > 128) {
+		return c, errors.New("registration requires Google and a bounded team")
 	}
 	if c.GoogleOAuthFile != "" {
 		if !filepath.IsAbs(c.GoogleOAuthFile) || c.Issuer != "" || c.OAuthOrigin != "" || c.NativeClientID != "" || c.WebClientID != "" || c.Scope != "" {
@@ -175,6 +179,7 @@ func checkMemberSchema(ctx context.Context, db *sql.DB) error {
 	}
 	for _, query := range []string{
 		"SELECT issuer,subject,principal,team,active,account_role,login_after FROM agenova_members LIMIT 0",
+		"SELECT id,issuer,subject,email,team,status,principal FROM agenova_access_requests LIMIT 0",
 		"SELECT issuer,subject,session_id FROM agenova_revocations LIMIT 0",
 		"SELECT team,project FROM agenova_projects LIMIT 0",
 		"SELECT principal,team,project,role FROM agenova_project_grants LIMIT 0",
@@ -267,11 +272,14 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		return nil, err
 	}
 	mux := http.NewServeMux()
-	invitationService := invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
+	invitationService := invitations.Service{Registration: d.config.RegistrationTeam != "", Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
 	mux.Handle("/members", invitations.Page(invitationService, d.boundary))
 	mux.Handle("/api/invitations", invitations.Handler(invitationService, d.boundary))
 	mux.Handle("/api/platform/authorize", d.platformAuthorizationHandler())
 	mux.Handle("/api/governance", d.governanceHandler())
+	if d.config.RegistrationTeam != "" {
+		mux.Handle("/api/access-requests", invitations.AccessRequestHandler(d.store, d.boundary))
+	}
 	mux.Handle("/api/members", invitations.MemberHandler(d.store, d.boundary))
 	if d.google != nil {
 		mux.Handle("/api/invitations/manage", invitations.ManageHandler(d.store, d.boundary, d.config.Origin))
@@ -315,7 +323,11 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	}))
 	c := d.config
 	if d.google != nil {
-		return websession.New(websession.Config{Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+		var registrar websession.AccessRegistrar
+		if c.RegistrationTeam != "" {
+			registrar = d.store
+		}
+		return websession.New(websession.Config{Registration: registrar, RegistrationTeam: c.RegistrationTeam, Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
 	}
 	scopes := []string{"openid", "email", c.Scope}
 	native := login.Config{Issuer: c.Issuer, ClientID: c.NativeClientID, AuthorizationEndpoint: c.OAuthOrigin + "/oauth2/authorize", TokenEndpoint: c.OAuthOrigin + "/oauth2/token", Scopes: scopes, RedirectURI: login.Callback}

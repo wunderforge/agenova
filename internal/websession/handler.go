@@ -53,7 +53,12 @@ type InvitationAcceptor interface {
 type ApplicationSessions interface {
 	IssueApplicationSession(context.Context, string, string, time.Duration) (string, authentication.Identity, error)
 }
+type AccessRegistrar interface {
+	RegisterGoogleAccess(context.Context, googleoidc.LoginIdentity, string) (string, error)
+}
 type Config struct {
+	Registration        AccessRegistrar
+	RegistrationTeam    string
 	Invitations         InvitationAcceptor
 	Google              GoogleLogin
 	ApplicationSessions ApplicationSessions
@@ -82,7 +87,7 @@ type Handler struct {
 func New(c Config) (*Handler, error) {
 	commonInvalid := !login.Origin(c.Origin) || c.Store == nil || c.Boundary == nil || c.Revoker == nil || c.Next == nil
 	legacyInvalid := c.Native.Validate() != nil || c.Web.ClientID == "" || c.Web.ClientID == c.Native.ClientID || c.Web.RedirectURL != c.Origin+"/auth/callback" || c.Web.Endpoint.AuthURL != c.Native.AuthorizationEndpoint || c.Web.Endpoint.TokenURL != c.Native.TokenEndpoint
-	if commonInvalid || (c.Google == nil && legacyInvalid) || (c.Google != nil && (c.ApplicationSessions == nil || c.Web.ClientID != "" || c.Native.ClientID != "")) {
+	if (c.Registration != nil && (c.Google == nil || c.RegistrationTeam == "")) || commonInvalid || (c.Google == nil && legacyInvalid) || (c.Google != nil && (c.ApplicationSessions == nil || c.Web.ClientID != "" || c.Native.ClientID != "")) {
 		return nil, errors.New("complete and unambiguous authentication configuration required")
 	}
 	client := http.Client{Timeout: 15 * time.Second}
@@ -172,6 +177,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		h.nativeToken(w, r)
 		return
+	case "/access-pending", "/access-declined":
+		if r.Method != "GET" || h.c.Registration == nil {
+			failure(w, 404)
+			return
+		}
+		message := "Your account is registered. Contact your administrator to assign project access and a role. After approval, sign in again. If you started from the CLI, run agenova login again."
+		title := "Access pending"
+		if r.URL.Path == "/access-declined" {
+			title = "Access declined"
+			message = "Your access request was declined. Contact your administrator."
+		}
+		styleHash := sha256.Sum256([]byte(loginCSS))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(styleHash[:])+"'; frame-ancestors 'none'")
+		_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+title+" | Agenova</title><style>"+loginCSS+"</style><main><p>Agenova</p><h1>"+title+"</h1><p>"+message+"</p><a href=\"/login\">Back to sign in</a></main></html>")
+		return
 	case "/login":
 		if r.Method == "GET" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -189,6 +210,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				scriptHash := sha256.Sum256([]byte(googleLoginScript))
 				w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; script-src 'sha256-"+base64.StdEncoding.EncodeToString(scriptHash[:])+"'")
 				page = strings.Replace(page, "</body>", "<script>"+googleLoginScript+"</script></body>", 1)
+			}
+			if h.c.Registration != nil {
+				page = strings.ReplaceAll(page, "Sign in with your invited account to run agents and review your Work.", "Sign in with Google. New accounts require administrator approval before accessing projects.")
+				page = strings.ReplaceAll(page, "Need access? Ask your project administrator for an invitation.", "New here? Sign in to register, then contact your administrator for access.")
 			}
 			_, _ = io.WriteString(w, page)
 			return
@@ -399,6 +424,22 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 			}
 			if _, err := h.c.Invitations.AcceptGoogleInvitation(r.Context(), id, a.Invitation); err != nil {
 				callbackFailure(w, 403, "invitation_acceptance")
+				return
+			}
+		}
+		if h.c.Registration != nil {
+			status, err := h.c.Registration.RegisterGoogleAccess(r.Context(), id, h.c.RegistrationTeam)
+			if err != nil {
+				callbackFailure(w, 403, "access_registration")
+				return
+			}
+			if status != "active" {
+				cookie(w, sessionCookie, "", -1)
+				destination := "/access-pending"
+				if status == "rejected" {
+					destination = "/access-declined"
+				}
+				http.Redirect(w, r, destination, http.StatusSeeOther)
 				return
 			}
 		}

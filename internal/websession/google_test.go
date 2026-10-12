@@ -6,6 +6,7 @@ package websession
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/wunderforge/agenova/internal/login"
 	"golang.org/x/oauth2"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/authentication/googleoidc"
@@ -215,5 +217,51 @@ func TestGoogleNativeHandoffPKCEAndReplay(t *testing.T) {
 	form.Set("code_verifier", pkce)
 	if w := call("POST", "/auth/token", form.Encode()); w.Code != 401 {
 		t.Fatal("failed exchange did not consume code")
+	}
+}
+
+func TestGooglePendingRegistrationHasNoBrowserOrNativeCredentials(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		t.Run(fmt.Sprint(native), func(t *testing.T) {
+			store := testStore(t)
+			members := postgres.Store{DB: store.DB}
+			ctx := context.Background()
+			_, proof, err := members.ReserveGoogleOwner(ctx, "team", invitations.Request{Email: "initial@gmail.com", Project: "project", Role: "admin"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = members.AcceptGoogleInvitation(ctx, googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "initial", Email: "initial@gmail.com", EmailAuthoritative: true}, proof); err != nil {
+				t.Fatal(err)
+			}
+			boundary, _ := authentication.New(postgres.ApplicationSessions{Store: members}, members)
+			g := &googleFixture{nonce: "nonce", verifier: "verifier"}
+			h, err := New(Config{Origin: "https://service.example", Google: g, ApplicationSessions: members, Registration: members, RegistrationTeam: "team", Store: store, Boundary: boundary, Revoker: members, Next: http.NotFoundHandler()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			handle, _ := randomHandle()
+			a := attempt{State: "state", Nonce: "nonce", Verifier: "verifier"}
+			if native {
+				a.Native = &nativeRequest{State: "native-state", Challenge: "challenge"}
+			}
+			if err := store.PutAttempt(ctx, handle, a); err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest("GET", "https://service.example/auth/callback?state=state&code=one-use", nil)
+			r.AddCookie(&http.Cookie{Name: loginCookie, Value: handle})
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != 303 || w.Header().Get("Location") != "/access-pending" {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			for _, c := range w.Result().Cookies() {
+				if c.Name == sessionCookie && c.Value != "" {
+					t.Fatal("pending browser session")
+				}
+			}
+			if _, _, err := members.IssueApplicationSession(ctx, googleoidc.Issuer, "person", time.Hour); err == nil {
+				t.Fatal("pending native credentials")
+			}
+		})
 	}
 }
