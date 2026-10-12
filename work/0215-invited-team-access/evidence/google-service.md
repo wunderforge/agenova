@@ -56,3 +56,23 @@ Durable Work/facts, idempotent restart recovery, budgeted AWS hosting/RDS,
 least-privilege SQL deployment, real Google/native-keychain/two-user EKS+Bedrock
 campaign and independent review remain required. These tests do not establish
 production readiness. Cognito provisioning remains superseded and must not be applied.
+
+## 12 October Google form redirect repair
+
+Google login GET now permits the pinned accounts.google.com destination in its
+form-action CSP, retaining the existing same-origin POST and callback checks.
+The browser harness uses a real HTTP POST/303 across two local fixture origins;
+redirect route mocks did not model the browser navigation reliably. The unit
+assertion checks the production Google CSP allowlist. No fixture is live IdP proof.
+
+- `node harness/integration/identity/google-login.mjs`: passed.
+- `GOTOOLCHAIN=go1.27.2 go test ./internal/websession`: passed.
+- Full `scripts/check.ps1 -All` with disposable PostgreSQL: passed, 53 browser cases.
+- Deployed image `sha256:8693375789d487e68f6493d53622f709e17acdc251431facb6daeacec4be6d50`;
+  member Deployment rollout completed.
+- Live GET /login: 200 with Google form-action allowance. Same-origin POST /login:
+  303 to accounts.google.com/o/oauth2/v2/auth, openid/email only, callback
+  https://app.agenova.app/auth/callback. No domain or OAuth callback change.
+- Actual automated Chrome click still produced ERR_BLOCKED_BY_CLIENT; IAB did not
+  navigate. User manual click requested to distinguish client interception.
+  Real Google authentication and two-user acceptance are NOT yet verified.

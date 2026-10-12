@@ -73,7 +73,7 @@ func TestGoogleBrowserInvitationLoginAndLogout(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w
 	}
-	if w := call("GET", "/login", "", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Continue with Google") {
+	if w := call("GET", "/login", "", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Continue with Google") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "form-action 'self' https://accounts.google.com;") {
 		t.Fatal("Google login missing")
 	}
 	if w := call("POST", "/login", "", "https://evil.example", nil); w.Code != 403 {

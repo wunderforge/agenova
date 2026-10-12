@@ -177,6 +177,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(styleHash[:])+"'; form-action 'self'; frame-ancestors 'none'")
 			page := strings.Replace(loginPage, "{{styles}}", loginCSS, 1)
 			if h.c.Google != nil {
+				// Chromium applies form-action to the redirect destination too.
+				// Permit only our pinned IdP, while the POST origin check stays local.
+				w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'self'", "form-action 'self' https://accounts.google.com", 1))
 				page = strings.Replace(page, ">Sign in</button>", ">Continue with Google</button>", 1)
 				if readCookie(r, nativeCookie) != "" {
 					page = strings.Replace(page, "Sign in with your invited account to run agents and review your Work.", "Authorize Agenova CLI on your computer. Continue only if you just ran agenova login.", 1)
