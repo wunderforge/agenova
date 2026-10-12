@@ -335,3 +335,27 @@ full gate and actual member-service rollout are complete for this slice.
 and the remaining real second-user login/approval/CLI acceptance. No real user
 roles were changed and no mail was sent. The existing pending invitation remains
 valid; normal Google login now uses the approval queue without that link.
+
+## Owner-requested macOS package
+
+Deliver a native macOS CLI installer for the current member feature. Existing
+GitHub Releases are empty; #183 is a local substrate bootstrap, not a distributed
+member CLI. Build a versioned host-architecture pkg with Keychain enabled, explicit
+PATH entry, checksum and installation instructions. No bundled secrets, cluster
+creation, signing claims or public stable release. Current host has no Developer ID
+identity, so label preview/unsigned/unnotarized. Verify payload, architecture,
+version and executable commands; run the full gate. Installer execution and real
+Intel/Windows acceptance are separate from package construction.
+Self-review: fits member CLI distribution; no claim or authority boundary changes.
+
+The Owner clarified distribution should use Homebrew (`brew install`), not pkg.
+The uninstalled pkg was a local prototype; replace its build script with a Formula
+using an immutable public source archive and checksum, native Keychain integration,
+and a designated public tap. Verify actual brew installation and CLI commands.
+No unsigned pkg is proposed as the delivery path.
+
+Homebrew Formula syntax and an actual local-tap source installation succeeded on
+macOS arm64. Installed at `/opt/homebrew/Cellar/agenova/0.1.0-preview.20261012`,
+linked as `/opt/homebrew/bin/agenova`; the Formula pins commit 02d4adb with SHA256.
+Public distribution is pending Owner choice of team vs personal tap repository.
+Full repository gate passed (55 browser cases); package mode changed to Formula.

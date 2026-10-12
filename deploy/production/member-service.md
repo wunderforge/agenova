@@ -246,3 +246,17 @@ Migration 008 adds `agenova_access_requests`; grant the runtime role
 SELECT/INSERT/UPDATE on this table, with no DELETE/DDL. Approval, grants and audit
 commit together. Preserve the database and existing encryption keys. As with other
 versioned migrations, rollback requires a binary compatible with schema 008.
+
+### Homebrew preview distribution
+
+`Formula/agenova.rb` pins the publicly accessible member-feature source commit and
+SHA256, builds the CLI with native Keychain support, and installs `bin/agenova`.
+It does not provision Docker, Kubernetes or cloud resources. This is a preview
+from PR #216, not a merged stable release. The public tap repository is pending
+Owner selection; do not advertise a public `brew install` command until the tap
+has actually been published and tested from that URL.
+
+A contributor can verify the Formula in a disposable local tap; this alone is
+not proof that teammates can install from GitHub. Homebrew's first source build
+requires Go and Apple Command Line Tools. Subsequent CLI usage does not require
+Go. Updates should bump the pinned source, checksum and version together.
