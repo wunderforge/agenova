@@ -90,7 +90,7 @@ type Store interface {
 type OSStore struct{ ring keyring.Keyring }
 
 func NewOSStore() (Store, error) {
-	ring, err := keyring.Open(keyring.Config{ServiceName: "agenova", AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.WinCredBackend, keyring.SecretServiceBackend}, KeychainSynchronizable: false, KeychainAccessibleWhenUnlocked: true})
+	ring, err := keyring.Open(keyring.Config{ServiceName: "agenova", AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.WinCredBackend, keyring.SecretServiceBackend}, KeychainTrustApplication: true, KeychainSynchronizable: false, KeychainAccessibleWhenUnlocked: true})
 	if err != nil {
 		return nil, ErrCredentials
 	}

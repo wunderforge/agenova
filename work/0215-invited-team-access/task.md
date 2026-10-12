@@ -359,3 +359,16 @@ macOS arm64. Installed at `/opt/homebrew/Cellar/agenova/0.1.0-preview.20261012`,
 linked as `/opt/homebrew/bin/agenova`; the Formula pins commit 02d4adb with SHA256.
 Public distribution is pending Owner choice of team vs personal tap repository.
 Full repository gate passed (55 browser cases); package mode changed to Formula.
+
+## CLI login usability follow-up
+
+Remember the last successfully authenticated HTTPS origin outside installation
+state; tokens stay exclusively in OS credential storage. Explicit server wins;
+explicit state/backend and operator commands retain their local behavior. Missing
+saved endpoint preserves existing behavior; malformed endpoint fails closed.
+Logout clears the matching default after successful revocation. Enable Keychain
+trust for the creating CLI executable, not arbitrary applications. Existing items
+retain their ACL in the keyring dependency: users may need Always Allow once;
+upgrades/locked keychains can still prompt. Never delete credentials to bypass OS
+consent. Verify focused CLI/login tests and the full gate; real macOS prompt
+behavior requires user authorization and must not be claimed from unit tests.

@@ -168,3 +168,20 @@ message and sign in again after approval. Existing invitation-only installations
 retain their explicit configuration. Public tenant creation stays excluded.
 Tests must cover pending browser/native denial, repeated login, concurrent review,
 role escalation, team/project isolation, audit rollback and rendered approval UI.
+
+### Remembered CLI service
+
+A successful login writes only its HTTPS origin to the OS user configuration
+folder at `agenova/current-server`, atomically with owner-only file permissions.
+Tokens remain in the OS credential store. Subsequent `run`, `work` and `logout`
+commands use it unless `--server`, `--state-dir` or `--backend` is explicit.
+Deployment and governance commands retain explicit targets. Logout removes a
+matching saved origin after server revocation succeeds. Invalid saved configuration
+fails closed instead of selecting local installation state. Help/version never
+read the saved server or credentials.
+
+On macOS, newly created credentials trust the creating Agenova executable through
+Keychain ACLs. Existing records retain their access list; choose Always Allow for
+the installed executable when macOS asks. A locked keychain or changed executable
+can require consent again. This setting does not trust all applications and does
+not provide an unencrypted credential fallback.

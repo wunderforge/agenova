@@ -20,6 +20,7 @@ import (
 
 func main() {
 	os.Exit(cli.MainWithServices(os.Args, os.Stdout, os.Stderr, cli.Services{
+		DefaultServer:   login.DefaultServer,
 		Login:           memberLogin,
 		Logout:          memberLogout,
 		HTTPS:           memberServices,
@@ -152,14 +153,20 @@ func memberLogin(server string) error {
 	if err != nil {
 		return err
 	}
-	return client.Login(context.Background())
+	if err := client.Login(context.Background()); err != nil {
+		return err
+	}
+	return login.RememberServer(server)
 }
 func memberLogout(server string) error {
 	client, err := memberClient(server)
 	if err != nil {
 		return err
 	}
-	return client.Logout(context.Background())
+	if err := client.Logout(context.Background()); err != nil {
+		return err
+	}
+	return login.ForgetServer(server)
 }
 func memberServices(server string) (cli.Services, error) {
 	auth, err := memberClient(server)

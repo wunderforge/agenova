@@ -50,6 +50,7 @@ type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, 
 type RegistrationServiceFactory func(stateDirectory string) (registration.Service, error)
 
 type Services struct {
+	DefaultServer     func() (string, error)
 	ApplyGovernance   func(project, kind, document string) (registration.Result, error)
 	AuthorizePlatform func(installation, action string) error
 	Login             func(string) error
@@ -234,6 +235,19 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
 		fmt.Fprint(stdout, helpText)
 		return 0
+	}
+
+	// A remembered member endpoint never changes explicit local/operator commands.
+	if !parsed.serverSet && !parsed.stateSet && !parsed.backendSet && !parsed.version &&
+		(parsed.command == "run" || parsed.command == "work" || parsed.command == "logout") && services.DefaultServer != nil {
+		server, err := services.DefaultServer()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if server != "" {
+			parsed.server, parsed.serverSet = server, true
+		}
 	}
 
 	if parsed.command == "login" || parsed.command == "logout" {
