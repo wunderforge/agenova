@@ -71,6 +71,13 @@ func (s Store) reserve(ctx context.Context, p v0.Principal, issuer string, r inv
 		return invitations.Invitation{}, err
 	}
 
+	if !bootstrap {
+		var permitted bool
+		if tx.QueryRowContext(ctx, `SELECT m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, p.Subject, p.Team, r.Project).Scan(&permitted) != nil || !permitted {
+			return invitations.Invitation{}, authentication.ErrForbidden
+		}
+	}
+
 	// Bound invitations before any chargeable external directory operation.
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,215004))`, p.Team); err != nil {
 		return invitations.Invitation{}, invitations.ErrUnavailable
@@ -201,7 +208,7 @@ func (s Store) ListInvitations(ctx context.Context, p v0.Principal) ([]invitatio
 	if err = invitationActor(ctx, tx, p, MemberRole); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,email,project,project_role,status,expires_at FROM agenova_invitations WHERE team=$1 ORDER BY created_at DESC LIMIT 200`, p.Team)
+	rows, err := tx.QueryContext(ctx, `SELECT id,email,project,project_role,CASE WHEN status IN ('pending','reserved') AND expires_at<=now() THEN 'expired' ELSE status END,expires_at,(issuer='https://accounts.google.com' AND subject IS NULL AND account_role<>'owner') FROM agenova_invitations WHERE team=$1 ORDER BY created_at DESC LIMIT 200`, p.Team)
 	if err != nil {
 		return nil, invitations.ErrUnavailable
 	}
@@ -209,7 +216,7 @@ func (s Store) ListInvitations(ctx context.Context, p v0.Principal) ([]invitatio
 	result := []invitations.Invitation{}
 	for rows.Next() {
 		var i invitations.Invitation
-		if rows.Scan(&i.ID, &i.Email, &i.Project, &i.Role, &i.Status, &i.ExpiresAt) != nil {
+		if rows.Scan(&i.ID, &i.Email, &i.Project, &i.Role, &i.Status, &i.ExpiresAt, &i.LinkManaged) != nil {
 			return nil, invitations.ErrUnavailable
 		}
 		result = append(result, i)

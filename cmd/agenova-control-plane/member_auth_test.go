@@ -226,3 +226,42 @@ func TestMemberReadinessKeepsKubeletAccessWithoutStatusExposure(t *testing.T) {
 		}
 	}
 }
+
+func TestGoogleMemberConfigRejectsMixedProviders(t *testing.T) {
+	c := configFixture(t)
+	c.Issuer = ""
+	c.OAuthOrigin = ""
+	c.NativeClientID = ""
+	c.WebClientID = ""
+	c.Scope = ""
+	c.GoogleOAuthFile = filepath.Join(t.TempDir(), "google.json")
+	credentials := map[string]string{"provider": "google", "project_id": "test-project", "client_id": "123-test.apps.googleusercontent.com", "client_secret": "test-only-secret", "redirect_uri": c.Origin + "/auth/callback"}
+	data, _ := json.Marshal(credentials)
+	if err := os.WriteFile(c.GoogleOAuthFile, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(t.TempDir(), "member.json")
+	save := func() {
+		data, _ := json.Marshal(c)
+		if err := os.WriteFile(f, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save()
+	if _, err := loadMemberConfig(f); err != nil {
+		t.Fatal("Google config rejected", err)
+	}
+	c.Issuer = "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_Test"
+	save()
+	if _, err := loadMemberConfig(f); err == nil {
+		t.Fatal("mixed identity providers accepted")
+	}
+	c.Issuer = ""
+	save()
+	credentials["redirect_uri"] = "https://evil.example/auth/callback"
+	data, _ = json.Marshal(credentials)
+	os.WriteFile(c.GoogleOAuthFile, data, 0600)
+	if _, err := loadMemberConfig(f); err == nil || strings.Contains(err.Error(), "test-only-secret") {
+		t.Fatal("wrong callback or secret disclosure")
+	}
+}

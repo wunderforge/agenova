@@ -89,6 +89,9 @@ func TestInvitationAuthorityActivationAndReplay(t *testing.T) {
 	principal := func(role string) v0.Principal {
 		return v0.Principal{Subject: role, Team: "team", AuthenticationContext: "oidc"}
 	}
+	if err := s.GrantProject(ctx, principal(Owner), Admin, "payments", Admin); err != nil {
+		t.Fatal(err)
+	}
 	directory := &inviteDirectory{subject: "new-subject"}
 	service := invitations.Service{Issuer: "issuer", Directory: directory, Store: s}
 	request := invitations.Request{Email: "invited@example.com", Project: "payments", Role: Admin}

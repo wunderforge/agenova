@@ -35,9 +35,10 @@ type Executor interface {
 }
 
 type record struct {
-	view   evidence.View
-	cancel context.CancelFunc
-	owner  v0.Principal
+	sessionCheck func(context.Context) error
+	view         evidence.View
+	cancel       context.CancelFunc
+	owner        v0.Principal
 }
 
 type Service struct {
@@ -133,11 +134,18 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if s.prepareFor != nil {
 		return evidence.View{}, errors.New("authenticated submission required")
 	}
-	return s.submit(data, v0.Principal{}, s.prepare)
+	return s.submit(data, v0.Principal{}, s.prepare, nil)
 }
 
 // SubmitFor accepts only a principal supplied by the trusted authentication boundary.
 func (s *Service) SubmitFor(data []byte, principal v0.Principal) (evidence.View, error) {
+	return s.submitForSession(data, principal, nil)
+}
+
+func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionCheck func(context.Context) error) (evidence.View, error) {
+	if sessionCheck != nil && sessionCheck(context.Background()) != nil {
+		return evidence.View{}, authentication.ErrForbidden
+	}
 	if s.prepareFor == nil || s.access == nil || principal.Subject == "" || principal.Team == "" || principal.AuthenticationContext != "oidc" {
 		return evidence.View{}, errors.New("authenticated submission unavailable")
 	}
@@ -154,10 +162,10 @@ func (s *Service) SubmitFor(data []byte, principal v0.Principal) (evidence.View,
 			return app.PreparedAssignment{}, errors.New("prepared identity mismatch")
 		}
 		return p, err
-	})
+	}, sessionCheck)
 }
 
-func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error)) (evidence.View, error) {
+func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error), sessionCheck func(context.Context) error) (evidence.View, error) {
 	request, validationErr := v0.ParseClaimRequestJSON(data)
 	if validationErr != nil {
 		return evidence.View{}, validationErr
@@ -180,7 +188,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		return evidence.View{}, ErrCapacity
 	}
 	// Reserve before issuance to prevent duplicate submissions racing to allocate.
-	s.records[request.Metadata.Name] = &record{owner: owner}
+	s.records[request.Metadata.Name] = &record{owner: owner, sessionCheck: sessionCheck}
 	s.wg.Add(1)
 	s.mu.Unlock()
 	runOwned := false
@@ -211,7 +219,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view), owner: owner}
+		s.records[ref] = &record{view: evidence.Clone(view), owner: owner, sessionCheck: sessionCheck}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -231,7 +239,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
 		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view), owner: owner}
+		s.records[ref] = &record{view: evidence.Clone(view), owner: owner, sessionCheck: sessionCheck}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -250,7 +258,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
 	s.mu.Lock()
-	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, owner: owner}
+	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, owner: owner, sessionCheck: sessionCheck}
 	s.order = append(s.order, ref)
 	if s.closed {
 		cancel()
@@ -265,7 +273,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					if s.access.Authorize(ctx, owner, "work.submit", request.Spec.ProjectRef) != nil {
+					if s.authorizeRun(ctx, ref) != nil {
 						cancel()
 						return
 					}

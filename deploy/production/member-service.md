@@ -1,15 +1,14 @@
-# Member service composition (superseded Cognito wiring)
+# Google sign-in member service
 
-**Do not deploy this Cognito configuration or run its bootstrap command.** The
-Owner selected Google OIDC with no separate password on 12 October 2026. This
-file records the earlier implementation until replacement composition is tested.
-See [current design](../../work/0215-invited-team-access/design.md).
+Operator wiring for Ticket #215. This is tested service composition, not a
+completed production release. Managed RDS/hosting, durable Work recovery and real
+two-account acceptance remain release gates. Do not apply the historical Cognito
+root in `infra/identity`; Google OIDC is the selected identity provider.
 
-This is operator wiring for Ticket #215, not a completed production release.
-Live Cognito/RDS provisioning, invitation recovery, durable Work/reconciliation and the live two-account
-campaign must be completed before public cutover. Existing EKS runtime and immutable
-Policy/AgentTemplate registration are reused; application membership grants no
-Kubernetes rights and does not replace the claim policy.
+Google authenticates a person. Agenova invitations, current memberships and project
+roles authorize application access; they do not grant AWS or Kubernetes permissions.
+Google tokens are discarded after callback verification. APIs use revocable Agenova
+credentials, not Google ID tokens.
 
 ## Startup
 
@@ -20,19 +19,22 @@ only public build output. Configure `AGENOVA_AUTH_MODE=member` and
 ```json
 {
   "origin": "https://app.agenova.app",
-  "issuer": "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_REPLACE",
-  "oauthOrigin": "https://REPLACE.auth.ap-southeast-2.amazoncognito.com",
-  "nativeClientId": "REPLACE_NATIVE_CLIENT_ID",
-  "webClientId": "REPLACE_WEB_CLIENT_ID",
-  "scope": "agenova/api",
+  "googleOAuthFile": "/run/agenova-secrets/google-oauth.json",
   "databaseUrlFile": "/run/agenova-secrets/database-url",
   "sessionKeyFile": "/run/agenova-secrets/session-key",
   "portalDirectory": "/opt/agenova/portal"
 }
 ```
 
-Obtain the issuer/client/domain values from `infra/identity` outputs. The database
-URL file contains the dedicated runtime user's URL, including `sslmode=verify-full`,
+The private Google JSON contains `provider` (`google`), `project_id`, `client_id`,
+`client_secret`, and `redirect_uri` (`https://app.agenova.app/auth/callback`). Register
+that exact callback on a Google OAuth **Web application** client. Keep the secret in
+a mounted secret file, never in the Portal bundle, CLI, Terraform state or logs.
+Only `openid email` is requested. There is no separate Agenova password. If the
+Google app is in Testing, configure the intended test accounts in its audience
+before attempting real sign-in; testing-mode access is not a public release.
+
+The database URL file contains the dedicated runtime user's URL, including `sslmode=verify-full`,
 `sslrootcert=/etc/agenova/rds-ca.pem`, and `connect_timeout=5`; URL-encode credentials.
 Never use the RDS master/migration role as the running application. The key file is
 a base64-encoded 32-byte random secret retained across restarts. Secret values do
@@ -90,34 +92,52 @@ containing `email`, `team` and `project` (real recipients stay out of repository
 agenova-control-plane identity-bootstrap --config-file /etc/agenova/member-service.json --owner-file /run/agenova-secrets/initial-owner.json
 ```
 
-The operator needs Cognito `AdminCreateUser` and `AdminGetUser` on the one configured
-User Pool, and the database membership write permissions. No IAM user or cluster
-role is created. Cognito first creates a subject with mail suppressed; the application
-persists its inactive Owner mapping before requesting an email. The Owner completes
-Cognito password/MFA setup and signs in, activating the subject-bound invitation.
-A second bootstrap is refused even while the first is pending.
+Google bootstrap creates a pending application invitation and writes its one-time
+link to `<owner-file>.invitation` with mode 0600 and exclusive creation. It sends no
+email and creates no Google account. Deliver that link privately to the intended
+Owner, who signs in with the matching verified Google account. A second bootstrap
+is refused, including while the first is pending. Do not delete a pending row or
+repeat bootstrap to work around a failed link-file write; reconcile it explicitly.
 
-The authenticated Portal links account administrators to `/members`. It sends
-`POST /api/invitations` with email/project/role and displays the durable invitation
-status. Only Owner may invite an account/project Admin. Admin can invite Member or
-Viewer into an existing project. Project roles still pass the existing claim policy.
-Invitations are bounded to ten per team/hour and 200 retained records/team. Their
-initial lifetime is seven days. Login activates only a sent, unexpired invitation
-bound to the verified Cognito subject. Accepted invitations cannot reactivate a
-subsequently disabled member. Existing directory identities are never adopted or
-have their aliases stolen by a failed create.
+The authenticated Portal links account administrators to `/members`. `Create
+invitation` returns a one-time link once; the database stores only its hash. Share
+it privately with the specified recipient. A Google login and matching verified
+email are both required. The proof starts in a URL fragment, is removed from the
+address bar and posted only to the same-origin login handler. List responses never
+return the proof. The app does not claim to have emailed the recipient.
 
-An uncertain mail/create result is deliberately not retried automatically. Delivery
-reconciliation, cancelled/expired invitation replacement, account-role changes and
-full member administration remain unfinished release work. Do not manually alter
-DB rows to conceal an unconfirmed directory result or call this complete production
-invitation lifecycle evidence. Passwords are generated/delivered by Cognito and never
-returned by the application API.
+Only Owner may invite an account/project Admin. Admin can invite Member or Viewer
+into an existing project. Invitations are bounded to ten per team/hour and 200
+retained records/team, with a seven-day lifetime. Accepted links cannot be reused,
+merge an existing identity or reactivate a disabled member. The management page can cancel or replace a pending/expired link. Replacement
+invalidates the old proof atomically, preserves roles, and is capped at ten per
+actor/hour. Accepted invitations cannot be replaced.
 
-Builds use the patched Go 1.27.2 toolchain; the AWS EventStream security fix raises
-the module's minimum Go version to 1.24.0. Historical evidence captured with earlier
-Go versions is preserved rather than relabelled as a current build result.
+Browser sessions use Secure, HttpOnly, SameSite cookies and server-side encrypted
+records. CLI login explicitly opens the browser, then receives a one-use code at
+`http://127.0.0.1:38123/callback`; PKCE protects its exchange. The Google client secret
+never leaves the server. Both application sessions expire after at most twelve hours;
+there is **no Google refresh token**. Run `agenova login` again after expiry. Logout
+revokes the application grant and clears the local credential/cookie. The originating session is checked before each governed operation and every three
+seconds during active Work. A revocation check has a three-second timeout, so
+cooperative cancellation is requested within six seconds. An already-started
+external call may still finish; cancellation is not a promise to undo it.
+
+Build with Go 1.27.2. Verify service composition using the focused SQL/authentication
+suite and the rendered login/invitation harnesses described in the task evidence.
+Synthetic Google exchanges prove the contract, not real Google sign-in or cloud readiness.
 
 The bootstrap team/project must match the operator-registered governance policy.
 An invitation creates membership; it does not create or widen Policy/AgentTemplate
 permissions. A mismatch must deny Work rather than synthesize a permissive policy.
+
+## Member administration
+
+`/members` lists active/disabled members and their account/project roles. Owner can
+appoint/demote account Admins and edit project grants. Admin can edit Member/Viewer
+grants only in projects they administer. Disabling a member is allowed to Admin
+only when that person has no project Admin role and all their project memberships
+are administered by the actor. Owner itself cannot be disabled/demoted here.
+Enabling a disabled account never restores old sessions; a fresh login is required.
+These controls use authenticated `POST /api/members`, not caller-supplied team or
+actor fields. Changes and their actor are audited in the same database transaction.

@@ -136,3 +136,56 @@ func TestHTTPSAndRedirectIsolation(t *testing.T) {
 		t.Fatal("bearer leaked")
 	}
 }
+
+func TestNativeApplicationSessionWithoutGoogleRefreshToken(t *testing.T) {
+	var server *httptest.Server
+	challenge := ""
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/cli-config":
+			_ = json.NewEncoder(w).Encode(Config{Issuer: server.URL, ClientID: "agenova-cli", AuthorizationEndpoint: server.URL + "/auth/authorize", TokenEndpoint: server.URL + "/auth/token", Scopes: []string{"agenova/api"}, RedirectURI: Callback, SessionMode: "application"})
+		case "/auth/token":
+			_ = r.ParseForm()
+			if r.Form.Get("grant_type") != "authorization_code" || oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != challenge {
+				t.Error("invalid application code exchange")
+			}
+			_, _ = w.Write([]byte(`{"access_token":"ags_test-application-credential","token_type":"Bearer","expires_in":43200}`))
+		case "/auth/me", "/auth/logout":
+			if r.Header.Get("Authorization") != "Bearer ags_test-application-credential" {
+				t.Error("wrong application credential")
+			}
+			w.WriteHeader(204)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	store := &memoryStore{}
+	c := Client{Server: server.URL, Store: store, HTTPClient: server.Client(), OpenBrowser: func(raw string) error {
+		u, _ := url.Parse(raw)
+		challenge = u.Query().Get("code_challenge")
+		response, err := http.Get(Callback + "?code=one-time&state=" + url.QueryEscape(u.Query().Get("state")))
+		if err != nil {
+			return err
+		}
+		response.Body.Close()
+		return nil
+	}}
+	if err := c.Login(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if store.saved.Token.RefreshToken != "" {
+		t.Fatal("unexpected provider refresh credential")
+	}
+	if raw, err := c.AccessToken(context.Background()); err != nil || raw != "ags_test-application-credential" {
+		t.Fatal("application token unavailable", err)
+	}
+	if err := c.Logout(context.Background()); err != nil || !store.deleted {
+		t.Fatal("logout failed", err)
+	}
+	store.saved.Token.Expiry = time.Now().Add(-time.Hour)
+	if _, err := c.AccessToken(context.Background()); err == nil {
+		t.Fatal("expired application credential reused")
+	}
+}

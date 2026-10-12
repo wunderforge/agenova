@@ -103,7 +103,7 @@ func (s Store) GrantProject(ctx context.Context, actor v0.Principal, target, pro
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND project=$3 AND role='admin')`, actor.Subject, actor.Team, project).Scan(&projectAdmin); err != nil {
 		return errors.New("membership transaction unavailable")
 	}
-	if actorRole != Owner && (role == Admin || (actorRole != Admin && !projectAdmin)) {
+	if actorRole != Owner && (role == Admin || !projectAdmin) {
 		return authentication.ErrForbidden
 	}
 	var old string

@@ -32,6 +32,7 @@ var ErrLogin = errors.New("sign-in failed; check the service configuration and a
 var ErrCredentials = errors.New("OS credentials unavailable; sign in with agenova login")
 
 type Config struct {
+	SessionMode           string   `json:"sessionMode,omitempty"`
 	Issuer                string   `json:"issuer"`
 	ClientID              string   `json:"clientId"`
 	AuthorizationEndpoint string   `json:"authorizationEndpoint"`
@@ -45,6 +46,12 @@ func Origin(raw string) bool {
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && !strings.Contains(raw, "#") && u.Opaque == ""
 }
 func (c Config) Validate() error {
+	if c.SessionMode != "" && c.SessionMode != "application" {
+		return ErrLogin
+	}
+	if c.SessionMode == "application" && (!Origin(c.Issuer) || c.ClientID != "agenova-cli" || c.AuthorizationEndpoint != c.Issuer+"/auth/authorize" || c.TokenEndpoint != c.Issuer+"/auth/token" || len(c.Scopes) != 1 || c.Scopes[0] != "agenova/api") {
+		return ErrLogin
+	}
 	issuer, e := url.Parse(c.Issuer)
 	if e != nil || issuer.Scheme != "https" || issuer.Host == "" || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" {
 		return ErrLogin
@@ -240,7 +247,7 @@ func (c *Client) Login(ctx context.Context) error {
 		return ErrLogin
 	}
 	token, err := cfg.Exchange(context.WithValue(ctx, oauth2.HTTPClient, c.http()), code, oauth2.VerifierOption(verifier))
-	if err != nil || token == nil || !token.Valid() || !strings.EqualFold(token.TokenType, "Bearer") || token.RefreshToken == "" {
+	if err != nil || token == nil || !token.Valid() || !strings.EqualFold(token.TokenType, "Bearer") || (token.RefreshToken == "" && config.SessionMode != "application") {
 		return ErrLogin
 	}
 	if err := c.check(ctx, token.AccessToken, "/auth/me", "GET"); err != nil {

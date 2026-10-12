@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"net/mail"
+	"net/url"
 	"strings"
 	"time"
 
@@ -24,12 +25,14 @@ type Request struct {
 	Role    string `json:"role"`
 }
 type Invitation struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Project   string    `json:"project"`
-	Role      string    `json:"role"`
-	Status    string    `json:"status"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	LinkManaged   bool      `json:"linkManaged,omitempty"`
+	AcceptanceURL string    `json:"acceptanceUrl,omitempty"`
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	Project       string    `json:"project"`
+	Role          string    `json:"role"`
+	Status        string    `json:"status"`
+	ExpiresAt     time.Time `json:"expiresAt"`
 	// Private binding never returned to the browser.
 	Issuer    string `json:"-"`
 	Subject   string `json:"-"`
@@ -56,6 +59,8 @@ type Store interface {
 	ListInvitations(context.Context, v0.Principal) ([]Invitation, error)
 }
 type Service struct {
+	Google    bool
+	Origin    string
 	Issuer    string
 	Directory Directory
 	Store     Store
@@ -64,6 +69,21 @@ type Service struct {
 func (s Service) Invite(ctx context.Context, actor v0.Principal, r Request) (Invitation, error) {
 	if !Validate(r) {
 		return Invitation{}, ErrInvalid
+	}
+	if s.Google {
+		store, ok := s.Store.(interface {
+			ReserveGoogleInvitation(context.Context, v0.Principal, Request) (Invitation, string, error)
+		})
+		origin, err := url.Parse(s.Origin)
+		if !ok || err != nil || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawQuery != "" || origin.Fragment != "" {
+			return Invitation{}, ErrUnavailable
+		}
+		invite, proof, err := store.ReserveGoogleInvitation(ctx, actor, r)
+		if err != nil {
+			return invite, err
+		}
+		invite.AcceptanceURL = s.Origin + "/login#invite=" + proof
+		return invite, nil
 	}
 	if s.Issuer == "" || s.Directory == nil || s.Store == nil {
 		return Invitation{}, ErrUnavailable

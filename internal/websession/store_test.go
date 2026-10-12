@@ -32,8 +32,22 @@ func testStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
-	if _, err := db.Exec(postgres.Schema); err != nil {
+	suffix, _ := randomHandle()
+	schema := "session_" + strings.ReplaceAll(strings.ReplaceAll(suffix, "-", "a"), "_", "b")
+	if _, err = db.Exec(`CREATE SCHEMA ` + schema); err != nil {
+		t.Fatal(err)
+	}
+	admin := db
+	u, _ := url.Parse(dsn)
+	q := u.Query()
+	q.Set("search_path", schema)
+	u.RawQuery = q.Encode()
+	db, err = sql.Open("postgres", u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close(); admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`); admin.Close() })
+	if err = postgres.Migrate(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	s, err := NewStore(db, []byte(strings.Repeat("x", 32)))

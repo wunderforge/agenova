@@ -16,10 +16,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authentication"
+	"github.com/wunderforge/agenova/internal/authentication/googleoidc"
 	"github.com/wunderforge/agenova/internal/login"
 	"golang.org/x/oauth2"
 )
@@ -30,35 +33,56 @@ var loginPage string
 //go:embed login.css
 var loginCSS string
 
+//go:embed google-login.js
+var googleLoginScript string
+
 const sessionCookie = "__Host-agenova-session"
 const loginCookie = "__Host-agenova-login"
 
 type Revoker interface {
 	Revoke(context.Context, authentication.Identity) error
 }
+type GoogleLogin interface {
+	AuthorizationURL(string, string, string) (string, error)
+	Exchange(context.Context, string, string, string) (googleoidc.LoginIdentity, error)
+}
+type InvitationAcceptor interface {
+	AcceptGoogleInvitation(context.Context, googleoidc.LoginIdentity, string) (v0.Principal, error)
+}
+type ApplicationSessions interface {
+	IssueApplicationSession(context.Context, string, string, time.Duration) (string, authentication.Identity, error)
+}
 type Config struct {
-	Origin     string
-	Native     login.Config
-	Web        oauth2.Config
-	Store      *Store
-	Boundary   *authentication.Boundary
-	Revoker    Revoker
-	Next       http.Handler
-	HTTPClient *http.Client
+	Invitations         InvitationAcceptor
+	Google              GoogleLogin
+	ApplicationSessions ApplicationSessions
+	Origin              string
+	Native              login.Config
+	Web                 oauth2.Config
+	Store               *Store
+	Boundary            *authentication.Boundary
+	Revoker             Revoker
+	Next                http.Handler
+	HTTPClient          *http.Client
 }
 type session struct {
 	Token    oauth2.Token
 	Identity authentication.Identity
 }
-type attempt struct{ State, Verifier string }
+type attempt struct {
+	State, Verifier, Nonce, Invitation string
+	Native                             *nativeRequest
+}
 type Handler struct {
 	c      Config
 	client *http.Client
 }
 
 func New(c Config) (*Handler, error) {
-	if !login.Origin(c.Origin) || c.Native.Validate() != nil || c.Web.ClientID == "" || c.Web.ClientID == c.Native.ClientID || c.Web.RedirectURL != c.Origin+"/auth/callback" || c.Web.Endpoint.AuthURL != c.Native.AuthorizationEndpoint || c.Web.Endpoint.TokenURL != c.Native.TokenEndpoint || c.Store == nil || c.Boundary == nil || c.Revoker == nil || c.Next == nil {
-		return nil, errors.New("complete web/native authentication configuration required")
+	commonInvalid := !login.Origin(c.Origin) || c.Store == nil || c.Boundary == nil || c.Revoker == nil || c.Next == nil
+	legacyInvalid := c.Native.Validate() != nil || c.Web.ClientID == "" || c.Web.ClientID == c.Native.ClientID || c.Web.RedirectURL != c.Origin+"/auth/callback" || c.Web.Endpoint.AuthURL != c.Native.AuthorizationEndpoint || c.Web.Endpoint.TokenURL != c.Native.TokenEndpoint
+	if commonInvalid || (c.Google == nil && legacyInvalid) || (c.Google != nil && (c.ApplicationSessions == nil || c.Web.ClientID != "" || c.Native.ClientID != "")) {
+		return nil, errors.New("complete and unambiguous authentication configuration required")
 	}
 	client := http.Client{Timeout: 15 * time.Second}
 	if c.HTTPClient != nil {
@@ -120,19 +144,48 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 	switch r.URL.Path {
 	case "/auth/cli-config":
+
 		if r.Method != "GET" {
 			failure(w, 405)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(h.c.Native)
+		native := h.c.Native
+		if h.c.Google != nil {
+			native = h.nativeConfig()
+		}
+		_ = json.NewEncoder(w).Encode(native)
+		return
+	case "/auth/authorize":
+		if h.c.Google == nil {
+			failure(w, 404)
+			return
+		}
+		h.nativeAuthorize(w, r)
+		return
+	case "/auth/token":
+		if h.c.Google == nil {
+			failure(w, 404)
+			return
+		}
+		h.nativeToken(w, r)
 		return
 	case "/login":
 		if r.Method == "GET" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			styleHash := sha256.Sum256([]byte(loginCSS))
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(styleHash[:])+"'; form-action 'self'; frame-ancestors 'none'")
-			_, _ = io.WriteString(w, strings.Replace(loginPage, "{{styles}}", loginCSS, 1))
+			page := strings.Replace(loginPage, "{{styles}}", loginCSS, 1)
+			if h.c.Google != nil {
+				page = strings.Replace(page, ">Sign in</button>", ">Continue with Google</button>", 1)
+				if readCookie(r, nativeCookie) != "" {
+					page = strings.Replace(page, "Sign in with your invited account to run agents and review your Work.", "Authorize Agenova CLI on your computer. Continue only if you just ran agenova login.", 1)
+				}
+				scriptHash := sha256.Sum256([]byte(googleLoginScript))
+				w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; script-src 'sha256-"+base64.StdEncoding.EncodeToString(scriptHash[:])+"'")
+				page = strings.Replace(page, "</body>", "<script>"+googleLoginScript+"</script></body>", 1)
+			}
+			_, _ = io.WriteString(w, page)
 			return
 		}
 		if r.Method != "POST" || !h.origin(r) {
@@ -149,13 +202,54 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			failure(w, 503)
 			return
 		}
-		a := attempt{state, oauth2.GenerateVerifier()}
+		a := attempt{State: state, Verifier: oauth2.GenerateVerifier()}
+		if h.c.Google != nil {
+			a.Nonce, err = randomHandle()
+			if err != nil {
+				failure(w, 503)
+				return
+			}
+		}
+		if h.c.Google != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, 2048)
+			if r.ParseForm() != nil || len(r.PostForm["invitation"]) > 1 {
+				failure(w, 400)
+				return
+			}
+			a.Invitation = r.PostForm.Get("invitation")
+			if a.Invitation != "" {
+				b, e := base64.RawURLEncoding.Strict().DecodeString(a.Invitation)
+				if e != nil || len(b) != 32 || len(a.Invitation) != 43 || h.c.Invitations == nil {
+					failure(w, 400)
+					return
+				}
+			}
+		}
+		if h.c.Google != nil {
+			if nativeHandle := readCookie(r, nativeCookie); nativeHandle != "" {
+				var n nativeRequest
+				if h.c.Store.TakeAttempt(ctx, "native:"+nativeHandle, &n) != nil {
+					failure(w, 400)
+					return
+				}
+				a.Native = &n
+				cookie(w, nativeCookie, "", -1)
+			}
+		}
 		if h.c.Store.PutAttempt(ctx, handle, a) != nil {
 			failure(w, 429)
 			return
 		}
 		cookie(w, loginCookie, handle, 300)
-		http.Redirect(w, r, h.c.Web.AuthCodeURL(state, oauth2.S256ChallengeOption(a.Verifier)), http.StatusSeeOther)
+		destination := h.c.Web.AuthCodeURL(state, oauth2.S256ChallengeOption(a.Verifier))
+		if h.c.Google != nil {
+			destination, err = h.c.Google.AuthorizationURL(a.State, a.Nonce, a.Verifier)
+			if err != nil {
+				failure(w, 503)
+				return
+			}
+		}
+		http.Redirect(w, r, destination, http.StatusSeeOther)
 		return
 	case "/auth/callback":
 		h.callback(w, r)
@@ -177,7 +271,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.unauthorized(w, r)
 			return
 		}
-		token, err := h.c.Web.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, h.client), &current.Token).Token()
+		token := &current.Token
+		if h.c.Google == nil {
+			token, err = h.c.Web.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, h.client), &current.Token).Token()
+		}
 		if err != nil || token == nil || !token.Valid() {
 			h.unauthorized(w, r)
 			return
@@ -274,10 +371,54 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		failure(w, 400)
 		return
 	}
-	token, err := h.c.Web.Exchange(context.WithValue(r.Context(), oauth2.HTTPClient, h.client), q.Get("code"), oauth2.VerifierOption(a.Verifier))
-	if err != nil || token == nil || !token.Valid() || token.RefreshToken == "" || !strings.EqualFold(token.TokenType, "Bearer") {
-		failure(w, 401)
-		return
+	var token *oauth2.Token
+	var err error
+	if h.c.Google != nil {
+		// Google tokens terminate here; only an application-issued credential enters
+		// the encrypted browser session and the authenticated application boundary.
+		id, verifyErr := h.c.Google.Exchange(r.Context(), q.Get("code"), a.Verifier, a.Nonce)
+		if verifyErr != nil {
+			failure(w, 401)
+			return
+		}
+		if a.Invitation != "" {
+			if h.c.Invitations == nil {
+				failure(w, 403)
+				return
+			}
+			if _, err := h.c.Invitations.AcceptGoogleInvitation(r.Context(), id, a.Invitation); err != nil {
+				failure(w, 403)
+				return
+			}
+		}
+		if a.Native != nil {
+			// Only a one-use application authorization code reaches the loopback URL.
+			code, err := randomHandle()
+			if err != nil {
+				failure(w, 503)
+				return
+			}
+			grant := nativeCode{Kind: "cli-code", Issuer: id.Issuer, Subject: id.Subject, Challenge: a.Native.Challenge}
+			if h.c.Store.PutAttempt(r.Context(), "code:"+code, grant) != nil {
+				failure(w, 503)
+				return
+			}
+			q := url.Values{"code": {code}, "state": {a.Native.State}}
+			http.Redirect(w, r, login.Callback+"?"+q.Encode(), 303)
+			return
+		}
+		raw, grant, issueErr := h.c.ApplicationSessions.IssueApplicationSession(r.Context(), id.Issuer, id.Subject, 12*time.Hour)
+		if issueErr != nil {
+			failure(w, 403)
+			return
+		}
+		token = &oauth2.Token{AccessToken: raw, TokenType: "Bearer", Expiry: grant.ExpiresAt}
+	} else {
+		token, err = h.c.Web.Exchange(context.WithValue(r.Context(), oauth2.HTTPClient, h.client), q.Get("code"), oauth2.VerifierOption(a.Verifier))
+		if err != nil || token == nil || !token.Valid() || token.RefreshToken == "" || !strings.EqualFold(token.TokenType, "Bearer") {
+			failure(w, 401)
+			return
+		}
 	}
 	req := r.Clone(r.Context())
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)

@@ -59,6 +59,20 @@ func (a *testAuth) Authenticate(r *http.Request) (v0.Principal, error) {
 	}
 	return v0.Principal{Subject: name, Team: "team-a", AuthenticationContext: "oidc"}, nil
 }
+func (a *testAuth) AuthenticateSession(r *http.Request) (v0.Principal, func(context.Context) error, error) {
+	p, err := a.Authenticate(r)
+	if err != nil {
+		return p, nil, err
+	}
+	return p, func(context.Context) error {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.disabled {
+			return authentication.ErrForbidden
+		}
+		return nil
+	}, nil
+}
 func TestAuthenticatedOwnEvidenceAndRevocation(t *testing.T) {
 	provider := &httpProvider{}
 	b := &verticalBackend{}

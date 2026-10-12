@@ -6,6 +6,7 @@ package console
 import (
 	"context"
 	"errors"
+	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
@@ -75,13 +76,20 @@ func (s *Service) authorizeRun(ctx context.Context, ref string) error {
 		s.mu.RUnlock()
 		return errors.New("work access unavailable")
 	}
-	p, project := r.owner, r.view.Request.Spec.ProjectRef
+	p, project, sessionCheck := r.owner, r.view.Request.Spec.ProjectRef, r.sessionCheck
 	s.mu.RUnlock()
 	if s.prepareFor == nil {
 		return nil
 	}
 	if s.access == nil {
 		return errors.New("work access unavailable")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if sessionCheck != nil {
+		if err := sessionCheck(ctx); err != nil {
+			return err
+		}
 	}
 	return s.access.Authorize(ctx, p, "work.submit", project)
 }

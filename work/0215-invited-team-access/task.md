@@ -170,3 +170,28 @@ Preserve architecture invariants, immutable registration identities and existing
   durable opaque application sessions and atomic Google invitation binding.
   [Tests and release gaps](evidence/google-login.md) distinguish this from the
   still-unfinished installed Google login/CLI flow. No real user invitation sent.
+
+## Google service and member administration continuation
+
+- Google OAuth Web client was registered by the Owner. Credentials are stored in
+  an ignored private file, never in this packet or committed configuration.
+- Installed member mode now composes Google callback verification, invitation proof
+  consumption, encrypted Portal sessions and application-native CLI code/PKCE
+  handoff. Google assertions are rejected as API credentials; CLI uses OS storage.
+- Added member list, role/grant editing, disable/enable, invitation cancel/replacement
+  and expiry presentation. Owner alone appoints account/project Admins. Admin
+  project writes require an existing Admin grant for that project.
+- Real disposable PostgreSQL tests cover old-session invalidation, cross-project
+  administration denial, invitation proof replacement/replay/expiry, and audit.
+  Rendered tests cover Google login, mobile invitation/member controls and logout.
+- No real Google login, production deployment or invitation to the confirmed
+  recipients has occurred. Durable Work recovery, logout-to-active-Work cancellation,
+  costed production hosting/RDS and the real two-user campaign remain unfinished.
+
+- Added session-bound active Work checks without placing credentials or private
+  session identifiers in ClaimRequest/evidence. Real PostgreSQL logout test cancels
+  the originating run within the six-second check bound, rejects further requests,
+  and leaves an unrelated login usable. Already-started provider effects cannot
+  be rolled back. Persistence/crash recovery remains a separate unfinished gate.
+
+- Current slice evidence and remaining gates: [Google service evidence](evidence/google-service.md).

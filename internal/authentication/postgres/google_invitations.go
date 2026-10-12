@@ -90,6 +90,12 @@ func (s Store) AcceptGoogleInvitation(ctx context.Context, id googleoidc.LoginId
 	if tx.QueryRowContext(ctx, `SELECT id,project,project_role FROM agenova_invitations WHERE acceptance_hash=$1 AND issuer=$2 AND email=$3 AND team=$4 AND actor=$5 AND account_role=$6 AND status='pending' AND subject IS NULL AND expires_at>now() FOR UPDATE`, hash, id.Issuer, id.Email, team, actor, account).Scan(&inviteID, &project, &role) != nil {
 		return v0.Principal{}, denied
 	}
+	if account != Owner {
+		var permitted bool
+		if tx.QueryRowContext(ctx, `SELECT m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, actor, team, project).Scan(&permitted) != nil || !permitted {
+			return v0.Principal{}, denied
+		}
+	}
 	principal := "user:" + inviteID
 	// Unique issuer/subject and principal constraints reject existing identities,
 	// including disabled members; an invitation can never reactivate or link them.

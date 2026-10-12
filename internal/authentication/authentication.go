@@ -79,3 +79,23 @@ func (b *Boundary) AuthenticateIdentity(r *http.Request) (Identity, v0.Principal
 	}
 	return id, p, nil
 }
+
+// AuthenticateSession captures only verified private identity metadata, never a
+// bearer token. Active Work rechecks this session after the HTTP request ends.
+func (b *Boundary) AuthenticateSession(r *http.Request) (v0.Principal, func(context.Context) error, error) {
+	id, p, err := b.AuthenticateIdentity(r)
+	if err != nil {
+		return v0.Principal{}, nil, err
+	}
+	check := func(ctx context.Context) error {
+		if !id.ExpiresAt.After(time.Now()) {
+			return ErrUnauthenticated
+		}
+		current, err := b.memberships.Resolve(ctx, id)
+		if err != nil || current != p {
+			return ErrForbidden
+		}
+		return nil
+	}
+	return p, check, nil
+}

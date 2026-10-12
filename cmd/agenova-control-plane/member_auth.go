@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/authentication/cognito"
+	"github.com/wunderforge/agenova/internal/authentication/googleoidc"
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/invitations"
@@ -32,6 +33,7 @@ import (
 // Operator configuration contains file references, never plaintext credentials.
 // Its presence selects authenticated mode. Invalid or partial config is fatal.
 type memberConfig struct {
+	GoogleOAuthFile string `json:"googleOAuthFile"`
 	Origin          string `json:"origin"`
 	Issuer          string `json:"issuer"`
 	OAuthOrigin     string `json:"oauthOrigin"`
@@ -71,16 +73,49 @@ func loadMemberConfig(path string) (memberConfig, error) {
 	if d.Decode(&c) != nil || d.Decode(new(any)) != io.EOF {
 		return c, errors.New("invalid member service configuration")
 	}
-	if !login.Origin(c.Origin) || !login.Origin(c.OAuthOrigin) || c.NativeClientID == c.WebClientID || c.NativeClientID == "" || c.WebClientID == "" || !filepath.IsAbs(c.DatabaseURLFile) || !filepath.IsAbs(c.SessionKeyFile) || !filepath.IsAbs(c.PortalDirectory) {
-		return c, errors.New("complete member service configuration required")
+	if !login.Origin(c.Origin) || !filepath.IsAbs(c.DatabaseURLFile) || !filepath.IsAbs(c.SessionKeyFile) || !filepath.IsAbs(c.PortalDirectory) {
+		return c, errors.New("complete member configuration required")
 	}
-	if _, err := cognito.New(cognito.Config{Issuer: c.Issuer, ClientIDs: []string{c.NativeClientID, c.WebClientID}, RequiredScope: c.Scope}); err != nil {
-		return c, err
+	if c.GoogleOAuthFile != "" {
+		if !filepath.IsAbs(c.GoogleOAuthFile) || c.Issuer != "" || c.OAuthOrigin != "" || c.NativeClientID != "" || c.WebClientID != "" || c.Scope != "" {
+			return c, errors.New("Google and legacy identity configuration cannot be combined")
+		}
+		if _, err := loadGoogleClient(c); err != nil {
+			return c, err
+		}
+	} else {
+		if !login.Origin(c.OAuthOrigin) || c.NativeClientID == c.WebClientID {
+			return c, errors.New("complete legacy identity configuration required")
+		}
+		if _, err := cognito.New(cognito.Config{Issuer: c.Issuer, ClientIDs: []string{c.NativeClientID, c.WebClientID}, RequiredScope: c.Scope}); err != nil {
+			return c, err
+		}
 	}
 	if _, err := readBoundedFile(filepath.Join(c.PortalDirectory, "index.html"), 1<<20); err != nil {
 		return c, errors.New("Portal build unavailable")
 	}
 	return c, nil
+}
+
+// Google client secret is read only from a private operator-mounted file.
+func loadGoogleClient(c memberConfig) (*googleoidc.Client, error) {
+	var credentials struct {
+		Provider     string `json:"provider"`
+		ProjectID    string `json:"project_id"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		RedirectURI  string `json:"redirect_uri"`
+	}
+	b, err := readBoundedFile(c.GoogleOAuthFile, 16<<10)
+	if err != nil {
+		return nil, err
+	}
+	d := json.NewDecoder(strings.NewReader(string(b)))
+	d.DisallowUnknownFields()
+	if d.Decode(&credentials) != nil || d.Decode(new(any)) != io.EOF || credentials.Provider != "google" || credentials.RedirectURI != c.Origin+"/auth/callback" {
+		return nil, errors.New("invalid Google login configuration")
+	}
+	return googleoidc.NewClient(credentials.ClientID, credentials.ClientSecret, credentials.RedirectURI)
 }
 
 // Require hostname-verified TLS, explicit CA and a pinned database endpoint.
@@ -157,6 +192,7 @@ func checkMemberSchema(ctx context.Context, db *sql.DB) error {
 }
 
 type memberDependencies struct {
+	google    *googleoidc.Client
 	config    memberConfig
 	db        *sql.DB
 	store     identitydb.Store
@@ -192,17 +228,30 @@ func openMemberDependencies(ctx context.Context, path string) (*memberDependenci
 		return nil, err
 	}
 	store := identitydb.Store{DB: db}
-	verifier, err := cognito.New(cognito.Config{Issuer: c.Issuer, ClientIDs: []string{c.NativeClientID, c.WebClientID}, RequiredScope: c.Scope})
+	var verifier authentication.Verifier
+	var memberships authentication.Memberships = store
+	var google *googleoidc.Client
+	if c.GoogleOAuthFile != "" {
+		google, err = loadGoogleClient(c)
+		verifier = identitydb.ApplicationSessions{Store: store}
+	} else {
+		verifier, err = cognito.New(cognito.Config{Issuer: c.Issuer, ClientIDs: []string{c.NativeClientID, c.WebClientID}, RequiredScope: c.Scope})
+		memberships = identitydb.InvitedMemberships{Store: store}
+	}
 	if err != nil {
 		return nil, err
 	}
-	boundary, err := authentication.New(verifier, identitydb.InvitedMemberships{Store: store})
+	boundary, err := authentication.New(verifier, memberships)
 	if err != nil {
 		return nil, err
 	}
 	sessions, err := websession.NewStore(db, key)
 	if err != nil {
 		return nil, err
+	}
+	if google != nil {
+		ok = true
+		return &memberDependencies{config: c, db: db, store: store, boundary: boundary, sessions: sessions, google: google}, nil
 	}
 	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(strings.Split(strings.TrimPrefix(c.Issuer, "https://cognito-idp."), ".")[0]))
 	if err != nil {
@@ -218,8 +267,13 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		return nil, err
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/members", invitations.Page(invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store}, d.boundary))
-	mux.Handle("/api/invitations", invitations.Handler(invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store}, d.boundary))
+	invitationService := invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
+	mux.Handle("/members", invitations.Page(invitationService, d.boundary))
+	mux.Handle("/api/invitations", invitations.Handler(invitationService, d.boundary))
+	mux.Handle("/api/members", invitations.MemberHandler(d.store, d.boundary))
+	if d.google != nil {
+		mux.Handle("/api/invitations/manage", invitations.ManageHandler(d.store, d.boundary, d.config.Origin))
+	}
 	mux.Handle("/api/", api)
 	// Portal uses hash routes. Only its built assets are served; no directory lists.
 	assets := http.FileServer(http.Dir(d.config.PortalDirectory))
@@ -258,6 +312,9 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		assets.ServeHTTP(w, r)
 	}))
 	c := d.config
+	if d.google != nil {
+		return websession.New(websession.Config{Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+	}
 	scopes := []string{"openid", "email", c.Scope}
 	native := login.Config{Issuer: c.Issuer, ClientID: c.NativeClientID, AuthorizationEndpoint: c.OAuthOrigin + "/oauth2/authorize", TokenEndpoint: c.OAuthOrigin + "/oauth2/token", Scopes: scopes, RedirectURI: login.Callback}
 	return websession.New(websession.Config{Origin: c.Origin, Native: native, Web: oauth2.Config{ClientID: c.WebClientID, RedirectURL: c.Origin + "/auth/callback", Scopes: scopes, Endpoint: oauth2.Endpoint{AuthURL: native.AuthorizationEndpoint, TokenURL: native.TokenEndpoint, AuthStyle: oauth2.AuthStyleInParams}}, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
@@ -286,6 +343,24 @@ func bootstrapOwnerCommand(args []string) error {
 		return err
 	}
 	defer d.db.Close()
+	if d.google != nil {
+		_, proof, err := d.store.ReserveGoogleOwner(context.Background(), owner.Team, invitations.Request{Email: owner.Email, Project: owner.Project, Role: "admin"})
+		if err != nil {
+			return err
+		}
+		// Invitation proof goes to a new protected operator file, never stdout/logs.
+		output := args[4] + ".invitation"
+		f, err := os.OpenFile(output, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			return errors.New("invitation output unavailable; inspect pending bootstrap before retrying")
+		}
+		_, err = f.WriteString(d.config.Origin + "/login#invite=" + proof + "\n")
+		closeErr := f.Close()
+		if err != nil || closeErr != nil {
+			return errors.New("invitation write failed; inspect pending bootstrap")
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "pending", "invitationFile": output})
+	}
 	service := invitations.Service{Issuer: d.config.Issuer, Directory: d.directory, Store: d.store}
 	invite, err := service.BootstrapOwner(context.Background(), owner.Team, invitations.Request{Email: owner.Email, Project: owner.Project, Role: "admin"})
 	if err != nil {

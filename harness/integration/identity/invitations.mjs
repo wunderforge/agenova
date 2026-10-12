@@ -16,12 +16,36 @@ const browser = await chromium.launch({ headless: true });
 try {
  const page = await browser.newPage({ viewport: { width: 1100, height: 950 } });
  let invitations = [];
+ let memberChanges = [];
+ const members = [
+  {principal:'owner',email:'owner@example.com',accountRole:'owner',active:true,projects:[{project:'payments',role:'admin'}]},
+  {principal:'admin',email:'admin@example.com',accountRole:'admin',active:true,projects:[{project:'payments',role:'admin'}]},
+  {principal:'member',email:'member@example.com',accountRole:'member',active:true,projects:[{project:'payments',role:'member'}]}
+ ];
  let deny = false;
+ let google = false;
  let posts = 0;
  let loggedOut = false;
  await page.route('https://identity.example/**', async route => {
   const request = route.request();
   const path = new URL(request.url()).pathname;
+  if(path==='/auth/me') return route.fulfill({contentType:'application/json',body:JSON.stringify({subject:'owner',team:'team',authenticationContext:'oidc'})});
+  if(path==='/api/members') {
+   if(request.method()==='POST') {
+    const change=request.postDataJSON();memberChanges.push(change);
+    const target=members.find(m=>m.principal===change.principal);assert.ok(target);
+    if(change.action==='disable') target.active=false;
+    if(change.action==='enable') target.active=true;
+    if(change.action==='account-role') target.accountRole=change.role;
+    return route.fulfill({status:204});
+   }
+   return route.fulfill({contentType:'application/json',body:JSON.stringify(members)});
+  }
+  if(path==='/api/invitations/manage') {
+   const {id,action}=request.postDataJSON();assert.equal(id,'fixture');
+   const item=invitations.at(-1);item.status=action==='cancel'?'cancelled':'pending';
+   return route.fulfill({contentType:'application/json',body:JSON.stringify({...item,...(action==='reissue'?{acceptanceUrl:`https://identity.example/login#invite=${'B'.repeat(43)}`}:{})})});
+  }
   if (path === '/members') return route.fulfill({ contentType: 'text/html', body: pageHTML });
   if (path === '/api/invitations') {
    if (request.method() === 'POST') {
@@ -32,8 +56,8 @@ try {
     assert.equal(payload.email, 'invited@example.com');
     assert.equal(payload.project, 'payments');
     assert.equal(payload.role, 'admin');
-    invitations.push({ ...payload, id: 'fixture', status: 'sent' });
-    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(invitations[0]) });
+    invitations.push({ ...payload, id: 'fixture', status: google ? 'pending' : 'sent',linkManaged:google });
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({...invitations.at(-1), ...(google ? {acceptanceUrl: `https://identity.example/login#invite=${"A".repeat(43)}`} : {})}) });
    }
    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(invitations) });
   }
@@ -45,16 +69,43 @@ try {
  await page.getByLabel('Email address').fill('invited@example.com');
  await page.getByLabel('Project', { exact: true }).fill('payments');
  await page.getByLabel('Role', { exact: true }).selectOption('admin');
- await page.getByRole('button', { name: 'Send invitation' }).click();
+ await page.getByRole('button', { name: 'Create invitation' }).click();
  await page.getByText('Invitation sent.', { exact: false }).waitFor();
  await page.getByText('invited@example.com', { exact: true }).waitFor();
  assert.equal(posts, 1);
  await page.screenshot({ path: resolve(out, 'desktop.png'), fullPage: true });
+ google = true;
+ await page.getByLabel('Email address').fill('invited@example.com');
+ await page.getByRole('button', {name: 'Create invitation'}).click();
+ await page.getByText('No email has been sent.', {exact:false}).waitFor();
+ assert.equal(await page.getByLabel('One-time invitation link').inputValue(), `https://identity.example/login#invite=${"A".repeat(43)}`);
+ assert.equal(await page.getByLabel('One-time invitation link').getAttribute('readonly'), '');
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+ await page.getByRole('button',{name:'Cancel invitation for invited@example.com'}).click();
+ await page.getByText('Invitation cancelled.',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'Replace link for invited@example.com'}).click();
+ await page.waitForFunction(() => document.querySelector('[aria-label="One-time invitation link"]')?.value.endsWith('B'.repeat(43)));
+ const member=page.locator('article.member').filter({has:page.getByRole('heading',{name:'member@example.com',exact:true})});
+ await member.locator('summary').click();
+ await member.getByRole('button',{name:'Disable member',exact:true}).click();
+ await page.getByText('Member disabled.',{exact:false}).waitFor();
+ await member.locator('summary').click();
+ await member.getByRole('button',{name:'Enable member',exact:true}).click();
+ await page.getByText('Member access updated.',{exact:true}).waitFor();
+ await member.locator('summary').click();
+ await member.getByLabel('member@example.com account role').selectOption('admin');
+ await member.locator('form').first().getByRole('button',{name:'Save',exact:true}).click();
+ await page.waitForFunction(() => [...document.querySelectorAll('article.member')].some(el => el.textContent.includes('member@example.com') && el.textContent.includes('admin · Active')));
+ assert.deepEqual(memberChanges,[{principal:'member',action:'disable'},{principal:'member',action:'enable'},{principal:'member',action:'account-role',role:'admin'}]);
+ assert.equal(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:resolve(out,'google-mobile.png'),fullPage:true});
+ await page.setViewportSize({width:1100,height:950});
  deny = true;
  await page.getByLabel('Email address').fill('another@example.com');
- await page.getByRole('button', { name: 'Send invitation' }).click();
+ await page.getByRole('button', { name: 'Create invitation' }).click();
  await page.getByText('Your role cannot send this invitation.', { exact: false }).waitFor();
- assert.equal(posts, 2);
+ assert.equal(posts, 3);
  invitations.push({ email: '<img src=x onerror=alert(1)>', project: 'test', role: 'viewer', status: 'uncertain' });
  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
  await page.getByText('<img src=x onerror=alert(1)>', { exact: true }).waitFor();

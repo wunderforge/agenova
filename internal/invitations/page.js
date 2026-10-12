@@ -20,17 +20,31 @@ async function refresh() {
    const email = document.createElement('strong'); email.textContent = invite.email;
    const project = document.createElement('small'); project.textContent = `${invite.project} · ${invite.role}`;
    const status = document.createElement('span'); status.className = 'badge'; status.textContent = invite.status;
-   detail.append(email,project); row.append(detail,status); list.append(row);
+   detail.append(email,project);
+   if(invite.linkManaged && ['pending','expired','reserved','cancelled'].includes(invite.status)) {
+    const actions=node('div'); actions.className='invitation-actions';
+    for(const action of (invite.status==='cancelled' ? ['reissue'] : ['cancel','reissue'])) {
+     const button=node('button',action==='cancel'?'Cancel invitation':'Replace link'); button.className='quiet';button.type='button';button.setAttribute('aria-label',`${button.textContent} for ${invite.email}`);
+     button.addEventListener('click',()=>manageInvitation(invite.id,action,button));actions.append(button);
+    }
+    detail.append(actions);
+   }
+   row.append(detail,status); list.append(row);
   }
-  loading.textContent = items.length ? 'Sent invitations activate after the recipient signs in. Uncertain delivery requires administrator review.' : 'No invitations yet.';
+  loading.textContent = items.length ? 'Pending invitations activate only after the invited person signs in. Uncertain delivery requires administrator review.' : 'No invitations yet.';
  } catch (error) { list.replaceChildren(); loading.textContent = error.message || 'Invitations are unavailable.'; }
 }
 form.addEventListener('submit', async e => {
- e.preventDefault(); send.disabled = true; notice.textContent = 'Sending invitation…';
+ e.preventDefault(); send.disabled = true; notice.textContent = 'Creating invitation…';
  try {
   const response = await fetch('/api/invitations', {method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.elements.namedItem('email').value.trim().toLowerCase(),project:form.elements.namedItem('project').value.trim(),role:form.elements.namedItem('role').value})});
   if (!response.ok) throw new Error(response.status === 403 ? 'Your role cannot send this invitation. Only the Owner can invite an Admin.' : 'The invitation was not confirmed. Refresh the list and review its status before trying again.');
-  notice.textContent = 'Invitation sent. The recipient can follow the email to set up their account.';
+  const invitation = await response.json();
+  if (invitation.acceptanceUrl) {
+   showInvitationLink(invitation.acceptanceUrl);
+  } else {
+   notice.textContent = 'Invitation sent. The recipient can follow the email to set up their account.';
+  }
   form.elements.namedItem('email').value = '';
   await refresh();
  } catch (error) { notice.textContent = error.message || 'The invitation could not be confirmed.'; }
@@ -38,3 +52,81 @@ form.addEventListener('submit', async e => {
 });
 document.querySelector('#refresh').addEventListener('click',refresh);
 refresh();
+
+const memberList = document.querySelector('#members');
+const memberNotice = document.querySelector('#member-notice');
+const memberLoading = document.querySelector('#members-loading');
+function node(tag, text) { const el = document.createElement(tag); if (text) el.textContent = text; return el; }
+async function changeMember(change, button) {
+ button.disabled = true;
+ memberNotice.textContent = 'Saving member access…';
+ try {
+  const response = await fetch('/api/members', {method:'POST', credentials:'same-origin', redirect:'error', headers:{'Content-Type':'application/json'}, body:JSON.stringify(change)});
+  if (!response.ok) throw new Error(response.status === 403 ? 'Your current role cannot change this member.' : 'Change not confirmed. Refresh members before retrying.');
+  memberNotice.textContent = change.action === 'disable' ? 'Member disabled. Existing login sessions no longer grant access.' : 'Member access updated.';
+  await refreshMembers();
+ } catch(error) { memberNotice.textContent = error.message || 'Member change failed.'; }
+ finally { button.disabled = false; }
+}
+function roleForm(member, owner, project) {
+ const form = node('form'); form.className = 'member-actions';
+ const label = node('label', project ? `Project: ${project.project}` : 'Account role');
+ const select = node('select'); select.setAttribute('aria-label', `${member.email || member.principal} ${project ? project.project + ' role' : 'account role'}`);
+ const choices = project ? [['','No access'],['member','Member'],['viewer','Viewer'],...(owner ? [['admin','Admin']] : [])] : [['member','Member'],['admin','Admin']];
+ for(const [value,text] of choices) { const option = node('option',text); option.value = value; select.append(option); }
+ select.value = project ? project.role : member.accountRole;
+ label.append(select); const button = node('button','Save'); button.type = 'submit';
+ form.append(label,button); form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:project?'project-role':'account-role',role:select.value,...(project ? {project:project.project} : {})},button);});
+ return form;
+}
+async function refreshMembers() {
+ memberLoading.textContent = 'Loading members…';
+ try {
+  const [response, meResponse] = await Promise.all(['/api/members','/auth/me'].map(path=>fetch(path,{credentials:'same-origin',redirect:'error',cache:'no-store'})));
+  if(!response.ok || !meResponse.ok) throw new Error('Member administration is unavailable for this account.');
+  const rows = await response.json(); const me = await meResponse.json();
+  if(!Array.isArray(rows)) throw new Error('Member list unavailable.');
+  const isOwner = rows.some(m=>m.principal===me.subject && m.accountRole==='owner');
+  memberList.replaceChildren();
+  for(const member of rows) {
+   const row = node('article'); row.className = 'member';
+   row.append(node('h3',member.email || member.principal),node('p',`${member.accountRole} · ${member.active?'Active':'Disabled'}`));
+   for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role}`));
+   const canManage = member.accountRole !== 'owner' && (isOwner || member.accountRole !== 'admin');
+   if(canManage) {
+    const details = node('details'); details.append(node('summary','Manage access'));
+    if(isOwner) details.append(roleForm(member,true,null));
+    if(member.active) {
+     for(const project of member.projects) if(isOwner || project.role!=='admin') details.append(roleForm(member,isOwner,project));
+     const grantForm=node('form');grantForm.className='member-actions';
+     const label=node('label','Add project membership');const input=node('input');input.required=true;input.maxLength=128;input.placeholder='Existing project';input.setAttribute('aria-label',`New project for ${member.email || member.principal}`);label.append(input);
+     const grant=node('button','Add as Member');grant.type='submit';grantForm.append(label,grant);
+     grantForm.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'project-role',project:input.value.trim(),role:'member'},grant);});details.append(grantForm);
+    }
+    const toggle = node('button',member.active?'Disable member':'Enable member'); toggle.type='button';toggle.className='quiet';
+    toggle.addEventListener('click',()=>changeMember({principal:member.principal,action:member.active?'disable':'enable'},toggle)); details.append(toggle); row.append(details);
+   }
+   memberList.append(row);
+  }
+  memberLoading.textContent = `${rows.length} members. Only the Owner can appoint or remove an account Admin.`;
+ } catch(error) {memberList.replaceChildren();memberLoading.textContent=error.message || 'Members unavailable.';}
+}
+document.querySelector('#refresh-members').addEventListener('click',refreshMembers);
+refreshMembers();
+
+function showInvitationLink(value) {
+ const link = new URL(value);
+ if(link.origin!==window.location.origin || link.pathname!=='/login' || !/^#invite=[A-Za-z0-9_-]{43}$/.test(link.hash)) throw new Error('Invalid invitation link.');
+ notice.textContent='Invitation created. Share this one-time link with the invited person. No email has been sent. ';
+ const field=node('input');field.readOnly=true;field.value=link.href;field.setAttribute('aria-label','One-time invitation link');notice.append(field);
+}
+async function manageInvitation(id,action,button) {
+ button.disabled=true;notice.textContent='Updating invitation…';
+ try {
+  const response=await fetch('/api/invitations/manage',{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action})});
+  if(!response.ok) throw new Error('Invitation change not confirmed. Refresh before retrying.');
+  const result=await response.json();
+  if(result.acceptanceUrl) showInvitationLink(result.acceptanceUrl);else notice.textContent='Invitation cancelled. Its previous link no longer grants access.';
+  await refresh();
+ }catch(error){notice.textContent=error.message || 'Invitation update failed.';}finally{button.disabled=false;}
+}

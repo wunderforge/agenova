@@ -4,6 +4,7 @@
 package console
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -50,7 +51,12 @@ type Authenticator interface {
 	Authenticate(*http.Request) (v0.Principal, error)
 }
 
-func AuthenticatedHandler(service *Service, auth Authenticator) (http.Handler, error) {
+type SessionAuthenticator interface {
+	Authenticator
+	AuthenticateSession(*http.Request) (v0.Principal, func(context.Context) error, error)
+}
+
+func AuthenticatedHandler(service *Service, auth SessionAuthenticator) (http.Handler, error) {
 	if service == nil || service.prepareFor == nil || service.access == nil || auth == nil {
 		return nil, errors.New("authenticated service and identity boundary required")
 	}
@@ -70,13 +76,21 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			return
 		}
 		var principal v0.Principal
+		var sessionCheck func(context.Context) error
 		if service.prepareFor != nil && auth == nil {
 			writeError(w, 503, "authentication_required", "Authenticated service configuration is required.")
 			return
 		}
 		if auth != nil {
 			var err error
-			principal, err = auth.Authenticate(r)
+			if sessionAuth, ok := auth.(SessionAuthenticator); ok {
+				principal, sessionCheck, err = sessionAuth.AuthenticateSession(r)
+				if sessionCheck == nil && err == nil {
+					err = authentication.ErrForbidden
+				}
+			} else {
+				err = authentication.ErrForbidden
+			}
 			if err != nil {
 				status := http.StatusUnauthorized
 				if errors.Is(err, authentication.ErrForbidden) {
@@ -144,7 +158,7 @@ func handler(service *Service, auth Authenticator) http.Handler {
 					writeJSON(w, 200, service.List())
 				}
 			case http.MethodPost:
-				submitHTTP(w, r, service, principal)
+				submitHTTP(w, r, service, principal, sessionCheck)
 			default:
 				w.Header().Set("Allow", "GET, POST")
 				writeError(w, 405, "method_not_allowed", "This method is not supported.")
@@ -191,7 +205,7 @@ func handler(service *Service, auth Authenticator) http.Handler {
 	})
 }
 
-func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, principal v0.Principal) {
+func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, principal v0.Principal, sessionCheck func(context.Context) error) {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		writeError(w, 415, "unsupported_media_type", "Submit application/json.")
@@ -219,7 +233,7 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, princi
 	}
 	var view evidence.View
 	if principal.Subject != "" {
-		view, err = service.SubmitFor(data, principal)
+		view, err = service.submitForSession(data, principal, sessionCheck)
 	} else {
 		view, err = service.Submit(data)
 	}
