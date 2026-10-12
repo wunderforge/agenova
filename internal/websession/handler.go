@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -354,25 +355,31 @@ func (h *Handler) unauthorized(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/login", 303)
 }
+
+// callbackFailure records only a fixed stage, never OAuth or personal data.
+func callbackFailure(w http.ResponseWriter, status int, stage string) {
+	log.Printf("authentication callback failed: stage=%s status=%d", stage, status)
+	failure(w, status)
+}
 func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" || len(r.URL.RawQuery) > 8192 {
-		failure(w, 400)
+		callbackFailure(w, 400, "invalid_request")
 		return
 	}
 	handle := readCookie(r, loginCookie)
 	if handle == "" {
-		failure(w, 400)
+		callbackFailure(w, 400, "missing_attempt_cookie")
 		return
 	}
 	var a attempt
 	if h.c.Store.TakeAttempt(r.Context(), handle, &a) != nil {
-		failure(w, 400)
+		callbackFailure(w, 400, "attempt_unavailable")
 		return
 	}
 	cookie(w, loginCookie, "", -1)
 	q := r.URL.Query()
 	if len(q["state"]) != 1 || subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(a.State)) != 1 || len(q["code"]) != 1 || q.Get("code") == "" || q.Get("error") != "" {
-		failure(w, 400)
+		callbackFailure(w, 400, "invalid_callback_parameters")
 		return
 	}
 	var token *oauth2.Token
@@ -382,16 +389,16 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		// the encrypted browser session and the authenticated application boundary.
 		id, verifyErr := h.c.Google.Exchange(r.Context(), q.Get("code"), a.Verifier, a.Nonce)
 		if verifyErr != nil {
-			failure(w, 401)
+			callbackFailure(w, 401, "google_verification")
 			return
 		}
 		if a.Invitation != "" {
 			if h.c.Invitations == nil {
-				failure(w, 403)
+				callbackFailure(w, 403, "invitation_service_unavailable")
 				return
 			}
 			if _, err := h.c.Invitations.AcceptGoogleInvitation(r.Context(), id, a.Invitation); err != nil {
-				failure(w, 403)
+				callbackFailure(w, 403, "invitation_acceptance")
 				return
 			}
 		}
@@ -399,12 +406,12 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 			// Only a one-use application authorization code reaches the loopback URL.
 			code, err := randomHandle()
 			if err != nil {
-				failure(w, 503)
+				callbackFailure(w, 503, "native_code_generation")
 				return
 			}
 			grant := nativeCode{Kind: "cli-code", Issuer: id.Issuer, Subject: id.Subject, Challenge: a.Native.Challenge}
 			if h.c.Store.PutAttempt(r.Context(), "code:"+code, grant) != nil {
-				failure(w, 503)
+				callbackFailure(w, 503, "native_code_storage")
 				return
 			}
 			q := url.Values{"code": {code}, "state": {a.Native.State}}
@@ -413,14 +420,14 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		}
 		raw, grant, issueErr := h.c.ApplicationSessions.IssueApplicationSession(r.Context(), id.Issuer, id.Subject, 12*time.Hour)
 		if issueErr != nil {
-			failure(w, 403)
+			callbackFailure(w, 403, "membership_session")
 			return
 		}
 		token = &oauth2.Token{AccessToken: raw, TokenType: "Bearer", Expiry: grant.ExpiresAt}
 	} else {
 		token, err = h.c.Web.Exchange(context.WithValue(r.Context(), oauth2.HTTPClient, h.client), q.Get("code"), oauth2.VerifierOption(a.Verifier))
 		if err != nil || token == nil || !token.Valid() || token.RefreshToken == "" || !strings.EqualFold(token.TokenType, "Bearer") {
-			failure(w, 401)
+			callbackFailure(w, 401, "legacy_exchange")
 			return
 		}
 	}
@@ -428,21 +435,21 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	identity, _, err := h.c.Boundary.AuthenticateIdentity(req)
 	if err != nil {
-		failure(w, 403)
+		callbackFailure(w, 403, "session_authentication")
 		return
 	}
 	fresh, err := randomHandle()
 	if err != nil {
-		failure(w, 503)
+		callbackFailure(w, 503, "session_handle")
 		return
 	}
 	if h.c.Store.Create(r.Context(), fresh, session{*token, identity}, time.Now().Add(12*time.Hour)) != nil {
-		failure(w, 503)
+		callbackFailure(w, 503, "session_storage")
 		return
 	}
 	if old := readCookie(r, sessionCookie); old != "" {
 		if h.c.Store.Delete(r.Context(), old) != nil {
-			failure(w, 503)
+			callbackFailure(w, 503, "old_session_removal")
 			return
 		}
 	}

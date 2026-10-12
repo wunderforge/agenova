@@ -94,3 +94,16 @@ tests pass. Live rollout and Google navigation evidence follow separately.
   Google reached accounts.google.com and rendered “Choose an account” for Agenova.
   This supersedes the earlier navigation blocker; account selection/consent,
   Owner bootstrap and invited Admin acceptance remain separate pending tests.
+
+## Real Owner acceptance and callback diagnostics
+
+Added fixed callback failure-stage/status logging, excluding codes, tokens, URLs,
+email and raw error bodies. Focused websession tests and full gate passed
+(53 browser smoke cases). Deployed image:
+`sha256:5689c326be8a042abde2d2426b198ace9e2300c045049b5b5c00e7c5bce9f38c`.
+
+The human completed the fresh Owner activation flow. Live /members renders the
+Owner invitation as accepted and the Owner membership as Active with payments
+Admin grant. This proves real Google Owner login and member-page authorization;
+it does not yet prove invited Admin login or native CLI Work. The older generic
+callback failure was not diagnosed retrospectively; do not invent its cause.
