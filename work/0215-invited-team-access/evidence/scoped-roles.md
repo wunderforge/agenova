@@ -43,8 +43,8 @@ Rendered output: `.tmp/identity/invitation-ui/google-mobile.png`.
 
 The new authorization predicates are not policy/template mutation endpoints or
 cloud administration APIs. Current registration is installation-global and is
-still guarded by the existing trusted operator boundary. The project-isolated
-registry/activation decision is pending maintainer approval. No user receives
+still guarded by the existing trusted operator boundary. The Owner explicitly deferred project-isolated
+registry/activation and member Policy/Template management. No user receives
 cluster permissions, provider secrets or claim issuance authority from these
 roles. This foundation does not complete the approved role-management feature
 or establish production readiness.
@@ -55,3 +55,15 @@ rendered invitation/member harness passed and mobile screenshot was inspected;
 cases; the final documentation gate passed. Logs are local files
 `/tmp/agenova-roles-focused.log`, `/tmp/agenova-roles-ui.log`,
 `/tmp/agenova-roles-full-gate.log` and `/tmp/agenova-roles-docs.log`.
+
+## Fixed role directory
+
+The Owner selected a read-only permission directory and existing member assignment,
+not custom role editing. `/members#roles` explains six duties and the compatibility
+Account Admin role. Policy/Template and remote platform management are explicitly
+unavailable; links lead to `/members#member-section` assignment controls. No
+backend permission changed. The updated executable browser harness verifies six
+role cards, unavailable states, no permission-edit controls, assignment navigation
+and mobile overflow. Rendered proof was inspected at
+`.tmp/identity/invitation-ui/roles-mobile.png`; desktop proof is
+`.tmp/identity/invitation-ui/roles-desktop.png`.

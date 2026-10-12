@@ -241,3 +241,14 @@ policy/template mutation APIs or advertise the new grants as working management
 commands. No shared architecture contract was changed by this slice.
 
 - [Role matrix and scoped grant evidence](evidence/scoped-roles.md).
+
+## Fixed role directory and deferred governance management
+
+Owner explicitly deferred Policy/Template management changes; retain operator-only
+registration and do not change the shared registry/activation architecture in this
+PR. The prior architecture question is resolved as a deferral, not approval.
+Owner selected a fixed Roles & Permissions directory with existing member role
+assignment, not custom permission editing. The member page now describes six
+duties and compatibility Account Admin behavior, scopes, limitations and unavailable
+management capabilities; it links to existing assignment controls. Service
+identities remain separate. No backend permissions are expanded by this UI.

@@ -2,6 +2,20 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Team access · Agenova</title><style>{{styles}}</style></head>
 <body><header><a href="/?mode=connected">Agenova / Work</a><form method="post" action="/logout"><button class="quiet">Log out</button></form></header>
 <main><p class="eyebrow">TEAM ACCESS</p><h1>Manage your team</h1><p class="intro">Give each person their own sign-in and access to a project.</p>
+<nav class="access-nav" aria-label="Team access"><a href="#roles">Roles &amp; permissions</a><a href="#member-section">Assign member roles</a></nav>
+<section class="card" id="roles" aria-labelledby="roles-heading"><h2 id="roles-heading">Roles &amp; permissions</h2>
+<p class="intro">Fixed roles define what each person can do. Assign roles below; permissions cannot be edited here. Every request is checked by the server.</p>
+<div class="role-grid">
+<article class="role-card"><h3>Account Owner</h3><p class="role-scope">Scope: account</p><p>Appoint account and project administrators, manage members, and grant or revoke additional duties. Submit Work and read evidence across the account.</p><p class="role-limit">Does not bypass Work policies or automatically receive infrastructure access.</p></article>
+<article class="role-card"><h3>Project Admin</h3><p class="role-scope">Scope: assigned projects</p><p>Submit Work and read project evidence. Assign Member or Viewer access in administered projects; only Owner can appoint or remove project administrators.</p><p class="role-limit">No Policy, Template, provider credential or cluster management.</p></article>
+<article class="role-card"><h3>Member</h3><p class="role-scope">Scope: assigned projects</p><p>Submit Work using approved templates and requested capabilities. Read your own Work and evidence.</p><p class="role-limit">Cannot manage members, change policies or read other members’ Work.</p></article>
+<article class="role-card"><h3>Viewer</h3><p class="role-scope">Scope: assigned projects</p><p>Read project Work and governance evidence.</p><p class="role-limit">Cannot submit Work or change members and configuration.</p></article>
+<article class="role-card"><h3>Governance Admin</h3><p class="role-scope">Scope: account or project</p><p><strong>Policy / Template management: unavailable.</strong> Owner can record or revoke this additional duty, but it currently enables no management command.</p><p class="role-limit">Does not grant Work submission, evidence access or infrastructure permissions.</p></article>
+<article class="role-card"><h3>Platform Operator</h3><p class="role-scope">Scope: installation</p><p><strong>Remote platform management: unavailable.</strong> Owner can record or revoke this duty. Existing operator deployment requires separately configured cloud and cluster access.</p><p class="role-limit">Does not grant AWS IAM, Kubernetes RBAC, member management or business evidence access.</p></article>
+</div>
+<details class="role-compat"><summary>Account Admin and Project Admin are different</summary><p>The existing Account Admin role allows invitation and member administration within its checks. It does not grant access to every project. Invitation and member changes require the relevant project administration rights; appointing administrators is reserved for Owner. Assign project roles separately.</p></details>
+<p class="footnote">Control plane, Gateway, Worker and node identities are service identities, not member roles. A task never inherits its submitter’s administrative duties. Additional roles combine with existing project access; they do not replace it.</p>
+<a href="#member-section">Assign roles to members ↓</a></section>
 <section class="card"><h2>New invitation</h2><form id="invite">
 <label>Email address<input id="email" name="email" type="email" autocomplete="email" placeholder="person@example.com" required maxlength="254"></label>
 <div class="fields"><label>Project<input id="project" name="project" placeholder="payments" required maxlength="128"></label>
@@ -9,5 +23,5 @@
 <p id="role-help">Members can run Work and read their own evidence in this project.</p><button id="send" type="submit">Create invitation</button></form>
 <p id="notice" role="status" aria-live="polite"></p></section>
 <section class="card"><div class="section-heading"><h2>Invitations</h2><button id="refresh" class="quiet" type="button">Refresh</button></div><p id="loading">Loading invitations…</p><ul id="invitations"></ul></section>
-<section class="card"><div class="section-heading"><h2>Members</h2><button id="refresh-members" class="quiet" type="button">Refresh members</button></div><p id="members-loading">Loading members…</p><p id="member-notice" role="status" aria-live="polite"></p><div id="members"></div></section>
+<section class="card" id="member-section"><div class="section-heading"><h2>Members</h2><button id="refresh-members" class="quiet" type="button">Refresh members</button></div><p id="members-loading">Loading members…</p><p id="member-notice" role="status" aria-live="polite"></p><div id="members"></div></section>
 <p class="footnote">Project roles govern application access. Work still follows the project's model and tool policies.</p></main><script>{{script}}</script></body></html>

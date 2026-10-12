@@ -68,6 +68,18 @@ try {
  });
  await page.goto('https://identity.example/members');
  await page.getByText('No invitations yet.').waitFor();
+ await page.getByRole('link',{name:'Roles & permissions',exact:true}).click();
+ assert.equal(await page.locator('#roles .role-card').count(),6);
+ await page.getByText('Policy / Template management: unavailable.',{exact:true}).waitFor();
+ await page.getByText('Remote platform management: unavailable.',{exact:true}).waitFor();
+ assert.equal(await page.locator('#roles input, #roles select, #roles button').count(),0);
+ await page.screenshot({path:resolve(out,'roles-desktop.png'),fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.locator('#roles').screenshot({path:resolve(out,'roles-mobile.png')});
+ await page.getByRole('link',{name:'Assign roles to members ↓',exact:true}).click();
+ assert.equal(new URL(page.url()).hash,'#member-section');
+ await page.setViewportSize({width:1100,height:950});
  await page.getByLabel('Email address').fill('invited@example.com');
  await page.getByLabel('Project', { exact: true }).fill('payments');
  await page.getByLabel('Role', { exact: true }).selectOption('admin');
