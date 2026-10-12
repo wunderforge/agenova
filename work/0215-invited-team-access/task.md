@@ -405,3 +405,9 @@ Public-tap verification: Homebrew formula test passed (`--version`, `--help`),
 `agenova work list` succeeded against the remembered live server after switching
 installations, and the documentation gate passed. No re-login was required in
 this run. Source code is unchanged from the previously passed full gate.
+
+Owner-requested uninstall/reinstall validation completed with blank Agenova
+credentials and default server, public tap re-clone and exact source archive
+cache removal. [Clean-install evidence](evidence/public-tap-clean-install.md)
+records the unauthenticated negative, new login, actual run/list/show and Bedrock
+result. Existing browser and OS/toolchain state were retained, explicitly scoped.
