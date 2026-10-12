@@ -1,0 +1,2 @@
+valid: demo-eks-bedrock
+revision: sha256:dd6b937e475e5036551ebb5b55af14c3ff7d4c1b194f5a4b588899966acaee32

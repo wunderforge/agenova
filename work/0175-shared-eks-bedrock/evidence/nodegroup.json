@@ -1,0 +1,11 @@
+{
+    "status": "ACTIVE",
+    "scaling": {
+        "minSize": 1,
+        "maxSize": 1,
+        "desiredSize": 1
+    },
+    "health": {
+        "issues": []
+    }
+}

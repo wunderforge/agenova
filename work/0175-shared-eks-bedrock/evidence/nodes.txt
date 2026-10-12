@@ -1,0 +1,2 @@
+NAME                                            STATUS   ROLES    AGE   VERSION               INTERNAL-IP   EXTERNAL-IP   OS-IMAGE                        KERNEL-VERSION                     CONTAINER-RUNTIME
+ip-10-82-1-42.ap-southeast-2.compute.internal   Ready    <none>   22m   v1.35.8-eks-f4fc4f1   10.82.1.42    3.26.62.247   Amazon Linux 2023.12.20260918   6.12.103-129.197.amzn2023.x86_64   containerd://2.2.7+unknown
