@@ -39,27 +39,33 @@ type record struct {
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	executeMu chan struct{}
-	preset    app.ReferencePrincipalPreset
-	setup     func() (Setup, error)
-	prepare   func([]byte) (app.PreparedAssignment, error)
-	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner    *app.RunService
-	executor  Executor
-	provider  modelprovider.Client
-	journal   *facts.Journal
-	store     *facts.Store
-	records   map[string]*record
-	order     []string
-	closed    bool
-	wg        sync.WaitGroup
+	mu             sync.RWMutex
+	executeMu      chan struct{}
+	preset         app.ReferencePrincipalPreset
+	setup          func() (Setup, error)
+	prepare        func([]byte) (app.PreparedAssignment, error)
+	configure      func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner         *app.RunService
+	executor       Executor
+	provider       modelprovider.Client
+	tools          ToolProvider
+	toolScopes     map[string]string
+	candidateTools []string
+	journal        *facts.Journal
+	store          *facts.Store
+	records        map[string]*record
+	order          []string
+	closed         bool
+	wg             sync.WaitGroup
 }
 
 type Options struct {
-	Prepare   func([]byte) (app.PreparedAssignment, error)
-	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	Setup     func() (Setup, error)
+	Prepare        func([]byte) (app.PreparedAssignment, error)
+	Configure      func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup          func() (Setup, error)
+	Tools          ToolProvider
+	ToolScopes     map[string]string
+	CandidateTools []string
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -101,7 +107,10 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, tools: options.Tools, toolScopes: make(map[string]string), candidateTools: append([]string(nil), options.CandidateTools...), journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	for name, scope := range options.ToolScopes {
+		s.toolScopes[name] = scope
+	}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -193,14 +202,20 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
 	details := []string{}
+	resolutionReasonCode := "admitted-template-ceiling"
 	for _, change := range prepared.Changes {
 		if change.Effective == "" {
-			details = append(details, change.Requested+" excluded by the template ceiling.")
+			if change.ReasonCode == "outside-policy-tool-ceiling" {
+				resolutionReasonCode = "admitted-policy-and-template-ceiling"
+				details = append(details, change.Requested+" excluded by the applicable policy ceiling.")
+			} else {
+				details = append(details, change.Requested+" excluded by the template ceiling.")
+			}
 		} else {
 			details = append(details, change.Field+" capped from "+change.Requested+" to "+change.Effective+".")
 		}
 	}
-	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling", Reason: strings.Join(details, " ")}); err != nil {
+	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: resolutionReasonCode, Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
@@ -262,21 +277,49 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "ModelDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "model.invoke", Target: req.Profile})
 			return err
 		}))
-		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
-		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(mock), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+		var toolAdapter toolgateway.Adapter
+		var toolResult func(string) workerprotocol.Reply
+		if s.tools == nil {
+			mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
+			toolAdapter = mock
+			toolResult = func(id string) workerprotocol.Reply { return mock.results[id] }
+		} else {
+			real := &realToolAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, provider: s.tools, results: map[string]workerprotocol.Reply{}}
+			toolAdapter = real
+			toolResult = func(id string) workerprotocol.Reply { return real.results[id] }
+		}
+		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(toolAdapter), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
-				reason = "Allowed mock tool within active claim authority."
+				reason = "Allowed within the active claim's effective authority."
 			}
 			_, err := s.journal.Append(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action})
 			return err
 		}))
 		scope := ""
-		for _, tool := range snapshot.EffectiveAuthority.Tools {
-			if tool == "git.read" && len(snapshot.EffectiveAuthority.ResourceScopes) > 0 {
-				scope = snapshot.EffectiveAuthority.ResourceScopes[0]
+		hasReadTool := false
+		for _, name := range snapshot.EffectiveAuthority.Tools {
+			if name == "git.read" {
+				hasReadTool = true
 			}
+		}
+		if len(snapshot.EffectiveAuthority.ResourceScopes) > 0 && (hasReadTool || len(s.candidateTools) > 0) {
+			scope = snapshot.EffectiveAuthority.ResourceScopes[0]
+		}
+		toolScopes := make(map[string]string, len(s.toolScopes))
+		for name, configured := range s.toolScopes {
+			toolScopes[name] = configured
+		}
+		if len(toolScopes) == 0 && scope != "" {
+			for _, name := range snapshot.EffectiveAuthority.Tools {
+				toolScopes[name] = scope
+			}
+		}
+		completionTool, _ := p.Request.Spec.Task.Input["completionTool"].(string)
+		completionMode, _ := p.Request.Spec.Task.Input["completionMode"].(string)
+		if completionMode != "success" && completionMode != "attempt" {
+			completionTool, completionMode = "", ""
 		}
 		turn := 0
 		readFiles := map[string]bool{}
@@ -284,7 +327,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
 		}
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope, RequesterTeam: p.Issued.Principal.Team, AllowedTools: append([]string(nil), snapshot.EffectiveAuthority.Tools...), CandidateTools: append([]string(nil), s.candidateTools...), ToolScopes: toolScopes, CompletionTool: completionTool, CompletionMode: completionMode}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -292,10 +335,21 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, err
 			}
 			if op.Kind == "tool" {
-				if op.Tool != "git.read" {
+				if op.Tool != "git.read" && op.Tool != "github.pr.create" && op.Tool != "kubernetes.rollback" {
 					return workerprotocol.Reply{}, errors.New("unsupported demo tool")
 				}
-				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: "git", Action: "read", ResourceScope: op.ResourceScope, Parameters: map[string]string{"file": op.Input}})
+				if s.tools == nil && op.Tool != "git.read" {
+					return workerprotocol.Reply{}, errors.New("real demo tool provider unavailable")
+				}
+				tool, action, _ := strings.Cut(op.Tool, ".")
+				parameters := map[string]string{"file": op.Input}
+				if op.Tool != "git.read" {
+					if strings.TrimSpace(op.Input) == "" || len(op.Input) > 4096 {
+						return workerprotocol.Reply{}, errors.New("invalid tool input")
+					}
+					parameters = map[string]string{"input": op.Input}
+				}
+				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: parameters})
 				if err != nil {
 					return workerprotocol.Reply{}, errors.New("tool execution failed; inspect evidence")
 				}
@@ -305,8 +359,8 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				if err := step("ObservationReceived"); err != nil {
 					return workerprotocol.Reply{}, err
 				}
-				reply := mock.results[d.InvocationID]
-				if reply.Allowed && reply.Error == "" && reply.Text != "" {
+				reply := toolResult(d.InvocationID)
+				if op.Tool == "git.read" && reply.Allowed && reply.Error == "" && reply.Text != "" {
 					readFiles[op.Input] = true
 				}
 				return reply, nil
@@ -323,7 +377,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if scope == "" || turn == workerprotocol.MaxTurns || len(readFiles) == 3 {
+			if scope == "" || turn == workerprotocol.MaxTurns || (len(readFiles) == 3 && len(s.candidateTools) == 0 && len(snapshot.EffectiveAuthority.Tools) <= 1) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})

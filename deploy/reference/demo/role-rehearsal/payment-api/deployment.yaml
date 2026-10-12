@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: agenova-payment-demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: agenova-payment-demo
+  template:
+    metadata:
+      labels:
+        app: agenova-payment-demo
+    spec:
+      containers:
+        - name: payment-api
+          image: agenova-payment-demo:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PAYMENT_VERSION
+              value: v2.6
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 2

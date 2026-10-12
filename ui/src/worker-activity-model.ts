@@ -29,7 +29,7 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
       const toolCall = f.operation === 'tool.invoke';
       const step = f.kind === 'WorkerActivity';
       return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
-        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? 'Tool call (mock)' : 'Model request',
+        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? 'Tool call' : 'Model request',
         target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
         state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? f.result || 'Recorded'
           : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || 'No completion recorded',
@@ -45,11 +45,13 @@ export function demoWorkerActions(events: WorkEvent[], activityHref: string): Wo
 export interface WorkerTurn { id: string; calls: WorkerAction[]; observations: number; active: boolean }
 export function groupWorkerTurns(actions: WorkerAction[]): WorkerTurn[] {
   const recordedTurns = actions.some(a => a.turn);
-  const recordedCalls = actions.some(a => ['Model request', 'Tool call (mock)'].includes(a.label));
+  const recordedCalls = actions.some(a => ['Model request', 'Tool call'].includes(a.label));
   const groups = new Map<string, WorkerTurn>();
   for (const action of actions) {
     // Access decisions remain inspectable records, not redundant execution rows.
-    if ((recordedTurns || recordedCalls) && ['Tool access', 'Model access'].includes(action.label)) continue;
+    // An allowed access check has a provider call row. A denied check has no
+    // provider call by design and must remain visible in the agent turn.
+    if ((recordedTurns || recordedCalls) && (action.label === 'Model access' || (action.label === 'Tool access' && !/deny|approval/i.test(action.state)))) continue;
     const id = action.turn || (recordedTurns ? 'Earlier calls' : recordedCalls ? 'Recorded calls' : 'Recorded access checks');
     const group = groups.get(id) || {id, calls: [], observations: 0, active: false};
     if (action.label !== 'Agent turn') group.calls.push(action);

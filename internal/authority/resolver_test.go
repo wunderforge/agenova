@@ -56,6 +56,63 @@ func TestResolveNarrowsListsInRequestOrder(t *testing.T) {
 	}
 }
 
+func TestSameTemplateAndRequestGetDifferentTrustedTeamToolGrants(t *testing.T) {
+	request, template, _ := fixtures(t)
+	request.Spec.RequestedAccess.Tools = []string{"git.read", "github.pr.create", "kubernetes.rollback"}
+	template.Spec.CapabilityCeiling.Tools = append([]string(nil), request.Spec.RequestedAccess.Tools...)
+	for _, test := range []struct {
+		team         string
+		ceiling      []string
+		wantExcluded string
+	}{
+		{"payments-development", []string{"git.read", "github.pr.create"}, "kubernetes.rollback"},
+		{"payments-reliability", []string{"git.read", "kubernetes.rollback"}, "github.pr.create"},
+	} {
+		t.Run(test.team, func(t *testing.T) {
+			stateData := read(t, "../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json")
+			state, err := v1alpha1.ParseSystemIssuedState(stateData)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state.Principal.Team = test.team
+			loader := &policy.Loader{}
+			if err := loader.Load(policy.PolicyBundle{ID: "role-policy", Version: "1", Rules: []policy.Rule{{Team: test.team, Action: "claim.create", Project: request.Spec.ProjectRef, TemplateRef: request.Spec.TemplateRef, ToolCeiling: test.ceiling}}}); err != nil {
+				t.Fatal(err)
+			}
+			input := authorization.Request{RequestRef: request.Metadata.Name, Principal: state.Principal, Action: v1alpha1.Action{Name: "claim.create", Project: request.Spec.ProjectRef, TemplateRef: request.Spec.TemplateRef}}
+			var admission authorization.Admission
+			if _, err := (authorization.Gate{Evaluator: authorization.Authorizer{Policies: loader}}).Admit(input, func(got authorization.Admission) error { admission = got; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			got, validationErr := Resolve(request, template, admission)
+			if validationErr != nil || !reflect.DeepEqual(got.Tools, test.ceiling) {
+				t.Fatalf("tools/error = %v/%v, want %v", got, validationErr, test.ceiling)
+			}
+			issued, validationErr := ResolveForIssuance(request, template, admission)
+			if validationErr != nil {
+				t.Fatal(validationErr)
+			}
+			issuedAuthority, ok := issued.AuthorityFor(request)
+			if !ok || !reflect.DeepEqual(issuedAuthority.Tools, test.ceiling) {
+				t.Fatalf("issued authority = %v", issuedAuthority)
+			}
+			changes, ok := issued.ChangesFor(request)
+			if !ok {
+				t.Fatal("issued resolution lost request binding")
+			}
+			found := false
+			for _, change := range changes {
+				if change.Field == "tools" && change.Requested == test.wantExcluded && change.ReasonCode == "outside-policy-tool-ceiling" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("missing policy exclusion for %s: %+v", test.wantExcluded, changes)
+			}
+		})
+	}
+}
+
 func TestResolveRejectsCompletelyEmptyRequestedDimensions(t *testing.T) {
 	tests := map[string]struct {
 		path   string

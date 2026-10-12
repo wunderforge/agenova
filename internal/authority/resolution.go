@@ -55,7 +55,13 @@ func ResolveForIssuance(request *v1alpha1.ClaimRequest, template *v1alpha1.Agent
 	} {
 		for _, value := range dimension.requested {
 			if !contains(dimension.effective, value) {
-				changes = append(changes, Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+				reason := "outside-template-ceiling"
+				if dimension.field == "tools" && contains(template.Spec.CapabilityCeiling.Tools, value) {
+					if policyTools, limited := admission.ToolCeiling(); limited && !contains(policyTools, value) {
+						reason = "outside-policy-tool-ceiling"
+					}
+				}
+				changes = append(changes, Change{Field: dimension.field, Requested: value, ReasonCode: reason})
 			}
 		}
 	}

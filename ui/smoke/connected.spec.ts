@@ -64,7 +64,7 @@ test('connected Portal rejects an unrelated local demo API', async ({page}) => {
  await api(page,()=>[]);
  await page.route('**/api/setup', route => route.fulfill({json:{...setup,installation:{kind:'local-demo'}}}));
  await page.goto('/?mode=connected#/work');
- await expect(page.getByRole('alert')).toContainText('not an installed Agenova Platform');
+ await expect(page.getByRole('alert')).toContainText('not a recognized Agenova Platform API');
  await expect(page.getByRole('link',{name:'New work'})).toHaveCount(0);
 });
 test('connected Work polling does not repeatedly query Platform setup', async ({page}) => {
@@ -283,7 +283,7 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
  add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',target:'Mock git.read · logs/timeout.log'});
  await expect(page.locator('.portal-worker-current')).toContainText('Waiting for tool observation');
- await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call (mock)');
+ await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call');
  add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',providerStatus:'Succeeded'});
  add('WorkerActivity',{operation:'ObservationReceived',target:'Turn 1'});
  add('WorkerActivity',{operation:'TurnStarted',target:'Turn 2'});
@@ -311,7 +311,7 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  await expect(page.locator('.portal-work-access[open], .portal-work-execution[open]')).toHaveCount(0);
  await page.getByRole('link',{name:'View records',exact:true}).click();
  await page.getByRole('button',{name:'Tool Gateway',exact:true}).click();
- await expect(page.getByRole('link',{name:'Mock tool call finished',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Tool call finished',exact:true})).toBeVisible();
  await expect(page.getByRole('link',{name:'Model request finished',exact:true})).toHaveCount(0);
 });
 test('live source submits canonical intent then polls actual result and narrowed authority',async({page},info)=>{

@@ -373,7 +373,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Kind == "AuthorityResolved" {
 			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
 				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) || fact.PolicyRef == nil ||
-				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) ||
+				*fact.PolicyRef != view.State.PolicyRef || !authorityChangesMatch(view.Request, *view.State.EffectiveAuthority, fact.AuthorityChanges) ||
 				fact.BackendIdentity != nil || fact.InvocationID != "" || fact.ProviderStatus != "" || fact.Operation != "" || fact.Target != "" || fact.Decision != nil || fact.Result != "" {
 				return false
 			}
@@ -748,6 +748,25 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 		})
 	}
 	return changes
+}
+
+func authorityChangesMatch(request *v0.ClaimRequest, granted v0.EffectiveAuthority, actual []authority.Change) bool {
+	expected := expectedAuthorityChanges(request, granted)
+	if len(actual) != len(expected) {
+		return false
+	}
+	for index, change := range actual {
+		want := expected[index]
+		if change == want {
+			continue
+		}
+		if change.Field != "tools" || change.ReasonCode != "outside-policy-tool-ceiling" ||
+			change.Requested != want.Requested || change.Effective != want.Effective ||
+			want.Field != "tools" || want.ReasonCode != "outside-template-ceiling" {
+			return false
+		}
+	}
+	return true
 }
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {

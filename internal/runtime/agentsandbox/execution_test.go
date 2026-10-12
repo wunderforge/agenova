@@ -91,7 +91,7 @@ func TestExecutionExchangeTaskDependentResult(t *testing.T) {
 	decoder := json.NewDecoder(&output)
 	var sent workerprotocol.Task
 	var reply workerprotocol.Reply
-	if decoder.Decode(&sent) != nil || sent != task || decoder.Decode(&reply) != nil || reply.Text != result {
+	if decoder.Decode(&sent) != nil || !reflect.DeepEqual(sent, task) || decoder.Decode(&reply) != nil || reply.Text != result {
 		t.Fatal("task and governed response were not sent through stdio")
 	}
 }

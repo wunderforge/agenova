@@ -14,8 +14,10 @@ import (
 type ReferencePrincipalPreset string
 
 const (
-	ReferencePrincipalTeamA ReferencePrincipalPreset = "team-a"
-	ReferencePrincipalTeamB ReferencePrincipalPreset = "team-b"
+	ReferencePrincipalTeamA             ReferencePrincipalPreset = "team-a"
+	ReferencePrincipalTeamB             ReferencePrincipalPreset = "team-b"
+	ReferencePrincipalPaymentsDeveloper ReferencePrincipalPreset = "payments-developer"
+	ReferencePrincipalPaymentsSRE       ReferencePrincipalPreset = "payments-sre"
 )
 
 // ReferencePrincipalSource is the explicit local authentication boundary. It
@@ -41,6 +43,18 @@ func NewReferencePrincipalSource(preset ReferencePrincipalPreset) (ReferencePrin
 			Subject:               "user:team-b-engineer",
 			Team:                  "team-b",
 			AuthenticationContext: "reference:local",
+		}
+	case ReferencePrincipalPaymentsDeveloper:
+		principal = v1alpha1.Principal{
+			Subject:               "demo:payments-developer",
+			Team:                  "payments-development",
+			AuthenticationContext: "reference:operator-preset",
+		}
+	case ReferencePrincipalPaymentsSRE:
+		principal = v1alpha1.Principal{
+			Subject:               "demo:payments-sre",
+			Team:                  "payments-reliability",
+			AuthenticationContext: "reference:operator-preset",
 		}
 	default:
 		return ReferencePrincipalSource{}, fmt.Errorf("unknown local principal preset %q", preset)

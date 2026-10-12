@@ -20,6 +20,21 @@ it('accepts the installed API policy rule field names', async () => {
   expect((await connectedSource.setup()).policy.Rules[0].team).toBe('team-a');
 });
 
+it('accepts only the explicit controlled-kind local reference mode', async () => {
+  const setup = {
+    installation: { kind: 'local-controlled-kind-demo' },
+    principal: { subject: 'demo:payments-developer', team: 'payments-development', authenticationContext: 'reference:operator-preset' },
+    template: {
+      apiVersion: 'agenova.io/v1alpha1', kind: 'AgentTemplate', metadata: { name: 'engineer' },
+      spec: { artifact: { image: 'agenova-testworker:kind' }, entrypoint: { command: ['/agenova-workerctl', 'serve'] }, capabilityCeiling: {} },
+    },
+    policy: { ID: 'payment-incident-real-actions', Version: '1', Rules: [{ team: 'payments-development', action: 'claim.create', project: 'payments', templateRef: 'engineer' }] },
+    capabilities: { runtime: 'configured', model: 'configured', tool: 'real-host-demo' },
+  };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(setup), { status: 200 })));
+  expect((await connectedSource.setup()).installation.kind).toBe('local-controlled-kind-demo');
+});
+
 it('suggests only projects for the current principal and registered template', () => {
   const setup = {
     principal: { team: 'team-a' }, template: { metadata: { name: 'engineer' } },
