@@ -1,4 +1,9 @@
-# Member service composition (release gates still pending)
+# Member service composition (superseded Cognito wiring)
+
+**Do not deploy this Cognito configuration or run its bootstrap command.** The
+Owner selected Google OIDC with no separate password on 12 October 2026. This
+file records the earlier implementation until replacement composition is tested.
+See [current design](../../work/0215-invited-team-access/design.md).
 
 This is operator wiring for Ticket #215, not a completed production release.
 Live Cognito/RDS provisioning, invitation recovery, durable Work/reconciliation and the live two-account

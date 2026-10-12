@@ -9,13 +9,39 @@ The installed control plane selects a fixed Team A principal at process startup.
 
 ## Decision
 
-Use managed Cognito for directory/password/MFA and protocol endpoints; retain backend-neutral application authentication/authorization interfaces. Use PostgreSQL for application memberships, sessions, audit and Work records. The Owner selected budget-first hosting and no backups: use managed Amazon RDS for PostgreSQL with encrypted persistent storage, retained during scheduled stops; do not host the database on EC2. Review the complete costed topology before provisioning.
+Use Google OpenID Connect for personal sign-in, as selected by the Owner on
+12 October 2026. There is no Agenova password or Cognito directory in the target
+deployment. Google Cloud project `agenova-login` contains OAuth application
+registration only; application/runtime/database hosting remains on AWS.
 
-Separate ordinary member and operator paths. A member's HTTPS client supplies a verified access token/session; the service projects issuer+subject into a current membership and an immutable per-request principal. It then authorizes action/project/template and reuses claim resolution, runtime and Gateway boundaries. Never install a global mutable current-user variable.
+The server performs authorization-code exchange with PKCE, state and nonce bound
+to a short-lived, one-use login attempt. Pin Google's issuer, endpoints, signing
+algorithm and the configured web client audience; verify the authorized party
+when present. Google ID tokens are login assertions, NEVER API bearer credentials.
+Only `openid email` is requested; do not request Gmail, Drive or offline access.
+Discard Google access/refresh tokens after verifying the login assertion.
 
-Cognito public signup is disabled. Administrative invitation is a distinct audited application/operator action; the AWS directory adapter receives only a narrowly scoped invitation capability, never the human operator's admin credentials. No directory password or token is stored in Terraform. Invitations remain unsent until explicitly instructed for named recipients.
+Agenova issues opaque, revocable application sessions after current membership
+and invitation validation. Portal gets an HttpOnly Secure same-site cookie;
+native CLI completes a separate one-use PKCE-bound application authorization
+handoff through the browser and stores its application credential in the OS
+keychain. Never embed a Google client secret in the CLI. A CLI callback receives
+only a short-lived one-use application code, never a Google token or session.
 
-Native clients use a secretless public OAuth client and code+PKCE; web uses a distinct server-side client/session. Cognito-specific `token_use`, `client_id`, scope and optional resource-audience rules stay inside its validation adapter. Do not apply generic ID-token audience checks to an access token. Validate exact issuer and app-client allowlist; unknown keys trigger one bounded refresh rather than an unbounded request per invalid token. The library selection and algorithms must be pinned and tested before implementation.
+Invitations are application-owned and must not create Google accounts. Bind a
+verified Google issuer+subject atomically on first acceptance; require the
+invited verified email and one-use invitation proof. Do not auto-link accounts
+by matching email, strip Gmail dots/plus aliases, or reactivate disabled users.
+A Google login without membership/invitation grants no Work access. Bootstrap
+Owner identity remains explicit private operator input. Google account MFA is
+controlled by Google; do not claim the application enforces Cognito TOTP.
+
+Retain PostgreSQL memberships, roles, audit and encrypted sessions. Use managed
+Amazon RDS for PostgreSQL, with encrypted persistent storage retained during
+scheduled stops and no automated backups per Owner decision. Keep human
+identity, application authorization and AWS workload IAM separate. Review the
+complete costed topology before provisioning. Existing Cognito implementation
+below is historical/in-progress migration context, not an enabled target.
 
 Application membership, project roles and revocation are server-owned records. Member removal is checked independently of token lifetime. JWT validation alone cannot enforce revocation. Define the active-claim cancellation and concurrent-read boundary together with accepted E14 lifecycle/authorization contracts; do not add a new shared terminal phase merely to simplify restart handling.
 

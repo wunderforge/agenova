@@ -23,7 +23,7 @@ An invited member operates Agenova over HTTPS with a personal application identi
 3. Member may submit to authorized projects/templates and list/read own Work. Project-wide reading is an explicit role; platform management remains the operator path. Roles do not grant requested tools/models beyond existing claim resolution.
 4. Native CLI has an HTTPS connection profile independent of operator state. `login` uses system browser code+PKCE S256 with unpredictable state, bounded loopback callback and exact redirect/issuer/client binding. Token refresh secrets use OS credential storage; no silent plaintext fallback. `logout` clears local credentials and invalidates the applicable server session/grant.
 5. Browser uses an authenticated server-side session/BFF. No bearer/refresh token enters browser persistent storage, URL, logs, Work or evidence. Cookie flags, CSRF, session fixation, origin checks and rate limits have named executable tests.
-6. API accepts only explicitly configured bearer access tokens with verified signature, issuer, allowed algorithms, expected client/audience semantics, token use, expiry and required scope. ID tokens are not API access tokens. Bounded JWKS cache/rotation and network failures fail closed; no caller-selected discovery URL.
+6. Google ID tokens are accepted only at the bound login callback, with verified signature, issuer, audience, authorized party, nonce and expiry. They are never API access tokens. Protected APIs accept only Agenova-issued revocable application credentials with current membership checks. Bounded JWKS cache/rotation and network failures fail closed; no caller-selected discovery URL.
 7. Database persists membership, invitation state, policy references, idempotency keys, Work ownership/lifecycle/facts and session revocation. Concurrent operations enforce ownership in the data query/transaction, not merely UI filtering. Request-name collisions across users never return another user's evidence.
 8. Admission, durable acceptance and work dispatch use explicit transactional/idempotency boundaries. A crash with an uncertain provider result must not automatically repeat inference. Restore cannot reactivate terminal authority. Restart recovery records uncertainty and remains fail-closed until reconciled.
 9. Membership removal denies new requests immediately at the authorization read boundary; already-running claim termination/revocation and concurrent reads require a specified, tested bounded mechanism. Production release cannot claim instant revocation from JWT signature validation alone.
@@ -83,3 +83,11 @@ explicitly rejected self-hosted PostgreSQL on EC2. Daily stop/start retains all 
 it must not destroy/recreate the database. Automatic backups and backup-restore
 acceptance are removed from this feature scope. Durable admission/facts, crash
 reconciliation, migrations, rollback and restart recovery remain required.
+
+## Owner sign-in decision: Google OIDC
+
+On 12 October 2026 the Owner replaced Cognito/password accounts with existing
+Google accounts, including personal Gmail accounts. No separate Agenova password.
+The OAuth project is registration metadata, not a migration of hosting from AWS.
+Google verifies identity; application invitations and project roles still gate access.
+No claim of application-enforced Google MFA or enterprise SSO federation is made.

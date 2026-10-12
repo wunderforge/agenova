@@ -152,3 +152,21 @@ Preserve architecture invariants, immutable registration identities and existing
   cutover or email to the two confirmed recipients has occurred.
 
 - Latest reproducible results and remaining release gaps: [installed member evidence](evidence/installed-member.md).
+
+## Google sign-in replacement (latest Owner decision)
+
+- Owner selected Google OIDC and explicitly rejected Cognito/separate passwords.
+  This supersedes the earlier Cognito deployment/invitation decisions above.
+- Google Cloud project `agenova-login` was created using the current browser
+  account. No Google compute/database resources or billing upgrade were requested.
+- Implement Google callback verification, application-owned invitations, revocable
+  application credentials and native browser handoff; retain memberships/roles.
+- Do not apply `infra/identity` Cognito resources or send Cognito password emails.
+- Google OAuth registration and real two-account acceptance remain unfinished.
+  Existing Cognito composition must not be described as Google-ready.
+- Identity source: [Google OIDC documentation](https://developers.google.com/identity/openid-connect/openid-connect).
+
+- Google replacement foundation now has callback assertion/code-exchange adapters,
+  durable opaque application sessions and atomic Google invitation binding.
+  [Tests and release gaps](evidence/google-login.md) distinguish this from the
+  still-unfinished installed Google login/CLI flow. No real user invitation sent.
