@@ -5,6 +5,7 @@ package authorization
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,6 +94,24 @@ func TestAdmissionDefensivelyCopiesExternalConstraints(t *testing.T) {
 	second := admission.Constraints()
 	if second.Tools.Values[0] != "git.read" || *second.MaxTimeout != 5*time.Minute {
 		t.Fatalf("admission constraints retained mutable caller memory: %+v", second)
+	}
+}
+
+func TestOversizedExternalEvaluationFailsBeforeContinuation(t *testing.T) {
+	request := loadRequestFixture(t)
+	input := inputFor(request, loadIssuedFixture(t, "valid-team-a-engineer.json").Principal)
+	source := staticPolicySource{evaluator: policyEvaluatorFunc(func(context policy.EvaluationContext) (policy.Evaluation, error) {
+		return policy.Evaluation{
+			Context: context, Decision: policy.DecisionAllow,
+			PolicyRef: policy.PolicyReference{ID: "company-policy", Version: "1"},
+			Reasons:   []policy.Reason{{Code: "allow", Message: strings.Repeat("x", 1025)}},
+		}, nil
+	})}
+	calls := 0
+	_, err := (Gate{Evaluator: Authorizer{Policies: source}}).Admit(input, func(Admission) error { calls++; return nil })
+	validationErr, ok := err.(*v1alpha1.ValidationError)
+	if !ok || validationErr.FieldPath != "evaluation" || calls != 0 {
+		t.Fatalf("error/calls = %#v/%d, want evaluation validation and zero calls", err, calls)
 	}
 }
 
