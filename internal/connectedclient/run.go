@@ -629,7 +629,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		for _, invocation := range invocations {
 			if invocation.stage == 1 || invocation.stage == 2 {
-				return false
+				// Recovery reports missing observations without manufacturing a
+				// ProviderOutcome. Such evidence can NEVER prove success.
+				recoveredFailure := runOutcomeReasonCode == "run-recovered-interruption" &&
+					(view.Outcome.Status == "Failed" || view.Outcome.Status == "Expired" || view.Outcome.Status == "Cancelled")
+				if !recoveredFailure {
+					return false
+				}
 			}
 		}
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {

@@ -37,6 +37,8 @@ try {
     if(change.action==='disable') target.active=false;
     if(change.action==='enable') target.active=true;
     if(change.action==='account-role') target.accountRole=change.role;
+    if(change.action==='grant-role') target.roles=[{role:change.role,scopeKind:change.scopeKind,scopeRef:change.scopeRef}];
+    if(change.action==='revoke-role') target.roles=[];
     return route.fulfill({status:204});
    }
    return route.fulfill({contentType:'application/json',body:JSON.stringify(members)});
@@ -95,9 +97,20 @@ try {
  await page.getByText('Member access updated.',{exact:true}).waitFor();
  await member.locator('summary').click();
  await member.getByLabel('member@example.com account role').selectOption('admin');
- await member.locator('form').first().getByRole('button',{name:'Save',exact:true}).click();
+ await member.locator('details form').first().getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(() => [...document.querySelectorAll('article.member')].some(el => el.textContent.includes('member@example.com') && el.textContent.includes('admin · Active')));
  assert.deepEqual(memberChanges,[{principal:'member',action:'disable'},{principal:'member',action:'enable'},{principal:'member',action:'account-role',role:'admin'}]);
+ await member.getByLabel('Additional role for member@example.com').selectOption('governance-admin');
+ await member.getByLabel('Role scope',{exact:true}).selectOption('project');
+ await member.getByLabel('Role scope identifier').fill('payments');
+ await member.getByRole('button',{name:'Grant additional role'}).click();
+ await member.getByText('governance-admin · project: payments',{exact:false}).waitFor();
+ assert.deepEqual(memberChanges.at(-1),{principal:'member',action:'grant-role',role:'governance-admin',scopeKind:'project',scopeRef:'payments'});
+ await member.getByRole('button',{name:'Revoke role'}).click();
+ await member.getByText('governance-admin · project: payments',{exact:false}).waitFor({state:'hidden'});
+ assert.equal(memberChanges.at(-1).action,'revoke-role');
+ await member.getByLabel('Additional role for member@example.com').selectOption('platform-operator');
+ assert.deepEqual(await member.getByLabel('Role scope',{exact:true}).locator('option').allTextContents(),['installation']);
  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:resolve(out,'google-mobile.png'),fullPage:true});
  await page.setViewportSize({width:1100,height:950});

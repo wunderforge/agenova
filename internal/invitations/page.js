@@ -92,6 +92,22 @@ async function refreshMembers() {
    const row = node('article'); row.className = 'member';
    row.append(node('h3',member.email || member.principal),node('p',`${member.accountRole} · ${member.active?'Active':'Disabled'}`));
    for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role}`));
+   for(const grant of member.roles || []) {
+    const line=node('p',`${grant.role} · ${grant.scopeKind}: ${grant.scopeRef}`);
+    if(isOwner && member.active) {const remove=node('button','Revoke role');remove.type='button';remove.addEventListener('click',()=>changeMember({principal:member.principal,action:'revoke-role',...grant},remove));line.append(remove);}
+    row.append(line);
+   }
+   if(isOwner && member.active) {
+    const form=node('form');form.className='member-actions';
+    const role=node('select');role.setAttribute('aria-label',`Additional role for ${member.email || member.principal}`);
+    for(const [v,t] of [['governance-admin','Governance Admin'],['platform-operator','Platform Operator']]){const o=node('option',t);o.value=v;role.append(o);}
+    const scope=node('select');scope.setAttribute('aria-label','Role scope');
+    function scopes(){scope.replaceChildren();for(const v of role.value==='platform-operator'?['installation']:['project','account']){const o=node('option',v);o.value=v;scope.append(o);}}scopes();role.addEventListener('change',scopes);
+    const ref=node('input');ref.required=true;ref.maxLength=128;ref.placeholder='Exact scope identifier';ref.setAttribute('aria-label','Role scope identifier');
+    const add=node('button','Grant additional role');add.type='submit';form.append(role,scope,ref,add);
+    form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'grant-role',role:role.value,scopeKind:scope.value,scopeRef:ref.value.trim()},add);});
+    row.append(form,node('small','Additional duties do not grant AWS/EKS access. Policy management remains unavailable until a scoped registration boundary is enabled.'));
+   }
    const canManage = member.accountRole !== 'owner' && (isOwner || member.accountRole !== 'admin');
    if(canManage) {
     const details = node('details'); details.append(node('summary','Manage access'));

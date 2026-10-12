@@ -19,7 +19,14 @@ type ProjectGrant struct {
 	Project string `json:"project"`
 	Role    string `json:"role"`
 }
+type ScopedRole struct {
+	Role      string `json:"role"`
+	ScopeKind string `json:"scopeKind"`
+	ScopeRef  string `json:"scopeRef"`
+}
+
 type MemberView struct {
+	Roles       []ScopedRole   `json:"roles"`
 	Principal   string         `json:"principal"`
 	Email       string         `json:"email"`
 	AccountRole string         `json:"accountRole"`
@@ -27,6 +34,8 @@ type MemberView struct {
 	Projects    []ProjectGrant `json:"projects"`
 }
 type MemberChange struct {
+	ScopeKind string `json:"scopeKind,omitempty"`
+	ScopeRef  string `json:"scopeRef,omitempty"`
 	Principal string `json:"principal"`
 	Action    string `json:"action"`
 	Role      string `json:"role,omitempty"`

@@ -51,6 +51,27 @@ func (s Store) ListMembers(ctx context.Context, p v0.Principal) ([]invitations.M
 	if rows.Err() != nil {
 		return nil, invitations.ErrUnavailable
 	}
+	rows.Close()
+	for i := range result {
+		grants, err := tx.QueryContext(ctx, `SELECT role,scope_kind,scope_ref FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 ORDER BY role,scope_kind,scope_ref`, result[i].Principal, p.Team)
+		if err != nil {
+			return nil, invitations.ErrUnavailable
+		}
+		result[i].Roles = []invitations.ScopedRole{}
+		for grants.Next() {
+			var g invitations.ScopedRole
+			if grants.Scan(&g.Role, &g.ScopeKind, &g.ScopeRef) != nil {
+				grants.Close()
+				return nil, invitations.ErrUnavailable
+			}
+			result[i].Roles = append(result[i].Roles, g)
+		}
+		err = grants.Err()
+		grants.Close()
+		if err != nil {
+			return nil, invitations.ErrUnavailable
+		}
+	}
 	return result, nil
 }
 
@@ -61,6 +82,12 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 		return authentication.ErrForbidden
 	}
 	if c.Principal == "" || len(c.Principal) > 256 || len(c.Project) > 128 {
+		return invitations.ErrInvalid
+	}
+	if c.Action == "grant-role" || c.Action == "revoke-role" {
+		return s.ChangeScopedRole(ctx, p, c)
+	}
+	if c.ScopeKind != "" || c.ScopeRef != "" {
 		return invitations.ErrInvalid
 	}
 	if c.Action == "project-role" {
@@ -102,6 +129,13 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 		return authentication.ErrForbidden
 	}
 	if actor != Owner {
+		var privileged bool
+		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2)`, c.Principal, p.Team).Scan(&privileged) != nil {
+			return invitations.ErrUnavailable
+		}
+		if privileged {
+			return authentication.ErrForbidden
+		}
 		var scoped bool
 		// An account Admin may not disable a person with authority in projects
 		// that the Admin does not administer, or any existing project Admin.

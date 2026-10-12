@@ -207,3 +207,37 @@ Preserve architecture invariants, immutable registration identities and existing
 - Other interrupted Work still blocks startup pending reconciliation. The installed
   production composition deliberately does not enable the incomplete recovery path.
 - [Durable Work evidence and remaining gates](evidence/durable-work.md).
+
+## Interrupted allocation reconciliation
+
+- Member-service startup now acquires the durable writer and reconciles known
+  interrupted allocations before admission. Cleanup-only adapter reattachment
+  verifies the recorded binding and never starts/replays work.
+- Missing invocation results stay explicitly unknown. CLI/Portal recognize failed
+  recovery evidence without inventing ProviderOutcome records or model success.
+- PostgreSQL + HTTPS CLI fault tests and rendered UI checks pass. Unknown allocation
+  identity/previous cleanup failure remain operator blockers, not fabricated success.
+- [Recovery evidence and remaining production gates](evidence/recovery.md).
+
+## Owner-requested role separation, 12 October
+
+The Owner approved implementation of the six-duty plan: Account Owner, Project
+Admin, Governance Admin, Member, Viewer and installation-scoped Platform Operator.
+These are additive scoped duties, not implicit cloud grants. Retain existing
+account Admin compatibility while separating it from project grants.
+
+This slice adds explicit Owner-only grant/revoke of Governance Admin (account or
+existing project) and Platform Operator (installation), durable audit, current
+active-membership authorization and member UI. Owner has no implicit governance
+or installation capability. Platform duties never grant IAM/RBAC or business
+Work access; unknown actions deny.
+
+Architecture blocker: current registration has one installation-wide active
+Policy pointer and one compatible template slot. A project-scoped management API
+cannot safely reuse these writes: it could replace another project's policy.
+Requested maintainer decision: isolate registry/activation by account/project,
+or retain operator-only registration for this PR. Until resolved, do not mount
+policy/template mutation APIs or advertise the new grants as working management
+commands. No shared architecture contract was changed by this slice.
+
+- [Role matrix and scoped grant evidence](evidence/scoped-roles.md).

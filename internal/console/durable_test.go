@@ -10,6 +10,8 @@ import (
 	"github.com/wunderforge/agenova/internal/connectedclient"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/runtime"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -189,11 +191,12 @@ func testDurableRestart(t *testing.T, lostFinish bool) {
 // Inject a failed durable commit at the last boundary before a provider call.
 type failedAttemptStore struct {
 	*workstore.Store
-	failed atomic.Bool
+	failed   atomic.Bool
+	failKind string
 }
 
 func (s *failedAttemptStore) Append(ctx context.Context, f facts.Fact, state *v0.IssuedState) error {
-	if f.Kind == "ProviderAttempt" {
+	if f.Kind == s.failKind {
 		s.failed.Store(true)
 	}
 	if s.failed.Load() {
@@ -202,6 +205,15 @@ func (s *failedAttemptStore) Append(ctx context.Context, f facts.Fact, state *v0
 	return s.Store.Append(ctx, f, state)
 }
 func TestDurableFactFailurePreventsProviderAndRestartReplay(t *testing.T) {
+	testDurableFailure(t, "ProviderAttempt", 0)
+}
+func TestDurableUnknownAllocationCannotBeInventedDuringRecovery(t *testing.T) {
+	testDurableFailure(t, "Runtime", 0)
+}
+func TestDurableUncertainProviderOutcomeNeverRepeatsCall(t *testing.T) {
+	testDurableFailure(t, "ProviderOutcome", 1)
+}
+func testDurableFailure(t *testing.T, failKind string, calls int32) {
 	db := durableTestDB(t)
 	ctx := context.Background()
 	identity := identitydb.Store{DB: db}
@@ -222,7 +234,7 @@ func TestDurableFactFailurePreventsProviderAndRestartReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := &httpProvider{}
-	options := Options{Durable: &failedAttemptStore{Store: store}, Setup: memberTestSetup, Configure: memberTestConfigure, Access: identity, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
+	options := Options{Durable: &failedAttemptStore{Store: store, failKind: failKind}, Setup: memberTestSetup, Configure: memberTestConfigure, Access: identity, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 		return app.PrepareAssignment(data, principalSource{p}, loader, registeredTemplate{})
 	}}
 	service, err := NewServiceWithOptions(&verticalBackend{}, httpExecutor{}, provider, app.ReferencePrincipalTeamA, options)
@@ -242,7 +254,7 @@ func TestDurableFactFailurePreventsProviderAndRestartReplay(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	service.Close()
-	if provider.calls.Load() != 0 {
+	if provider.calls.Load() != calls {
 		t.Fatal("provider called without committed attempt")
 	}
 	if _, err := service.SubmitFor(httpInput("next"), p); err != workstore.ErrUnavailable {
@@ -256,7 +268,7 @@ func TestDurableFactFailurePreventsProviderAndRestartReplay(t *testing.T) {
 		t.Fatal("storage failure fabricated a complete result")
 	}
 	for _, f := range view.Facts {
-		if f.Kind == "ProviderAttempt" || f.Kind == "ProviderOutcome" {
+		if f.Kind == failKind || f.Kind == "ProviderOutcome" {
 			t.Fatal("uncommitted provider evidence published")
 		}
 	}
@@ -267,7 +279,92 @@ func TestDurableFactFailurePreventsProviderAndRestartReplay(t *testing.T) {
 		}
 		t.Fatal("unfinished Work silently replayed", err)
 	}
-	if provider.calls.Load() != 0 {
+	if provider.calls.Load() != calls {
 		t.Fatal("recovery repeated provider")
 	}
+	recovery := &recoveryTestBackend{failCleanup: true}
+	if failKind == "Runtime" {
+		if count, err := RecoverDurableWork(ctx, store, recovery); err != ErrRecoveryRequired || count != 0 {
+			t.Fatal("unknown allocation recovered", count, err)
+		}
+		if recovery.stopCalls != 0 || recovery.cleanupCalls != 0 {
+			t.Fatal("unknown allocation mutated backend")
+		}
+		return
+	}
+	if count, err := RecoverDurableWork(ctx, store, recovery); err != ErrRecoveryRequired || count != 0 {
+		t.Fatal("unconfirmed cleanup accepted", count, err)
+	}
+	recovery.failCleanup = false
+	if count, err := RecoverDurableWork(ctx, store, recovery); err != nil || count != 1 {
+		t.Fatal("known allocation recovery", count, err)
+	}
+	view, err = store.GetFor(ctx, p, first.RequestRef)
+	if err != nil || view.Outcome == nil || view.Outcome.Status != "Failed" {
+		t.Fatal("recovery did not finalize failure", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, view) }))
+	defer server.Close()
+	client := connectedclient.Client{Server: server.URL, HTTPClient: server.Client(), AccessToken: func(context.Context) (string, error) { return "test-token", nil }}
+	if _, err := client.Show(view.RequestRef); err != nil {
+		t.Fatal("recovered evidence violates CLI contract", err)
+	}
+	// A recovery label cannot turn an unobserved call into a successful task.
+	originalView := evidence.Clone(view)
+	view.Outcome.Status = "Succeeded"
+	view.Outcome.Failure = ""
+	view.State.Claim.Phase = v0.ClaimPhaseSucceeded
+	for i := range view.Facts {
+		f := &view.Facts[i]
+		if f.Kind == "Runtime" && f.Operation == "Failed" {
+			f.Operation = "Succeeded"
+		}
+		if f.Kind == "RunOutcome" {
+			f.Operation = "Succeeded"
+			f.Reason = ""
+		}
+	}
+	for i := range view.State.Evidence.RuntimeEvents {
+		if view.State.Evidence.RuntimeEvents[i].Kind == "Failed" {
+			view.State.Evidence.RuntimeEvents[i].Kind = "Succeeded"
+		}
+	}
+	if _, err := client.Show(view.RequestRef); err == nil {
+		t.Fatal("unknown invocation accepted as success")
+	}
+	view = originalView
+
+	if count, err := RecoverDurableWork(ctx, store, recovery); err != nil || count != 0 {
+		t.Fatal("recovery repeated", count, err)
+	}
+	if recovery.stopCalls != 2 || recovery.cleanupCalls != 2 || provider.calls.Load() != calls {
+		t.Fatal("unexpected replay counts")
+	}
+}
+
+type recoveryTestBackend struct {
+	verticalBackend
+	cleanupCalls, stopCalls int
+	failCleanup             bool
+}
+
+func (*recoveryTestBackend) Allocate(runtime.AllocateRequest) (runtime.Allocation, error) {
+	panic("recovery allocated")
+}
+func (*recoveryTestBackend) Start(v0.SandboxClaimBackendIdentity) error {
+	panic("recovery started worker")
+}
+func (*recoveryTestBackend) RestoreForCleanup(string, v0.SandboxClaimBackendIdentity) error {
+	return nil
+}
+func (b *recoveryTestBackend) Terminate(v0.SandboxClaimBackendIdentity) error {
+	b.stopCalls++
+	return nil
+}
+func (b *recoveryTestBackend) Cleanup(id v0.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
+	b.cleanupCalls++
+	if b.failCleanup {
+		return runtime.CleanupResult{}, ErrRecoveryRequired
+	}
+	return runtime.CleanupResult{Identity: id, Released: true}, nil
 }

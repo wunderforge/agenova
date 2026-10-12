@@ -15,6 +15,7 @@ import (
 // DurableWork persists evidence behind the existing application boundary. It
 // cannot issue authority, select a runtime or replay stored tasks.
 type DurableWork interface {
+	CheckWriter(context.Context) error
 	Reserve(context.Context, workstore.Snapshot) (bool, error)
 	Existing(context.Context, v0.Principal, string, string) (evidence.View, bool, error)
 	Append(context.Context, facts.Fact, *v0.IssuedState) error

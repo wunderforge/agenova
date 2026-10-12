@@ -141,3 +141,27 @@ are administered by the actor. Owner itself cannot be disabled/demoted here.
 Enabling a disabled account never restores old sessions; a fresh login is required.
 These controls use authenticated `POST /api/members`, not caller-supplied team or
 actor fields. Changes and their actor are audited in the same database transaction.
+
+## Durable Work and interrupted startup
+
+Member mode requires migration 005 and an exclusive PostgreSQL writer session.
+Stop the previous writer cleanly before replacement; a second live writer cannot
+accept Work. The service persists admission before dispatch and records governed
+calls before invoking providers. User-chosen names are scoped to the member; use
+returned Work references for later `agenova work show`. Retrying identical input
+with the same name returns its existing Work, including after restart.
+
+Startup repairs lost terminal publication and reconciles recorded allocations by
+stopping and releasing their original worker. It never repeats inference, allocates
+another worker, or restores a terminal claim's authority. Unknown allocation identity,
+changed worker ownership, unconfirmed release and previously failed cleanup block
+startup with an operator recovery diagnostic. Do not delete database rows, mark them
+complete manually, or resubmit under a new name to evade that block. Preserve the
+record and inspect its exact backend correlation. The operator procedure and real
+cluster recovery campaign remain release gates.
+
+A failed recovered Work can contain a committed ProviderAttempt with no outcome.
+The Portal displays `Outcome unknown`; an Allow with no attempted call is `Not
+started`. These are observations about missing execution evidence, not a new
+permission or a successful inference result. The original provider effect may have
+completed, so recovery does not automatically retry it.

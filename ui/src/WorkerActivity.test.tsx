@@ -71,3 +71,17 @@ describe('recorded worker calls',()=>{
     expect(actions[0]).toMatchObject({label:'Model access',active:false});
   });
 });
+
+it('shows interrupted calls as unknown and unattempted grants as not started',()=>{
+ const records:Fact[]=[
+  {...fact('grant-a',1,'ModelDecision','a'),result:'Allow'},
+  {...fact('grant-b',2,'ModelDecision','b'),result:'Allow'},
+  fact('attempt-b',3,'ProviderAttempt','b','Attempted'),
+  {...fact('end',4,'RunOutcome'),operation:'Failed',reasonCode:'run-recovered-interruption'},
+ ];
+ const actions=workerActions(records,'Failed','#/activity');
+ expect(actions.find(a=>a.id==='grant-a')).toMatchObject({state:'Not started',active:false});
+ expect(actions.find(a=>a.id==='attempt-b')).toMatchObject({state:'Outcome unknown',active:false});
+ expect(actions.some(a=>a.state==='Succeeded')).toBe(false);
+ expect(workerActions(records,'Running','#/activity').find(a=>a.id==='attempt-b')?.state).toBe('Waiting for response');
+});

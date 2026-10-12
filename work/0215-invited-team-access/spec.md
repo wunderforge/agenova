@@ -91,3 +91,19 @@ Google accounts, including personal Gmail accounts. No separate Agenova password
 The OAuth project is registration metadata, not a migration of hosting from AWS.
 Google verifies identity; application invitations and project roles still gate access.
 No claim of application-enforced Google MFA or enterprise SSO federation is made.
+
+## Owner-approved role separation
+
+Account ownership, project use, governance and installation operation are distinct
+permissions. Governance Admin and Platform Operator are additive scoped duties,
+assigned/revoked by the account Owner. An Owner is not implicitly authorized for
+these duties. Governance scope is an account or existing project; installation
+scope identifies an installation and does not itself confer cloud permissions.
+The existing account Admin remains a compatibility role, separate from project
+Admin grants. Project Admin/Member/Viewer continue to govern Work and evidence.
+
+Current delivery adds persisted/audited grant management and strict authorization
+predicates. General policy/template CRUD remains excluded. Existing immutable
+operator registration remains in place until a maintainer approves the required
+project-isolated registry/activation boundary. Grant management must not be
+represented as implemented remote governance or deployment commands.

@@ -31,6 +31,7 @@ import (
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
+	"github.com/wunderforge/agenova/internal/workstore"
 )
 
 type status struct {
@@ -69,10 +70,17 @@ func serve() error {
 		defer members.db.Close()
 	}
 	var access console.AccessAuthorizer
+	var durable console.DurableWork
 	if members != nil {
 		access = members.store
+		writer, err := workstore.Acquire(context.Background(), members.db)
+		if err != nil {
+			return fmt.Errorf("acquire durable Work writer: %w", err)
+		}
+		defer writer.Close()
+		durable = writer
 	}
-	configured, err := configuredServiceWithAccess("/etc/agenova/effective-platform.json", access)
+	configured, err := configuredServiceWithDurable("/etc/agenova/effective-platform.json", access, durable)
 	if err != nil {
 		return err
 	}
@@ -145,6 +153,9 @@ func configuredService(path string) (*console.Service, error) {
 }
 
 func configuredServiceWithAccess(path string, access console.AccessAuthorizer) (*console.Service, error) {
+	return configuredServiceWithDurable(path, access, nil)
+}
+func configuredServiceWithDurable(path string, access console.AccessAuthorizer, durable console.DurableWork) (*console.Service, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read installed Platform: %w", err)
@@ -286,6 +297,15 @@ func configuredServiceWithAccess(path string, access console.AccessAuthorizer) (
 		},
 	}
 	options.Access = access
+	options.Durable = durable
+	if durable != nil {
+		recoveryCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		_, recoveryErr := console.RecoverDurableWork(recoveryCtx, durable, adapter)
+		cancel()
+		if recoveryErr != nil {
+			return nil, fmt.Errorf("durable Work recovery incomplete; reconcile the recorded allocation before admitting new Work: %w", recoveryErr)
+		}
+	}
 	if access == nil {
 		prepare := options.PrepareFor
 		options.PrepareFor = nil

@@ -274,3 +274,13 @@ func (s *Store) LastSequence(ctx context.Context) (uint64, error) {
 	}
 	return seq, nil
 }
+
+// CheckWriter checks the same fenced connection used for all durable writes.
+func (s *Store) CheckWriter(ctx context.Context) error {
+	return s.transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "SELECT 1"); err != nil {
+			return ErrUnavailable
+		}
+		return nil
+	})
+}
