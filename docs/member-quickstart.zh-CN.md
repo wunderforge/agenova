@@ -14,13 +14,16 @@
 
 ## 2. 安装 CLI（macOS）
 
-已有 CLI 可直接检查：
+先安装 [Homebrew](https://brew.sh/)，再运行：
 
 ```bash
+brew install Leo1piece/agenova/agenova
 agenova --version
 ```
 
-本指南验证版本为 `0.1.0-preview.20261012.1`。目前是预览版，公开 Homebrew tap 尚未发布；不要使用不存在的公共安装命令。新电脑安装见文末。
+[公开 tap](https://github.com/Leo1piece/homebrew-agenova) 当前提供 `0.1.0-preview.20261012.1` 预览版，安装时自动编译；已实测 macOS Apple Silicon。
+
+更新：`brew update && brew upgrade Leo1piece/agenova/agenova`。
 
 ## 3. 登录 CLI
 
@@ -69,17 +72,14 @@ agenova work show <上一步返回的request-ref>
 
 退出 CLI：`agenova logout`。网页退出使用 **Log out**，两者是独立登录会话。
 
-## 新电脑的预览版安装
+## 已使用旧的本地 tap
 
-需要已安装 Homebrew 和 Git。下面从项目官方仓库固定提交建立本地 tap，不是已经发布的公共 tap：
+只有之前安装过 `agenova/preview` 的用户需要切换；新用户跳过：
 
 ```bash
-git clone --no-checkout https://github.com/wunderforge/agenova.git agenova-cli
-cd agenova-cli
-git checkout 64fffe1
-brew tap agenova/preview "$PWD"
-brew install agenova/preview/agenova
-agenova --version
+brew uninstall agenova/preview/agenova
+brew untap agenova/preview
+brew install Leo1piece/agenova/agenova
 ```
 
-如果电脑已有 `agenova/preview` tap，请沿用现有安装，不重复添加。本次安装验证范围为 macOS Apple Silicon；其他系统不在本指南的实测范围内。
+切换后若出现钥匙串提示，按第 3 步处理。

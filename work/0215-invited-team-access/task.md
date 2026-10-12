@@ -390,3 +390,18 @@ records successful installed CLI login, remembered-server run/list/show and Port
 verification. This reused an existing approved account, not a fresh registration.
 The Nova Micro call succeeded but its answer was inadequate; do not treat execution
 success as answer-quality acceptance. No live role changes were made.
+
+## Public Homebrew tap
+
+Owner requested public one-command installation. Published
+https://github.com/Leo1piece/homebrew-agenova under the authenticated Owner's
+personal GitHub namespace, containing only the reviewed Formula and instructions.
+It pins the same tested source archive/checksum and labels the release preview.
+Actually removed the old local-tap executable and installed with
+`brew install Leo1piece/agenova/agenova`; macOS arm64 compilation succeeded.
+The guide now uses this public command. No stable release, notarization, bottle,
+Intel validation or upstream-organization ownership is implied.
+Public-tap verification: Homebrew formula test passed (`--version`, `--help`),
+`agenova work list` succeeded against the remembered live server after switching
+installations, and the documentation gate passed. No re-login was required in
+this run. Source code is unchanged from the previously passed full gate.
