@@ -18,11 +18,12 @@ const server=createServer(async(req,res)=>{
  if(req.url==='/authorize'){res.writeHead(200,{'Content-Type':'text/plain'});res.end('Google authorization reached.');return;}
  assert.equal(req.url,'/login');
  if(req.method==='POST'){
+  assert.equal(req.headers.origin,origin,'same-origin form must preserve Origin for CSRF validation');
   let body='';for await(const chunk of req)body+=chunk;
   payload=new URLSearchParams(body);res.writeHead(303,{Location:`${provider}/authorize`});res.end();return;
  }
  const csp=`default-src 'none'; style-src 'sha256-${hash(css)}'; script-src 'sha256-${hash(js)}'; form-action 'self' ${provider}; frame-ancestors 'none'`;
- res.writeHead(200,{'Content-Type':'text/html','Content-Security-Policy':csp,'Referrer-Policy':'no-referrer'});res.end(html);
+ res.writeHead(200,{'Content-Type':'text/html','Content-Security-Policy':csp,'Referrer-Policy':'same-origin'});res.end(html);
 });
 await new Promise(resolve=>server.listen(0,'0.0.0.0',resolve));
 origin=`http://127.0.0.1:${server.address().port}`;

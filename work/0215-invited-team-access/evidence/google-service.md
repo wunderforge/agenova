@@ -76,3 +76,21 @@ assertion checks the production Google CSP allowlist. No fixture is live IdP pro
 - Actual automated Chrome click still produced ERR_BLOCKED_BY_CLIENT; IAB did not
   navigate. User manual click requested to distinguish client interception.
   Real Google authentication and two-user acceptance are NOT yet verified.
+
+### Follow-up: native form Origin
+
+A second real-browser fixture reproduced `Origin: null` for the HTML POST when
+Referrer-Policy was `no-referrer`. The synthetic handler previously accepted the
+POST without the production Origin check, hiding this failure. Use `same-origin`
+on BFF responses to preserve Origin on same-origin forms while suppressing external
+referrers. The fixture now asserts the actual POST Origin; do not accept null
+Origin or relax the service's pinned-origin check. Focused browser and websession
+tests pass. Live rollout and Google navigation evidence follow separately.
+
+- Follow-up full gate passed (53 browser smoke cases).
+- Follow-up live image:
+  `sha256:bb9bc348da700c6bc0262d1debef223151eb51ad26120592b46bc6f57f5e4a3b`.
+  Kubernetes rollout completed. In the actual Codex browser, clicking Continue with
+  Google reached accounts.google.com and rendered “Choose an account” for Agenova.
+  This supersedes the earlier navigation blocker; account selection/consent,
+  Owner bootstrap and invited Admin acceptance remain separate pending tests.

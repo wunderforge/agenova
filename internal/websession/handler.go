@@ -124,7 +124,8 @@ func failure(w http.ResponseWriter, status int) {
 }
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	// Keep Origin on same-origin form POSTs; suppress referrers to other sites.
+	w.Header().Set("Referrer-Policy", "same-origin")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.TLS == nil {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
