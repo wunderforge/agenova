@@ -148,6 +148,23 @@ func TestResolveDoesNotApplyTemplateDefaults(t *testing.T) {
 	}
 }
 
+func TestResolveDoesNotTreatPolicyConstraintsAsAuthorityGrant(t *testing.T) {
+	request, template, _ := fixtures(t)
+	admission := admitWithConstraints(t, request, &policy.AuthorityConstraints{
+		Tools: &policy.StringSetConstraint{Values: []string{"shell.exec"}},
+	})
+	got, err := Resolve(request, template, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(got.Tools, "shell.exec") {
+		t.Fatalf("Policy constraint expanded authority beyond the request/template: %+v", got)
+	}
+	if !reflect.DeepEqual(got.Tools, []string{"git.read", "git.write", "github.pull-request"}) {
+		t.Fatalf("M1 changed existing authority behavior before M3 constraint resolution: %v", got.Tools)
+	}
+}
+
 func TestResolveReturnsIndependentSnapshot(t *testing.T) {
 	request, template, _ := fixtures(t)
 	got, err := Resolve(request, template, admit(t, request))
@@ -202,6 +219,68 @@ func admit(t *testing.T, request *v1alpha1.ClaimRequest) authorization.Admission
 		t.Fatal(err)
 	}
 	return admission
+}
+
+func admitWithConstraints(t *testing.T, request *v1alpha1.ClaimRequest, constraints *policy.AuthorityConstraints) authorization.Admission {
+	t.Helper()
+	stateData := read(t, "../../harness/fixtures/contract/v0/inputs/issued-state/valid-team-a-engineer.json")
+	state, stateErr := v1alpha1.ParseSystemIssuedState(stateData)
+	if stateErr != nil {
+		t.Fatal(stateErr)
+	}
+	input := authorization.Request{
+		RequestRef: request.Metadata.Name,
+		Principal:  state.Principal,
+		Action: v1alpha1.Action{
+			Name:        "claim.create",
+			Project:     request.Spec.ProjectRef,
+			TemplateRef: request.Spec.TemplateRef,
+		},
+	}
+	context := policy.EvaluationContext{
+		Principal: policy.PrincipalContext{
+			Subject:               state.Principal.Subject,
+			AuthenticationContext: state.Principal.AuthenticationContext,
+			Attributes: []policy.Attribute{{
+				Name: "team", Values: []string{state.Principal.Team},
+			}},
+		},
+		Action: "claim.create",
+		Resource: policy.ResourceContext{
+			Type: "assignment", ID: request.Metadata.Name,
+			Attributes: []policy.Attribute{
+				{Name: "project", Values: []string{request.Spec.ProjectRef}},
+				{Name: "templateRef", Values: []string{request.Spec.TemplateRef}},
+			},
+		},
+	}
+	source := fixedPolicySource{evaluator: fixedPolicyEvaluator{evaluation: policy.Evaluation{
+		Context: context, Decision: policy.DecisionAllow,
+		PolicyRef:   policy.PolicyReference{ID: "company-policy", Version: "1"},
+		Reasons:     []policy.Reason{{Code: "company-allow", Message: "allowed"}},
+		Constraints: constraints,
+	}}}
+	var admission authorization.Admission
+	_, err := (authorization.Gate{Evaluator: authorization.Authorizer{Policies: source}}).Admit(input, func(got authorization.Admission) error {
+		admission = got
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return admission
+}
+
+type fixedPolicyEvaluator struct{ evaluation policy.Evaluation }
+
+func (f fixedPolicyEvaluator) Evaluate(policy.EvaluationContext) (policy.Evaluation, error) {
+	return f.evaluation, nil
+}
+
+type fixedPolicySource struct{ evaluator policy.Evaluator }
+
+func (s fixedPolicySource) Snapshot() (policy.Evaluator, bool) {
+	return s.evaluator, s.evaluator != nil
 }
 
 func fixtures(t *testing.T) (*v1alpha1.ClaimRequest, *v1alpha1.AgentTemplate, *v1alpha1.EffectiveAuthority) {
