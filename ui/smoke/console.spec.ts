@@ -93,9 +93,12 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   const select = page.getByLabel('Fixture presentation scenario');
   await select.focus();
   await expect(select).toBeFocused();
+  // Native select Home/ArrowDown handling differs by OS. Exercise keyboard
+  // type-ahead for the named option instead of assuming a popup cursor index.
   await page.keyboard.press('l');
+  await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\?scenario=loading$/);
-  await expect(page.getByLabel('Fixture presentation scenario')).toHaveValue('loading');
+  await expect(select).toHaveValue('loading');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
   await expect(page.getByText('Allow', { exact: true })).toHaveCount(0);

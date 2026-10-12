@@ -1,0 +1,11 @@
+[
+    {
+        "Name": "demo.agenova.app.",
+        "Type": "A",
+        "AliasTarget": {
+            "HostedZoneId": "Z1GM3OXH4ZPM65",
+            "DNSName": "agenova-demo-1264882326.ap-southeast-2.elb.amazonaws.com.",
+            "EvaluateTargetHealth": false
+        }
+    }
+]
