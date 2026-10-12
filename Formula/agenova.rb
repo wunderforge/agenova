@@ -1,9 +1,9 @@
 class Agenova < Formula
   desc "Claim-scoped agent execution CLI"
   homepage "https://github.com/wunderforge/agenova"
-  url "https://github.com/wunderforge/agenova/archive/02d4adb67f28c5092db037468d8096e909b8acbb.tar.gz"
-  version "0.1.0-preview.20261012"
-  sha256 "6e2af0cc2adecace57754e27b29a3b946efa6c1cdfe58e58091bab21a474221f"
+  url "https://github.com/wunderforge/agenova/archive/64395c9be7e2c2868616301ac6edb9d413c2e211.tar.gz"
+  version "0.1.0-preview.20261012.1"
+  sha256 "14359e53f8110c8e87704fc32b50269d190986dc49410fce00990bd750b9099b"
   license "Apache-2.0"
 
   depends_on "go" => :build

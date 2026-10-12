@@ -372,3 +372,12 @@ retain their ACL in the keyring dependency: users may need Always Allow once;
 upgrades/locked keychains can still prompt. Never delete credentials to bypass OS
 consent. Verify focused CLI/login tests and the full gate; real macOS prompt
 behavior requires user authorization and must not be claimed from unit tests.
+
+CLI usability verification: focused login/CLI/composition tests passed; final
+`check.ps1 -All` passed, including 55 browser cases. Homebrew preview
+`0.1.0-preview.20261012.1` pins implementation commit 64395c9 and was installed by
+an actual local-tap source upgrade. The public tap remains unpublished. After
+upgrading, sign in once with `agenova login --server https://app.agenova.app`, then
+use `agenova work list` or `agenova run -f work.yaml`. Existing Keychain ACLs may
+still require user-selected Always Allow; zero-prompt operation on this user's
+existing item has not been verified and is not claimed.
