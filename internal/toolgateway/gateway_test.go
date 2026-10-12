@@ -408,3 +408,61 @@ func TestGatewayPreservesExperimentalParentScopeWithoutMakingLineageRequired(t *
 		t.Fatal("expected one Allow attempt and one recorded Deny")
 	}
 }
+
+// Denials raised before the claim is resolved must still reach the trusted
+// decision sink, or a malformed or unknown-claim attempt leaves no evidence at
+// all. They must not write the claim-attributed store, because req.ClaimID is
+// unverified at that point.
+func TestPreResolutionDenialsReachTheObserverWithoutClaimAttribution(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*Request)
+	}{
+		{"missing claim identity", func(r *Request) { r.ClaimID = " " }},
+		{"incomplete operation", func(r *Request) { r.Action = "" }},
+		{"unknown claim", func(r *Request) { r.ClaimID = "claim:not-issued" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var seen []gateway.Decision
+			gw, _, store, _, adapter := fixture(t, WithObserver(func(_ Request, d gateway.Decision) error {
+				seen = append(seen, d)
+				return nil
+			}))
+			req := teamARequest(t)
+			test.mutate(&req)
+			decided := invoke(t, gw, req)
+			if decided.Result != v1alpha1.DecisionResultDeny {
+				t.Fatalf("result = %v, want Deny", decided.Result)
+			}
+			if len(seen) != 1 || seen[0].InvocationID == "" || seen[0].Result != v1alpha1.DecisionResultDeny {
+				t.Fatalf("observer saw %#v, want one denial carrying an invocation ID", seen)
+			}
+			if len(adapter.calls) != 0 {
+				t.Fatalf("a denied request reached the tool adapter: %#v", adapter.calls)
+			}
+			// Negative case: no claim-attributed invocation is fabricated, for the
+			// requested claim or for the empty string.
+			if got := len(store.ToolInvocations(req.ClaimID)); got != 0 {
+				t.Fatalf("store recorded %d invocations for an unverified claim", got)
+			}
+			if got := len(store.ToolInvocations("")); got != 0 {
+				t.Fatalf("store recorded %d orphan invocations", got)
+			}
+		})
+	}
+}
+
+// A recording failure on a pre-resolution denial keeps failing closed.
+func TestPreResolutionDenialFailsClosedWhenRecordingFails(t *testing.T) {
+	gw, _, _, _, adapter := fixture(t, WithObserver(func(Request, gateway.Decision) error {
+		return errors.New("sink unavailable")
+	}))
+	req := teamARequest(t)
+	req.ClaimID = "claim:not-issued"
+	if _, err := gw.Invoke(req); err == nil {
+		t.Fatal("a denial whose record could not be written was reported as clean")
+	}
+	if len(adapter.calls) != 0 {
+		t.Fatalf("a denied request reached the tool adapter: %#v", adapter.calls)
+	}
+}
