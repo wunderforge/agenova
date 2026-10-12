@@ -28,7 +28,7 @@ An invited member operates Agenova over HTTPS with a personal application identi
 8. Admission, durable acceptance and work dispatch use explicit transactional/idempotency boundaries. A crash with an uncertain provider result must not automatically repeat inference. Restore cannot reactivate terminal authority. Restart recovery records uncertainty and remains fail-closed until reconciled.
 9. Membership removal denies new requests immediately at the authorization read boundary; already-running claim termination/revocation and concurrent reads require a specified, tested bounded mechanism. Production release cannot claim instant revocation from JWT signature validation alone.
 10. Every protected management, submission and read surface is inventoried, including setup/configuration/provider diagnostics. Anonymous access is limited to health and explicit authentication flow endpoints; detailed health is private.
-11. Backups, migration/rollback, audit retention, incident handling, usage/concurrency ceilings and observability have concrete ownership and recovery tests before release.
+11. Migration/rollback, audit retention, incident handling, usage/concurrency ceilings and observability have concrete ownership and recovery tests before release.
 
 ## Negative Cases
 
@@ -51,3 +51,35 @@ The project/team account is a membership and resource-ownership container. Each 
 The daily availability window must preserve identity, membership and durable Work across shutdown. EKS node scale-down is not cluster pause. No nightly destruction or startup automation is enabled from this specification alone; choose a costed lifecycle and prove data/recovery behavior first.
 
 Owner decision (2026-10-12): only explicitly designated deployment administrators install/upgrade the shared EKS service. Project administrator membership alone is not deployment authorization. Ordinary invited users must be denied installation and cluster-management operations, with no automatic IAM/EKS/RBAC grant.
+
+## Confirmed initial users and application roles
+
+Owner confirmed on 12 October 2026:
+
+- the confirmed Owner email (private operator input): initial account Owner.
+- the confirmed invited Admin email (private operator input): account Admin and Admin of the initial authorized project,
+  not merely Member. Must use both Portal and native CLI without AWS/EKS credentials.
+
+Owner appoints/removes Admins. Admin invites and manages Member/Viewer project grants,
+submits Work and reads the projects they administer. Member submits and reads own
+Work in explicitly granted projects. Viewer only reads evidence in explicitly granted
+projects. Account-level Admin membership alone does not grant access to every project;
+project grants remain explicit. Neither Owner nor Admin implies deployment IAM/RBAC,
+and no application role bypasses policy/template/model/claim authority checks.
+
+Owner chose budget-first production hosting within AUD100/month while retaining the
+EKS installation option. All future cutover targets are real environments; shared demo
+identity/fallback is not an acceptable completion path. The old demo-destruction
+heartbeat was paused to prevent accidental destruction under an obsolete deadline.
+No new daily stop/start schedule is active. Existing resource costs must be accounted
+for during migration, not ignored when estimating the new service.
+
+## Owner storage decision
+
+On 12 October the Owner authorized a low-cost AWS database within the existing
+AUD100/month budget and explicitly excluded database backups. Managed Amazon RDS for PostgreSQL is the selected hosting approach, using
+Single-AZ and a small instance with encrypted persistent storage. The Owner
+explicitly rejected self-hosted PostgreSQL on EC2. Daily stop/start retains all member/Work data;
+it must not destroy/recreate the database. Automatic backups and backup-restore
+acceptance are removed from this feature scope. Durable admission/facts, crash
+reconciliation, migrations, rollback and restart recovery remain required.

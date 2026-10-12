@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Team invitations · Agenova</title><style>{{styles}}</style></head>
+<body><header><a href="/?mode=connected">Agenova / Work</a><form method="post" action="/logout"><button class="quiet">Log out</button></form></header>
+<main><p class="eyebrow">TEAM ACCESS</p><h1>Invite your team</h1><p class="intro">Give each person their own sign-in and access to a project.</p>
+<section class="card"><h2>New invitation</h2><form id="invite">
+<label>Email address<input id="email" name="email" type="email" autocomplete="email" placeholder="person@example.com" required maxlength="254"></label>
+<div class="fields"><label>Project<input id="project" name="project" placeholder="payments" required maxlength="128"></label>
+<label><span id="role-label">Role</span><select id="role" name="role" aria-labelledby="role-label"><option value="member">Member</option><option value="viewer">Viewer</option><option value="admin">Admin (Owner only)</option></select></label></div>
+<p id="role-help">Members can run Work and read their own evidence in this project.</p><button id="send" type="submit">Send invitation</button></form>
+<p id="notice" role="status" aria-live="polite"></p></section>
+<section class="card"><div class="section-heading"><h2>Invitations</h2><button id="refresh" class="quiet" type="button">Refresh</button></div><p id="loading">Loading invitations…</p><ul id="invitations"></ul></section>
+<p class="footnote">Project roles govern application access. Work still follows the project's model and tool policies.</p></main><script>{{script}}</script></body></html>

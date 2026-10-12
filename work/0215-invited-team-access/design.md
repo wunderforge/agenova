@@ -9,7 +9,7 @@ The installed control plane selects a fixed Team A principal at process startup.
 
 ## Decision
 
-Use managed Cognito for directory/password/MFA and protocol endpoints; retain backend-neutral application authentication/authorization interfaces. Use a separately managed durable relational store for application memberships, sessions, audit and Work records. The final AWS database availability/topology depends on budget and recovery targets; do not provision from this draft.
+Use managed Cognito for directory/password/MFA and protocol endpoints; retain backend-neutral application authentication/authorization interfaces. Use PostgreSQL for application memberships, sessions, audit and Work records. The Owner selected budget-first hosting and no backups: use managed Amazon RDS for PostgreSQL with encrypted persistent storage, retained during scheduled stops; do not host the database on EC2. Review the complete costed topology before provisioning.
 
 Separate ordinary member and operator paths. A member's HTTPS client supplies a verified access token/session; the service projects issuer+subject into a current membership and an immutable per-request principal. It then authorizes action/project/template and reuses claim resolution, runtime and Gateway boundaries. Never install a global mutable current-user variable.
 
@@ -29,7 +29,7 @@ Production uses its own Terraform root/state and lifecycle. It must not be attac
 - Application authorization: current membership, action, project, ownership; consumes accepted policy evaluation contract (#207), does not invent competing policy semantics.
 - API/BFF: request-local context, safe sessions, typed failures and redacted transport; #203 compatibility.
 - CLI: explicit connection profile, browser PKCE, OS secret storage, refresh/logout; no Kubernetes requirement for members.
-- Persistence: transactional ownership and facts, migration, idempotency, restart reconciliation, backups.
+- Persistence: transactional ownership and facts, migration, idempotency, restart reconciliation.
 - Operator infrastructure: IAM workload permissions, Cognito/database/runtime resources, TLS, logs, alarms, release and recovery. AWS/SQL types do not enter ClaimRequest.
 
 ## Alternatives Considered
@@ -44,7 +44,7 @@ Production uses its own Terraform root/state and lifecycle. It must not be attac
 
 Deliver independently reviewable slices: (1) accepted identity/membership interfaces and adversarial fixtures, (2) per-request API/CLI identity and owner reads, (3) native/web login and revocation, (4) persistent Work/recovery, (5) reviewed infrastructure and live two-user campaign. These are implementation slices, not reduced production requirements.
 
-Local tests cover malformed JWT/JWKS limits, exact issuer/client/scopes, key rotation, cache/network failure, token redaction, CSRF/PKCE state, invite replay, owner-query filtering, revocation races and transaction/restart faults. Installed proof uses two real accounts with no cluster access, positive inference plus backend-side zero-call denials, browser rendering and CLI parity. Exercise migration/rollback, database backup restore and lost-node/service restart. Run focused/race/full repository gates and independent security/operational review before public cutover.
+Local tests cover malformed JWT/JWKS limits, exact issuer/client/scopes, key rotation, cache/network failure, token redaction, CSRF/PKCE state, invite replay, owner-query filtering, revocation races and transaction/restart faults. Installed proof uses two real accounts with no cluster access, positive inference plus backend-side zero-call denials, browser rendering and CLI parity. Exercise migration/rollback and lost-node/service restart. Run focused/race/full repository gates and independent security/operational review before public cutover.
 
 ## Risks and Compatibility
 
@@ -57,3 +57,41 @@ Owner resolved deployment ownership on 2026-10-12: designated administrators ope
 `internal/authentication` accepts a verified private identity and requires a current membership/revocation resolver on every request. It returns only the public principal projection; it never grants policy authority. No persistence substitute is provided. `internal/authentication/cognito` pins the issuer/client/scope, accepts only RS256 access tokens, retains token/session identifiers for revocation lookup, and bounds JWKS size/count/refresh frequency and HTTP time. It does not treat token email/groups/team as application roles. Known keys expire after fifteen minutes; failed refresh after expiry denies instead of using stale keys. Unknown-key refresh is limited to once per thirty seconds, so newly rotated keys can temporarily fail closed.
 
 The connected-client library accepts one explicit HTTPS origin and a token source, mutually exclusive with all Kubernetes tunnel settings. Redirects are rejected even with an injected HTTP client; transport/errors do not emit bearer secrets. CLI selection/keychain/login integration is still a separate unfinished slice. Existing explicit reference clients retain their loopback behavior.
+
+## Membership, client and session implementation
+
+`internal/authentication/postgres` owns stable issuer+subject to principal/team mapping,
+current project roles, membership audit and refresh-family revocation tombstones.
+Disabling a member advances the minimum original authentication time; merely refreshing
+or re-enabling membership cannot revive the old login. Cognito `auth_time` handling
+remains in its adapter. Owner cannot be disabled through the generic membership setter.
+
+Authenticated console composition requires a request-local preparation function AND
+current project authorizer. The legacy reference handler/Submit cannot bypass an
+already-authenticated Service. Work evidence is filtered before querying runtime state;
+operator provider counters are unavailable to members. Runtime checks current project
+access at governed operations, with a three-second cancellation poll for active Work.
+Database queries are bounded to three seconds; this is a cooperative cancellation
+bound, not proof that an external provider never completed an already-started request.
+Logout grant-to-active-Work cancellation still needs the persistent ownership/session
+integration; do not describe the membership poll as that missing behavior.
+
+Native `agenova login/logout --server <https-origin>` uses a fixed IPv4 loopback
+callback and PKCE/state binding; remote run/work selection rejects installation state
+and reference-backend flags. OAuth credentials/config live in OS keychain/WinCred/
+Secret Service only, with no file fallback. Browser OAuth tokens are AES-GCM encrypted
+in PostgreSQL and keyed by hashed opaque session handles. Login attempts are one-use,
+five-minute, capped records; refresh compare-and-swap cannot resurrect a deleted
+session. Web/native use distinct clients and the API rechecks membership per request.
+
+Current limits and incomplete surfaces: no production wiring or invitation management
+API yet; Work is still process-local. Browser sessions have a twelve-hour maximum;
+expired session/attempt cleanup occurs at new-session/attempt creation. Key rotation,
+remote state, DB migrations/rollback, persistent Work and real IdP acceptance are
+release gates rather than implied by the new packages. No high-availability claim is
+made for the budget-first hosting design.
+
+Latest Owner override: do not configure database backups. Earlier references to
+backup/restore gates in this design are superseded by the storage decision in the
+spec. Keep restart/crash recovery, safe migrations and non-destructive rollback.
+The database is managed RDS, Single-AZ; it is not described as HA. Automated backups are disabled per the Owner decision. Storage remains billable while stopped.

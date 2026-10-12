@@ -23,6 +23,7 @@ var ErrForbidden = errors.New("active membership required")
 type Identity struct {
 	Issuer, Subject, TokenID, SessionID string
 	ExpiresAt                           time.Time
+	AuthenticatedAt                     time.Time
 }
 
 type Verifier interface {
@@ -50,24 +51,31 @@ func New(verifier Verifier, memberships Memberships) (*Boundary, error) {
 }
 
 func (b *Boundary) Authenticate(r *http.Request) (v0.Principal, error) {
+	_, p, err := b.AuthenticateIdentity(r)
+	return p, err
+}
+
+// AuthenticateIdentity also returns private verified grant metadata for logout.
+// Callers must never serialize that metadata into Work/evidence responses.
+func (b *Boundary) AuthenticateIdentity(r *http.Request) (Identity, v0.Principal, error) {
 	if b == nil || r == nil {
-		return v0.Principal{}, ErrUnauthenticated
+		return Identity{}, v0.Principal{}, ErrUnauthenticated
 	}
 	values := r.Header.Values("Authorization")
 	if len(values) != 1 || len(values[0]) > 16<<10 {
-		return v0.Principal{}, ErrUnauthenticated
+		return Identity{}, v0.Principal{}, ErrUnauthenticated
 	}
 	scheme, token, ok := strings.Cut(values[0], " ")
 	if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" || strings.ContainsAny(token, " \t\r\n") {
-		return v0.Principal{}, ErrUnauthenticated
+		return Identity{}, v0.Principal{}, ErrUnauthenticated
 	}
 	id, err := b.verifier.Verify(r.Context(), token)
 	if err != nil || id.Issuer == "" || id.Subject == "" || id.TokenID == "" || id.SessionID == "" || !id.ExpiresAt.After(time.Now()) {
-		return v0.Principal{}, ErrUnauthenticated
+		return Identity{}, v0.Principal{}, ErrUnauthenticated
 	}
 	p, err := b.memberships.Resolve(r.Context(), id)
 	if err != nil || strings.TrimSpace(p.Subject) == "" || strings.TrimSpace(p.Team) == "" || p.AuthenticationContext != "oidc" {
-		return v0.Principal{}, ErrForbidden
+		return Identity{}, v0.Principal{}, ErrForbidden
 	}
-	return p, nil
+	return id, p, nil
 }

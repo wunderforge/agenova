@@ -52,7 +52,7 @@ func jwks(k *rsa.PrivateKey, kid string) string {
 	return string(b)
 }
 func validClaims() jwt.MapClaims {
-	return jwt.MapClaims{"iss": issuer, "sub": "person-a", "client_id": "native", "token_use": "access", "scope": "openid agenova/work", "iat": time.Now().Add(-time.Minute).Unix(), "exp": time.Now().Add(time.Minute).Unix(), "jti": "token-a", "origin_jti": "session-a"}
+	return jwt.MapClaims{"iss": issuer, "sub": "person-a", "client_id": "native", "token_use": "access", "scope": "openid agenova/work", "auth_time": time.Now().Add(-2 * time.Minute).Unix(), "iat": time.Now().Add(-time.Minute).Unix(), "exp": time.Now().Add(time.Minute).Unix(), "jti": "token-a", "origin_jti": "session-a"}
 }
 func signed(t *testing.T, key *rsa.PrivateKey, c jwt.MapClaims, header map[string]any) string {
 	t.Helper()

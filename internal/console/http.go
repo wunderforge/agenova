@@ -14,6 +14,8 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authentication"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
@@ -41,7 +43,21 @@ type httpError struct {
 
 // Handler exposes only the approved bounded local console surface. It never
 // accepts caller identity, effective authority, or operator configuration.
-func Handler(service *Service) http.Handler {
+func Handler(service *Service) http.Handler { return handler(service, nil) }
+
+// Authenticator resolves verified identity and current membership on every request.
+type Authenticator interface {
+	Authenticate(*http.Request) (v0.Principal, error)
+}
+
+func AuthenticatedHandler(service *Service, auth Authenticator) (http.Handler, error) {
+	if service == nil || service.prepareFor == nil || service.access == nil || auth == nil {
+		return nil, errors.New("authenticated service and identity boundary required")
+	}
+	return handler(service, auth), nil
+}
+
+func handler(service *Service, auth Authenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -53,8 +69,29 @@ func Handler(service *Service) http.Handler {
 			writeError(w, http.StatusServiceUnavailable, "unavailable", "The console service is unavailable.")
 			return
 		}
+		var principal v0.Principal
+		if service.prepareFor != nil && auth == nil {
+			writeError(w, 503, "authentication_required", "Authenticated service configuration is required.")
+			return
+		}
+		if auth != nil {
+			var err error
+			principal, err = auth.Authenticate(r)
+			if err != nil {
+				status := http.StatusUnauthorized
+				if errors.Is(err, authentication.ErrForbidden) {
+					status = http.StatusForbidden
+				}
+				writeError(w, status, "access_denied", "Sign in with an active membership.")
+				return
+			}
+		}
 		switch r.URL.Path {
 		case "/api/provider-observations":
+			if auth != nil {
+				writeError(w, 403, "access_denied", "Operator diagnostics are not a member capability.")
+				return
+			}
 			if !requireMethod(w, r, http.MethodGet) {
 				return
 			}
@@ -73,6 +110,25 @@ func Handler(service *Service) http.Handler {
 				writeError(w, 503, "setup_unavailable", "Registered platform setup is unavailable.")
 				return
 			}
+			if auth != nil {
+				setup.Principal = principal
+				rules := []policy.Rule{}
+				for _, rule := range setup.Policy.Rules {
+					if rule.Team == principal.Team && service.access.Authorize(r.Context(), principal, "work.submit", rule.Project) == nil {
+						rules = append(rules, rule)
+					}
+				}
+				setup.Policy.Rules = rules
+				visible := false
+				for _, rule := range rules {
+					if setup.Template != nil && rule.Action == "claim.create" && rule.TemplateRef == setup.Template.Metadata.Name {
+						visible = true
+					}
+				}
+				if !visible {
+					setup.Template = nil
+				}
+			}
 			// An empty default-deny policy is valid. Keep the HTTP collection
 			// shape stable even for older records persisted with a nil Go slice.
 			if setup.Policy.Rules == nil {
@@ -82,9 +138,13 @@ func Handler(service *Service) http.Handler {
 		case "/api/requests":
 			switch r.Method {
 			case http.MethodGet:
-				writeJSON(w, 200, service.List())
+				if auth != nil {
+					writeJSON(w, 200, service.ListFor(principal))
+				} else {
+					writeJSON(w, 200, service.List())
+				}
 			case http.MethodPost:
-				submitHTTP(w, r, service)
+				submitHTTP(w, r, service, principal)
 			default:
 				w.Header().Set("Allow", "GET, POST")
 				writeError(w, 405, "method_not_allowed", "This method is not supported.")
@@ -109,9 +169,15 @@ func Handler(service *Service) http.Handler {
 					writeError(w, 400, "invalid_reference", "Provide a bounded record reference.")
 					return
 				}
-				view, err := service.QueryRequest(ref)
-				if route.claim {
-					view, err = service.QueryClaim(ref)
+				var view evidence.View
+				var err error
+				if auth != nil {
+					view, err = service.QueryFor(principal, ref, route.claim)
+				} else {
+					view, err = service.QueryRequest(ref)
+					if route.claim {
+						view, err = service.QueryClaim(ref)
+					}
 				}
 				if err != nil {
 					writeError(w, 404, "not_found", "The record was not found.")
@@ -125,7 +191,7 @@ func Handler(service *Service) http.Handler {
 	})
 }
 
-func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
+func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, principal v0.Principal) {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		writeError(w, 415, "unsupported_media_type", "Submit application/json.")
@@ -151,10 +217,17 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
 		writeError(w, 400, "invalid_request", "Submit a bounded task objective and request reference.")
 		return
 	}
-	view, err := service.Submit(data)
+	var view evidence.View
+	if principal.Subject != "" {
+		view, err = service.SubmitFor(data, principal)
+	} else {
+		view, err = service.Submit(data)
+	}
 	if err != nil {
 		var submission *SubmissionError
 		switch {
+		case errors.Is(err, authentication.ErrForbidden):
+			writeError(w, 403, "access_denied", "This project operation is not permitted.")
 		case errors.Is(err, ErrConflict):
 			writeError(w, 409, "request_conflict", "This request reference already exists.")
 		case errors.Is(err, ErrCapacity):

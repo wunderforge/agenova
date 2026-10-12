@@ -4,7 +4,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/wunderforge/agenova/internal/login"
 	"io"
 	"os"
 	"os/exec"
@@ -18,6 +20,9 @@ import (
 
 func main() {
 	os.Exit(cli.MainWithServices(os.Args, os.Stdout, os.Stderr, cli.Services{
+		Login:           memberLogin,
+		Logout:          memberLogout,
+		HTTPS:           memberServices,
 		NewRuntime:      app.NewRuntime,
 		Run:             submitClaimRequest,
 		RunConnected:    submitConnected,
@@ -95,6 +100,10 @@ func submitConnected(path, stateDirectory string) (cli.RunReport, error) {
 	if view.RequestRef == "" {
 		return cli.RunReport{}, err
 	}
+	return connectedReport(view), err
+}
+
+func connectedReport(view evidence.View) cli.RunReport {
 	report := cli.RunReport{RequestRef: view.RequestRef, Evidence: &view}
 	if view.State != nil {
 		report.Decision = string(view.State.Decision.Result)
@@ -108,7 +117,7 @@ func submitConnected(path, stateDirectory string) (cli.RunReport, error) {
 	if view.Outcome != nil {
 		report.Phase = view.Outcome.Status
 	}
-	return report, err
+	return report
 }
 
 func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunReport, error) {
@@ -126,4 +135,47 @@ func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunRep
 		Phase:      string(result.Phase),
 		Evidence:   result.Evidence,
 	}, err
+}
+
+func memberClient(server string) (*login.Client, error) {
+	if !login.Origin(server) {
+		return nil, fmt.Errorf("--server must be an HTTPS origin without a path, query or credentials")
+	}
+	store, err := login.NewOSStore()
+	if err != nil {
+		return nil, err
+	}
+	return &login.Client{Server: server, Store: store}, nil
+}
+func memberLogin(server string) error {
+	client, err := memberClient(server)
+	if err != nil {
+		return err
+	}
+	return client.Login(context.Background())
+}
+func memberLogout(server string) error {
+	client, err := memberClient(server)
+	if err != nil {
+		return err
+	}
+	return client.Logout(context.Background())
+}
+func memberServices(server string) (cli.Services, error) {
+	auth, err := memberClient(server)
+	if err != nil {
+		return cli.Services{}, err
+	}
+	client := connectedclient.Client{Server: server, AccessToken: auth.AccessToken}
+	return cli.Services{
+		RunConnected: func(path, _ string) (cli.RunReport, error) {
+			v, err := client.RunFile(path)
+			if v.RequestRef == "" {
+				return cli.RunReport{}, err
+			}
+			return connectedReport(v), err
+		},
+		ShowConnected: func(ref, _ string) (evidence.View, error) { return client.Show(ref) },
+		ListConnected: func(_ string) ([]evidence.View, error) { return client.List() },
+	}, nil
 }

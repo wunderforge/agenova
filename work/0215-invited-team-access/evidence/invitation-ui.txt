@@ -1,0 +1,1 @@
+PASS invitation form payload, role denial, escaped rendering, mobile layout and POST logout. API responses are synthetic.

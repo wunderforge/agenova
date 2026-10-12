@@ -16,12 +16,15 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
+	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
@@ -53,30 +56,95 @@ func main() {
 }
 
 func serve() error {
-	configured, err := configuredService("/etc/agenova/effective-platform.json")
+	configPath, err := memberConfigPath()
+	if err != nil {
+		return err
+	}
+	var members *memberDependencies
+	if configPath != "" {
+		members, err = openMemberDependencies(context.Background(), configPath)
+		if err != nil {
+			return err
+		}
+		defer members.db.Close()
+	}
+	var access console.AccessAuthorizer
+	if members != nil {
+		access = members.store
+	}
+	configured, err := configuredServiceWithAccess("/etc/agenova/effective-platform.json", access)
 	if err != nil {
 		return err
 	}
 	defer configured.Close()
-	// Admission can perform three bounded registration reads (20s each) and
-	// two bounded runtime setup calls (30s each) before returning Accepted.
-	// Keep the server budget above their sum; clients wait longer still.
-	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
-	privateListener, err := net.Listen("tcp", private.Addr)
+	var workHandler http.Handler = console.Handler(configured)
+	statusHandler := handler()
+	if members != nil {
+		workHandler, err = members.handler(configured)
+		if err != nil {
+			return err
+		}
+		statusHandler = memberStatusHandler() // Kubelet readiness stays reachable; metadata is loopback-only.
+	}
+	// The authenticated listener is behind a same-host TLS reverse proxy. Neither
+	// the reference API nor an unauthenticated private-command bypass is started.
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
+	listener, err := net.Listen("tcp", private.Addr)
 	if err != nil {
 		return fmt.Errorf("start private Work service: %w", err)
 	}
-	go func() {
-		if err := private.Serve(privateListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("private work service stopped: %v", err)
-		}
-	}()
-	server := &http.Server{Addr: ":8080", Handler: handler(), ReadHeaderTimeout: 5 * time.Second}
-	log.Printf("agenova reference control plane listening on %s", server.Addr)
-	return server.ListenAndServe()
+	defer listener.Close()
+	server := &http.Server{Addr: ":8080", Handler: statusHandler, ReadHeaderTimeout: 5 * time.Second}
+	statusListener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return fmt.Errorf("start private status service: %w", err)
+	}
+	defer statusListener.Close()
+	failures := make(chan error, 2)
+	go func() { failures <- private.Serve(listener) }()
+	go func() { failures <- server.Serve(statusListener) }()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	log.Printf("agenova control plane listening; member authentication enabled=%t", members != nil)
+	select {
+	case err = <-failures:
+	case <-ctx.Done():
+	}
+	shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_ = private.Shutdown(shutdown)
+	_ = server.Shutdown(shutdown)
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+func memberConfigPath() (string, error) {
+	path, present := os.LookupEnv("AGENOVA_MEMBER_CONFIG")
+	mode := os.Getenv("AGENOVA_AUTH_MODE")
+	switch mode {
+	case "", "reference", "member":
+	default:
+		return "", errors.New("unknown authentication mode")
+	}
+	if present && strings.TrimSpace(path) == "" {
+		return "", errors.New("member configuration path is empty")
+	}
+	if mode == "member" && !present {
+		return "", errors.New("member configuration is required")
+	}
+	if mode == "reference" && present {
+		return "", errors.New("reference and member authentication cannot be combined")
+	}
+	return path, nil
 }
 
 func configuredService(path string) (*console.Service, error) {
+	return configuredServiceWithAccess(path, nil)
+}
+
+func configuredServiceWithAccess(path string, access console.AccessAuthorizer) (*console.Service, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read installed Platform: %w", err)
@@ -143,12 +211,18 @@ func configuredService(path string) (*console.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	preset := app.ReferencePrincipalTeamA // Fixed local reference identity, never request/CLI supplied.
-	principal, err := app.NewReferencePrincipalSource(preset)
-	if err != nil {
-		return nil, err
+	preset := app.ReferencePrincipalTeamA
+	var setupPrincipal v0.Principal
+	if access == nil {
+		principal, err := app.NewReferencePrincipalSource(preset)
+		if err != nil {
+			return nil, err
+		}
+		setupPrincipal = principal.Principal()
+	} else {
+		preset = "" // Authenticated mode cannot select a fixed reference identity.
 	}
-	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+	options := console.Options{
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
@@ -161,11 +235,11 @@ func configuredService(path string) (*console.Service, error) {
 			if len(templates) != 1 {
 				return console.Setup{}, fmt.Errorf("reference Portal requires exactly one registered AgentTemplate")
 			}
-			return console.Setup{Principal: principal.Principal(), Template: templates[0], Policy: bundle,
+			return console.Setup{Principal: setupPrincipal, Template: templates[0], Policy: bundle,
 				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"},
 				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
-		Prepare: func(data []byte) (app.PreparedAssignment, error) {
+		PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
@@ -174,7 +248,7 @@ func configuredService(path string) (*console.Service, error) {
 			if err := loader.Load(bundle); err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
 			}
-			prepared, err := app.PrepareAssignment(data, principal, loader, store)
+			prepared, err := app.PrepareAssignment(data, requestPrincipal{p}, loader, store)
 			if err != nil {
 				request, parseErr := v0.ParseClaimRequestJSON(data)
 				if parseErr == nil {
@@ -210,8 +284,19 @@ func configuredService(path string) (*console.Service, error) {
 			}
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
-	})
+	}
+	options.Access = access
+	if access == nil {
+		prepare := options.PrepareFor
+		options.PrepareFor = nil
+		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return prepare(data, setupPrincipal) }
+	}
+	return console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
 }
+
+type requestPrincipal struct{ value v0.Principal }
+
+func (p requestPrincipal) Principal() v0.Principal { return p.value }
 
 // This reference composition currently provides only a synthetic git.read
 // adapter and no Memory Interface. Check the issued effective grant before
@@ -254,6 +339,20 @@ func requireCompatibleWorkerImage(image, allowed string) error {
 func localCommand(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("missing private command")
+	}
+	if args[0] == "identity-bootstrap" {
+		return bootstrapOwnerCommand(args)
+	}
+	if args[0] == "identity-migrate" {
+		if len(args) != 3 || args[1] != "--database-url-file" {
+			return errors.New("identity-migrate requires --database-url-file <operator credential file>")
+		}
+		db, err := openMemberDatabase(context.Background(), args[2])
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return identitydb.Migrate(context.Background(), db)
 	}
 	client := &http.Client{Timeout: 4 * time.Minute}
 	var method, path string
@@ -311,4 +410,20 @@ func handler() http.Handler {
 		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
+}
+
+// Existing Kubernetes probes use the Pod IP. Expose only the bounded readiness
+// response there; detailed installation metadata still requires local access.
+func memberStatusHandler() http.Handler {
+	next := handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/readyz" {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil || !net.ParseIP(host).IsLoopback() {
+				http.NotFound(w, r)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

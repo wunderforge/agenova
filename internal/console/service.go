@@ -16,6 +16,7 @@ import (
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/app"
+	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
@@ -36,30 +37,42 @@ type Executor interface {
 type record struct {
 	view   evidence.View
 	cancel context.CancelFunc
+	owner  v0.Principal
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	executeMu chan struct{}
-	preset    app.ReferencePrincipalPreset
-	setup     func() (Setup, error)
-	prepare   func([]byte) (app.PreparedAssignment, error)
-	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner    *app.RunService
-	executor  Executor
-	provider  modelprovider.Client
-	journal   *facts.Journal
-	store     *facts.Store
-	records   map[string]*record
-	order     []string
-	closed    bool
-	wg        sync.WaitGroup
+	access     AccessAuthorizer
+	mu         sync.RWMutex
+	executeMu  chan struct{}
+	preset     app.ReferencePrincipalPreset
+	setup      func() (Setup, error)
+	prepare    func([]byte) (app.PreparedAssignment, error)
+	prepareFor func([]byte, v0.Principal) (app.PreparedAssignment, error)
+	configure  func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner     *app.RunService
+	executor   Executor
+	provider   modelprovider.Client
+	journal    *facts.Journal
+	store      *facts.Store
+	records    map[string]*record
+	order      []string
+	closed     bool
+	wg         sync.WaitGroup
+}
+
+// AccessAuthorizer checks current server-owned project roles; it cannot grant
+// model/tool/runtime authority and does not accept identity from ClaimRequest.
+type AccessAuthorizer interface {
+	Authorize(context.Context, v0.Principal, string, string) error
 }
 
 type Options struct {
-	Prepare   func([]byte) (app.PreparedAssignment, error)
-	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	Setup     func() (Setup, error)
+	Access AccessAuthorizer
+	// PrepareFor selects authenticated mode; reference Submit is then disabled.
+	PrepareFor func([]byte, v0.Principal) (app.PreparedAssignment, error)
+	Prepare    func([]byte) (app.PreparedAssignment, error)
+	Configure  func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup      func() (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -81,10 +94,14 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 	if backend == nil || executor == nil || provider == nil {
 		return nil, errors.New("runtime, executor and provider are required")
 	}
-	if _, err := app.NewReferencePrincipalSource(preset); err != nil {
+	if options.PrepareFor != nil {
+		if options.Access == nil || options.Setup == nil || options.Configure == nil || options.Prepare != nil {
+			return nil, errors.New("authenticated mode requires explicit setup, runtime configuration and access checks")
+		}
+	} else if _, err := app.NewReferencePrincipalSource(preset); err != nil {
 		return nil, err
 	}
-	if options.Prepare == nil {
+	if options.Prepare == nil && options.PrepareFor == nil {
 		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return app.PrepareReferenceAssignment(data, preset) }
 	}
 	if options.Configure == nil {
@@ -101,7 +118,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 			return Setup{Principal: source.Principal(), Template: app.ReferenceTemplate(), Policy: app.ReferencePolicy(), Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"}, Installation: InstallationIdentity{Kind: "local-demo"}}, nil
 		}
 	}
-	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -113,6 +130,34 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 // Submit accepts only the strict canonical JSON surface. The task must contain
 // an objective for this example worker; it cannot contain an asserted identity.
 func (s *Service) Submit(data []byte) (evidence.View, error) {
+	if s.prepareFor != nil {
+		return evidence.View{}, errors.New("authenticated submission required")
+	}
+	return s.submit(data, v0.Principal{}, s.prepare)
+}
+
+// SubmitFor accepts only a principal supplied by the trusted authentication boundary.
+func (s *Service) SubmitFor(data []byte, principal v0.Principal) (evidence.View, error) {
+	if s.prepareFor == nil || s.access == nil || principal.Subject == "" || principal.Team == "" || principal.AuthenticationContext != "oidc" {
+		return evidence.View{}, errors.New("authenticated submission unavailable")
+	}
+	request, err := v0.ParseClaimRequestJSON(data)
+	if err != nil {
+		return evidence.View{}, err
+	}
+	if err := s.access.Authorize(context.Background(), principal, "work.submit", request.Spec.ProjectRef); err != nil {
+		return evidence.View{}, authentication.ErrForbidden
+	}
+	return s.submit(data, principal, func(data []byte) (app.PreparedAssignment, error) {
+		p, err := s.prepareFor(data, principal)
+		if err == nil && (p.Admission.Principal != principal || (p.Issued != nil && p.Issued.Principal != principal)) {
+			return app.PreparedAssignment{}, errors.New("prepared identity mismatch")
+		}
+		return p, err
+	})
+}
+
+func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error)) (evidence.View, error) {
 	request, validationErr := v0.ParseClaimRequestJSON(data)
 	if validationErr != nil {
 		return evidence.View{}, validationErr
@@ -135,7 +180,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		return evidence.View{}, ErrCapacity
 	}
 	// Reserve before issuance to prevent duplicate submissions racing to allocate.
-	s.records[request.Metadata.Name] = &record{}
+	s.records[request.Metadata.Name] = &record{owner: owner}
 	s.wg.Add(1)
 	s.mu.Unlock()
 	runOwned := false
@@ -144,7 +189,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 			s.wg.Done()
 		}
 	}()
-	prepared, err := s.prepare(data)
+	prepared, err := prepare(data)
 	if err != nil {
 		s.mu.Lock()
 		delete(s.records, request.Metadata.Name)
@@ -166,7 +211,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view)}
+		s.records[ref] = &record{view: evidence.Clone(view), owner: owner}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -186,7 +231,7 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
 		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
 		s.mu.Lock()
-		s.records[ref] = &record{view: evidence.Clone(view)}
+		s.records[ref] = &record{view: evidence.Clone(view), owner: owner}
 		s.order = append(s.order, ref)
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
@@ -205,12 +250,29 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
 	s.mu.Lock()
-	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel}
+	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, owner: owner}
 	s.order = append(s.order, ref)
 	if s.closed {
 		cancel()
 	}
 	s.mu.Unlock()
+	if owner.Subject != "" {
+		go func() {
+			ticker := time.NewTicker(3 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if s.access.Authorize(ctx, owner, "work.submit", request.Spec.ProjectRef) != nil {
+						cancel()
+						return
+					}
+				}
+			}
+		}()
+	}
 	runOwned = true
 	go func() { defer s.wg.Done(); defer cancel(); s.run(ctx, prepared, launch, objective) }()
 	return s.QueryRequest(ref)
@@ -287,6 +349,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
+			}
+			if err := s.authorizeRun(ctx, ref); err != nil {
+				return workerprotocol.Reply{}, err
 			}
 			if err := app.RequireRunningClaim(s.runner, claimID); err != nil {
 				return workerprotocol.Reply{}, err
@@ -462,6 +527,9 @@ type completionAdapter struct {
 func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	if req.ClaimID != a.claimID || a.ctx.Err() != nil {
 		return errors.New("model session is inactive")
+	}
+	if err := a.service.authorizeRun(a.ctx, a.ref); err != nil {
+		return err
 	}
 	if err := app.RequireRunningClaim(a.service.runner, a.claimID); err != nil {
 		return err

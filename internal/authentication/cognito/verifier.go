@@ -50,6 +50,7 @@ type claims struct {
 	Use       string `json:"token_use"`
 	Scope     string `json:"scope"`
 	SessionID string `json:"origin_jti"`
+	AuthTime  int64  `json:"auth_time"`
 }
 
 func New(c Config) (*Verifier, error) {
@@ -92,7 +93,7 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (authentication.Ident
 		}
 		return v.key(ctx, kid)
 	}, options...)
-	if err != nil || !token.Valid || c.Use != "access" || !v.clients[c.ClientID] || c.Subject == "" || len(c.Subject) > 256 || c.ID == "" || len(c.ID) > 256 || c.SessionID == "" || len(c.SessionID) > 256 || c.IssuedAt == nil || c.ExpiresAt == nil || !c.ExpiresAt.After(c.IssuedAt.Time) || ctx.Err() != nil {
+	if err != nil || !token.Valid || c.Use != "access" || !v.clients[c.ClientID] || c.Subject == "" || len(c.Subject) > 256 || c.ID == "" || len(c.ID) > 256 || c.SessionID == "" || len(c.SessionID) > 256 || c.IssuedAt == nil || c.AuthTime <= 0 || (c.IssuedAt != nil && c.AuthTime > c.IssuedAt.Unix()) || c.ExpiresAt == nil || !c.ExpiresAt.After(c.IssuedAt.Time) || ctx.Err() != nil {
 		return authentication.Identity{}, errInvalid
 	}
 	hasScope := false
@@ -104,7 +105,7 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (authentication.Ident
 	if !hasScope {
 		return authentication.Identity{}, errInvalid
 	}
-	return authentication.Identity{Issuer: c.Issuer, Subject: c.Subject, TokenID: c.ID, SessionID: c.SessionID, ExpiresAt: c.ExpiresAt.Time}, nil
+	return authentication.Identity{Issuer: c.Issuer, Subject: c.Subject, TokenID: c.ID, SessionID: c.SessionID, ExpiresAt: c.ExpiresAt.Time, AuthenticatedAt: time.Unix(c.AuthTime, 0)}, nil
 }
 
 func (v *Verifier) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {

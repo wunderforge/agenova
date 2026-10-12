@@ -49,6 +49,9 @@ type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, 
 type RegistrationServiceFactory func(stateDirectory string) (registration.Service, error)
 
 type Services struct {
+	Login           func(string) error
+	Logout          func(string) error
+	HTTPS           func(string) (Services, error)
 	NewRuntime      RuntimeFactory
 	Run             RunHandler
 	RunConnected    ConnectedRunHandler
@@ -78,6 +81,8 @@ Usage:
   agenova [flags] [command]
 
 Commands:
+  login      Sign in as an invited member using the system browser
+  logout     Revoke the member session and remove OS credentials
   help       Show this help
   version    Print version and the hosted runtime backend
   run        Submit one ClaimRequest file through application resolution
@@ -89,6 +94,7 @@ Commands:
   api        Connect the local Portal to the private installed API
 
 Flags:
+  --server string     HTTPS member service origin; independent of Kubernetes state
   --backend string    Explicit reference runtime backend ("memory"); default run uses the installed service
   --state-dir string  Local Agenova installation state for adapter commands
   --help              Show this help
@@ -153,6 +159,8 @@ namespace from the deployment adapter config and the caller's current identity.
 `
 
 type parsedArgs struct {
+	server     string
+	serverSet  bool
 	help       bool
 	version    bool
 	command    string
@@ -221,6 +229,38 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 		return 0
 	}
 
+	if parsed.command == "login" || parsed.command == "logout" {
+		if !parsed.serverSet {
+			fmt.Fprintln(stderr, "login/logout require --server https://your-service")
+			return ExitUsage
+		}
+		action := services.Login
+		if parsed.command == "logout" {
+			action = services.Logout
+		}
+		if action == nil {
+			fmt.Fprintln(stderr, "member authentication is not configured")
+			return 1
+		}
+		if err := action(parsed.server); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintln(stdout, parsed.command+" succeeded")
+		return 0
+	}
+	if parsed.serverSet {
+		if services.HTTPS == nil {
+			fmt.Fprintln(stderr, "HTTPS member client is not configured")
+			return 1
+		}
+		remote, err := services.HTTPS(parsed.server)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return ExitUsage
+		}
+		services.RunConnected, services.ShowConnected, services.ListConnected = remote.RunConnected, remote.ShowConnected, remote.ListConnected
+	}
 	if parsed.version || parsed.command == "version" {
 		return printVersion(stdout, stderr, parsed.backend, services.NewRuntime)
 	}
@@ -833,6 +873,22 @@ func parseArgs(argv []string) (parsedArgs, error) {
 				return parsedArgs{}, fmt.Errorf("-- is only valid after agenova work show")
 			}
 			literalOperand = true
+		case arg == "--server":
+			if i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("--server requires an HTTPS origin")
+			}
+			i++
+			if parsed.serverSet || strings.TrimSpace(argv[i]) == "" {
+				return parsedArgs{}, fmt.Errorf("provide one --server")
+			}
+			parsed.server = argv[i]
+			parsed.serverSet = true
+		case strings.HasPrefix(arg, "--server="):
+			if parsed.serverSet || strings.TrimPrefix(arg, "--server=") == "" {
+				return parsedArgs{}, fmt.Errorf("provide one --server")
+			}
+			parsed.server = strings.TrimPrefix(arg, "--server=")
+			parsed.serverSet = true
 		case arg == "--help" || arg == "-h":
 			parsed.help = true
 		case arg == "--version" || arg == "-v":
@@ -913,6 +969,14 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			} else {
 				parsed.operands = append(parsed.operands, arg)
 			}
+		}
+	}
+	if parsed.serverSet && !parsed.help {
+		if parsed.command != "run" && parsed.command != "work" && parsed.command != "login" && parsed.command != "logout" {
+			return parsed, fmt.Errorf("--server is only valid for member login/logout/run/work")
+		}
+		if parsed.backendSet || parsed.stateSet || parsed.version {
+			return parsed, fmt.Errorf("--server cannot be combined with operator/reference configuration")
 		}
 	}
 	if parsed.fileSet && parsed.command != "run" && parsed.command != "platform" && parsed.command != "policy" && parsed.command != "agent-template" && !parsed.help {
