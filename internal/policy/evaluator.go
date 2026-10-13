@@ -80,18 +80,18 @@ type Reason struct {
 
 // StringSetConstraint distinguishes an explicitly empty cap from an absent cap.
 type StringSetConstraint struct {
-	Values []string
+	Values []string `json:"values" yaml:"values"`
 }
 
 // AuthorityConstraints are optional caps carried with an evaluation. They do
 // not grant authority; consumers may only intersect them with other ceilings.
 type AuthorityConstraints struct {
-	Tools           *StringSetConstraint
-	ResourceScopes  *StringSetConstraint
-	ModelProfiles   *StringSetConstraint
-	MemoryScopes    *StringSetConstraint
-	RuntimeProfiles *StringSetConstraint
-	MaxTimeout      *time.Duration
+	Tools           *StringSetConstraint `json:"tools,omitempty" yaml:"tools,omitempty"`
+	ResourceScopes  *StringSetConstraint `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
+	ModelProfiles   *StringSetConstraint `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
+	MemoryScopes    *StringSetConstraint `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
+	RuntimeProfiles *StringSetConstraint `json:"runtimeProfiles,omitempty" yaml:"runtimeProfiles,omitempty"`
+	MaxTimeout      *time.Duration       `json:"maxTimeout,omitempty" yaml:"maxTimeout,omitempty"`
 }
 
 // Evaluation is an evaluator result bound to the exact context it evaluated.
@@ -316,7 +316,11 @@ func cloneSet(set *StringSetConstraint) *StringSetConstraint {
 	if set == nil {
 		return nil
 	}
-	return &StringSetConstraint{Values: append([]string(nil), set.Values...)}
+	copy := &StringSetConstraint{}
+	if set.Values != nil {
+		copy.Values = append([]string{}, set.Values...)
+	}
+	return copy
 }
 
 type referenceEvaluator struct {
@@ -347,13 +351,21 @@ func (r referenceEvaluator) Evaluate(context EvaluationContext) (Evaluation, err
 	team, teamOK := singleAttribute(context.Principal.Attributes, "team")
 	project, projectOK := singleAttribute(context.Resource.Attributes, "project")
 	templateRef, templateOK := singleAttribute(context.Resource.Attributes, "templateRef")
-	if teamOK && projectOK && templateOK && r.bundle.Allows(Match{
-		Team:        team,
-		Action:      context.Action,
-		Project:     project,
-		TemplateRef: templateRef,
-	}) {
+	var matched *Rule
+	if teamOK && projectOK && templateOK {
+		for index := range r.bundle.Rules {
+			rule := &r.bundle.Rules[index]
+			if rule.Team != team || rule.Action != context.Action || rule.Project != project || rule.TemplateRef != templateRef || (rule.Subject != "" && rule.Subject != context.Principal.Subject) {
+				continue
+			}
+			if matched == nil || rule.Subject != "" && matched.Subject == "" {
+				matched = rule
+			}
+		}
+	}
+	if matched != nil {
 		evaluation.Decision = DecisionAllow
+		evaluation.Constraints = cloneConstraints(matched.Constraints)
 		evaluation.Reasons = []Reason{{
 			Code:    "reference-exact-match",
 			Message: "exact policy rule matched the trusted principal and requested assignment",

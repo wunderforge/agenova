@@ -7,7 +7,7 @@ package policy
 import (
 	"errors"
 	"fmt"
-	"slices"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -22,14 +22,17 @@ type PolicyBundle struct {
 
 // Rule grants one action for one trusted team, project, and agent template.
 type Rule struct {
-	Team        string `json:"team" yaml:"team"`
-	Action      string `json:"action" yaml:"action"`
-	Project     string `json:"project" yaml:"project"`
-	TemplateRef string `json:"templateRef" yaml:"templateRef"`
+	Subject     string                `json:"subject,omitempty" yaml:"subject,omitempty"`
+	Team        string                `json:"team" yaml:"team"`
+	Action      string                `json:"action" yaml:"action"`
+	Project     string                `json:"project" yaml:"project"`
+	TemplateRef string                `json:"templateRef" yaml:"templateRef"`
+	Constraints *AuthorityConstraints `json:"constraints,omitempty" yaml:"constraints,omitempty"`
 }
 
 // Match is the trusted assignment context evaluated against a policy bundle.
 type Match struct {
+	Subject     string
 	Team        string
 	Action      string
 	Project     string
@@ -68,14 +71,14 @@ func (l *Loader) Load(bundle PolicyBundle) error {
 	defer l.mu.Unlock()
 	identity := bundleIdentity{id: bundle.ID, version: bundle.Version}
 	if rules, ok := l.seen[identity]; ok {
-		if !slices.Equal(rules, bundle.Rules) {
+		if !reflect.DeepEqual(rules, bundle.Rules) {
 			return fmt.Errorf("policy bundle %s@%s cannot change content", bundle.ID, bundle.Version)
 		}
 	} else {
 		if l.seen == nil {
 			l.seen = make(map[bundleIdentity][]Rule)
 		}
-		l.seen[identity] = append([]Rule(nil), bundle.Rules...)
+		l.seen[identity] = clone(bundle).Rules
 	}
 	l.current = &copy
 	return nil
@@ -114,7 +117,7 @@ func (b PolicyBundle) Allows(match Match) bool {
 	}
 
 	for _, rule := range b.Rules {
-		if rule.Team == match.Team && rule.Action == match.Action && rule.Project == match.Project && rule.TemplateRef == match.TemplateRef {
+		if (rule.Subject == "" || rule.Subject == match.Subject) && rule.Team == match.Team && rule.Action == match.Action && rule.Project == match.Project && rule.TemplateRef == match.TemplateRef {
 			return true
 		}
 	}
@@ -134,15 +137,20 @@ func validate(bundle PolicyBundle) error {
 		return errors.New("policy bundle ID or version exceeds the evidence-safe limit")
 	}
 
-	seen := make(map[Rule]int, len(bundle.Rules))
+	type ruleKey struct{ subject, team, action, project, template string }
+	seen := make(map[ruleKey]int, len(bundle.Rules))
 	for index, rule := range bundle.Rules {
 		if strings.TrimSpace(rule.Team) == "" || strings.TrimSpace(rule.Action) == "" || strings.TrimSpace(rule.Project) == "" || strings.TrimSpace(rule.TemplateRef) == "" {
 			return fmt.Errorf("policy rule %d requires team, action, project, and templateRef", index)
 		}
-		if first, ok := seen[rule]; ok {
+		if err := validateConstraints(rule.Constraints); err != nil {
+			return fmt.Errorf("policy rule %d: %w", index, err)
+		}
+		key := ruleKey{rule.Subject, rule.Team, rule.Action, rule.Project, rule.TemplateRef}
+		if first, ok := seen[key]; ok {
 			return fmt.Errorf("policy rule %d duplicates rule %d", index, first)
 		}
-		seen[rule] = index
+		seen[key] = index
 	}
 	return nil
 }
@@ -153,6 +161,11 @@ func ValidateBundle(bundle PolicyBundle) error { return validate(bundle) }
 
 func clone(bundle PolicyBundle) PolicyBundle {
 	copy := bundle
-	copy.Rules = append([]Rule(nil), bundle.Rules...)
+	if bundle.Rules != nil {
+		copy.Rules = append([]Rule{}, bundle.Rules...)
+	}
+	for index := range copy.Rules {
+		copy.Rules[index].Constraints = cloneConstraints(bundle.Rules[index].Constraints)
+	}
 	return copy
 }
