@@ -97,6 +97,16 @@ func handler(service *Service, authenticated bool) http.Handler {
 			verified = &principal
 		}
 		switch r.URL.Path {
+		case "/api/provider-observations":
+			if !requireMethod(w, r, http.MethodGet) {
+				return
+			}
+			counter, ok := service.provider.(interface{ InvocationCount() uint64 })
+			if !ok {
+				writeError(w, 501, "unsupported", "Provider invocation observations are unavailable.")
+				return
+			}
+			writeJSON(w, 200, map[string]any{"scope": "current-service-process", "providerInvocationAttempts": counter.InvocationCount()})
 		case "/api/setup":
 			if !requireMethod(w, r, http.MethodGet) {
 				return

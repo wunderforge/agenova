@@ -1005,7 +1005,7 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 }
 
 func deploymentRequest() platformapply.DeploymentRequest {
-	resolved := &platform.ResolvedPlatform{PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}, Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "reference-worker", Config: map[string]any{"compatible-worker-image": "agenova-testworker:kind", "connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}}}, {Category: platform.CapabilityModel, Name: "reference-model", Config: map[string]any{"endpoint": "http://host.docker.internal:11434/v1"}}}, Profiles: []platform.ResolvedProfile{{Capability: platform.CapabilityModel, Name: "coding-standard", BackendRef: "reference-model", Config: map[string]any{"model": "qwen3:0.6b"}}}}
+	resolved := &platform.ResolvedPlatform{Adapters: []platform.ResolvedAdapter{{Name: "model-adapter", ID: OpenAICompatibleModelID, Version: ReferenceVersion}}, PlatformName: "reference", Revision: "sha256:test", InitialPolicyRef: v1alpha1.PlatformPolicyReference{ID: "reference-default-deny", Version: "1"}, Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Name: "reference-worker", Config: map[string]any{"compatible-worker-image": "agenova-testworker:kind", "connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}}}, {Category: platform.CapabilityModel, Name: "reference-model", AdapterRef: "model-adapter", Config: map[string]any{"endpoint": "http://host.docker.internal:11434/v1"}}}, Profiles: []platform.ResolvedProfile{{Capability: platform.CapabilityModel, Name: "coding-standard", BackendRef: "reference-model", Config: map[string]any{"model": "qwen3:0.6b"}}}}
 	lock := &platform.PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, InitialPolicyRef: resolved.InitialPolicyRef}
 	return platformapply.DeploymentRequest{Platform: resolved, Lock: lock, Config: map[string]any{"context": "kind-agenova", "namespace": "agenova-system"}}
 }
@@ -1037,4 +1037,27 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestRemoteImagesReachInstalledManifestAndExactWorkerBinding(t *testing.T) {
+	request := deploymentRequest()
+	image := "registry.example/agenova/control-plane@sha256:" + strings.Repeat("b", 64)
+	worker := "registry.example/agenova/worker@sha256:" + strings.Repeat("c", 64)
+	request.Config["control-plane-image"] = image
+	request.Config["image-pull-policy"] = "Always"
+	request.Platform.Instances[0].Config["compatible-worker-image"] = worker
+	request.Platform.Instances[0].Config["compatible-worker-protocol"] = "controlled-v1"
+	if err := validateReferenceRuntime(request); err != nil {
+		t.Fatal(err)
+	}
+	object := deploymentObject(request, "agenova-system")
+	data, err := json.Marshal(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{image, worker, `"imagePullPolicy":"Always"`} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("manifest does not contain %s", want)
+		}
+	}
 }

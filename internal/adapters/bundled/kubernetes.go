@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/policy"
@@ -76,35 +75,14 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 		if workerNamespace != namespace {
 			return fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 		}
-		if instance.Config["compatible-worker-image"] != referenceControlledWorkerImage {
+		if !compatibleWorkerConfig(instance.Config) {
 			return fmt.Errorf("reference runtime requires the bundled controlled worker image")
 		}
 	}
 	if count != 1 {
 		return fmt.Errorf("reference Control Plane requires exactly one runtime backend")
 	}
-	backends := map[string]string{}
-	for _, instance := range request.Platform.Instances {
-		if instance.Category == platform.CapabilityModel {
-			endpoint, _ := instance.Config["endpoint"].(string)
-			backends[instance.Name] = endpoint
-		}
-	}
-	models := map[string]string{}
-	endpoint := ""
-	for _, profile := range request.Platform.Profiles {
-		if profile.Capability != platform.CapabilityModel {
-			continue
-		}
-		backend := backends[profile.BackendRef]
-		if backend == "" || (endpoint != "" && endpoint != backend) {
-			return fmt.Errorf("reference Control Plane requires model profiles on one configured endpoint")
-		}
-		endpoint = backend
-		model, _ := profile.Config["model"].(string)
-		models[profile.Name] = model
-	}
-	_, err = modelprovider.New(modelprovider.Config{Endpoint: endpoint, AllowDockerHostHTTP: strings.HasPrefix(endpoint, "http://host.docker.internal:"), Models: models})
+	_, _, _, err = ModelComposition(request.Platform)
 	if err != nil {
 		return fmt.Errorf("reference Control Plane model composition is unsupported: %w", err)
 	}
@@ -823,10 +801,18 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 
 func deploymentObject(request platformapply.DeploymentRequest, namespace string) map[string]any {
 	labels := map[string]any{"app.kubernetes.io/name": controlPlaneName, "app.kubernetes.io/managed-by": "agenova"}
+	image, _ := request.Config["control-plane-image"].(string)
+	if image == "" {
+		image = controlPlaneImage
+	}
+	pullPolicy, _ := request.Config["image-pull-policy"].(string)
+	if pullPolicy == "" {
+		pullPolicy = "IfNotPresent"
+	}
 	container := map[string]any{
 		"name":            "control-plane",
-		"image":           controlPlaneImage,
-		"imagePullPolicy": "IfNotPresent",
+		"image":           image,
+		"imagePullPolicy": pullPolicy,
 		"ports":           []any{map[string]any{"name": "http", "containerPort": 8080}},
 		"env": []any{
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
@@ -845,6 +831,7 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
 		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
 	}
+
 	return map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment",
 		"metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
