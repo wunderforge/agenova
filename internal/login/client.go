@@ -92,14 +92,14 @@ type Store interface {
 type OSStore struct{ ring keyring.Keyring }
 
 func NewOSStore() (Store, error) {
-	ring, err := keyring.Open(keyring.Config{ServiceName: "agenova", AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.WinCredBackend, keyring.SecretServiceBackend}, KeychainTrustApplication: true, KeychainSynchronizable: false, KeychainAccessibleWhenUnlocked: true})
+	ring, err := keyring.Open(keyring.Config{ServiceName: "agenova", LibSecretCollectionName: "login", AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.WinCredBackend, keyring.SecretServiceBackend}, KeychainTrustApplication: true, KeychainSynchronizable: false, KeychainAccessibleWhenUnlocked: true})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrCredentials, credentialStoreHelp(runtime.GOOS))
 	}
 	return OSStore{ring}, nil
 }
 func (s OSStore) Get(server string) (Credentials, error) {
-	item, err := s.ring.Get(server)
+	item, err := s.ring.Get(credentialKey(server))
 	if err != nil {
 		return Credentials{}, ErrCredentials
 	}
@@ -114,13 +114,13 @@ func (s OSStore) Set(server string, c Credentials) error {
 	if err != nil {
 		return ErrCredentials
 	}
-	if err = s.ring.Set(keyring.Item{Key: server, Data: data, Label: "Agenova member login", KeychainNotSynchronizable: true}); err != nil {
+	if err = s.ring.Set(keyring.Item{Key: credentialKey(server), Data: data, Label: "Agenova member login", KeychainNotSynchronizable: true}); err != nil {
 		return ErrCredentials
 	}
 	return nil
 }
 func (s OSStore) Delete(server string) error {
-	err := s.ring.Remove(server)
+	err := s.ring.Remove(credentialKey(server))
 	if errors.Is(err, keyring.ErrKeyNotFound) {
 		return nil
 	}
@@ -345,4 +345,12 @@ func credentialStoreHelp(system string) string {
 	default:
 		return "this platform has no supported credential store"
 	}
+}
+
+// Linux uses the existing login collection; namespace entries within it.
+func credentialKey(server string) string {
+	if runtime.GOOS == "linux" {
+		return "agenova/member/" + server
+	}
+	return server
 }
