@@ -7,11 +7,10 @@ class Agenova < Formula
   license "Apache-2.0"
 
   depends_on "go" => :build
-  depends_on :macos
 
   def install
-    # Native macOS Keychain support must remain enabled.
-    ENV["CGO_ENABLED"] = "1"
+    # Native macOS Keychain support must remain enabled; Linux uses Secret Service.
+    ENV["CGO_ENABLED"] = OS.mac? ? "1" : "0"
     ENV["GOTOOLCHAIN"] = "go1.27.2"
     system "go", "build", "-trimpath",
            "-ldflags=-X github.com/wunderforge/agenova/internal/cli.Version=#{version}",
@@ -22,7 +21,9 @@ class Agenova < Formula
     <<~EOS
       This preview is built from PR #216, not an upstream stable release.
       Sign in: agenova login --server https://app.agenova.app
-      New members need administrator approval. Credentials use macOS Keychain.
+      New members need administrator approval. Credentials use macOS Keychain or Linux Secret Service.
+      Linux/WSL: an unlocked Secret Service keyring and a D-Bus session are required.
+      WSL2: install wslu for wslview, or use the native Windows CLI.
       Work commands need no AWS CLI, kubectl, Docker or cluster credentials.
     EOS
   end

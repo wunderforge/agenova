@@ -31,7 +31,9 @@ when needed. The server still checks every operation.
 
 ## 2. Install and use the Agenova CLI
 
-On macOS with [Homebrew](https://brew.sh/) installed:
+See [platform installation instructions](cli-installation.md) for macOS, Linux, WSL2 and Windows.
+
+On macOS or configured Linux/WSL2 with [Homebrew](https://brew.sh/) installed:
 
 ```bash
 brew install Leo1piece/agenova/agenova
@@ -41,7 +43,8 @@ agenova login --server https://app.agenova.app
 
 Complete Google login in the browser using your approved account. The CLI
 remembers the server after successful login. The public tap currently distributes
-a preview release, tested on macOS Apple Silicon.
+a preview release. See the installation guide for platform prerequisites and
+verification limits.
 
 ```bash
 agenova work list

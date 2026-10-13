@@ -68,3 +68,45 @@ jobs:
           path: .tmp/ui-smoke
           include-hidden-files: true
           if-no-files-found: ignore
+
+  cli-platforms:
+    name: CLI / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Linux credential service
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y dbus-x11 gnome-keyring
+      - name: Native Linux credentials and login tests
+        if: runner.os == 'Linux'
+        run: |
+          dbus-run-session -- sh -c 'printf "%s" "disposable-ci-keyring" | gnome-keyring-daemon --unlock --components=secrets; AGENOVA_TEST_OS_STORE=1 go test -v ./internal/login'
+      - name: Native Windows credentials and login tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:AGENOVA_TEST_OS_STORE = '1'
+          go test -v ./internal/login
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build and package native CLI
+        shell: pwsh
+        run: ./scripts/package-cli.ps1 -Version 0.1.0-preview.20261013.1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ runner.os }}
+          path: |
+            .tmp/cli-release/*.zip
+            .tmp/cli-release/*.tar.gz
+            .tmp/cli-release/*.sha256
+          include-hidden-files: true
+          if-no-files-found: error

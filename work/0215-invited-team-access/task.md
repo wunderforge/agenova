@@ -465,3 +465,13 @@ state-dir; verify default-directory behavior without sharing local state.
 Completed and deployed: [Team administrator bundle evidence](evidence/team-admin-bundle.md).
 Real CLI plan/apply/status succeeded without state-dir, starting without an applied
 record in the default user directory. Full gate and PostgreSQL/race checks passed.
+
+## Owner-requested Linux, WSL and Windows distribution
+
+Extend public CLI packaging beyond macOS: Linux Homebrew, native Windows archive
+and per-user installer, WSL2 Linux usage with Secret Service or native Windows
+CLI interoperability. Keep tokens in OS credential storage; no plaintext fallback.
+Test native credential write/read/delete on disposable platform environments,
+OAuth callback/session tests and build/version/help, then full gate. Record native
+Windows/Linux versus WSL-only unverified behavior explicitly. Publish checksummed
+preview artifacts and update the public tap only after relevant checks pass.

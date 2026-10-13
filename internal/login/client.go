@@ -12,10 +12,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -92,7 +94,7 @@ type OSStore struct{ ring keyring.Keyring }
 func NewOSStore() (Store, error) {
 	ring, err := keyring.Open(keyring.Config{ServiceName: "agenova", AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.WinCredBackend, keyring.SecretServiceBackend}, KeychainTrustApplication: true, KeychainSynchronizable: false, KeychainAccessibleWhenUnlocked: true})
 	if err != nil {
-		return nil, ErrCredentials
+		return nil, fmt.Errorf("%w: %s", ErrCredentials, credentialStoreHelp(runtime.GOOS))
 	}
 	return OSStore{ring}, nil
 }
@@ -318,9 +320,29 @@ func openBrowser(target string) error {
 	case "windows":
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
 	case "linux":
-		cmd = exec.Command("xdg-open", target)
+		if os.Getenv("WSL_DISTRO_NAME") != "" || os.Getenv("WSL_INTEROP") != "" {
+			if path, err := exec.LookPath("wslview"); err == nil {
+				cmd = exec.Command(path, target)
+			}
+		}
+		if cmd == nil {
+			cmd = exec.Command("xdg-open", target)
+		}
 	default:
 		return errors.New("unsupported system browser")
 	}
 	return cmd.Run()
+}
+
+func credentialStoreHelp(system string) string {
+	switch system {
+	case "linux":
+		return "start a D-Bus session and unlock a Secret Service keyring (for example GNOME Keyring); WSL users can alternatively use the native Windows CLI"
+	case "windows":
+		return "Windows Credential Manager must be available for your signed-in Windows user"
+	case "darwin":
+		return "unlock your macOS login Keychain and allow Agenova access"
+	default:
+		return "this platform has no supported credential store"
+	}
 }
