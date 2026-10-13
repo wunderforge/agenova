@@ -63,6 +63,26 @@ WSL networking/desktop availability varies. WSL1 and a disabled Windows
 interoperability/localhost-forwarding setup are not supported by this guide.
 Native Linux and Windows CI do not constitute a real WSL acceptance run.
 
+For an interactive Ubuntu WSL shell without a desktop-managed keyring, install
+`dbus-user-session`, `gnome-keyring` and `xdg-utils`, then start a dedicated session:
+
+```bash
+dbus-run-session -- bash
+set +x
+read -r -s -p "Login keyring password: " AGENOVA_KEYRING_PASSWORD
+printf '\n'
+printf '%s' "$AGENOVA_KEYRING_PASSWORD" | gnome-keyring-daemon --unlock --components=secrets
+unset AGENOVA_KEYRING_PASSWORD
+agenova login --server https://app.agenova.app
+agenova work list
+```
+
+Use the existing login-keyring password, or choose one when initializing a new
+keyring. It is a local encryption password, not your Google password. Keep using
+that D-Bus shell for CLI commands; closing it ends the session. Never save the
+password in shell startup files. If this desktop setup is unsuitable, choose the
+Windows CLI route above instead. This WSL procedure still needs a real WSL2 check.
+
 ## Login and run
 
 ```bash
