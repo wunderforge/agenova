@@ -8,6 +8,14 @@ const loading = document.querySelector('#loading');
 const send = document.querySelector('#send');
 const roles = {member:'Members can run Work and read their own evidence in this project.',viewer:'Viewers can read project evidence. They cannot submit Work.',admin:'Admins can run Work and read project evidence, and manage Member and Viewer invitations. Only the Owner can invite an Admin.'};
 document.querySelector('#role').addEventListener('change', e => { document.querySelector('#role-help').textContent = roles[e.target.value]; });
+function accessPreset(container, account, projectRole, owner, label, advanced) {
+ const wrapper=node('label','Access');const select=node('select');select.setAttribute('aria-label',label);
+ for(const [value,title] of [['developer','Developer'],['readonly','Read-only'],...(owner?[['admin','Team administrator']]:[]),['custom','Custom (advanced)']]) {const option=node('option',title);option.value=value;select.append(option);}
+ const help=node('small');
+ function sync(){select.value=account.value==='member'&&projectRole.value==='member'?'developer':account.value==='member'&&projectRole.value==='viewer'?'readonly':account.value==='admin'&&projectRole.value==='admin'?'admin':'custom';help.textContent=`Account: ${account.value} · Selected project: ${projectRole.value}. No deployment or governance access included.`;}
+ select.addEventListener('change',()=>{if(select.value==='custom'){advanced.open=true;return;}account.value=select.value==='admin'?'admin':'member';projectRole.value=select.value==='admin'?'admin':select.value==='readonly'?'viewer':'member';sync();});
+ account.addEventListener('change',sync);projectRole.addEventListener('change',sync);sync();wrapper.append(select);container.append(wrapper,help);
+}
 async function refresh() {
  loading.textContent = 'Loading invitations…';
  try {
@@ -74,7 +82,7 @@ function roleForm(member, owner, project) {
  const form = node('form'); form.className = 'member-actions';
  const label = node('label', project ? `Project: ${project.project}` : 'Account role');
  const select = node('select'); select.setAttribute('aria-label', `${member.email || member.principal} ${project ? project.project + ' role' : 'account role'}`);
- const choices = project ? [['','No access'],['member','Member'],['viewer','Viewer'],...(owner ? [['admin','Admin']] : [])] : [['member','Member'],['admin','Admin']];
+ const choices = project ? [['','No access'],['member','Developer'],['viewer','Read-only'],...(owner ? [['admin','Admin']] : [])] : [['member','Member'],['admin','Admin']];
  for(const [value,text] of choices) { const option = node('option',text); option.value = value; select.append(option); }
  select.value = project ? project.role : member.accountRole;
  label.append(select); const button = node('button','Save'); button.type = 'submit';
@@ -85,13 +93,13 @@ function dutyForm(member, team) {
  const form=node('form');form.className='member-actions';
  const who=member.email || member.principal;
  const role=node('select');role.setAttribute('aria-label',`Additional role for ${who}`);
- for(const [value,title] of [['governance-admin','Governance Admin'],['platform-operator','Platform Operator']]) { const option=node('option',title);option.value=value;role.append(option); }
+ for(const [value,title] of [['governance-admin','Governance access'],['platform-operator','Deployment access']]) { const option=node('option',title);option.value=value;role.append(option); }
  const scope=node('select');scope.setAttribute('aria-label',`Role scope for ${who}`);
  const ref=node('input');ref.required=true;ref.maxLength=128;ref.setAttribute('aria-label',`Scope reference for ${who}`);
  function scopes() { scope.replaceChildren();for(const value of (role.value==='platform-operator'?['installation']:['project','account'])) {const option=node('option',value);option.value=value;scope.append(option);}reference(); }
  function reference() {ref.readOnly=scope.value==='account';ref.value=ref.readOnly?team:'';ref.placeholder=scope.value==='installation'?'Installed Platform name':'Existing project';}
  role.addEventListener('change',scopes);scope.addEventListener('change',reference);scopes();
- const button=node('button','Grant additional role');button.type='submit';
+ const button=node('button','Grant advanced permission');button.type='submit';
  form.append(role,scope,ref,button);
  form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'grant-role',role:role.value,scopeKind:scope.value,scopeRef:ref.value.trim()},button);});
  return form;
@@ -109,39 +117,43 @@ async function refreshMembers() {
  document.querySelector('#account-role').disabled=!isOwner;
  if(!isOwner) document.querySelector('#account-role').value='member';
  document.querySelector('#role option[value=admin]').disabled=!isOwner;
+ const preset=document.querySelector('#invite-preset');preset.replaceChildren();accessPreset(preset,document.querySelector('#account-role'),document.querySelector('#role'),isOwner,'Access',document.querySelector('#invite-advanced'));
   memberList.replaceChildren();
   for(const member of rows) {
    const row = node('article'); row.className = 'member';
    row.append(node('h3',member.email || member.principal),node('p',`${member.accountRole} · ${member.active?'Active':'Disabled'}`));
-   for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role}`));
+   for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role==='member'?'Developer':grant.role==='viewer'?'Read-only':member.accountRole==='admin'?'Team administrator':'Project administrator'}`));
+   const advanced=node('details');advanced.className='advanced-permissions';advanced.append(node('summary','Advanced permissions'));
+   advanced.append(node('small','Deployment and governance duties are scoped separately. They do not grant AWS credentials or Work access.'));
+   if((member.roles || []).length) row.append(node('small',`${member.roles.length} advanced permission(s) assigned`));
    for(const grant of member.roles || []) {
     const line=node('p',`${grant.role} · ${grant.scopeKind}: ${grant.scopeRef}`);
     if(isOwner && member.active) {const remove=node('button','Revoke role');remove.type='button';remove.addEventListener('click',()=>changeMember({principal:member.principal,action:'revoke-role',...grant},remove));line.append(remove);}
-    row.append(line);
+    advanced.append(line);
    }
-   if(isOwner && member.active) { const duties=node('details');duties.append(node('summary','Assign additional duties'),dutyForm(member,me.team));row.append(duties); }
+   if(isOwner && member.active) advanced.append(dutyForm(member,me.team));
    const canManage = member.accountRole !== 'owner' && (isOwner || member.accountRole !== 'admin');
    if(canManage) {
     const details = node('details'); details.append(node('summary','Manage access'));
-    if(isOwner) details.append(roleForm(member,true,null));
+    if(isOwner) advanced.append(roleForm(member,true,null));
     if(isOwner && member.active && member.accountRole==='admin') {
      const transfer=node('form');transfer.className='member-actions';
      const label=node('label',`Transfer ownership: type ${member.email || member.principal}`);
      const confirm=node('input');confirm.required=true;confirm.autocomplete='off';confirm.setAttribute('aria-label',`Confirm ownership transfer to ${member.email || member.principal}`);label.append(confirm);
      const button=node('button','Transfer ownership');button.type='submit';transfer.append(label,button,node('small','You will become Account Admin. This member becomes the only Owner. Project grants stay unchanged.'));
-     transfer.addEventListener('submit',e=>{e.preventDefault();if(confirm.value!==(member.email || member.principal)){memberNotice.textContent='Type the recipient exactly to confirm.';return;}changeMember({principal:member.principal,action:'transfer-owner',confirmation:member.principal},button);});details.append(transfer);
+     transfer.addEventListener('submit',e=>{e.preventDefault();if(confirm.value!==(member.email || member.principal)){memberNotice.textContent='Type the recipient exactly to confirm.';return;}changeMember({principal:member.principal,action:'transfer-owner',confirmation:member.principal},button);});advanced.append(transfer);
     }
     if(member.active) {
      for(const project of member.projects) if(isOwner || project.role!=='admin') details.append(roleForm(member,isOwner,project));
      const grantForm=node('form');grantForm.className='member-actions';
      const label=node('label','Add project membership');const input=node('input');input.required=true;input.maxLength=128;input.placeholder='Existing project';input.setAttribute('aria-label',`New project for ${member.email || member.principal}`);label.append(input);
-     const grant=node('button','Add as Member');grant.type='submit';grantForm.append(label,grant);
+     const grant=node('button','Add as Developer');grant.type='submit';grantForm.append(label,grant);
      grantForm.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'project-role',project:input.value.trim(),role:'member'},grant);});details.append(grantForm);
     }
     if(isAccountAdmin) { const toggle = node('button',member.active?'Disable member':'Enable member'); toggle.type='button';toggle.className='quiet';
     toggle.addEventListener('click',()=>changeMember({principal:member.principal,action:member.active?'disable':'enable'},toggle)); details.append(toggle); } row.append(details);
    }
-   memberList.append(row);
+   row.append(advanced);memberList.append(row);
   }
   memberLoading.textContent = `${rows.length} members. Only the Owner can appoint or remove an account Admin.`;
  } catch(error) {memberList.replaceChildren();memberLoading.textContent=error.message || 'Members unavailable.';}
@@ -177,9 +189,11 @@ async function refreshAccessRequests(isOwner) {
    const row=node('article');row.className='member';row.append(node('h3',request.email));
    const form=node('form');form.className='member-actions';
    function select(label,choices){const wrapper=node('label',label);const field=node('select');field.setAttribute('aria-label',`${request.email} ${label}`);for(const [value,text] of choices){const opt=node('option',text);opt.value=value;field.append(opt);}wrapper.append(field);form.append(wrapper);return field;}
+   const advanced=node('details');advanced.append(node('summary','Advanced role mapping'));
    const account=select('Account role',[['member','Member'],...(isOwner?[['admin','Account Admin']]:[])]);
    const label=node('label','Project');const project=node('input');project.required=true;project.maxLength=128;project.placeholder='Existing project';project.setAttribute('aria-label',`${request.email} project`);label.append(project);form.append(label);
-   const role=select('Project role',[['member','Member'],['viewer','Viewer'],...(isOwner?[['admin','Project Admin']]:[])]);
+   const role=select('Project role',[['member','Developer'],['viewer','Read-only'],...(isOwner?[['admin','Project Admin']]:[])]);
+   advanced.append(account.parentElement,role.parentElement);const preset=node('div');accessPreset(preset,account,role,isOwner,`${request.email} Access`,advanced);form.append(preset,advanced);
    const approve=node('button','Approve access');approve.type='submit';const reject=node('button','Decline');reject.type='button';form.append(approve,reject);
    async function review(action){approve.disabled=true;reject.disabled=true;notice.textContent='Saving access decision…';try{
     const payload={id:request.id,action,...(action==='approve'?{accountRole:account.value,project:project.value.trim(),role:role.value}:{})};

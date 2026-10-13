@@ -5,3 +5,14 @@
 .invitation-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.invitation-actions button{font-size:12px;padding:7px}@media(max-width:540px){.member-actions{flex-wrap:wrap}.member-actions label{flex-basis:100%}}
 
 .access-nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px}.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.role-card{padding:18px;border:1px solid #dce3ed;border-radius:10px;min-width:0}.role-card h3{font-size:16px;margin:0 0 8px}.role-card p,.role-compat p{font-size:14px;line-height:1.6}.role-scope{color:#56647a;font-size:12px!important}.role-limit{color:#56647a;border-top:1px solid #e4e9f0;padding-top:10px}.role-compat{margin-top:20px}.role-compat summary{cursor:pointer;color:#2258a8}#roles,#member-section{scroll-margin-top:20px}@media(max-width:540px){.role-grid{grid-template-columns:1fr}.role-card{padding:16px}}
+
+/* Everyday choices stay readable; detailed permission mapping is progressive. */
+.role-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#invite-preset small{display:block;margin:8px 0 16px;color:#56647a;line-height:1.5}
+#invite-advanced{margin:16px 0}summary{cursor:pointer}summary:focus-visible{outline:3px solid #8db4ed;outline-offset:3px}
+#access-requests .member-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+#access-requests .member-actions>details{grid-column:1/-1;margin:4px 0 12px}
+#access-requests .member-actions>div{min-width:0}
+#access-requests .member-actions small{line-height:1.5;margin-top:8px}
+#access-requests .member-actions>details label{margin:14px 0}
+@media(max-width:540px){.role-grid{grid-template-columns:1fr}#access-requests .member-actions{grid-template-columns:1fr}}

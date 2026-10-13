@@ -6,15 +6,34 @@
 这里的“提交工单”指提交 Agenova Work；创建 Jira/GitHub 工单是另一种工具集成，
 不能因为能提交 Work 就认为已能创建外部工单。
 
-## 先区分三类授权
+## 日常只需要选三种身份
 
-- **账户角色**：Owner、Account Admin、Account Member，管理人员和账户访问。
-- **项目角色**：Project Admin、Member、Viewer，管理指定项目、运行任务或阅读证据。
-- **专项职责**：Governance Admin、Platform Operator，管理获授权范围的治理或部署。
+在新成员审批或邀请中，默认选择 **Developer（开发者）**，再指定项目。
 
-同一个人可以兼任这些角色。Account Admin 不自动成为每个项目的 Admin；
-Owner 不自动获得 Governance Admin、Platform Operator 或 AWS 权限。
-普通成员只用 Google 登录 Agenova。基础设施操作还需要自己的 AWS SSO 和 Kubernetes 权限。
+| 界面选项 | 适合谁 | 实际映射 |
+| --- | --- | --- |
+| Developer | 日常提交任务的开发者 | Account Member + 所选项目 Member |
+| Read-only | QA、审查和只读协作者 | Account Member + 所选项目 Viewer |
+| Team administrator | 审批成员、管理指定项目的负责人 | Account Admin + 所选项目 Project Admin；仅 Owner 可授予 |
+
+Team administrator 不代表所有项目管理员，也不包含云权限。
+Owner 是特殊的账户所有者，不出现在日常角色选择里。
+
+## 部署和治理放在高级选项
+
+在成员的 **Advanced permissions** 中查看或管理：
+
+- **Deployment access**：底层 Platform Operator，必须填写具体 installation；
+  还需要此人自己的 AWS SSO/Kubernetes 权限。
+- **Governance access**：底层 Governance Admin，限定 account 或 project。
+- 账户角色、所有权移交和已有专项授权的撤销，也在高级选项中。
+
+已有权限不会因为界面简化而重置。成员的项目权限仍在 **Manage access** 中按项目
+单独调整；账户角色与项目角色仍各自保存，不会自动联动或默认扩大访问。
+新成员的特殊组合可以展开 **Advanced role mapping** 配置；非 Owner 不会看到
+授予管理员的选项，服务端仍会独立拒绝越权请求。
+
+下表中的底层角色名称用于说明实际权限；日常入组优先使用上面的常用选项。
 
 ## 常用场景
 

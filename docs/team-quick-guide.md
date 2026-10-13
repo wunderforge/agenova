@@ -18,12 +18,14 @@ Open <https://app.agenova.app/> and select **Continue with Google**.
 If access is pending, send your sign-in email to an administrator. After approval
 and project-role assignment, sign in again.
 
-- **Member:** submit Work and read your own Work and evidence.
-- **Viewer:** read project Work and evidence.
-- **Project Admin:** administer assigned projects and submit/read project Work.
-- **Account Admin / Owner:** account-level membership and authorization duties.
-- **Governance Admin / Platform Operator:** separately scoped governance or
-  deployment duties; these do not automatically grant AWS or Kubernetes access.
+Choose **Developer** (submit Work), **Read-only** (view project evidence), or
+**Team administrator** (account administration plus administration of the selected
+project; Owner only). Developer is the default. Owner remains a protected identity.
+
+Deployment and governance duties are under each member's **Advanced permissions**.
+They are separately scoped and never grant AWS/Kubernetes credentials. Existing
+custom account/project combinations are retained; inspect advanced role mapping
+when needed. The server still checks every operation.
 
 ## 2. Install and use the Agenova CLI
 

@@ -10,26 +10,39 @@ const html=(await readFile(resolve(root,'internal/invitations/page.html'),'utf8'
 const out=resolve(root,'.tmp/identity/access-ui');await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});
 try{
- const page=await browser.newPage({viewport:{width:1100,height:900}});let approved=false;
+ const page=await browser.newPage({viewport:{width:1100,height:900}});let approved=false;let actor='owner';let expected={accountRole:'admin',role:'admin'};
  await page.route('https://identity.example/**',async route=>{
   const req=route.request();const path=new URL(req.url()).pathname;
   if(path==='/members')return route.fulfill({contentType:'text/html',body:html});
-  if(path==='/auth/me')return route.fulfill({json:{subject:'owner',team:'team'}});
-  if(path==='/api/members')return route.fulfill({json:[{principal:'owner',email:'owner@example.com',accountRole:'owner',active:true,projects:[{project:'payments',role:'admin'}]}]});
+  if(path==='/auth/me')return route.fulfill({json:{subject:actor,team:'team'}});
+  if(path==='/api/members')return route.fulfill({json:[{principal:actor,email:actor+'@example.com',accountRole:actor,active:true,projects:[{project:'payments',role:'admin'}]}]});
   if(path==='/api/access-requests'){
-   if(req.method()==='POST'){assert.deepEqual(req.postDataJSON(),{id:'request',action:'approve',accountRole:'admin',project:'payments',role:'admin'});approved=true;return route.fulfill({status:204});}
+   if(req.method()==='POST'){assert.deepEqual(req.postDataJSON(),{id:'request',action:'approve',project:'payments',...expected});approved=true;return route.fulfill({status:204});}
    return route.fulfill({json:approved?[]:[{id:'request',email:'pending@example.com',status:'pending'}]});
   }
   throw new Error(`Unexpected request ${path}`);
  });
  await page.goto('https://identity.example/members');await page.getByText('1 pending requests.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Create invitation'}).isVisible(),false);
- await page.getByLabel('pending@example.com Account role').selectOption('admin');
+ assert.equal(await page.getByLabel('pending@example.com Access').inputValue(),'developer');
+ assert.equal(await page.getByLabel('pending@example.com Account role').isVisible(),false);
+ await page.getByLabel('pending@example.com Access').selectOption('admin');
  await page.getByLabel('pending@example.com project',{exact:true}).fill('payments');
- await page.getByLabel('pending@example.com Project role').selectOption('admin');
+
  await page.locator('#access-section').screenshot({path:resolve(out,'approval-desktop.png')});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.locator('#access-section').screenshot({path:resolve(out,'approval-mobile.png')});
  await page.getByRole('button',{name:'Approve access'}).click();await page.getByText('Access approved.',{exact:false}).waitFor();assert.equal(approved,true);
+ for(const preset of ['developer','readonly']) {
+  approved=false;actor='admin';expected={accountRole:'member',role:preset==='developer'?'member':'viewer'};
+  await page.reload();await page.getByText('1 pending requests.',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Grant advanced permission',exact:true}).count(),0);
+  assert.equal(await page.getByLabel('pending@example.com Access').locator('option[value=admin]').count(),0);
+  assert.equal(await page.getByLabel('pending@example.com Account role').locator('option[value=admin]').count(),0);
+  assert.equal(await page.getByLabel('pending@example.com Project role').locator('option[value=admin]').count(),0);
+  await page.getByLabel('pending@example.com Access').selectOption(preset);
+  await page.getByLabel('pending@example.com project',{exact:true}).fill('payments');
+  await page.getByRole('button',{name:'Approve access'}).click();await page.getByText('Access approved.',{exact:false}).waitFor();assert.equal(approved,true);
+ }
  console.log('PASS access request UI: pending list, explicit role approval, no invitation, mobile layout');
 }finally{await browser.close();}

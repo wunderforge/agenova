@@ -433,3 +433,18 @@ history and a new real Nova Micro Work. The scope is image-only upgrade of an
 existing member service, not generic production installation or model reconfiguration.
 The [team use cases](../../docs/team-use-cases.zh-CN.md) distinguish application,
 governance and infrastructure access and label remaining unsupported scenarios.
+
+## Owner-requested role UI simplification, 13 October
+
+Use Developer, Read-only and Team administrator presets for new member approval
+and invitations. Map atomically to the existing account/project payload; keep
+custom combinations accessible. Keep existing member grants intact, with explicit
+project editing and advanced account settings. Collapse deployment/governance
+grants, revocation and ownership controls under Advanced permissions. Preserve
+Owner-only rules and service-side checks; no new roles, migrations or automatic
+changes to existing members. Verify exact payloads, defaults, non-Owner options,
+rendered desktop/mobile and the full gate. Update the team use-case guide.
+
+Implemented and deployed. [Role UI evidence](evidence/role-ui-simplification.md)
+records focused/full gates, rendered desktop/mobile checks, real CLI rollout,
+preserved Fisher grant and authenticated/anonymous post-deployment checks.
