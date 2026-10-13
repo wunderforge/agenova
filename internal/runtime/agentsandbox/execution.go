@@ -201,7 +201,11 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		}
 		op := *message.Operation
 		operations++
-		if operations > executionOperationLimit || op.ClaimID != task.ClaimID {
+		expectedToken := task.ModelToken
+		if op.Kind == "tool" {
+			expectedToken = task.ToolToken
+		}
+		if operations > executionOperationLimit || op.ClaimID != task.ClaimID || op.WorkloadToken != expectedToken {
 			return "", errors.New("worker operation limit or claim binding rejected")
 		}
 		promptOK := op.Prompt == task.Objective

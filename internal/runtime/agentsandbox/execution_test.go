@@ -126,6 +126,21 @@ func TestExecutionExchangeRejectsBeforeCallback(t *testing.T) {
 	}
 }
 
+func TestExecutionExchangeRejectsMismatchedWorkloadTokenBeforeCallback(t *testing.T) {
+	task := executionTask()
+	task.ModelToken = "model-token-a"
+	op := modelMessage(task)
+	op.Operation.WorkloadToken = "model-token-b"
+	called := false
+	_, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(op)), io.Discard, task, func(context.Context, workerprotocol.Operation) (workerprotocol.Reply, error) {
+		called = true
+		return workerprotocol.Reply{}, nil
+	})
+	if err == nil || called {
+		t.Fatalf("mismatched token reached callback: err=%v called=%v", err, called)
+	}
+}
+
 func TestExecutionExchangeNoLateOperationsOrFabricatedResult(t *testing.T) {
 	task := executionTask()
 	for name, input := range map[string]string{

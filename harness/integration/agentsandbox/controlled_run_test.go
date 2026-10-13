@@ -6,6 +6,7 @@
 package agentsandbox
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -14,8 +15,15 @@ import (
 	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/gateway"
+	"github.com/wunderforge/agenova/internal/gateway/gatewaytest"
+	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/runtime"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/toolgateway"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
+	"github.com/wunderforge/agenova/internal/workloadidentity"
 )
 
 // TestControlledRuntimeBackend_Kind proves one actual task process on the
@@ -103,6 +111,83 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 		t.Fatalf("Start has no real task acknowledgement: %v", err)
 	}
 	started = true
+	workload, err := workloadidentity.New([]byte("0123456789abcdef0123456789abcdef"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelToken, err := workload.Issue(claimID, alloc.Identity.WorkerID, "model-gateway", time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolToken, err := workload.Issue(claimID, alloc.Identity.WorkerID, "tool-gateway", time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := gatewaytest.NewClaims()
+	claims.Put(claimID, v1alpha1.ClaimPhaseRunning)
+	bound := claims.Items[claimID]
+	bound.BackendIdentity = &alloc.Identity
+	claims.Items[claimID] = bound
+	claims.Put("foreign-claim", v1alpha1.ClaimPhaseRunning)
+	modelAdapter, toolAdapter := &kindModelSpy{}, &kindToolSpy{}
+	store := facts.NewStore()
+	modelGW := modelgateway.NewGateway(claims, nil, store, modelgateway.WithWorkloadIdentity(workload), modelgateway.WithAdapter(modelAdapter))
+	toolGW := toolgateway.NewGateway(claims, nil, store, toolgateway.WithWorkloadIdentity(workload), toolgateway.WithAdapter(toolAdapter))
+	callbackCalls := 0
+	answer, err := adapter.Execute(context.Background(), alloc.Identity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: "Say hello", ModelProfile: "approved-coding-model", Mode: workerprotocol.ReAct, ResourceScope: "repo:acme/payments"}, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		callbackCalls++
+		audience := "model-gateway"
+		if op.Kind == "tool" {
+			audience = "tool-gateway"
+		}
+		verified, verifyErr := workload.Verify(op.WorkloadToken, audience)
+		if verifyErr != nil || verified.ClaimID != claimID || verified.WorkerID != alloc.Identity.WorkerID {
+			return workerprotocol.Reply{}, fmt.Errorf("worker identity rejected")
+		}
+		if op.Kind == "model" {
+			decision, invokeErr := modelGW.InvokeAuthenticated(modelgateway.Request{ClaimID: op.ClaimID, Profile: op.Profile}, op.WorkloadToken)
+			if invokeErr != nil || decision.Result != gateway.ResultAllow {
+				return workerprotocol.Reply{}, fmt.Errorf("model Gateway rejected live worker")
+			}
+		} else {
+			decision, invokeErr := toolGW.InvokeAuthenticated(toolgateway.Request{ClaimID: op.ClaimID, Tool: "git", Action: "read", ResourceScope: op.ResourceScope}, op.WorkloadToken)
+			if invokeErr != nil || decision.Result != gateway.ResultAllow {
+				return workerprotocol.Reply{}, fmt.Errorf("tool Gateway rejected live worker")
+			}
+		}
+		switch callbackCalls {
+		case 1:
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","input":"README.md","answer":""}`}, nil
+		case 2:
+			if op.Kind != "tool" {
+				return workerprotocol.Reply{}, fmt.Errorf("expected governed tool call")
+			}
+			return workerprotocol.Reply{Allowed: true, Text: "synthetic observation"}, nil
+		default:
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","input":"","answer":"hello"}`}, nil
+		}
+	})
+	if err != nil || answer != "hello" || callbackCalls != 3 {
+		t.Fatalf("claim-bound worker exchange: answer=%q calls=%d err=%v", answer, callbackCalls, err)
+	}
+	if modelAdapter.calls != 2 || toolAdapter.calls != 1 {
+		t.Fatalf("unexpected external call counts: model=%d tool=%d", modelAdapter.calls, toolAdapter.calls)
+	}
+	if d, _ := modelGW.InvokeAuthenticated(modelgateway.Request{ClaimID: "foreign-claim", Profile: "approved-coding-model"}, modelToken); d.Result != gateway.ResultDeny || modelAdapter.calls != 2 || len(store.ModelInvocations("foreign-claim")) != 0 {
+		t.Fatal("worker borrowed foreign model authority")
+	}
+	if d, _ := toolGW.InvokeAuthenticated(toolgateway.Request{ClaimID: "foreign-claim", Tool: "git", Action: "read", ResourceScope: "repo:acme/payments"}, toolToken); d.Result != gateway.ResultDeny || toolAdapter.calls != 1 || len(store.ToolInvocations("foreign-claim")) != 0 {
+		t.Fatal("worker borrowed foreign tool authority")
+	}
+	bound.Phase = v1alpha1.ClaimPhaseSucceeded
+	claims.Items[claimID] = bound
+	if d, _ := modelGW.InvokeAuthenticated(modelgateway.Request{ClaimID: claimID, Profile: "approved-coding-model"}, modelToken); d.Result != gateway.ResultDeny || modelAdapter.calls != 2 {
+		t.Fatal("terminal claim invoked model adapter")
+	}
+	if d, _ := toolGW.InvokeAuthenticated(toolgateway.Request{ClaimID: claimID, Tool: "git", Action: "read", ResourceScope: "repo:acme/payments"}, toolToken); d.Result != gateway.ResultDeny || toolAdapter.calls != 1 {
+		t.Fatal("terminal claim invoked tool adapter")
+	}
+	t.Logf("real worker: model=2 tool=1; cross-claim and terminal adapter calls=0; tokens omitted")
 	claimToken := workerControlClaimToken(claimID)
 	status, err := kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimToken)
 	if err != nil {
@@ -114,7 +199,7 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 	if strings.TrimSpace(string(status)) != wantRunning {
 		t.Fatalf("wrong worker result: got %q, want %q", status, wantRunning)
 	}
-	t.Logf("actual child-task result: %s", strings.TrimSpace(string(status)))
+	t.Log("actual child-task running acknowledgement confirmed; control token omitted")
 	if err := adapter.Terminate(alloc.Identity); err != nil {
 		t.Fatalf("Terminate has no independent stop acknowledgement: %v", err)
 	}
@@ -124,7 +209,7 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(status)) != wantStopped {
 		t.Fatalf("worker stop unconfirmed: status=%q err=%v", status, err)
 	}
-	t.Logf("task process stopped before resource deletion: %s", strings.TrimSpace(string(status)))
+	t.Log("task process stopped before resource deletion; control token omitted")
 	cleanup, err := adapter.Cleanup(alloc.Identity)
 	if err != nil || !cleanup.Released || cleanup.Identity != alloc.Identity {
 		t.Fatalf("Cleanup: %+v %v", cleanup, err)
@@ -156,6 +241,14 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 	}
 	t.Logf("confirmed cleanup: claim=%s worker=%s released=%t", claimID, alloc.Identity.WorkerID, cleanup.Released)
 }
+
+type kindModelSpy struct{ calls int }
+
+func (s *kindModelSpy) Invoke(string, modelgateway.Request) error { s.calls++; return nil }
+
+type kindToolSpy struct{ calls int }
+
+func (s *kindToolSpy) Invoke(string, toolgateway.Request) error { s.calls++; return nil }
 
 func workerControlClaimToken(claimID string) string {
 	sum := sha256.Sum256([]byte("agenova-worker-control:" + claimID))

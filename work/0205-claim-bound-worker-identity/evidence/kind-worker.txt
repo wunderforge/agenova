@@ -1,0 +1,10 @@
+=== RUN   TestControlledRuntimeBackend_Kind
+    controlled_run_test.go:93: allocated claim=run51-18de0c8792fbd138-claim worker=agenova-pool-run51-18de0c8792fbd138-pool-pw2zx backend=agent-sandbox
+    controlled_run_test.go:102: Ready is infrastructure-only: claim=run51-18de0c8792fbd138-claim worker=agenova-pool-run51-18de0c8792fbd138-pool-pw2zx
+    controlled_run_test.go:190: real worker: model=2 tool=1; cross-claim and terminal adapter calls=0; tokens omitted
+    controlled_run_test.go:202: actual child-task running acknowledgement confirmed; control token omitted
+    controlled_run_test.go:212: task process stopped before resource deletion; control token omitted
+    controlled_run_test.go:242: confirmed cleanup: claim=run51-18de0c8792fbd138-claim worker=agenova-pool-run51-18de0c8792fbd138-pool-pw2zx released=true
+--- PASS: TestControlledRuntimeBackend_Kind (4.82s)
+PASS
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	5.266s

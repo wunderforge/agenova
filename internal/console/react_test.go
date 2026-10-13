@@ -20,7 +20,7 @@ type reactExecutor struct {
 }
 
 func (e reactExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
-	model := workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
+	model := workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
 	if _, err := h(ctx, model); err != nil {
 		return "", err
 	}
@@ -32,7 +32,7 @@ func (e reactExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIden
 	if artifact == "" {
 		artifact = "logs/timeout.log"
 	}
-	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: scope, Input: artifact})
+	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: scope, Input: artifact})
 	if err != nil {
 		return "", err
 	}

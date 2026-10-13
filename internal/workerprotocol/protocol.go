@@ -9,6 +9,8 @@ import "context"
 
 type Task struct {
 	ClaimID       string `json:"claimId"`
+	ModelToken    string `json:"modelToken,omitempty"`
+	ToolToken     string `json:"toolToken,omitempty"`
 	Objective     string `json:"objective"`
 	ModelProfile  string `json:"modelProfile"`
 	Mode          string `json:"mode,omitempty"`
@@ -17,6 +19,7 @@ type Task struct {
 
 type Operation struct {
 	ClaimID       string `json:"claimId"`
+	WorkloadToken string `json:"workloadToken,omitempty"`
 	Kind          string `json:"kind"`
 	Profile       string `json:"profile,omitempty"`
 	Tool          string `json:"tool,omitempty"`

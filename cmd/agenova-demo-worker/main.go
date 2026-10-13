@@ -41,7 +41,7 @@ func run(input io.Reader, output io.Writer) error {
 	if task.Mode != "" {
 		return errors.New("unsupported agent mode")
 	}
-	if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}); err != nil {
+	if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}}); err != nil {
 		return err
 	}
 	var reply workerprotocol.Reply
@@ -69,7 +69,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
 		}
-		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
 			return err
 		}
 		var reply workerprotocol.Reply
@@ -100,7 +100,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			transcript += "\nObservation: file already read successfully; choose new evidence or finish."
 			continue
 		}
-		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: action.Tool, ResourceScope: task.ResourceScope, Input: action.Input}}); err != nil {
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: action.Tool, ResourceScope: task.ResourceScope, Input: action.Input}}); err != nil {
 			return err
 		}
 		var observation workerprotocol.Reply
