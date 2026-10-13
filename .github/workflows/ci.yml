@@ -114,7 +114,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          brew tap-new agenova/ci
+          GIT_AUTHOR_NAME="Agenova CI" GIT_AUTHOR_EMAIL="ci@example.invalid" GIT_COMMITTER_NAME="Agenova CI" GIT_COMMITTER_EMAIL="ci@example.invalid" brew tap-new agenova/ci
           cp Formula/agenova.rb "$(brew --repository agenova/ci)/Formula/agenova.rb"
           brew install agenova/ci/agenova
           brew test agenova/ci/agenova
