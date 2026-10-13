@@ -24,7 +24,6 @@ import (
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/identity"
-	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
@@ -178,7 +177,7 @@ func configuredService(path string) (*console.Service, error) {
 			return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
 		}
 		if prepared.Issued != nil && prepared.Issued.Claim != nil {
-			if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles); err != nil {
+			if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelProfiles, runtimeProfiles); err != nil {
 				return app.PreparedAssignment{}, err
 			}
 		}

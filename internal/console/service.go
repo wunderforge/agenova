@@ -216,14 +216,22 @@ func (s *Service) submit(data []byte, ownerKey string, prepare func([]byte) (app
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
 	details := []string{}
+	resolutionCode := "admitted-template-ceiling"
 	for _, change := range prepared.Changes {
+		if change.ReasonCode == "outside-policy-constraint" || change.ReasonCode == "policy-timeout-cap" {
+			resolutionCode = "admitted-policy-constraint"
+		}
 		if change.Effective == "" {
-			details = append(details, change.Requested+" excluded by the template ceiling.")
+			if change.ReasonCode == "outside-policy-constraint" {
+				details = append(details, change.Requested+" excluded by the Policy constraint.")
+			} else {
+				details = append(details, change.Requested+" excluded by the template ceiling.")
+			}
 		} else {
 			details = append(details, change.Field+" capped from "+change.Requested+" to "+change.Effective+".")
 		}
 	}
-	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling", Reason: strings.Join(details, " ")}); err != nil {
+	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: resolutionCode, Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
