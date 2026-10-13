@@ -91,7 +91,8 @@ agenova platform apply -f platform.yaml --server https://app.agenova.app --insta
 agenova platform status --server https://app.agenova.app --installation demo-eks-bedrock
 ```
 
-需要包含新升级适配器的 CLI；最初的公开 Homebrew preview 尚不包含此模式。
+请使用 `0.1.0-preview.20261013.1` 或更新版本；公开 Homebrew 已包含升级适配器。
+已有用户先执行 `brew update && brew upgrade agenova`。
 配置必须绑定当前 SSO Deployment，不能拿旧 reference 平台安装文件覆盖线上服务。
 具体配置与回退限制见 [member service 运维说明](../deploy/production/member-service.md#upgrading-an-existing-member-deployment-with-the-cli)。
 无需手动传 `--state-dir`，CLI 自动使用当前用户的默认配置目录保存安装记录。

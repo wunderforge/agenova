@@ -475,3 +475,8 @@ Test native credential write/read/delete on disposable platform environments,
 OAuth callback/session tests and build/version/help, then full gate. Record native
 Windows/Linux versus WSL-only unverified behavior explicitly. Publish checksummed
 preview artifacts and update the public tap only after relevant checks pass.
+
+Published preview 0.1.0-preview.20261013.1 and updated public tap.
+[Cross-platform evidence](evidence/cross-platform-cli.md) records native Windows/Linux
+CI, actual package installation, local full gate and the remaining real WSL2/Google
+acceptance boundary. No real-user WSL login is claimed.

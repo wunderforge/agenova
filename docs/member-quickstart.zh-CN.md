@@ -71,3 +71,5 @@ agenova work show <上一步返回的request-ref>
 账号授权由管理员批准一次；任务通常自动检查 Policy/Template，不逐次人工批准。角色不能绕过模型、工具和项目限制。
 
 退出 CLI：`agenova logout`。网页退出使用 **Log out**，两者是独立登录会话。
+
+Linux、WSL2 和 Windows 安装及钥匙串要求见 [跨平台安装说明](cli-installation.md)。
