@@ -260,3 +260,65 @@ A contributor can verify the Formula in a disposable local tap; this alone is
 not proof that teammates can install from GitHub. Homebrew's first source build
 requires Go and Apple Command Line Tools. Subsequent CLI usage does not require
 Go. Updates should bump the pinned source, checksum and version together.
+
+### Upgrading an existing member Deployment with the CLI
+
+The Kubernetes adapter's `mode: member-upgrade` is a narrow **image-only**
+upgrade of an already provisioned member service. It does not install SSO/RDS,
+run migrations, change model/runtime configuration, or replace its Deployment
+spec with the reference installer. Use a CLI built with this mode; the initial
+Homebrew preview does not include it.
+
+In a copy of the installed Platform YAML, keep the Platform name, adapters,
+runtimes, models and initial policy unchanged. Replace the deployment config:
+
+```yaml
+context: YOUR_SSO_CONTEXT
+namespace: agenova-system
+mode: member-upgrade
+deployment-name: agenova-member-control-plane
+deployment-uid: EXISTING_DEPLOYMENT_UID
+pod-template-sha256: REVIEWED_TEMPLATE_HASH
+control-plane-image: REGISTRY/IMAGE@sha256:NEW_IMAGE_DIGEST
+```
+
+Do not set `image-pull-policy` in this mode. Bind the UID from the selected
+Deployment and SHA-256 of its JSON-canonicalized `spec.template`, excluding only
+`image` on the container named `control-plane`. Review the full existing template
+before accepting its hash; never renew the binding blindly after a drift error.
+Generate these binding fields from the reviewed Deployment (no Secret data is read):
+
+```sh
+kubectl --context YOUR_SSO_CONTEXT -n agenova-system get deployment agenova-member-control-plane -o json | python3 scripts/member-upgrade-binding.py
+```
+
+Copy the fields into the deployment config, then replace `control-plane-image`
+with the new compatible digest. All other containers, env, mounted Secret references,
+probes and workload identity are preserved. The adapter requires one replica with Recreate for the single
+PostgreSQL writer. Expect a brief service interruption and schedule a quiet window.
+This is not a zero-downtime deployment.
+
+The account Owner must grant `platform-operator` for the exact Platform name.
+Log in as that user, then use that person's AWS SSO profile and kubeconfig:
+
+```sh
+export AWS_PROFILE=agenova-sso
+export KUBECONFIG="$HOME/.kube/agenova-sso"
+agenova login --server https://app.agenova.app
+agenova platform validate -f platform.yaml --server https://app.agenova.app --installation YOUR_PLATFORM --state-dir ./operator-state
+agenova platform plan -f platform.yaml --server https://app.agenova.app --installation YOUR_PLATFORM --state-dir ./operator-state
+agenova platform apply -f platform.yaml --server https://app.agenova.app --installation YOUR_PLATFORM --state-dir ./operator-state
+agenova platform status --server https://app.agenova.app --installation YOUR_PLATFORM --state-dir ./operator-state
+```
+
+Retain a private copy of the previous image digest and reviewed configuration.
+The plan shows old/new image; apply tests Deployment UID/resourceVersion and old
+image before patching, waits for rollout, and rechecks convergence. It never patches
+Secrets, RBAC, Service or the installed runtime ConfigMap. The local saved revision
+is an upgrade receipt; it does not rewrite the runtime's existing Platform revision.
+Reapply of the same healthy image is a no-op. A rollout failure is an error, not a
+successful upgrade. Inspect the failed Pod before using the same flow with a known
+schema-compatible previous image. Never restore an older database or delete data
+as an application rollback. Missing application authorization is denied even if
+local Kubernetes credentials are administrative; direct Kubernetes administration
+remains governed separately by IAM/RBAC.

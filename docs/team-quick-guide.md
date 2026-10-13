@@ -2,6 +2,8 @@
 
 Environment details last verified: 13 October 2026.
 
+See also: [team use cases and permission examples (Chinese)](team-use-cases.zh-CN.md).
+
 | Entry point | Purpose | Required access |
 | --- | --- | --- |
 | Agenova Portal / CLI | Submit agent tasks and inspect results and evidence | Agenova account/project roles |

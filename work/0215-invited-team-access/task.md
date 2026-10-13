@@ -411,3 +411,25 @@ credentials and default server, public tap re-clone and exact source archive
 cache removal. [Clean-install evidence](evidence/public-tap-clean-install.md)
 records the unauthenticated negative, new login, actual run/list/show and Bedrock
 result. Existing browser and OS/toolchain state were retained, explicitly scoped.
+
+## Owner-requested live Platform Operator upgrade, 13 October
+
+Grant Fisher the explicit existing installation duty, verify his actual Google
+CLI identity, and upgrade the live member control plane through platform apply.
+The reference installer cannot replace the member Deployment safely. Add a narrow
+Kubernetes adapter member-upgrade mode: pin existing Deployment UID and the
+non-image Pod template fingerprint, preserve auth/database/sidecar/workload
+identity, enforce single-writer Recreate, reject runtime/model changes and patch
+only the named control-plane image with optimistic concurrency tests. No schema
+migration or broad production installer is implied. Test denial, stale bindings,
+concurrent changes, readiness, no-op repeat, then full gate and real EKS rollout.
+Record exact login subject, old/new image and Pod identity, durable history and
+HTTPS health. Never use a reference install as proof of member-service upgrade.
+
+The [live Platform Operator evidence](evidence/platform-operator-upgrade.md)
+records the explicitly approved Fisher grant, real Google CLI identity, actual
+member Deployment image replacement, final ready/status/no-op repeat, preserved
+history and a new real Nova Micro Work. The scope is image-only upgrade of an
+existing member service, not generic production installation or model reconfiguration.
+The [team use cases](../../docs/team-use-cases.zh-CN.md) distinguish application,
+governance and infrastructure access and label remaining unsupported scenarios.
