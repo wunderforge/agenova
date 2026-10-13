@@ -101,6 +101,23 @@ jobs:
       - name: Build and package native CLI
         shell: pwsh
         run: ./scripts/package-cli.ps1 -Version 0.1.0-preview.20261013.1
+      - name: Install Windows package into clean user directory
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/install-windows.ps1 -ArchivePath .tmp/cli-release/agenova_0.1.0-preview.20261013.1_windows_amd64.zip -InstallDirectory "$env:RUNNER_TEMP/agenova-installed"
+          agenova --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          agenova --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install Linux Homebrew formula
+        if: runner.os == 'Linux'
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew tap-new agenova/ci
+          cp Formula/agenova.rb "$(brew --repository agenova/ci)/Formula/agenova.rb"
+          brew install agenova/ci/agenova
+          brew test agenova/ci/agenova
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ runner.os }}
