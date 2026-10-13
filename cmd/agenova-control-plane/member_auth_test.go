@@ -225,6 +225,21 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"status"}`); code != 403 {
 		t.Fatal("revoked operator", code)
 	}
+	if _, err = db.Exec(`UPDATE agenova_members SET account_role='admin' WHERE principal='person'; INSERT INTO agenova_projects VALUES('team','operator-project'); INSERT INTO agenova_project_grants VALUES('person','team','operator-project','admin')`); err != nil {
+		t.Fatal(err)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
+		t.Fatal("team admin deployment", code)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
+		t.Fatal("team admin installation escape", code)
+	}
+	if _, err = db.Exec(`UPDATE agenova_members SET account_role='member' WHERE principal='person'`); err != nil {
+		t.Fatal(err)
+	}
+	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
+		t.Fatal("demoted admin deployment", code)
+	}
 	m.Active = false
 	if err = store.PutMember(context.Background(), "operator", m); err != nil {
 		t.Fatal(err)

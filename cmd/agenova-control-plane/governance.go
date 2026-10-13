@@ -106,7 +106,7 @@ func (d *memberDependencies) platformAuthorizationHandler() http.Handler {
 			http.Error(w, "Unknown action", 400)
 			return
 		}
-		if input.Installation == "" || input.Installation != os.Getenv("AGENOVA_PLATFORM_NAME") || d.store.AuthorizeScoped(r.Context(), p, action, "installation", input.Installation) != nil {
+		if d.store.AuthorizeInstallation(r.Context(), p, action, input.Installation, os.Getenv("AGENOVA_PLATFORM_NAME")) != nil {
 			http.Error(w, "Installation access denied", 403)
 			return
 		}

@@ -12,7 +12,7 @@ function accessPreset(container, account, projectRole, owner, label, advanced) {
  const wrapper=node('label','Access');const select=node('select');select.setAttribute('aria-label',label);
  for(const [value,title] of [['developer','Developer'],['readonly','Read-only'],...(owner?[['admin','Team administrator']]:[]),['custom','Custom (advanced)']]) {const option=node('option',title);option.value=value;select.append(option);}
  const help=node('small');
- function sync(){select.value=account.value==='member'&&projectRole.value==='member'?'developer':account.value==='member'&&projectRole.value==='viewer'?'readonly':account.value==='admin'&&projectRole.value==='admin'?'admin':'custom';help.textContent=`Account: ${account.value} · Selected project: ${projectRole.value}. No deployment or governance access included.`;}
+ function sync(){select.value=account.value==='member'&&projectRole.value==='member'?'developer':account.value==='member'&&projectRole.value==='viewer'?'readonly':account.value==='admin'&&projectRole.value==='admin'?'admin':'custom';help.textContent=`Account: ${account.value} · Selected project: ${projectRole.value}. ${select.value==='admin'?'Includes project governance and current-installation deployment; cloud permissions required.':'No bundled deployment or governance access.'}`;}
  select.addEventListener('change',()=>{if(select.value==='custom'){advanced.open=true;return;}account.value=select.value==='admin'?'admin':'member';projectRole.value=select.value==='admin'?'admin':select.value==='readonly'?'viewer':'member';sync();});
  account.addEventListener('change',sync);projectRole.addEventListener('change',sync);sync();wrapper.append(select);container.append(wrapper,help);
 }
@@ -124,7 +124,8 @@ async function refreshMembers() {
    row.append(node('h3',member.email || member.principal),node('p',`${member.accountRole} · ${member.active?'Active':'Disabled'}`));
    for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role==='member'?'Developer':grant.role==='viewer'?'Read-only':member.accountRole==='admin'?'Team administrator':'Project administrator'}`));
    const advanced=node('details');advanced.className='advanced-permissions';advanced.append(node('summary','Advanced permissions'));
-   advanced.append(node('small','Deployment and governance duties are scoped separately. They do not grant AWS credentials or Work access.'));
+   advanced.append(node('small','Explicit additional duties are scoped separately. They do not grant AWS credentials or Work access.'));
+   if(member.accountRole==='admin' && member.projects.some(g=>g.role==='admin')) row.append(node('small','Team administrator includes governance for administered projects and deployment access to this service’s installation. AWS/Kubernetes access is still required.'));
    if((member.roles || []).length) row.append(node('small',`${member.roles.length} advanced permission(s) assigned`));
    for(const grant of member.roles || []) {
     const line=node('p',`${grant.role} · ${grant.scopeKind}: ${grant.scopeRef}`);

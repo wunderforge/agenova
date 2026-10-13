@@ -20,10 +20,12 @@ and project-role assignment, sign in again.
 
 Choose **Developer** (submit Work), **Read-only** (view project evidence), or
 **Team administrator** (account administration plus administration of the selected
-project; Owner only). Developer is the default. Owner remains a protected identity.
+project, project governance and current-installation deployment authorization; Owner only). Developer is the default. Owner remains a protected identity.
 
 Deployment and governance duties are under each member's **Advanced permissions**.
-They are separately scoped and never grant AWS/Kubernetes credentials. Existing
+Team administrators include governance in administered projects and authorization
+for the serving installation; other members can receive separate scoped duties.
+Neither option grants AWS/Kubernetes credentials. Existing
 custom account/project combinations are retained; inspect advanced role mapping
 when needed. The server still checks every operation.
 

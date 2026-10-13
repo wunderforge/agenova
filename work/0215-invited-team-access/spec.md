@@ -122,3 +122,16 @@ message and sign in again after approval. Existing invitation-only installations
 retain their explicit configuration. Public tenant creation stays excluded.
 Tests must cover pending browser/native denial, repeated login, concurrent review,
 role escalation, team/project isolation, audit rollback and rendered approval UI.
+
+## Superseding Owner decision: Team administrator bundle, 13 October
+
+Team administrator (Account Admin plus Project Admin) includes governance only in
+its administered projects and application deployment authorization only for the
+serving installation pinned by trusted server configuration. Neither account-only
+nor project-only Admin qualifies. Owner remains separate. No AWS/IAM/RBAC grants
+are created. Existing explicit scoped duties remain additive and independently
+revocable. Current membership is checked on each operation; demotion/disable
+removes derived authority. Governance rechecks inside its write transaction.
+Update UI/docs and test real PostgreSQL positive/negative/revocation paths plus
+rendered browser flows and the full gate. Operator examples omit optional
+state-dir; verify default-directory behavior without sharing local state.

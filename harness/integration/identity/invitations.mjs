@@ -73,6 +73,7 @@ try {
  assert.equal(await page.getByText('Governance access (Governance Admin)',{exact:false}).isVisible(),false);
 
  assert.equal(await page.locator('#roles input, #roles select, #roles button').count(),0);
+ assert.equal(await page.getByText('Team administrator includes governance for administered projects and deployment access to this service’s installation. AWS/Kubernetes access is still required.',{exact:true}).count(),1);
  await page.screenshot({path:resolve(out,'roles-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

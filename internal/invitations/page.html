@@ -4,15 +4,15 @@
 <main><p class="eyebrow">TEAM ACCESS</p><h1>Manage your team</h1><p class="intro">Give each person their own sign-in and access to a project.</p>
 <nav class="access-nav" aria-label="Team access"><a href="#roles">Roles &amp; permissions</a><a href="#member-section">Assign member roles</a></nav>
 <section class="card" id="roles" aria-labelledby="roles-heading"><h2 id="roles-heading">Roles &amp; permissions</h2>
-<p class="intro">Choose everyday access for a project. Deployment and governance permissions are separate advanced options.</p>
+<p class="intro">Choose everyday access for a project. Team administrators also manage project governance and the current installation.</p>
 <div class="role-grid">
 <article class="role-card"><h3>Developer</h3><p>Submit Work and read your own results in assigned projects.</p><p class="role-limit">No member management or AWS access.</p></article>
 <article class="role-card"><h3>Read-only</h3><p>Read project Work and evidence without submitting or changing anything.</p></article>
-<article class="role-card"><h3>Team administrator</h3><p>Review access requests, manage ordinary members and run Work in assigned projects.</p><p class="role-limit">Only the Owner can appoint administrators. No deployment or governance permissions are included.</p></article>
+<article class="role-card"><h3>Team administrator</h3><p>Review access requests, manage ordinary members and run Work in assigned projects.</p><p class="role-limit">Only the Owner can appoint administrators. Includes governance for administered projects and deployment access to this service’s installation. AWS/Kubernetes permissions are still required.</p></article>
 </div>
 <details class="role-compat"><summary>Advanced permissions and underlying roles</summary>
 <p>Owner is the protected account owner, not an everyday access choice. Existing project-only administrators and custom account/project combinations remain supported.</p>
-<p>Developer maps to Account Member + Project Member. Read-only maps to Account Member + Project Viewer. Team administrator maps to Account Admin + Project Admin for the selected project; it never grants access to every project.</p>
+<p>Developer maps to Account Member + Project Member. Read-only maps to Account Member + Project Viewer. Team administrator maps to Account Admin + Project Admin for the selected project; it also includes governance for that project and deployment authorization for the serving installation, never access to every project.</p>
 <p>Deployment access (Platform Operator) authorizes CLI operations for a named installation and also requires the operator’s own AWS/Kubernetes identity.</p>
 <p>Governance access (Governance Admin) authorizes immutable Policy/Template registration for a named account or project. Neither advanced duty grants Work access or cloud credentials.</p>
 <p>All existing server-side checks remain in force. Task authority is still limited by Policy and Template.</p>
@@ -25,7 +25,7 @@
 <details id="invite-advanced"><summary>Advanced role mapping</summary>
 <label>Account role<select id="account-role" name="accountRole"><option value="member">Account Member</option><option value="admin">Account Admin (Owner only)</option></select></label>
 <label><span id="role-label">Project role</span><select id="role" name="role" aria-labelledby="role-label"><option value="member">Developer</option><option value="viewer">Read-only</option><option value="admin">Project Admin (Owner only)</option></select></label>
-<p>These settings affect only account and project access. Deployment and governance are assigned separately after membership is approved.</p></details>
+<p>Account Admin plus Project Admin includes project governance and current-installation deployment authorization. Cloud permissions are separate.</p></details>
 <p id="role-help">Members can run Work and read their own evidence in this project.</p><button id="send" type="submit">Create invitation</button></form>
 <p id="notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="invitation-list-section"><div class="section-heading"><h2>Invitations</h2><button id="refresh" class="quiet" type="button">Refresh</button></div><p id="loading">Loading invitations…</p><ul id="invitations"></ul></section>

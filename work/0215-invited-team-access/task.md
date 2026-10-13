@@ -448,3 +448,20 @@ rendered desktop/mobile and the full gate. Update the team use-case guide.
 Implemented and deployed. [Role UI evidence](evidence/role-ui-simplification.md)
 records focused/full gates, rendered desktop/mobile checks, real CLI rollout,
 preserved Fisher grant and authenticated/anonymous post-deployment checks.
+
+## Superseding Owner decision: Team administrator bundle, 13 October
+
+Team administrator (Account Admin plus Project Admin) includes governance only in
+its administered projects and application deployment authorization only for the
+serving installation pinned by trusted server configuration. Neither account-only
+nor project-only Admin qualifies. Owner remains separate. No AWS/IAM/RBAC grants
+are created. Existing explicit scoped duties remain additive and independently
+revocable. Current membership is checked on each operation; demotion/disable
+removes derived authority. Governance rechecks inside its write transaction.
+Update UI/docs and test real PostgreSQL positive/negative/revocation paths plus
+rendered browser flows and the full gate. Operator examples omit optional
+state-dir; verify default-directory behavior without sharing local state.
+
+Completed and deployed: [Team administrator bundle evidence](evidence/team-admin-bundle.md).
+Real CLI plan/apply/status succeeded without state-dir, starting without an applied
+record in the default user directory. Full gate and PostgreSQL/race checks passed.

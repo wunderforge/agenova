@@ -185,3 +185,16 @@ Keychain ACLs. Existing records retain their access list; choose Always Allow fo
 the installed executable when macOS asks. A locked keychain or changed executable
 can require consent again. This setting does not trust all applications and does
 not provide an unencrypted credential fallback.
+
+## Superseding Owner decision: Team administrator bundle, 13 October
+
+Team administrator (Account Admin plus Project Admin) includes governance only in
+its administered projects and application deployment authorization only for the
+serving installation pinned by trusted server configuration. Neither account-only
+nor project-only Admin qualifies. Owner remains separate. No AWS/IAM/RBAC grants
+are created. Existing explicit scoped duties remain additive and independently
+revocable. Current membership is checked on each operation; demotion/disable
+removes derived authority. Governance rechecks inside its write transaction.
+Update UI/docs and test real PostgreSQL positive/negative/revocation paths plus
+rendered browser flows and the full gate. Operator examples omit optional
+state-dir; verify default-directory behavior without sharing local state.

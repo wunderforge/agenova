@@ -28,7 +28,7 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 		return v0.Principal{Subject: name, Team: "team", AuthenticationContext: "oidc"}
 	}
 	c := invitations.MemberChange{Principal: "member", Action: "grant-role", Role: GovernanceAdmin, ScopeKind: "project", ScopeRef: "project"}
-	for _, name := range []string{"owner", "admin", "member"} {
+	for _, name := range []string{"owner", "member"} {
 		if s.AuthorizeScoped(ctx, p(name), "policy.register", "project", "project") == nil {
 			t.Fatal("implicit governance access", name)
 		}
@@ -106,5 +106,64 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 	var count int
 	if err = s.DB.QueryRow(`SELECT count(*) FROM agenova_identity_audit WHERE operation LIKE 'grant-role:%' OR operation LIKE 'revoke-role:%'`).Scan(&count); err != nil || count != 4 {
 		t.Fatalf("audit count %d: %v", count, err)
+	}
+}
+
+func TestTeamAdministratorBundleAndRevocation(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	for _, name := range []string{"team-admin", "account-only", "project-only", "viewer", "owner"} {
+		if err := s.PutMember(ctx, "bootstrap", Member{Issuer: "issuer", Subject: name, Principal: name, Team: "team", Active: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Exec(`INSERT INTO agenova_projects VALUES('team','one'),('team','two'); UPDATE agenova_members SET account_role='admin' WHERE principal IN ('team-admin','account-only'); UPDATE agenova_members SET account_role='owner' WHERE principal='owner'; INSERT INTO agenova_project_grants VALUES('team-admin','team','one','admin'),('project-only','team','one','admin'),('viewer','team','one','viewer')`); err != nil {
+		t.Fatal(err)
+	}
+	p := func(n string) v0.Principal {
+		return v0.Principal{Subject: n, Team: "team", AuthenticationContext: "oidc"}
+	}
+	for _, name := range []string{"account-only", "project-only", "viewer", "owner"} {
+		if s.AuthorizeInstallation(ctx, p(name), "platform.configure", "installed", "installed") == nil {
+			t.Fatal("deployment escalation", name)
+		}
+		if s.AuthorizeScoped(ctx, p(name), "policy.register", "project", "one") == nil {
+			t.Fatal("governance escalation", name)
+		}
+	}
+	for _, action := range []string{"platform.configure", "platform.diagnose"} {
+		if err := s.AuthorizeInstallation(ctx, p("team-admin"), action, "installed", "installed"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.AuthorizeInstallation(ctx, p("team-admin"), "platform.configure", "other", "installed") == nil {
+		t.Fatal("foreign installation")
+	}
+	if s.AuthorizeInstallation(ctx, p("team-admin"), "aws.admin", "installed", "installed") == nil {
+		t.Fatal("unknown action")
+	}
+	if s.AuthorizeScoped(ctx, p("team-admin"), "policy.register", "project", "two") == nil {
+		t.Fatal("foreign project")
+	}
+	if s.AuthorizeScoped(ctx, p("team-admin"), "policy.register", "account", "team") == nil {
+		t.Fatal("account governance escalation")
+	}
+	doc := []byte("apiVersion: agenova.io/v1alpha1\nkind: PolicyBundle\nmetadata:\n  name: team-policy\n  version: '1'\nspec:\n  rules:\n    - team: team\n      project: one\n      action: claim.create\n      templateRef: engineer\n")
+	if _, err := s.ApplyGovernance(ctx, p("team-admin"), "one", "policy", doc, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyGovernance(ctx, p("team-admin"), "two", "policy", doc, nil); err == nil {
+		t.Fatal("cross-project write")
+	}
+	for _, mutation := range []string{`UPDATE agenova_project_grants SET role='member' WHERE principal='team-admin'`, `UPDATE agenova_project_grants SET role='admin' WHERE principal='team-admin'; UPDATE agenova_members SET account_role='member' WHERE principal='team-admin'`, `UPDATE agenova_members SET account_role='admin',active=false WHERE principal='team-admin'`} {
+		if _, err := s.DB.Exec(mutation); err != nil {
+			t.Fatal(err)
+		}
+		if s.AuthorizeInstallation(ctx, p("team-admin"), "platform.configure", "installed", "installed") == nil {
+			t.Fatal("revoked deployment")
+		}
+		if _, err := s.ApplyGovernance(ctx, p("team-admin"), "one", "policy", doc, nil); err == nil {
+			t.Fatal("revoked governance")
+		}
 	}
 }

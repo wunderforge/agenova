@@ -90,7 +90,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	return nil
 }
 
-// AuthorizeScoped checks explicit duties, never implicit Owner/admin privilege.
+// AuthorizeScoped checks explicit duties or the project-scoped Team administrator bundle.
 // A successful platform check is not cluster authorization. IAM/RBAC must still
 // independently authorize deployment. Unknown operations always fail closed.
 func (s Store) AuthorizeScoped(ctx context.Context, p v0.Principal, action, kind, ref string) error {
@@ -115,10 +115,41 @@ func (s Store) AuthorizeScoped(ctx context.Context, p v0.Principal, action, kind
 	if kind == "account" && ref != p.Team {
 		return authentication.ErrForbidden
 	}
+	if kind == "project" && role == GovernanceAdmin && s.authorizeTeamAdministrator(ctx, p, ref) == nil {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var allowed bool
 	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_scoped_roles g ON g.principal=m.principal AND g.team=m.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND g.role=$3 AND ((g.scope_kind=$4 AND g.scope_ref=$5) OR ($4='project' AND g.scope_kind='account' AND g.scope_ref=$2)) AND ($4<>'project' OR EXISTS(SELECT 1 FROM agenova_projects p WHERE p.team=$2 AND p.project=$5)))`, p.Subject, p.Team, role, kind, ref).Scan(&allowed)
+	if err != nil || !allowed {
+		return authentication.ErrForbidden
+	}
+	return nil
+}
+
+// AuthorizeInstallation pins bundled deployment authority to the serving installation.
+// The caller supplies configured from trusted server configuration, never request input.
+func (s Store) AuthorizeInstallation(ctx context.Context, p v0.Principal, action, requested, configured string) error {
+	if requested == "" || requested != configured || (action != "platform.configure" && action != "platform.diagnose" && action != "platform.recover") {
+		return authentication.ErrForbidden
+	}
+	if s.authorizeTeamAdministrator(ctx, p, "") == nil {
+		return nil
+	}
+	return s.AuthorizeScoped(ctx, p, action, "installation", requested)
+}
+
+// Team administrator means BOTH Account Admin and an existing Project Admin grant.
+// An empty project is used only for the server-pinned installation authorization.
+func (s Store) authorizeTeamAdministrator(ctx context.Context, p v0.Principal, project string) error {
+	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" {
+		return authentication.ErrForbidden
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var allowed bool
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team JOIN agenova_projects p ON p.team=g.team AND p.project=g.project WHERE m.principal=$1 AND m.team=$2 AND m.active AND m.account_role='admin' AND g.role='admin' AND ($3='' OR g.project=$3))`, p.Subject, p.Team, project).Scan(&allowed)
 	if err != nil || !allowed {
 		return authentication.ErrForbidden
 	}

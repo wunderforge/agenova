@@ -16,12 +16,14 @@
 | Read-only | QA、审查和只读协作者 | Account Member + 所选项目 Viewer |
 | Team administrator | 审批成员、管理指定项目的负责人 | Account Admin + 所选项目 Project Admin；仅 Owner 可授予 |
 
-Team administrator 不代表所有项目管理员，也不包含云权限。
+Team administrator 同时包含所管理项目的治理权限，以及当前服务绑定 installation 的部署授权。
+必须同时具有 Account Admin + 至少一个 Project Admin；不代表所有项目管理员，也不包含云权限。
+降级任一必要角色或停用成员会撤销这组派生权限；另行授予的专项权限须单独撤销。
 Owner 是特殊的账户所有者，不出现在日常角色选择里。
 
-## 部署和治理放在高级选项
+## Team administrator 自带部署和治理；其他人可单独授权
 
-在成员的 **Advanced permissions** 中查看或管理：
+Team administrator 无需再单独授予下面两项。其他成员可在 **Advanced permissions** 中按需授权：
 
 - **Deployment access**：底层 Platform Operator，必须填写具体 installation；
   还需要此人自己的 AWS SSO/Kubernetes 权限。
@@ -46,9 +48,9 @@ Owner 是特殊的账户所有者，不出现在日常角色选择里。
 | 项目负责人管理项目成员并提交任务 | Project Admin | Members + Work CLI | 只管理其项目的 Member/Viewer；不能任命管理员或扩大账户权限 |
 | 管理新成员待审批请求 | Account Admin + 对应项目 Project Admin | Members → Pending access requests | 给普通用户分配 Member/Viewer；任命管理员由 Owner 操作 |
 | 任命管理员或授予专项职责 | Account Owner | Members | 授予治理/部署职责仍需明确范围；不自动分配云权限 |
-| 注册新的治理 Policy 版本 | 项目范围 Governance Admin | `agenova policy apply` | 版本不可原地改写；新版本激活影响后续 Work，不扩大已有 claim |
-| 注册兼容的 AgentTemplate | 项目范围 Governance Admin | `agenova agent-template apply` | 不是任意 CRUD；已有同身份不同内容会冲突，且不能任意选择 Worker 镜像 |
-| 升级当前 SSO 控制面镜像 | 安装范围 Platform Operator + 自己的 AWS/EKS 部署权限 | `agenova platform plan/apply/status` | 使用 member-upgrade 配置；会短暂中断；不修改数据库结构或登录配置 |
+| 注册新的治理 Policy 版本 | Team administrator（该项目）或项目范围 Governance Admin | `agenova policy apply` | 版本不可原地改写；新版本激活影响后续 Work，不扩大已有 claim |
+| 注册兼容的 AgentTemplate | Team administrator（该项目）或项目范围 Governance Admin | `agenova agent-template apply` | 不是任意 CRUD；已有同身份不同内容会冲突，且不能任意选择 Worker 镜像 |
+| 升级当前 SSO 控制面镜像 | Team administrator 或安装范围 Platform Operator，加自己的 AWS/EKS 部署权限 | `agenova platform plan/apply/status` | 使用 member-upgrade 配置；会短暂中断；不修改数据库结构或登录配置 |
 | 排查 Pod、读取容器日志 | AWS SSO 身份 + 对应命名空间的 Kubernetes 读取权限 | `kubectl get`、`kubectl logs` | 应用角色不会授予日志权限；日志可能含敏感运维信息 |
 | 扩缩节点、修改 EKS 网络或 IAM | 指定基础设施运维人员的 AWS 权限 | Terraform / AWS CLI | 不属于 Agenova Work 或应用角色授权，不能仅授予 Platform Operator 就完成 |
 | 更换 Bedrock 模型或新增 Model Profile | 指定平台运维人员；通过 Agenova 部署路径时还需 Platform Operator | 平台配置变更流程 | 本次 member-upgrade **只支持镜像升级**，会拒绝模型/运行时变化；当前 SSO 配置更新尚未在这条 CLI 路径完成验收 |
@@ -84,19 +86,22 @@ aws sso login --profile agenova-sso
 export AWS_PROFILE=agenova-sso
 export KUBECONFIG="$HOME/.kube/agenova-sso"
 agenova login --server https://app.agenova.app
-agenova platform plan -f platform.yaml --server https://app.agenova.app --installation demo-eks-bedrock --state-dir ./operator-state
-agenova platform apply -f platform.yaml --server https://app.agenova.app --installation demo-eks-bedrock --state-dir ./operator-state
-agenova platform status --server https://app.agenova.app --installation demo-eks-bedrock --state-dir ./operator-state
+agenova platform plan -f platform.yaml --server https://app.agenova.app --installation demo-eks-bedrock
+agenova platform apply -f platform.yaml --server https://app.agenova.app --installation demo-eks-bedrock
+agenova platform status --server https://app.agenova.app --installation demo-eks-bedrock
 ```
 
 需要包含新升级适配器的 CLI；最初的公开 Homebrew preview 尚不包含此模式。
 配置必须绑定当前 SSO Deployment，不能拿旧 reference 平台安装文件覆盖线上服务。
 具体配置与回退限制见 [member service 运维说明](../deploy/production/member-service.md#upgrading-an-existing-member-deployment-with-the-cli)。
-`operator-state` 是部署者本地记录，不是成员共享的权限文件，也不包含用户登录令牌。
+无需手动传 `--state-dir`，CLI 自动使用当前用户的默认配置目录保存安装记录。
+新人无需接收别人的 state 目录；提供经过审查的 platform.yaml，完成 plan/apply 后即可 status。
+仅登录或 plan 不会生成已应用记录，因此全新电脑须先成功 apply 才能执行上述 status。
+这些本地记录不是权限或登录令牌；`--state-dir` 只在需要隔离多套本地部署记录时使用。
 
 ## 例子三：治理同事更新 Policy 或 Template
 
-Owner 给此人授予 `Governance Admin`，范围限定在项目 `payments`。
+可以使用 `payments` 的 Team administrator，或由 Owner 单独授予 `Governance Admin`，范围限定在项目 `payments`。
 该职责本身不授予 Work 提交或跨项目证据读取权限；需要测试时再加项目 Member。
 
 ```bash
