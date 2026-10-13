@@ -296,8 +296,13 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
   </>;
 }
 function NewWork({ setup, created }: { setup: Setup; created: (work: View) => void }) {
-  const ceiling = setup.template.spec.capabilityCeiling;
-  const defaults = setup.template.spec.defaults;
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
+  return <ConfiguredWork setup={{...setup,template:setup.template}} created={created}/>;
+}
+function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Setup['template']>};created:(work:View)=>void}) {
+  const template = setup.template;
+  const ceiling = template.spec.capabilityCeiling;
+  const defaults = template.spec.defaults;
   const projects = suggestedProjects(setup);
   const defaultScope = ceiling?.resourceScopes?.find(scope => scope.startsWith('repo:'));
   const defaultRepository = defaultScope?.slice('repo:'.length) || '';
@@ -319,7 +324,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       apiVersion: 'agenova.io/v1alpha1', kind: 'ClaimRequest',
       metadata: { name: `work-${crypto.randomUUID()}` },
       spec: {
-        templateRef: setup.template.metadata.name,
+        templateRef: template.metadata.name,
         projectRef: project,
         task: {
           type: 'repository-change',
@@ -351,8 +356,8 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       <div>
         <section>
           <h2>Task</h2>
-          <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
-            <option>{setup.template.metadata.name}</option>
+          <label>Agent<select name="agent" defaultValue={template.metadata.name}>
+            <option>{template.metadata.name}</option>
           </select></label>
           <label>Project<input name="project" list="policy-projects" defaultValue={projects[0] || ''} required/>
             <datalist id="policy-projects">{projects.map(project => <option key={project} value={project}/>)}</datalist>
@@ -404,6 +409,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
   </>;
 }
 function Templates({ setup }: { setup: Setup }) {
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
   return <><Heading title="Agents"/>
     <section className="portal-panel">
       <h2>{setup.template.metadata.name}</h2>
@@ -484,6 +490,10 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
+    {!!setup.projects?.length && <div className="portal-toolbar">
+      <label>Project <select aria-label="Configuration project" value={setup.project || ''} onChange={e=>{const url=new URL(window.location.href);url.searchParams.set('project',e.target.value);url.searchParams.delete('template');window.location.assign(url.href);}}>{setup.projects.map(project=><option key={project}>{project}</option>)}</select></label>
+      {!!setup.templates?.length && <label>Template <select aria-label="Configuration template" value={setup.template?.metadata.name || ''} onChange={e=>{const url=new URL(window.location.href);url.searchParams.set('template',e.target.value);window.location.assign(url.href);}}>{setup.templates.map(template=><option key={template}>{template}</option>)}</select></label>}
+    </div>}
     {data.paused && <p role="status" className="portal-source-note">
       Automatic refresh paused. <button className="portal-button" onClick={retry}>Refresh progress</button>
     </p>}

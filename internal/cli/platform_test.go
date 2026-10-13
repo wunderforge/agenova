@@ -207,3 +207,50 @@ func writePlatformFile(t *testing.T) string {
 	}
 	return path
 }
+
+func TestAuthenticatedPlatformRequiresRoleAndLocalAuthority(t *testing.T) {
+	path := writePlatformFile(t)
+	for _, allowed := range []bool{false, true} {
+		deployment := &cliDeployment{fail: errors.New("local Kubernetes RBAC denied")}
+		base := cliPlatformFactory(t, deployment)
+		service, err := base("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, _, err := service.ValidateFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checks := 0
+		services := Services{NewPlatform: base, HTTPS: func(string) (Services, error) {
+			return Services{AuthorizePlatform: func(name, action string) error {
+				checks++
+				if name != resolved.PlatformName || action != "apply" {
+					t.Fatal(name, action)
+				}
+				if !allowed {
+					return errors.New("role denied")
+				}
+				return nil
+			}}, nil
+		}}
+		var out, errout bytes.Buffer
+		code := MainWithServices([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--server", "https://service.example", "--installation", resolved.PlatformName}, &out, &errout, services)
+		if code == 0 || checks != 1 || deployment.applied {
+			t.Fatal(code, checks, deployment.applied, errout.String())
+		}
+		want := "role denied"
+		if allowed {
+			want = "local Kubernetes RBAC denied"
+		}
+		if !strings.Contains(errout.String(), want) {
+			t.Fatal(errout.String())
+		}
+		checks = 0
+		errout.Reset()
+		code = MainWithServices([]string{"agenova", "platform", "apply", "-f", path, "--yes", "--server", "https://service.example", "--installation", "another"}, &out, &errout, services)
+		if code == 0 || checks != 0 || deployment.applied {
+			t.Fatal("installation mismatch reached authorization/deployment")
+		}
+	}
+}

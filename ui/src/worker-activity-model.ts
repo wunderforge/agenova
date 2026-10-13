@@ -17,6 +17,7 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
     if (f.kind === 'ProviderAttempt' && !firstAttempt.has(f.invocationId)) firstAttempt.set(f.invocationId, f.sequence);
     if (f.kind === 'ProviderOutcome') outcomes.set(f.invocationId, f);
   }
+  const recovered = ['Failed', 'Expired', 'Cancelled'].includes(status) && ordered.some(f => f.kind === 'RunOutcome' && f.reasonCode === 'run-recovered-interruption');
   let turn: string | undefined;
   return ordered.filter(f => ['WorkerActivity', 'ProviderAttempt', 'ProviderOutcome', 'ModelDecision', 'ToolDecision'].includes(f.kind))
     .filter(f => f.kind !== 'ProviderOutcome' || !f.invocationId || (firstAttempt.get(f.invocationId) ?? Infinity) >= f.sequence)
@@ -31,8 +32,8 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
       return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
         label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? 'Tool call (mock)' : 'Model request',
         target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
-        state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? f.result || 'Recorded'
-          : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || 'No completion recorded',
+        state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? recovered && f.result === 'Allow' && !!f.invocationId && !firstAttempt.has(f.invocationId) ? 'Not started' : f.result || 'Recorded'
+          : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || (recovered ? 'Outcome unknown' : 'No completion recorded'),
       };
     });
 }

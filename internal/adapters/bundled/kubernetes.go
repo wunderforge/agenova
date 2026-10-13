@@ -162,6 +162,9 @@ func newKubernetesDeployment(runner kubectlRunner) *KubernetesDeployment {
 }
 
 func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.DeploymentRequest) (string, []platformapply.Change, []platformapply.ComponentStatus, error) {
+	if request.Config["mode"] == "member-upgrade" {
+		return k.planMemberUpgrade(ctx, request)
+	}
 	contextName, namespace, err := deploymentCoordinates(request.Config)
 	if err != nil {
 		return "", nil, nil, err
@@ -315,6 +318,9 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 }
 
 func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.DeploymentRequest) ([]platformapply.ComponentStatus, bool, error) {
+	if request.Config["mode"] == "member-upgrade" {
+		return k.applyMemberUpgrade(ctx, request)
+	}
 	contextName, namespace, err := deploymentCoordinates(request.Config)
 	if err != nil {
 		return nil, false, err
@@ -539,6 +545,9 @@ func (k *KubernetesDeployment) observedAfterFailure(ctx context.Context, request
 }
 
 func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformapply.DeploymentRequest) error {
+	if request.Config["mode"] == "member-upgrade" {
+		return k.preflightMemberUpgrade(ctx, request)
+	}
 	contextName, namespace, err := deploymentCoordinates(request.Config)
 	if err != nil {
 		return err

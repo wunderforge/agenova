@@ -32,6 +32,11 @@ import (
 )
 
 type Client struct {
+	// Server is an explicit authenticated HTTPS origin. It is mutually exclusive
+	// with the operator-only Kubernetes tunnel path.
+	Server      string
+	AccessToken func(context.Context) (string, error)
+
 	Context      string
 	Namespace    string
 	Executable   string
@@ -191,7 +196,17 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 	if err != nil {
 		return evidence.View{}, err
 	}
-	view, err := decodeView(response, request.Metadata.Name)
+	expectedRef := request.Metadata.Name
+	if c.Server != "" {
+		// The authenticated service scopes the idempotency name to the member. Only
+		// the name may change; task intent, requested access and runtime must match.
+		var candidate evidence.View
+		if !decodeStrictJSON(response, &candidate) || candidate.Request == nil || !sameRequestSpec(candidate.Request.Spec, request.Spec) || candidate.Request.APIVersion != request.APIVersion || candidate.Request.Kind != request.Kind || !validRequestRef(candidate.RequestRef) {
+			return evidence.View{}, errors.New("installed Work service returned mismatched submission")
+		}
+		expectedRef = candidate.RequestRef
+	}
+	view, err := decodeView(response, expectedRef)
 	if err != nil {
 		return evidence.View{}, err
 	}
@@ -208,11 +223,11 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 			return view, fmt.Errorf("waiting for Work evidence: %w", ctx.Err())
 		case <-time.After(interval):
 		}
-		response, err = c.call(ctx, endpoint, nil, request.Metadata.Name)
+		response, err = c.call(ctx, endpoint, nil, expectedRef)
 		if err != nil {
 			return view, err
 		}
-		view, err = decodeView(response, request.Metadata.Name)
+		view, err = decodeView(response, expectedRef)
 		if err != nil {
 			return evidence.View{}, err
 		}
@@ -220,6 +235,17 @@ func (c Client) RunFile(path string) (evidence.View, error) {
 			return view, nil
 		}
 	}
+}
+
+// Compare the canonical JSON value, so YAML integers and decoded JSON numbers
+// do not make an otherwise identical task appear different.
+func sameRequestSpec(a, b v0.ClaimRequestSpec) bool {
+	left, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	right, err := json.Marshal(b)
+	return err == nil && bytes.Equal(left, right)
 }
 
 func decodeView(data []byte, expectedRef string) (evidence.View, error) {
@@ -603,7 +629,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		}
 		for _, invocation := range invocations {
 			if invocation.stage == 1 || invocation.stage == 2 {
-				return false
+				// Recovery reports missing observations without manufacturing a
+				// ProviderOutcome. Such evidence can NEVER prove success.
+				recoveredFailure := runOutcomeReasonCode == "run-recovered-interruption" &&
+					(view.Outcome.Status == "Failed" || view.Outcome.Status == "Expired" || view.Outcome.Status == "Cancelled")
+				if !recoveredFailure {
+					return false
+				}
 			}
 		}
 		if view.State.Decision.Result == v0.DecisionResultAllow && runOutcomes != 1 {
@@ -836,6 +868,17 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 	if err != nil {
 		return nil, errors.New("installed Work API request is invalid")
 	}
+	if c.Server != "" {
+		if endpoint != c.Server || !validServerOrigin(endpoint) || c.AccessToken == nil {
+			return nil, errors.New("authenticated HTTPS connection is invalid")
+		}
+		token, tokenErr := c.AccessToken(ctx)
+		if tokenErr != nil || token == "" || len(token) > 16<<10 || strings.ContainsAny(token, " \t\r\n") {
+			return nil, errors.New("login credentials are unavailable; sign in again")
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		defer req.Header.Del("Authorization")
+	}
 	req.Header.Set("Accept", "application/json")
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -850,8 +893,18 @@ func (c Client) call(ctx context.Context, endpoint string, input []byte, ref str
 			},
 		}
 	}
-	response, err := client.Do(req)
+	// Enforce redirect isolation even with a caller-supplied trusted transport.
+	// A redirect must never carry a member's token to a different endpoint.
+	clientCopy := *client
+	clientCopy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if clientCopy.Timeout == 0 {
+		clientCopy.Timeout = 4 * time.Minute
+	}
+	response, err := clientCopy.Do(req)
 	if err != nil {
+		if c.Server != "" {
+			return nil, errors.New("authenticated Work API is unavailable; check the service address and network connection")
+		}
 		return nil, errors.New("installed Work API is unavailable; check Platform status and local tunnel")
 	}
 	defer response.Body.Close()
@@ -895,7 +948,24 @@ var safeAPIDiagnostic = map[string]string{
 	"not_found":                   "Work was not found in the installed service.",
 }
 
+func validServerOrigin(endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil &&
+		u.Path == "" && u.RawPath == "" && u.RawQuery == "" && !u.ForceQuery &&
+		u.Fragment == "" && u.Opaque == "" && endpoint == "https://"+u.Host
+}
+
 func (c Client) openTunnel(ctx context.Context) (string, func(), error) {
+	if c.Server != "" {
+		if !validServerOrigin(c.Server) || c.AccessToken == nil || c.Context != "" || c.Namespace != "" || c.OpenTunnel != nil || c.Executable != "" {
+			return "", nil, errors.New("use one explicit authenticated HTTPS origin without Kubernetes settings")
+		}
+		return c.Server, func() {}, nil
+	}
+	if c.AccessToken != nil {
+		return "", nil, errors.New("login credentials require an explicit HTTPS origin")
+	}
+
 	if c.Context == "" || c.Namespace == "" || c.Namespace == "default" {
 		return "", nil, errors.New("installed Kubernetes target is unavailable")
 	}

@@ -29,6 +29,7 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   expect(setup.policy.Rules).toEqual(expect.arrayContaining([
     expect.objectContaining({ team: 'team-a', action: 'claim.create', project: 'payments', templateRef: 'engineer' }),
   ]));
+  if (!setup.template) throw new Error('Installed fixture requires an approved template');
   expect(setup.template.metadata.name).toBe('engineer');
   expect(setup.template.spec.capabilityCeiling?.modelProfiles).toContain('coding-standard');
   expect(setup.template.spec.capabilityCeiling?.runtimeProfiles).toContain('standard-isolated');

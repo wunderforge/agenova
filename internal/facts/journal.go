@@ -39,6 +39,8 @@ type Fact struct {
 // Journal supplies the strict correlation spine for the application path.
 // Legacy Store remains compatible; it is not an alternate authority owner.
 type Journal struct {
+	startSequence    uint64
+	commit           func(Fact) error
 	mu               sync.RWMutex
 	requests         map[string]v0.Principal
 	claims           map[string]string
@@ -60,6 +62,19 @@ type invocationState struct {
 
 func NewJournal() *Journal {
 	return &Journal{requests: map[string]v0.Principal{}, claims: map[string]string{}, requestClaims: map[string]string{}, invocations: map[string]string{}, invocationStates: map[string]invocationState{}, authorities: map[string]string{}, backends: map[string]v0.SandboxClaimBackendIdentity{}, backendOwners: map[v0.SandboxClaimBackendIdentity]string{}, ids: map[string]struct{}{}, facts: []Fact{}, now: time.Now}
+}
+
+// NewDurableJournal starts after the persisted global sequence. The commit
+// callback runs under the journal lock, after validation and before publication;
+// failure prevents the fact from authorizing a later external side effect.
+func NewDurableJournal(lastSequence uint64, commit func(Fact) error) (*Journal, error) {
+	if commit == nil {
+		return nil, fmt.Errorf("durable fact commit is required")
+	}
+	j := NewJournal()
+	j.startSequence = lastSequence
+	j.commit = commit
+	return j, nil
 }
 
 func (j *Journal) RegisterRequest(ref string, principal v0.Principal) error {
@@ -102,6 +117,19 @@ func (j *Journal) BindClaim(ref string, claim v0.SandboxClaim) error {
 // Append assigns identity/time/order and rejects attempts to rewrite or
 // cross-attribute facts. Unresolved operations never get a fabricated claim.
 func (j *Journal) Append(fact Fact) (Fact, error) {
+	return j.append(fact, nil)
+}
+
+// AppendWithCommit lets the lifecycle owner commit a snapshot together with its
+// fact. The override has the same validation/failure boundary as the default sink.
+// Neither commit callback may call back into this journal.
+func (j *Journal) AppendWithCommit(fact Fact, commit func(Fact) error) (Fact, error) {
+	if commit == nil {
+		return Fact{}, fmt.Errorf("atomic fact commit is required")
+	}
+	return j.append(fact, commit)
+}
+func (j *Journal) append(fact Fact, commit func(Fact) error) (Fact, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	principal, ok := j.requests[fact.RequestRef]
@@ -174,7 +202,10 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 		}
 		stage.completed = true
 	}
-	sequence := uint64(len(j.facts) + 1)
+	sequence := j.startSequence + uint64(len(j.facts)) + 1
+	if sequence <= j.startSequence {
+		return Fact{}, fmt.Errorf("fact sequence exhausted")
+	}
 	if fact.ID == "" {
 		fact.ID = fmt.Sprintf("fact:%d", sequence)
 	}
@@ -188,6 +219,14 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 	copy, err := cloneFact(fact)
 	if err != nil {
 		return Fact{}, err
+	}
+	if commit == nil {
+		commit = j.commit
+	}
+	if commit != nil {
+		if err := commit(copy); err != nil {
+			return Fact{}, err
+		}
 	}
 	j.ids[copy.ID] = struct{}{}
 	if copy.InvocationID != "" {
