@@ -29,6 +29,7 @@ const (
 	CategoryMissingClaimIdentity   = "missing-claim-identity"
 	CategoryIncompleteOperation    = "incomplete-operation"
 	CategoryAmbiguousResourceScope = "ambiguous-resource-scope"
+	CategoryInvalidResourceScope   = "invalid-resource-scope"
 	CategorySecretValue            = "secret-value"
 	CategoryUnknownClaim           = "unknown-claim"
 	CategoryClaimNotActive         = "claim-not-active"

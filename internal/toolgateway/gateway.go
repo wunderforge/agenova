@@ -189,6 +189,9 @@ func validate(req Request) (gateway.Outcome, bool) {
 	if gateway.AmbiguousResourceScope(req.ResourceScope) {
 		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryAmbiguousResourceScope, Reason: fmt.Sprintf("resource scope %q does not name one bounded resource", req.ResourceScope)}, true
 	}
+	if _, err := gateway.ParseResourceScope(req.ResourceScope); err != nil {
+		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryInvalidResourceScope, Reason: fmt.Sprintf("resource scope %q is invalid: %v", req.ResourceScope, err)}, true
+	}
 	if key, found := gateway.FindReservedCredentialKey(req.Parameters); found {
 		return gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategorySecretValue, Reason: fmt.Sprintf("parameter %q is a reserved credential key; credentials stay behind gateway adapters", key)}, true
 	}

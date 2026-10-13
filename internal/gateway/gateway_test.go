@@ -4,6 +4,8 @@
 package gateway
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -85,6 +87,53 @@ func TestAmbiguousResourceScope(t *testing.T) {
 	if AmbiguousResourceScope("repo:acme/payments") {
 		t.Error("bounded scope repo:acme/payments flagged as ambiguous")
 	}
+}
+
+func TestParseResourceScopeAcceptsCanonicalPilotResources(t *testing.T) {
+	fixture := loadE21ResourceScopeFixture(t)
+	for _, value := range fixture.Valid {
+		t.Run(value, func(t *testing.T) {
+			scope, err := ParseResourceScope(value)
+			if err != nil {
+				t.Fatalf("ParseResourceScope(%q): %v", value, err)
+			}
+			if got := scope.String(); got != value {
+				t.Fatalf("round trip = %q, want %q", got, value)
+			}
+		})
+	}
+}
+
+func TestParseResourceScopeRejectsMalformedOrUnsupportedResources(t *testing.T) {
+	fixture := loadE21ResourceScopeFixture(t)
+	for _, value := range fixture.Invalid {
+		t.Run(value, func(t *testing.T) {
+			if _, err := ParseResourceScope(value); err == nil {
+				t.Fatalf("ParseResourceScope(%q) succeeded", value)
+			}
+		})
+	}
+}
+
+type e21ResourceScopeFixture struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
+}
+
+func loadE21ResourceScopeFixture(t *testing.T) e21ResourceScopeFixture {
+	t.Helper()
+	data, err := os.ReadFile("testdata/e21-resource-scopes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture e21ResourceScopeFixture
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Valid) == 0 || len(fixture.Invalid) == 0 {
+		t.Fatal("E21 resource-scope fixture requires valid and invalid cases")
+	}
+	return fixture
 }
 
 func TestSequenceIDSource(t *testing.T) {

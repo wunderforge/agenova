@@ -1,0 +1,29 @@
+{
+  "valid": [
+    "workitem:tracker/example/INC-123",
+    "repo:example/payments",
+    "repo-object:example/payments/path/docs/runbook.md",
+    "repo-object:example/payments/commit/a1b2c3d4",
+    "repo-object:example/payments/merge-request/42",
+    "kubernetes:lab/namespace/monitoring",
+    "kubernetes:lab/namespace/monitoring/pod/collector-0",
+    "metrics:prometheus/lab",
+    "dashboard:grafana/sre-overview",
+    "gitops:argo/platform/monitoring"
+  ],
+  "invalid": [
+    "company:internal",
+    "repo:example",
+    "repo:example//payments",
+    "repo:example/payments?ref=main",
+    "repo-object:example/payments/branch/main",
+    "kubernetes:lab/clusterrole/admin",
+    "kubernetes:lab/namespace/monitoring/",
+    "kubernetes:lab/namespace/../pod/collector-0",
+    "metrics:prometheus/lab/extra",
+    "dashboard:grafana",
+    "gitops:argo/platform",
+    " repo:example/payments",
+    "repo:example\\payments"
+  ]
+}
