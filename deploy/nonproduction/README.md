@@ -23,7 +23,10 @@ The control plane reads the named Secret key per invocation. Its Role grants
 ## Delivery sequence
 
 1. Build the control-plane and worker images from the same reviewed revision,
-   scan them, push them to the approved registry and record their digests.
+   scan them, push them to the approved registry and record their digests. The
+   worker can be built from the repository root with
+   `docker build -f deploy/nonproduction/worker.Dockerfile .`; pin the builder
+   and runtime `ARG` values to approved digests in the private pipeline.
 2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
 3. In an MR pipeline, run `verify.sh render`. Commit or promote the resulting
    multi-document YAML through the private GitOps repository; rendering is

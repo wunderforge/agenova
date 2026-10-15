@@ -1,7 +1,9 @@
-# Disposable Agent Sandbox test worker
+# Agent Sandbox integration worker image
 
-This image is only for #51's kind integration test. It has no agent model,
-external credentials, network service, or application outcome semantics.
+This image is only for the kind integration test. It packages the product
+worker-control and demo-worker commands but has no external credentials or
+production workload identity. Non-production delivery uses
+`deploy/nonproduction/worker.Dockerfile`.
 
 Build at the repository root:
 
@@ -33,6 +35,6 @@ for confirmed exit without deleting the Pod. Before a start, `status` reports
 that claim and reports `state=stopped claim=CLAIM result=none`, permanently
 preventing a later start. Commands fail on a missing or wrong claim, duplicate
 start, unavailable control server, or unconfirmed acknowledgement. The result
-proves test-worker execution, **not** agent-task
+proves worker-control child execution, **not** agent-task
 success, runtime isolation, or production workload identity. One server owns
 one claim for its lifetime; a pooled Pod must not reuse it for another claim.

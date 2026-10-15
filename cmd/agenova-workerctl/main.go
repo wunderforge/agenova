@@ -1,7 +1,8 @@
 // Copyright 2026 Dapeng Zhang and Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-// This is a disposable integration-test worker, not a production agent.
+// agenova-workerctl provides claim-bound lifecycle control for an Agenova
+// worker Pod. Agent tasks are executed separately by agenova-demo-worker.
 package main
 
 import (
@@ -59,7 +60,7 @@ func main() {
 		}
 	case "_task":
 		if len(os.Args) != 3 || !validControlClaim(os.Args[2]) {
-			fail("invalid test task claim")
+			fail("invalid worker task claim")
 		}
 		// A deterministic unit of real child-process work, then remain alive so
 		// Terminate has a process to stop independently of Pod deletion.
@@ -89,7 +90,7 @@ func validControlClaim(claim string) bool {
 }
 
 func probeResult(claim string) string {
-	sum := sha256.Sum256([]byte("agenova-test-worker:" + claim))
+	sum := sha256.Sum256([]byte("agenova-controlled-worker:" + claim))
 	return "probe-" + hex.EncodeToString(sum[:8])
 }
 
