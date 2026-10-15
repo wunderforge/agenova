@@ -856,7 +856,19 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		"name":            "control-plane",
 		"image":           image,
 		"imagePullPolicy": pullPolicy,
-		"ports":           []any{map[string]any{"name": "http", "containerPort": 8080}},
+		"securityContext": map[string]any{
+			"allowPrivilegeEscalation": false,
+			"capabilities":             map[string]any{"drop": []any{"ALL"}},
+			"readOnlyRootFilesystem":   true,
+			"runAsNonRoot":             true,
+			"runAsUser":                65532,
+			"runAsGroup":               65532,
+		},
+		"resources": map[string]any{
+			"requests": map[string]any{"cpu": "50m", "memory": "64Mi"},
+			"limits":   map[string]any{"cpu": "500m", "memory": "256Mi"},
+		},
+		"ports": []any{map[string]any{"name": "http", "containerPort": 8080}},
 		"env": []any{
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
 			map[string]any{"name": "AGENOVA_PLATFORM_REVISION", "value": request.Platform.Revision},
@@ -864,15 +876,27 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 			map[string]any{"name": "AGENOVA_ALLOWED_WORKER_IMAGE", "value": referenceWorkerImage(request.Platform)},
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
+		"livenessProbe":  map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 5, "periodSeconds": 10},
 	}
 	template := map[string]any{
 		"metadata": map[string]any{"labels": labels, "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
-		"spec":     map[string]any{"serviceAccount": controlPlaneName, "serviceAccountName": controlPlaneName, "automountServiceAccountToken": false, "containers": []any{container}},
+		"spec": map[string]any{
+			"serviceAccount":               controlPlaneName,
+			"serviceAccountName":           controlPlaneName,
+			"automountServiceAccountToken": false,
+			"securityContext":              map[string]any{"seccompProfile": map[string]any{"type": "RuntimeDefault"}},
+			"containers":                   []any{container},
+		},
 	}
-	container["volumeMounts"] = []any{map[string]any{"name": "platform", "mountPath": "/etc/agenova", "readOnly": true}, map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true}}
+	container["volumeMounts"] = []any{
+		map[string]any{"name": "platform", "mountPath": "/etc/agenova", "readOnly": true},
+		map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true},
+		map[string]any{"name": "tmp", "mountPath": "/tmp"},
+	}
 	template["spec"].(map[string]any)["volumes"] = []any{
 		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
 		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
+		map[string]any{"name": "tmp", "emptyDir": map[string]any{}},
 	}
 
 	return map[string]any{
