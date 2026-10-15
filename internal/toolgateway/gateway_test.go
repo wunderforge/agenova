@@ -183,11 +183,6 @@ func TestGatewayEnforcesEffectiveToolAndResourceAuthorityBeforePolicy(t *testing
 		category string
 	}{
 		{
-			name:     "forbidden tool",
-			mutate:   func(req *Request, _ *gatewaytest.Claims) { req.Action = "write" },
-			category: gateway.CategoryToolNotGranted,
-		},
-		{
 			name:     "wrong repository",
 			mutate:   func(req *Request, _ *gatewaytest.Claims) { req.ResourceScope = "repo:acme/billing" },
 			category: gateway.CategoryResourceNotGranted,
@@ -246,6 +241,8 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"missing claim", func(r *Request) { r.ClaimID = " " }, gateway.CategoryMissingClaimIdentity},
 		{"missing tool", func(r *Request) { r.Tool = "" }, gateway.CategoryIncompleteOperation},
 		{"missing action", func(r *Request) { r.Action = "\t" }, gateway.CategoryIncompleteOperation},
+		{"unsupported write", func(r *Request) { r.Action = "write" }, gateway.CategoryUnsupportedOperation},
+		{"unsupported Kubernetes mutation", func(r *Request) { r.Tool, r.Action = "kubernetes", "delete" }, gateway.CategoryUnsupportedOperation},
 		{"empty scope", func(r *Request) { r.ResourceScope = "" }, gateway.CategoryAmbiguousResourceScope},
 		{"wildcard scope", func(r *Request) { r.ResourceScope = "repo:*" }, gateway.CategoryAmbiguousResourceScope},
 		{"unsupported scope kind", func(r *Request) { r.ResourceScope = "company:internal" }, gateway.CategoryInvalidResourceScope},
@@ -253,6 +250,8 @@ func TestGatewayRejectsInvalidRequestsBeforeClaimAttributionOrAdapter(t *testing
 		{"empty scope segment", func(r *Request) { r.ResourceScope = "repo:acme//payments" }, gateway.CategoryInvalidResourceScope},
 		{"query in scope", func(r *Request) { r.ResourceScope = "repo:acme/payments?ref=main" }, gateway.CategoryInvalidResourceScope},
 		{"namespace traversal", func(r *Request) { r.ResourceScope = "kubernetes:lab/namespace/../pod/collector-0" }, gateway.CategoryInvalidResourceScope},
+		{"Kubernetes logs with repository", func(r *Request) { r.Tool, r.Action = "kubernetes", "logs" }, gateway.CategoryOperationScopeMismatch},
+		{"metrics query with repository", func(r *Request) { r.Tool, r.Action = "metrics", "query" }, gateway.CategoryOperationScopeMismatch},
 		{"reserved credential", func(r *Request) { r.Parameters = map[string]string{gatewaytest.SecretParameterKey(t): "not-inspected"} }, gateway.CategorySecretValue},
 		{"OAuth client secret", func(r *Request) { r.Parameters = map[string]string{"client_secret": "not-inspected"} }, gateway.CategorySecretValue},
 		{"Azure client secret", func(r *Request) { r.Parameters = map[string]string{"AZURE_CLIENT_SECRET": "not-inspected"} }, gateway.CategorySecretValue},

@@ -1,0 +1,38 @@
+{
+  "allowed": [
+    {"operation": "workitem.read", "resource": "workitem:tracker/example/INC-123"},
+    {"operation": "repository.read", "resource": "repo:example/payments"},
+    {"operation": "git.read", "resource": "repo:example/payments"},
+    {"operation": "git.read", "resource": "repo-object:example/payments/path/docs/runbook.md"},
+    {"operation": "file.read", "resource": "repo:example/payments"},
+    {"operation": "file.read", "resource": "repo-object:example/payments/path/docs/runbook.md"},
+    {"operation": "commit.read", "resource": "repo-object:example/payments/commit/a1b2c3d4"},
+    {"operation": "mergerequest.read", "resource": "repo-object:example/payments/merge-request/42"},
+    {"operation": "kubernetes.get", "resource": "kubernetes:lab/namespace/monitoring/pod/collector-0"},
+    {"operation": "kubernetes.list", "resource": "kubernetes:lab/namespace/monitoring"},
+    {"operation": "kubernetes.logs", "resource": "kubernetes:lab/namespace/monitoring/pod/collector-0"},
+    {"operation": "metrics.query", "resource": "metrics:prometheus/lab"},
+    {"operation": "dashboard.read", "resource": "dashboard:grafana/sre-overview"},
+    {"operation": "gitopsapplication.read", "resource": "gitops:argo/platform/monitoring"}
+  ],
+  "mismatched": [
+    {"operation": "workitem.read", "resource": "repo:example/payments"},
+    {"operation": "repository.read", "resource": "workitem:tracker/example/INC-123"},
+    {"operation": "file.read", "resource": "repo-object:example/payments/commit/a1b2c3d4"},
+    {"operation": "commit.read", "resource": "repo-object:example/payments/path/docs/runbook.md"},
+    {"operation": "mergerequest.read", "resource": "repo:example/payments"},
+    {"operation": "kubernetes.list", "resource": "kubernetes:lab/namespace/monitoring/pod/collector-0"},
+    {"operation": "kubernetes.logs", "resource": "kubernetes:lab/namespace/monitoring/deployment/collector"},
+    {"operation": "kubernetes.logs", "resource": "repo:example/payments"},
+    {"operation": "metrics.query", "resource": "kubernetes:lab/namespace/monitoring"},
+    {"operation": "dashboard.read", "resource": "metrics:prometheus/lab"},
+    {"operation": "gitopsapplication.read", "resource": "dashboard:grafana/sre-overview"}
+  ],
+  "unsupported": [
+    "git.write",
+    "kubernetes.delete",
+    "kubernetes.patch",
+    "gitopsapplication.sync",
+    "terraform.apply"
+  ]
+}

@@ -115,9 +115,66 @@ func TestParseResourceScopeRejectsMalformedOrUnsupportedResources(t *testing.T) 
 	}
 }
 
+func TestE21OperationResourceMatrix(t *testing.T) {
+	fixture := loadE21OperationResourceFixture(t)
+	for _, test := range fixture.Allowed {
+		t.Run("allow/"+test.Operation+"/"+test.Resource, func(t *testing.T) {
+			scope, err := ParseResourceScope(test.Resource)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateToolOperationResource(test.Operation, scope); err != nil {
+				t.Fatalf("allowed pair rejected: %v", err)
+			}
+		})
+	}
+	for _, test := range fixture.Mismatched {
+		t.Run("deny/"+test.Operation+"/"+test.Resource, func(t *testing.T) {
+			scope, err := ParseResourceScope(test.Resource)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateToolOperationResource(test.Operation, scope); err == nil {
+				t.Fatal("mismatched operation/resource pair was accepted")
+			}
+		})
+	}
+	for _, operation := range fixture.Unsupported {
+		t.Run("unsupported/"+operation, func(t *testing.T) {
+			if !ForbiddenToolOperation(operation) {
+				t.Fatal("forbidden operation was not identified")
+			}
+			scope, err := ParseResourceScope("repo:example/payments")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateToolOperationResource(operation, scope); err == nil {
+				t.Fatal("unsupported operation/resource pair was accepted")
+			}
+		})
+	}
+}
+
+func TestLegacyCustomOperationRemainsGovernedByExactAuthority(t *testing.T) {
+	if SupportedToolOperation("plan.compose") || ForbiddenToolOperation("plan.compose") {
+		t.Fatal("legacy custom operation must remain outside the E21 read-only and forbidden vocabularies")
+	}
+}
+
 type e21ResourceScopeFixture struct {
 	Valid   []string `json:"valid"`
 	Invalid []string `json:"invalid"`
+}
+
+type e21OperationResourcePair struct {
+	Operation string `json:"operation"`
+	Resource  string `json:"resource"`
+}
+
+type e21OperationResourceFixture struct {
+	Allowed     []e21OperationResourcePair `json:"allowed"`
+	Mismatched  []e21OperationResourcePair `json:"mismatched"`
+	Unsupported []string                   `json:"unsupported"`
 }
 
 func loadE21ResourceScopeFixture(t *testing.T) e21ResourceScopeFixture {
@@ -132,6 +189,22 @@ func loadE21ResourceScopeFixture(t *testing.T) e21ResourceScopeFixture {
 	}
 	if len(fixture.Valid) == 0 || len(fixture.Invalid) == 0 {
 		t.Fatal("E21 resource-scope fixture requires valid and invalid cases")
+	}
+	return fixture
+}
+
+func loadE21OperationResourceFixture(t *testing.T) e21OperationResourceFixture {
+	t.Helper()
+	data, err := os.ReadFile("testdata/e21-operation-resources.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture e21OperationResourceFixture
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Allowed) == 0 || len(fixture.Mismatched) == 0 || len(fixture.Unsupported) == 0 {
+		t.Fatal("E21 operation/resource fixture requires allowed, mismatched, and unsupported cases")
 	}
 	return fixture
 }

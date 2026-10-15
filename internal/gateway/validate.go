@@ -136,3 +136,101 @@ func validateResourceShape(scope ResourceScope) error {
 		return fmt.Errorf("unsupported resource kind %q", scope.Kind)
 	}
 }
+
+// SupportedToolOperation reports whether operation is part of the bounded
+// read-only vocabulary currently supported at the governed Tool Gateway.
+// Mutation and provider-specific operations require a separately accepted
+// contract; they fail closed here rather than reaching policy or an adapter.
+func SupportedToolOperation(operation string) bool {
+	switch operation {
+	case "workitem.read",
+		"repository.read", "git.read", "file.read", "commit.read", "mergerequest.read",
+		"kubernetes.get", "kubernetes.list", "kubernetes.logs",
+		"metrics.query", "dashboard.read", "gitopsapplication.read":
+		return true
+	default:
+		return false
+	}
+}
+
+// ForbiddenToolOperation identifies high-impact mutation operations that the
+// read-only E21 slice must never dispatch, even if a malformed or overly broad
+// authority snapshot contains the same string. Other legacy/custom operations
+// remain governed by exact issued authority for backward compatibility.
+func ForbiddenToolOperation(operation string) bool {
+	switch operation {
+	case "git.write", "kubernetes.delete", "kubernetes.patch",
+		"gitopsapplication.sync", "terraform.apply":
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidateToolOperationResource prevents independently granted operations and
+// resources from being recombined into a nonsensical or unsafe provider call.
+// It assumes the ResourceScope has already passed ParseResourceScope.
+func ValidateToolOperationResource(operation string, scope ResourceScope) error {
+	if !SupportedToolOperation(operation) {
+		return fmt.Errorf("unsupported governed tool operation %q", operation)
+	}
+	kindIs := func(want string) error {
+		if scope.Kind != want {
+			return fmt.Errorf("operation %q requires resource kind %q", operation, want)
+		}
+		return nil
+	}
+	repoObjectIs := func(want string) error {
+		if scope.Kind != "repo-object" || len(scope.Segments) < 4 || scope.Segments[2] != want {
+			return fmt.Errorf("operation %q requires repository object kind %q", operation, want)
+		}
+		return nil
+	}
+
+	switch operation {
+	case "workitem.read":
+		return kindIs("workitem")
+	case "repository.read":
+		return kindIs("repo")
+	case "git.read":
+		if scope.Kind != "repo" && scope.Kind != "repo-object" {
+			return fmt.Errorf("operation %q requires a repository resource", operation)
+		}
+		return nil
+	case "file.read":
+		if scope.Kind == "repo" {
+			return nil
+		}
+		return repoObjectIs("path")
+	case "commit.read":
+		return repoObjectIs("commit")
+	case "mergerequest.read":
+		return repoObjectIs("merge-request")
+	case "kubernetes.get":
+		return kindIs("kubernetes")
+	case "kubernetes.list":
+		if err := kindIs("kubernetes"); err != nil {
+			return err
+		}
+		if len(scope.Segments) != 3 {
+			return fmt.Errorf("operation %q requires a namespace boundary", operation)
+		}
+		return nil
+	case "kubernetes.logs":
+		if err := kindIs("kubernetes"); err != nil {
+			return err
+		}
+		if len(scope.Segments) != 5 || scope.Segments[3] != "pod" {
+			return fmt.Errorf("operation %q requires one exact Pod", operation)
+		}
+		return nil
+	case "metrics.query":
+		return kindIs("metrics")
+	case "dashboard.read":
+		return kindIs("dashboard")
+	case "gitopsapplication.read":
+		return kindIs("gitops")
+	default:
+		return fmt.Errorf("unsupported governed tool operation %q", operation)
+	}
+}
