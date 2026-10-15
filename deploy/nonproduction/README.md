@@ -28,17 +28,22 @@ The control plane reads the named Secret key per invocation. Its Role grants
    `docker build -f deploy/nonproduction/worker.Dockerfile .`; pin the builder
    and runtime `ARG` values to approved digests in the private pipeline.
 2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
-3. In an MR pipeline, run `verify.sh render`. Commit or promote the resulting
+3. Run `verify.sh prerequisites` with the selected non-production context. It
+   fails closed unless all four pinned Agent Sandbox API resources are
+   discoverable and the configured controller Deployment has an available
+   replica. Installing that cluster-level substrate is a separate platform
+   approval; this package never installs it implicitly.
+4. In an MR pipeline, run `verify.sh render`. Commit or promote the resulting
    multi-document YAML through the private GitOps repository; rendering is
    offline and does not require a kubeconfig.
-4. Optionally run `verify.sh plan` with a read-only non-production identity to
+5. Optionally run `verify.sh plan` with a read-only non-production identity to
    compare the selected target. Let Argo CD reconcile the reviewed manifest;
    do not use the imperative `apply` mode in the normal GitOps path. The script
    refuses contexts containing production tokens, requires an exact current-
    context match and confirms the resolved target matches the expected target.
-5. Register `policy.yaml` and `agent-template.yaml`, then submit the bounded
+6. Register `policy.yaml` and `agent-template.yaml`, then submit the bounded
    smoke Work. Keep the first smoke profile credential-free where possible.
-6. Run `verify.sh verify`, inspect the Work and invocation evidence, and prove
+7. Run `verify.sh verify`, inspect the Work and invocation evidence, and prove
    that a denied mutation makes zero provider calls.
 
 `ready: true` from Platform apply proves only installation-component readiness.

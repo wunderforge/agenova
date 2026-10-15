@@ -10,8 +10,8 @@ agenova_bin="${AGENOVA_BIN:-./.tmp/agenova}"
 rendered_file="${AGENOVA_RENDERED_FILE:-.tmp/nonproduction-rendered.yaml}"
 
 case "${mode}" in
-  validate|render|plan|apply|verify) ;;
-  *) echo "usage: $0 [validate|render|plan|apply|verify]" >&2; exit 2 ;;
+  validate|render|prerequisites|plan|apply|verify) ;;
+  *) echo "usage: $0 [validate|render|prerequisites|plan|apply|verify]" >&2; exit 2 ;;
 esac
 
 "${agenova_bin}" platform validate -f "${platform_file}" --json
@@ -36,6 +36,34 @@ actual_context="$(kubectl config current-context)"
 if [[ "${actual_context}" != "${expected_context}" ]]; then
   echo "current context ${actual_context} does not match ${expected_context}" >&2
   exit 2
+fi
+
+require_api_resource() {
+  local resources="$1"
+  local required="$2"
+  if ! grep -Fxq "${required}" <<<"${resources}"; then
+    echo "required Agent Sandbox API resource is unavailable: ${required}" >&2
+    exit 2
+  fi
+}
+
+extension_resources="$(kubectl --context "${expected_context}" api-resources --api-group=extensions.agents.x-k8s.io -o name)"
+core_resources="$(kubectl --context "${expected_context}" api-resources --api-group=agents.x-k8s.io -o name)"
+require_api_resource "${extension_resources}" "sandboxclaims.extensions.agents.x-k8s.io"
+require_api_resource "${extension_resources}" "sandboxtemplates.extensions.agents.x-k8s.io"
+require_api_resource "${extension_resources}" "sandboxwarmpools.extensions.agents.x-k8s.io"
+require_api_resource "${core_resources}" "sandboxes.agents.x-k8s.io"
+
+controller_namespace="${AGENOVA_AGENT_SANDBOX_CONTROLLER_NAMESPACE:-agent-sandbox-system}"
+controller_name="${AGENOVA_AGENT_SANDBOX_CONTROLLER_NAME:-agent-sandbox-controller}"
+available_replicas="$(kubectl --context "${expected_context}" --namespace "${controller_namespace}" get deployment "${controller_name}" -o jsonpath='{.status.availableReplicas}')"
+if [[ -z "${available_replicas}" || "${available_replicas}" == "0" ]]; then
+  echo "Agent Sandbox controller ${controller_namespace}/${controller_name} has no available replica" >&2
+  exit 2
+fi
+if [[ "${mode}" == "prerequisites" ]]; then
+  printf 'Agent Sandbox substrate ready: %s/%s (%s available)\n' "${controller_namespace}" "${controller_name}" "${available_replicas}"
+  exit 0
 fi
 
 plan="$("${agenova_bin}" platform plan -f "${platform_file}" --state-dir "${state_dir}" --json)"
