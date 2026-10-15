@@ -23,7 +23,6 @@ import (
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/console"
-	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
@@ -143,30 +142,11 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 	}
 	adapter := agentsandbox.NewControlled("", runtimeNamespace)
-	modelConfig := modelprovider.Config{Models: map[string]string{}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.FinishSchema), Timeout: 2 * time.Minute}
-	backends := map[string]string{}
-	for _, instance := range resolved.Instances {
-		if instance.Category != platform.CapabilityModel {
-			continue
-		}
-		if adapterIDs[instance.AdapterRef] != bundled.OpenAICompatibleModelID {
-			return nil, fmt.Errorf("reference Control Plane does not support the selected model adapter")
-		}
-		endpoint, _ := instance.Config["endpoint"].(string)
-		backends[instance.Name] = endpoint
-	}
+	modelProfiles := map[string]string{}
 	for _, profile := range resolved.Profiles {
-		if profile.Capability != platform.CapabilityModel {
-			continue
+		if profile.Capability == platform.CapabilityModel {
+			modelProfiles[profile.Name], _ = profile.Config["model"].(string)
 		}
-		model, _ := profile.Config["model"].(string)
-		if modelConfig.Endpoint == "" {
-			modelConfig.Endpoint = backends[profile.BackendRef]
-		}
-		if modelConfig.Endpoint != backends[profile.BackendRef] {
-			return nil, fmt.Errorf("reference model composition supports one endpoint")
-		}
-		modelConfig.Models[profile.Name] = model
 	}
 	runtimeProfiles := map[string]bool{}
 	for _, profile := range resolved.Profiles {
@@ -174,8 +154,8 @@ func configuredService(path string) (*console.Service, error) {
 			runtimeProfiles[profile.Name] = true
 		}
 	}
-	modelConfig.AllowDockerHostHTTP = strings.HasPrefix(modelConfig.Endpoint, "http://host.docker.internal:")
-	provider, err := modelprovider.New(modelConfig)
+	// The service sends each Work's schema with every model request; this one is only the fallback.
+	provider, err := bundled.NewInstalledModelClient(context.Background(), &resolved, []byte(workerprotocol.FinishSchema))
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +202,7 @@ func configuredService(path string) (*console.Service, error) {
 				return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
 			}
 			if prepared.Issued != nil && prepared.Issued.Claim != nil {
-				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles, tools); err != nil {
+				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelProfiles, runtimeProfiles, tools); err != nil {
 					return app.PreparedAssignment{}, err
 				}
 			}

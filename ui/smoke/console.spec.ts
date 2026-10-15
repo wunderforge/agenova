@@ -93,9 +93,11 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   const select = page.getByLabel('Fixture presentation scenario');
   await select.focus();
   await expect(select).toBeFocused();
-  // Home and ArrowDown left this closed native select unchanged on macOS but
-  // moved it in Linux CI; type-ahead selects the option by label on both.
+  // Native select Home/ArrowDown handling differs by OS. Exercise keyboard
+  // type-ahead for the named option instead of assuming a popup cursor index.
   await page.keyboard.press('l');
+  await page.keyboard.press('Enter');
+  await expect(select).toHaveValue('loading');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
   await expect(page.getByText('Allow', { exact: true })).toHaveCount(0);
