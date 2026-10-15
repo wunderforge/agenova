@@ -5,10 +5,10 @@
 FROM golang:1.22-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
-COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker
+COPY cmd/agenova-workerctl ./cmd/agenova-workerctl
 COPY internal/workerprotocol ./internal/workerprotocol
 COPY cmd/agenova-demo-worker ./cmd/agenova-demo-worker
-RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-workerctl ./harness/integration/agentsandbox/testworker
+RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-workerctl ./cmd/agenova-workerctl
 RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-demo-worker ./cmd/agenova-demo-worker
 
 FROM alpine:3.20
