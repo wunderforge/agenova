@@ -51,6 +51,7 @@ spec:
         adapterRef: openai-compatible-backend
         config:
           endpoint: https://model-gateway.example.invalid/v1
+          provisional-token-secret: agenova-model-token/token
     modelProfiles:
       - name: coding-standard
         backendRef: approved-model-gateway

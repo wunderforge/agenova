@@ -101,6 +101,14 @@ func ModelComposition(resolved *platform.ResolvedPlatform) (string, modelprovide
 }
 
 func NewInstalledModelClient(ctx context.Context, resolved *platform.ResolvedPlatform, schema json.RawMessage) (modelprovider.Client, error) {
+	return NewInstalledModelClientWithSecrets(ctx, resolved, schema, nil)
+}
+
+// NewInstalledModelClientWithSecrets creates the installed model client with
+// an optional namespace-scoped Secret reader. A configured token reference is
+// resolved for every request, so rotation does not require storing credentials
+// in Platform state or restarting the control plane.
+func NewInstalledModelClientWithSecrets(ctx context.Context, resolved *platform.ResolvedPlatform, schema json.RawMessage, secrets ProvisionalSecretReader) (modelprovider.Client, error) {
 	id, openai, bedrock, err := ModelComposition(resolved)
 	if err != nil {
 		return nil, err
@@ -114,5 +122,36 @@ func NewInstalledModelClient(ctx context.Context, resolved *platform.ResolvedPla
 	openai.MaxTokens = 512
 	openai.Timeout = 2 * time.Minute
 	openai.OutputSchema = schema
+	if name, key, configured := modelTokenSecret(resolved); configured {
+		if secrets == nil {
+			return nil, fmt.Errorf("installed model credential resolver is unavailable")
+		}
+		openai.BearerToken = func(callCtx context.Context) (string, error) {
+			readCtx, cancel := context.WithTimeout(callCtx, 5*time.Second)
+			defer cancel()
+			value, err := secrets.ReadSecretKey(readCtx, name, key)
+			if err != nil || len(value) == 0 || len(value) > 4096 || strings.ContainsAny(string(value), "\r\n") {
+				return "", fmt.Errorf("model credential is unavailable")
+			}
+			return string(value), nil
+		}
+	}
 	return modelprovider.New(openai)
+}
+
+func modelTokenSecret(resolved *platform.ResolvedPlatform) (string, string, bool) {
+	if resolved == nil {
+		return "", "", false
+	}
+	ids := map[string]string{}
+	for _, adapter := range resolved.Adapters {
+		ids[adapter.Name] = adapter.ID
+	}
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityModel && ids[instance.AdapterRef] == OpenAICompatibleModelID {
+			value, _ := instance.Config[mcpTokenSecretKey].(string)
+			return parseMCPTokenSecret(value)
+		}
+	}
+	return "", "", false
 }

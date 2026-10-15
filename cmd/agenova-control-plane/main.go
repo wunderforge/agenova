@@ -155,7 +155,7 @@ func configuredService(path string) (*console.Service, error) {
 		}
 	}
 	// The service sends each Work's schema with every model request; this one is only the fallback.
-	provider, err := bundled.NewInstalledModelClient(context.Background(), &resolved, []byte(workerprotocol.FinishSchema))
+	provider, err := bundled.NewInstalledModelClientWithSecrets(context.Background(), &resolved, []byte(workerprotocol.FinishSchema), kubectlSecretReader{namespace: namespace})
 	if err != nil {
 		return nil, err
 	}

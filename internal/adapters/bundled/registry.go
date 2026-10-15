@@ -98,6 +98,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 		Capabilities: []platform.Capability{platform.CapabilityModel},
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "endpoint", Kind: adapterregistry.ValueString, Required: true, Description: "OpenAI-compatible backend endpoint behind Agenova Model Gateway", Default: "http://host.docker.internal:11434/v1"},
+			{Path: "provisional-token-secret", Kind: adapterregistry.ValueString, Description: "Optional Secret reference <name>/<key> in the install namespace, sent as a bearer token; empty means none. Replaced by #155", Default: ""},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "model", Kind: adapterregistry.ValueString, Required: true, Description: "Backend model selected by this logical profile", Default: "qwen2.5:0.5b"},
@@ -211,7 +212,7 @@ func canonicalizeAgentSandboxProfile(_ platform.Capability, backend, input map[s
 }
 
 func canonicalizeOpenAIInstance(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "endpoint"); err != nil {
+	if err := onlyKeys(input, "endpoint", mcpTokenSecretKey); err != nil {
 		return nil, err
 	}
 	endpoint, err := requiredString(input, "endpoint")
@@ -228,7 +229,21 @@ func canonicalizeOpenAIInstance(_ platform.Capability, input map[string]any) (ma
 	if providerErr != nil {
 		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}
-	return map[string]any{"endpoint": strings.TrimRight(endpoint, "/")}, nil
+	out := map[string]any{"endpoint": strings.TrimRight(endpoint, "/")}
+	if raw, present := input[mcpTokenSecretKey]; present {
+		value, ok := raw.(string)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-token-secret", mcpTokenSecretKey)
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			if _, _, valid := parseMCPTokenSecret(value); !valid {
+				return nil, platform.NewAdapterConfigError("invalid-token-secret", mcpTokenSecretKey)
+			}
+			out[mcpTokenSecretKey] = value
+		}
+	}
+	return out, nil
 }
 
 func canonicalizeOpenAIProfile(_ platform.Capability, _ map[string]any, input map[string]any) (map[string]any, error) {

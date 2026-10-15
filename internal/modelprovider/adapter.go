@@ -56,7 +56,12 @@ type Config struct {
 	AllowDockerHostHTTP bool
 	Models              map[string]string
 	APIKey              string
-	MaxTokens           int
+	// BearerToken resolves a trusted server-side credential for each request.
+	// It allows rotation without embedding a credential in Platform state.
+	// APIKey remains available for local/in-process callers; configuring both
+	// is rejected so the credential source is unambiguous.
+	BearerToken func(context.Context) (string, error)
+	MaxTokens   int
 	// OutputSchema is trusted, private provider configuration, never worker authority.
 	OutputSchema json.RawMessage
 	Timeout      time.Duration
@@ -67,6 +72,7 @@ type Adapter struct {
 	endpoint     string
 	models       map[string]string
 	apiKey       string
+	bearerToken  func(context.Context) (string, error)
 	maxTokens    int
 	outputSchema json.RawMessage
 	timeout      time.Duration
@@ -86,6 +92,9 @@ func New(cfg Config) (*Adapter, error) {
 	}
 	if strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, errors.New("model provider credentials are invalid")
+	}
+	if cfg.APIKey != "" && cfg.BearerToken != nil {
+		return nil, errors.New("model provider credential source is ambiguous")
 	}
 	if len(cfg.Models) == 0 {
 		return nil, errors.New("model provider profiles are required")
@@ -120,7 +129,7 @@ func New(cfg Config) (*Adapter, error) {
 	if len(cfg.OutputSchema) > 8192 || (len(cfg.OutputSchema) > 0 && !json.Valid(cfg.OutputSchema)) {
 		return nil, errors.New("model output schema is invalid or oversized")
 	}
-	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, maxTokens: cfg.MaxTokens, outputSchema: append(json.RawMessage(nil), cfg.OutputSchema...), timeout: cfg.Timeout, client: client}, nil
+	return &Adapter{endpoint: u.String(), models: models, apiKey: cfg.APIKey, bearerToken: cfg.BearerToken, maxTokens: cfg.MaxTokens, outputSchema: append(json.RawMessage(nil), cfg.OutputSchema...), timeout: cfg.Timeout, client: client}, nil
 }
 
 func loopback(host string) bool {
@@ -175,8 +184,15 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	if a.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+a.apiKey)
+	token := a.apiKey
+	if a.bearerToken != nil {
+		token, err = a.bearerToken(boundedCtx)
+		if err != nil || token == "" || strings.ContainsAny(token, "\r\n") {
+			return Result{}, errors.New("model provider credential is unavailable")
+		}
+	}
+	if token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := a.client.Do(httpReq)
 	if err != nil {

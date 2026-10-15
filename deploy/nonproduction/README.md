@@ -11,14 +11,18 @@ Copy the examples into the private repository and replace:
 - the exact non-production Kubernetes context and dedicated namespace;
 - digest-pinned control-plane and controlled-worker images;
 - the approved HTTPS model and MCP gateway endpoints;
-- a namespaced Secret reference containing only the MCP gateway token;
+- namespaced Secret references containing only the model and MCP gateway
+  bearer tokens;
 - the logical operations, exact resource scopes, native MCP tool mappings and
   allowlisted parameter values approved for the pilot;
 - the team, project and template identities used by the non-production policy.
 
 Secret values, kubeconfigs and private endpoints must not be committed here.
-The control plane reads the named Secret key per invocation. Its Role grants
-`get` only for Secret names referenced by the resolved Platform.
+The control plane reads each named Secret key per invocation, so rotation does
+not put a credential in Platform state or require a restart. Its Role grants
+`get` only for Secret names referenced by the resolved Platform. The reference
+OpenAI-compatible adapter sends the model token as `Authorization: Bearer`;
+leave its reference empty only for a deliberately credential-free endpoint.
 When private HTTPS endpoints use an internal CA, `ca-bundle-secret` mounts only
 the named key and sets `SSL_CERT_FILE`; the Secret value remains external.
 

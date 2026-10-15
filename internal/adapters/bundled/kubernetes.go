@@ -294,7 +294,7 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 	ready := recordReady && deploymentMatches(deployment, deploymentObject(request, namespace), request.Platform.Revision)
 	serviceReady := serviceMatches(service, serviceObject(namespace))
 	saReady := managedObjectMatches(serviceAccount, serviceAccountObject(namespace))
-	roleReady := managedObjectMatches(role, roleObject(namespace, mcpTokenSecretNames(request.Platform)))
+	roleReady := managedObjectMatches(role, roleObject(namespace, runtimeCredentialSecretNames(request.Platform)))
 	bindingReady := managedObjectMatches(roleBinding, roleBindingObject(namespace))
 	var changes []platformapply.Change
 	if !namespaceReady {
@@ -584,7 +584,7 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
 	}
-	return k.preflight(ctx, contextName, namespace, request.TargetChanges, mcpTokenSecretNames(request.Platform))
+	return k.preflight(ctx, contextName, namespace, request.TargetChanges, runtimeCredentialSecretNames(request.Platform))
 }
 
 func plannedComponent(changes []platformapply.Change, component string) bool {
@@ -831,7 +831,7 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 		{name: policyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": policyRecord, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}, "data": map[string]any{"policy.json": string(policyData)}}},
 		{name: activePolicyRecord, category: "policy", object: map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": activePolicyRecord, "namespace": namespace, "labels": managedLabels()}, "data": map[string]any{"reference.json": string(activeRef)}}},
 		{name: controlPlaneName + "-account", category: "deployment", object: serviceAccountObject(namespace)},
-		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace, mcpTokenSecretNames(request.Platform))},
+		{name: controlPlaneRole, category: "deployment", object: roleObject(namespace, runtimeCredentialSecretNames(request.Platform))},
 		{name: controlPlaneRole + "-binding", category: "deployment", object: roleBindingObject(namespace)},
 		{name: controlPlaneName, category: "deployment", object: deploymentObject(request, namespace)},
 		{name: controlPlaneName + "-service", category: "deployment", object: serviceObject(namespace)},
@@ -933,7 +933,7 @@ func roleObject(namespace string, tokenSecrets []string) map[string]any {
 	// this dedicated namespace. Kubernetes RBAC cannot scope list by label.
 	rules := []any{map[string]any{"apiGroups": []any{""}, "resources": []any{"configmaps"}, "verbs": []any{"get", "list"}}}
 	rules = append(rules, agentsandbox.ReferenceNamespaceRules()...)
-	// The mcp-http provisional token reference (E16 Slice 4) is read on each
+	// The mcp-http provisional token reference is read on each
 	// call. Grant get on exactly the referenced Secrets: an empty
 	// resourceNames list would mean every Secret, so no reference, no rule.
 	// []any keeps the desired shape equal to the decoded live object.
