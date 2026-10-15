@@ -20,6 +20,11 @@ agenova:plan:
   stage: plan
   script: ["deploy/nonproduction/verify.sh plan"]
 
+agenova:prerequisites:
+  extends: .agenova
+  stage: plan
+  script: ["deploy/nonproduction/verify.sh prerequisites"]
+
 agenova:render:
   extends: .agenova
   stage: render
