@@ -1,0 +1,141 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Secret-free example. Copy this file into a private deployment repository and
+# replace every example value. Images must remain digest pinned.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: bau-sre-nonprod
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: openai-compatible-backend
+      id: agenova.io/model/openai-compatible
+      version: 0.1.0
+    - name: mcp-http-tool
+      id: agenova.io/tool/mcp-http
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: agenova-nonprod
+        namespace: agenova-nonprod
+        control-plane-image: registry.example/agenova/control-plane@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image-pull-policy: IfNotPresent
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-nonprod
+          compatible-worker-image: registry.example/agenova/worker@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          compatible-worker-protocol: controlled-v1
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: approved-model-gateway
+        adapterRef: openai-compatible-backend
+        config:
+          endpoint: https://model-gateway.example.invalid/v1
+    modelProfiles:
+      - name: coding-standard
+        backendRef: approved-model-gateway
+        config:
+          model: approved-coding-model
+    toolBackends:
+      - name: bau-readonly-mcp
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: https://mcp-gateway.example.invalid/mcp
+          provisional-token-secret: agenova-mcp-token/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+    toolProfiles:
+      - name: workitem-read
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: workitem.read
+          resource-scope: workitem:tracker/example/INC-123
+          mcp-tool: get_work_item
+          parameter-name: id
+          parameter-max-bytes: "64"
+          parameter-allowed-values: INC-123
+      - name: repository-read
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:example/operations
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "256"
+          parameter-allowed-values: |-
+            README.md
+            docs/runbook.md
+      - name: kubernetes-list
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: kubernetes.list
+          resource-scope: kubernetes:nonprod/namespace/observability
+          mcp-tool: list_resources
+          parameter-name: kind
+          parameter-max-bytes: "64"
+          parameter-allowed-values: |-
+            deployments
+            pods
+      - name: kubernetes-logs
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: kubernetes.logs
+          resource-scope: kubernetes:nonprod/namespace/observability/pod/collector-0
+          mcp-tool: read_pod_logs
+          parameter-name: container
+          parameter-max-bytes: "64"
+          parameter-allowed-values: collector
+      - name: metrics-query
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: metrics.query
+          resource-scope: metrics:prometheus/nonprod
+          mcp-tool: query_metrics
+          parameter-name: query
+          parameter-max-bytes: "128"
+          parameter-allowed-values: up
+      - name: dashboard-read
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: dashboard.read
+          resource-scope: dashboard:grafana/sre-overview
+          mcp-tool: read_dashboard
+          parameter-name: uid
+          parameter-max-bytes: "64"
+          parameter-allowed-values: sre-overview
+      - name: gitops-read
+        backendRef: bau-readonly-mcp
+        config:
+          logical-operation: gitopsapplication.read
+          resource-scope: gitops:argo/platform/observability
+          mcp-tool: read_application
+          parameter-name: name
+          parameter-max-bytes: "64"
+          parameter-allowed-values: observability
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

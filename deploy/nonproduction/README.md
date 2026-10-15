@@ -1,0 +1,49 @@
+# Non-production BAU/SRE deployment contract
+
+This directory is a secret-free handoff for deploying the governed BAU/SRE
+slice from a private GitOps or deployment repository. It is not a production
+manifest and deliberately contains only example identities and endpoints.
+
+## Required private inputs
+
+Copy the examples into the private repository and replace:
+
+- the exact non-production Kubernetes context and dedicated namespace;
+- digest-pinned control-plane and controlled-worker images;
+- the approved HTTPS model and MCP gateway endpoints;
+- a namespaced Secret reference containing only the MCP gateway token;
+- the logical operations, exact resource scopes, native MCP tool mappings and
+  allowlisted parameter values approved for the pilot;
+- the team, project and template identities used by the non-production policy.
+
+Secret values, kubeconfigs and private endpoints must not be committed here.
+The control plane reads the named Secret key per invocation. Its Role grants
+`get` only for Secret names referenced by the resolved Platform.
+
+## Delivery sequence
+
+1. Build the control-plane and worker images from the same reviewed revision,
+   scan them, push them to the approved registry and record their digests.
+2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
+3. In an MR pipeline, run `verify.sh plan` using a read-only/deploy-capable
+   non-production identity. Review the exact target and planned changes.
+4. Run the manual protected `verify.sh apply` job. The script refuses contexts
+   containing `prod` or `prd`, requires an exact current-context match and
+   confirms that the resolved target matches the expected context/namespace.
+5. Register `policy.yaml` and `agent-template.yaml`, then submit the bounded
+   smoke Work. Keep the first smoke profile credential-free where possible.
+6. Run `verify.sh verify`, inspect the Work and invocation evidence, and prove
+   that a denied mutation makes zero provider calls.
+
+`ready: true` from Platform apply proves only installation-component readiness.
+Deployment acceptance also requires one successful read-only smoke Work, one
+denied mutation/cross-scope Work, provider-side call counts, and cleanup of the
+worker from the same run.
+
+## Rollback
+
+Revert the private deployment MR to the previous digest-pinned Platform and
+rerun plan/apply. Do not downgrade a running Work in place: stop admissions,
+wait for or terminate active non-production Works, then restore the previous
+known-good revision. Secret rotation is performed in the private secret store;
+no secret value belongs in the Platform file or Agenova state directory.

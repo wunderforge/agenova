@@ -1,0 +1,32 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: bau-sre-investigator
+spec:
+  artifact:
+    image: registry.example/agenova/worker@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  entrypoint:
+    command: [/agenova-workerctl, serve]
+  capabilityCeiling:
+    tools:
+      - workitem.read
+      - repo.read
+      - kubernetes.list
+      - kubernetes.logs
+      - metrics.query
+      - dashboard.read
+      - gitopsapplication.read
+    resourceScopes:
+      - workitem:tracker/example/INC-123
+      - repo:example/operations
+      - kubernetes:nonprod/namespace/observability
+      - kubernetes:nonprod/namespace/observability/pod/collector-0
+      - metrics:prometheus/nonprod
+      - dashboard:grafana/sre-overview
+      - gitops:argo/platform/observability
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    maxTimeout: 5m
