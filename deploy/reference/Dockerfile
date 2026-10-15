@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.22-alpine AS build
+ARG GO_IMAGE=golang:1.22-alpine
+ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot
+
+FROM ${GO_IMAGE} AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 # Optional trusted corporate CA for build-time downloads; never copied to runtime.
@@ -19,7 +22,7 @@ RUN case "$TARGETARCH" in \
     wget -q "https://dl.k8s.io/release/v1.36.1/bin/linux/${TARGETARCH}/kubectl" -O /out/kubectl && \
     echo "${expected}  /out/kubectl" | sha256sum -c - && chmod +x /out/kubectl
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM ${RUNTIME_IMAGE}
 COPY --from=build /out/agenova-control-plane /agenova-control-plane
 COPY --from=build /out/kubectl /usr/local/bin/kubectl
 USER nonroot:nonroot

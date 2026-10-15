@@ -24,9 +24,11 @@ The control plane reads the named Secret key per invocation. Its Role grants
 
 1. Build the control-plane and worker images from the same reviewed revision,
    scan them, push them to the approved registry and record their digests. The
-   worker can be built from the repository root with
-   `docker build -f deploy/nonproduction/worker.Dockerfile .`; pin the builder
-   and runtime `ARG` values to approved digests in the private pipeline.
+   control plane and worker can be built from the repository root with
+   `docker buildx build --platform linux/amd64 -f deploy/reference/Dockerfile .`
+   and `docker buildx build --platform linux/amd64 -f
+   deploy/nonproduction/worker.Dockerfile .`; pin the builder and runtime `ARG`
+   values to approved digests in the private pipeline.
 2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
 3. Run `verify.sh prerequisites` with the selected non-production context. It
    fails closed unless all four pinned Agent Sandbox API resources are
