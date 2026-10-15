@@ -989,7 +989,7 @@ func readyResourceResult(args []string, request platformapply.DeploymentRequest)
 	case contains(args, "rolebinding"):
 		object = roleBindingObject("agenova-system")
 	case contains(args, "role"):
-		object = roleObject("agenova-system", mcpTokenSecretNames(request.Platform))
+		object = roleObject("agenova-system", runtimeCredentialSecretNames(request.Platform))
 	case contains(args, "deployment"):
 		object = deploymentObject(request, "agenova-system")
 		object["metadata"].(map[string]any)["generation"] = 1
@@ -1044,14 +1044,14 @@ func tokenRequest() platformapply.DeploymentRequest {
 	request := deploymentRequest()
 	request.Platform.Adapters = append(request.Platform.Adapters, platform.ResolvedAdapter{Name: "mcp-http-tool", ID: MCPHTTPToolID, Version: ReferenceVersion}, platform.ResolvedAdapter{Name: "other-tool", ID: "example.invalid/tool/other", Version: "1"})
 	for _, backend := range []struct{ name, adapter, ref string }{
-		{"e16-mcp", "mcp-http-tool", ""},
-		{"e16-mcp-token-wrong", "mcp-http-tool", "e16-mcp-token-wrong/token"},
-		{"e16-mcp-token", "mcp-http-tool", "e16-mcp-token/token"},
-		{"e16-mcp-token-other-key", "mcp-http-tool", "e16-mcp-token/other"},
-		{"e16-mcp-token-missing", "mcp-http-tool", "e16-mcp-token-absent/token"},
+		{"synthetic-mcp", "mcp-http-tool", ""},
+		{"synthetic-mcp-token-wrong", "mcp-http-tool", "synthetic-mcp-token-wrong/token"},
+		{"synthetic-mcp-token", "mcp-http-tool", "synthetic-mcp-token/token"},
+		{"synthetic-mcp-token-other-key", "mcp-http-tool", "synthetic-mcp-token/other"},
+		{"synthetic-mcp-token-missing", "mcp-http-tool", "synthetic-mcp-token-absent/token"},
 		{"unrelated", "other-tool", "unrelated-secret/token"},
 	} {
-		config := map[string]any{"endpoint": "http://" + fixtureMCPHost + ":8080/mcp-token"}
+		config := map[string]any{"endpoint": "https://mcp.example.invalid/mcp"}
 		if backend.ref != "" {
 			config[mcpTokenSecretKey] = backend.ref
 		}
@@ -1077,7 +1077,7 @@ func secretRules(role map[string]any) []map[string]any {
 // when there is a reference; the rule survives a JSON round trip so an
 // identical reapply plans nothing.
 func TestReferenceRoleGrantsGetOnlyOnReferencedTokenSecrets(t *testing.T) {
-	plain := roleObject("agenova-system", mcpTokenSecretNames(deploymentRequest().Platform))
+	plain := roleObject("agenova-system", runtimeCredentialSecretNames(deploymentRequest().Platform))
 	if len(secretRules(plain)) != 0 {
 		t.Fatal("a Platform without token references granted Secret access")
 	}
@@ -1087,8 +1087,9 @@ func TestReferenceRoleGrantsGetOnlyOnReferencedTokenSecrets(t *testing.T) {
 		t.Fatal("the Role changed for a Platform without token references")
 	}
 	request := tokenRequest()
-	names := mcpTokenSecretNames(request.Platform)
-	if strings.Join(names, ",") != "e16-mcp-token,e16-mcp-token-absent,e16-mcp-token-wrong" {
+	request.Platform.Instances[1].Config[mcpTokenSecretKey] = "synthetic-model-token/token"
+	names := runtimeCredentialSecretNames(request.Platform)
+	if strings.Join(names, ",") != "synthetic-mcp-token,synthetic-mcp-token-absent,synthetic-mcp-token-wrong,synthetic-model-token" {
 		t.Fatalf("referenced Secrets = %v", names)
 	}
 	role := roleObject("agenova-system", names)
@@ -1105,7 +1106,7 @@ func TestReferenceRoleGrantsGetOnlyOnReferencedTokenSecrets(t *testing.T) {
 		t.Fatalf("secret rules = %#v", rules)
 	}
 	rule := rules[0]
-	if len(rule["verbs"].([]any)) != 1 || rule["verbs"].([]any)[0] != "get" || len(rule["resourceNames"].([]any)) != 3 || rule["apiGroups"].([]any)[0] != "" {
+	if len(rule["verbs"].([]any)) != 1 || rule["verbs"].([]any)[0] != "get" || len(rule["resourceNames"].([]any)) != 4 || rule["apiGroups"].([]any)[0] != "" {
 		t.Fatalf("secret rule = %#v", rule)
 	}
 	stale := roleObject("agenova-system", names[:2])
@@ -1140,7 +1141,7 @@ func TestReferenceRoleGrantsGetOnlyOnReferencedTokenSecrets(t *testing.T) {
 // Without escalate, preflight checks get on each referenced Secret by name,
 // never namespace-wide Secret access, and refuses when one is not held.
 func TestKubernetesPreflightChecksTokenSecretGrantByName(t *testing.T) {
-	for _, denied := range []string{"", "secrets/e16-mcp-token-wrong"} {
+	for _, denied := range []string{"", "secrets/synthetic-mcp-token-wrong"} {
 		var checked []string
 		runner := &fakeKubectl{run: func(args []string) (commandResult, error) {
 			if contains(args, "can-i") {
@@ -1168,7 +1169,7 @@ func TestKubernetesPreflightChecksTokenSecretGrantByName(t *testing.T) {
 				t.Fatal("preflight checked namespace-wide Secret access")
 			}
 		}
-		if denied == "" && strings.Join(checked, ",") != "secrets/e16-mcp-token,secrets/e16-mcp-token-absent,secrets/e16-mcp-token-wrong" {
+		if denied == "" && strings.Join(checked, ",") != "secrets/synthetic-mcp-token,secrets/synthetic-mcp-token-absent,secrets/synthetic-mcp-token-wrong" {
 			t.Fatalf("checked %v", checked)
 		}
 	}

@@ -4,6 +4,7 @@
 package bundled
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -111,7 +112,7 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "host-context", "namespace": "workers"}}, "unsupported-connection-mode"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://user:secret@example.invalid/v1"}, "invalid-endpoint"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://models.example/v1?api_key=hidden"}, "invalid-endpoint"},
-		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "http://ollama.agenova-models.svc.cluster.local:11434/v1"}, "unsupported-endpoint"},
+		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "http://models.example.invalid:11434/v1"}, "unsupported-endpoint"},
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}}, "compatible-worker-image"},
 		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}, "compatible-worker-image": "busybox:latest"}, "unsupported-worker-image"},
 	}
@@ -224,5 +225,34 @@ func TestBedrockCompositionRejectsMissingProfilesAndMixedBackends(t *testing.T) 
 	request.Platform.Profiles = nil
 	if _, _, _, err := ModelComposition(request.Platform); err == nil {
 		t.Fatal("missing profiles accepted")
+	}
+}
+
+func TestOpenAICompatibleTokenSecretIsReferenceOnly(t *testing.T) {
+	registry, err := NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, _ := registry.Lookup(OpenAICompatibleModelID, ReferenceVersion)
+	got, err := descriptor.CanonicalizeInstance(platform.CapabilityModel, map[string]any{
+		"endpoint":        "https://models.example.invalid/v1/",
+		mcpTokenSecretKey: "model-gateway-token/token",
+	})
+	if err != nil || got["endpoint"] != "https://models.example.invalid/v1" || got[mcpTokenSecretKey] != "model-gateway-token/token" {
+		t.Fatalf("canonical model backend = %#v, %v", got, err)
+	}
+	for _, ref := range []any{"bad", "Bad_Name/token", "name/../token", true} {
+		if _, err := descriptor.CanonicalizeInstance(platform.CapabilityModel, map[string]any{"endpoint": "https://models.example.invalid/v1", mcpTokenSecretKey: ref}); err == nil {
+			t.Fatalf("accepted invalid Secret reference %#v", ref)
+		}
+	}
+	resolved := deploymentRequest().Platform
+	resolved.Instances[1].Config[mcpTokenSecretKey] = "model-gateway-token/token"
+	name, key, ok := modelTokenSecret(resolved)
+	if !ok || name != "model-gateway-token" || key != "token" {
+		t.Fatalf("model token reference = %q/%q, %v", name, key, ok)
+	}
+	if _, err := NewInstalledModelClient(context.Background(), resolved, nil); err == nil {
+		t.Fatal("configured model token accepted without a Secret resolver")
 	}
 }

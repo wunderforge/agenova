@@ -19,10 +19,10 @@ var errTokenSecretUnavailable = errors.New("provisional token Secret is unavaila
 // maxSecretObjectBytes bounds the kubectl output kept in memory.
 const maxSecretObjectBytes = 1 << 20
 
-// kubectlSecretReader resolves the mcp-http provisional token reference (E16
-// Slice 4) for the installed control plane: one bounded `kubectl get secret`
-// in the install namespace per call, through the in-cluster kubeconfig and a
-// Role that grants get on the referenced Secret names only. It is not a
+// kubectlSecretReader resolves the model and mcp-http provisional token
+// references for the installed control plane: one bounded `kubectl get
+// secret` in the install namespace per call, through the in-cluster kubeconfig
+// and a Role that grants get on the referenced Secret names only. It is not a
 // general credential resolver; #155 replaces it.
 type kubectlSecretReader struct {
 	namespace string

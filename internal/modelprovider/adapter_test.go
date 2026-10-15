@@ -19,6 +19,10 @@ import (
 
 const completion = `{"id":"synthetic-response-1","model":"llama3.1:latest","choices":[{"message":{"role":"assistant","content":"A task-dependent synthetic answer."}}],"usage":{"prompt_tokens":12,"completion_tokens":7}}`
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func newTestAdapter(t *testing.T, cfg Config) *Adapter {
 	t.Helper()
 	if cfg.Models == nil {
@@ -220,6 +224,56 @@ func TestLocalNeedsNoAPIKey(t *testing.T) {
 	defer server.Close()
 	if _, err := newTestAdapter(t, Config{Endpoint: server.URL + "/v1"}).Complete(context.Background(), Request{Profile: "approved-local", Prompt: "synthetic task"}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBearerTokenResolvesForEveryRequest(t *testing.T) {
+	var tokenCalls atomic.Int32
+	var requests atomic.Int32
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		want := fmt.Sprintf("Bearer rotated-%d", requests.Add(1))
+		if got := r.Header.Get("Authorization"); got != want {
+			t.Fatalf("Authorization = %q, want %q", got, want)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(completion)), Header: make(http.Header)}, nil
+	})}
+	a := newTestAdapter(t, Config{
+		Endpoint:   "https://models.example.invalid/v1",
+		HTTPClient: client,
+		BearerToken: func(context.Context) (string, error) {
+			return fmt.Sprintf("rotated-%d", tokenCalls.Add(1)), nil
+		},
+	})
+	for i := 0; i < 2; i++ {
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "synthetic task"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tokenCalls.Load() != 2 || requests.Load() != 2 {
+		t.Fatalf("token calls=%d requests=%d", tokenCalls.Load(), requests.Load())
+	}
+}
+
+func TestBearerTokenFailureMakesZeroProviderRequests(t *testing.T) {
+	var requests atomic.Int32
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests.Add(1)
+		return nil, errors.New("must not be called")
+	})}
+	for _, resolve := range []func(context.Context) (string, error){
+		func(context.Context) (string, error) { return "", errors.New("private detail") },
+		func(context.Context) (string, error) { return "bad\r\ntoken", nil },
+	} {
+		a := newTestAdapter(t, Config{Endpoint: "https://models.example.invalid/v1", HTTPClient: client, BearerToken: resolve})
+		if _, err := a.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "synthetic task"}); err == nil || strings.Contains(err.Error(), "private detail") {
+			t.Fatalf("unsafe resolver result: %v", err)
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("provider requests = %d", requests.Load())
+	}
+	if _, err := New(Config{Endpoint: "https://models.example.invalid/v1", Models: map[string]string{"p": "m"}, APIKey: "one", BearerToken: func(context.Context) (string, error) { return "two", nil }}); err == nil {
+		t.Fatal("ambiguous credential sources accepted")
 	}
 }
 
