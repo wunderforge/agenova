@@ -32,9 +32,11 @@ The control plane reads the named Secret key per invocation. Its Role grants
 2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
 3. Run `verify.sh prerequisites` with the selected non-production context. It
    fails closed unless all four pinned Agent Sandbox API resources are
-   discoverable and the configured controller Deployment has an available
-   replica. Installing that cluster-level substrate is a separate platform
-   approval; this package never installs it implicitly.
+   discoverable, the controller image exactly matches
+   `AGENOVA_EXPECTED_AGENT_SANDBOX_CONTROLLER_IMAGE`, and the configured
+   controller Deployment has an available replica. Installing that
+   cluster-level substrate is a separate platform approval; this package
+   never installs it implicitly.
 4. In an MR pipeline, run `verify.sh render`. Commit or promote the resulting
    multi-document YAML through the private GitOps repository; rendering is
    offline and does not require a kubeconfig.
