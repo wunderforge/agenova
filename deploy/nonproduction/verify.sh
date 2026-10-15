@@ -7,14 +7,21 @@ mode="${1:-verify}"
 platform_file="${AGENOVA_PLATFORM_FILE:-deploy/nonproduction/platform.yaml}"
 state_dir="${AGENOVA_STATE_DIR:-.tmp/nonproduction-state}"
 agenova_bin="${AGENOVA_BIN:-./.tmp/agenova}"
+rendered_file="${AGENOVA_RENDERED_FILE:-.tmp/nonproduction-rendered.yaml}"
 
 case "${mode}" in
-  validate|plan|apply|verify) ;;
-  *) echo "usage: $0 [validate|plan|apply|verify]" >&2; exit 2 ;;
+  validate|render|plan|apply|verify) ;;
+  *) echo "usage: $0 [validate|render|plan|apply|verify]" >&2; exit 2 ;;
 esac
 
 "${agenova_bin}" platform validate -f "${platform_file}" --json
 if [[ "${mode}" == "validate" ]]; then
+  exit 0
+fi
+if [[ "${mode}" == "render" ]]; then
+  mkdir -p "$(dirname "${rendered_file}")"
+  "${agenova_bin}" platform render -f "${platform_file}" > "${rendered_file}"
+  printf '%s\n' "${rendered_file}"
   exit 0
 fi
 

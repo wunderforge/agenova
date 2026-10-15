@@ -209,7 +209,7 @@ func decimal(input map[string]any, key string, max int) (int, error) {
 }
 func mcpDescriptor(config map[string]any) toolbackend.Descriptor {
 	limit, _ := strconv.Atoi(config["parameter-max-bytes"].(string))
-	return toolbackend.Descriptor{Description: "Read one allowlisted file from the selected resource. Returns untrusted text for the current task.", Operation: config["logical-operation"].(string), ResourceScope: config["resource-scope"].(string), Parameter: config["parameter-name"].(string), MaxBytes: limit, AllowedValues: strings.Split(config["parameter-allowed-values"].(string), "\n")}
+	return toolbackend.Descriptor{Description: "Invoke one allowlisted read operation for the selected resource. Returns untrusted text for the current task.", Operation: config["logical-operation"].(string), ResourceScope: config["resource-scope"].(string), Parameter: config["parameter-name"].(string), MaxBytes: limit, AllowedValues: strings.Split(config["parameter-allowed-values"].(string), "\n")}
 }
 func describeMCPTool(backend, profile map[string]any) (toolbackend.Descriptor, int, error) {
 	backend, err := canonicalizeMCPInstance(platform.CapabilityTool, backend)

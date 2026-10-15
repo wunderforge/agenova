@@ -25,6 +25,10 @@ type cliDeployment struct {
 	fail    error
 }
 
+func (d *cliDeployment) Render(_ platformapply.DeploymentRequest) ([]byte, error) {
+	return []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: rendered\n"), nil
+}
+
 func (d *cliDeployment) Preflight(context.Context, platformapply.DeploymentRequest) error { return nil }
 
 func (d *cliDeployment) Plan(_ context.Context, _ platformapply.DeploymentRequest) (string, []platformapply.Change, []platformapply.ComponentStatus, error) {
@@ -54,6 +58,10 @@ func TestPlatformCLIValidatePlanConfirmApplyAndNoOp(t *testing.T) {
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "plan", "-f", path, "--json"}, "", factory)
 	if code != 0 || stderr != "" || !strings.Contains(stdout, `"target":"test/target"`) || !strings.Contains(stdout, `"action":"activate"`) {
 		t.Fatalf("plan = %d %q %q", code, stdout, stderr)
+	}
+	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "render", "-f", path}, "", factory)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "kind: ConfigMap") || deployment.applied {
+		t.Fatalf("render = %d %q %q applied=%t", code, stdout, stderr, deployment.applied)
 	}
 	stdout, stderr, code = runPlatformCLI([]string{"agenova", "platform", "plan", "-f", path}, "", factory)
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "adapter/deployment: available (example.com/deployment/test@1.0.0)") || !strings.Contains(stdout, "deployment/control: unavailable") {

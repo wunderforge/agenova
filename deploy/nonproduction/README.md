@@ -25,11 +25,14 @@ The control plane reads the named Secret key per invocation. Its Role grants
 1. Build the control-plane and worker images from the same reviewed revision,
    scan them, push them to the approved registry and record their digests.
 2. Copy and edit `platform.yaml.example`; run `agenova platform validate`.
-3. In an MR pipeline, run `verify.sh plan` using a read-only/deploy-capable
-   non-production identity. Review the exact target and planned changes.
-4. Run the manual protected `verify.sh apply` job. The script refuses contexts
-   containing `prod` or `prd`, requires an exact current-context match and
-   confirms that the resolved target matches the expected context/namespace.
+3. In an MR pipeline, run `verify.sh render`. Commit or promote the resulting
+   multi-document YAML through the private GitOps repository; rendering is
+   offline and does not require a kubeconfig.
+4. Optionally run `verify.sh plan` with a read-only non-production identity to
+   compare the selected target. Let Argo CD reconcile the reviewed manifest;
+   do not use the imperative `apply` mode in the normal GitOps path. The script
+   refuses contexts containing production tokens, requires an exact current-
+   context match and confirms the resolved target matches the expected target.
 5. Register `policy.yaml` and `agent-template.yaml`, then submit the bounded
    smoke Work. Keep the first smoke profile credential-free where possible.
 6. Run `verify.sh verify`, inspect the Work and invocation evidence, and prove

@@ -1197,3 +1197,28 @@ func TestRemoteImagesReachInstalledManifestAndExactWorkerBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestKubernetesRenderIsOfflineAndComplete(t *testing.T) {
+	request := deploymentRequest()
+	request.Config["context"] = "nonprod-context"
+	manifest, err := newKubernetesDeployment(&fakeKubectl{run: func([]string) (commandResult, error) {
+		t.Fatal("offline render invoked kubectl")
+		return commandResult{}, nil
+	}}).Render(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(manifest)
+	if strings.Count(text, "\n---\n") != 8 {
+		t.Fatalf("rendered document separators = %d, want 8", strings.Count(text, "\n---\n"))
+	}
+	for _, expected := range []string{
+		"kind: Namespace", "kind: ConfigMap", "kind: ServiceAccount",
+		"kind: Role", "kind: RoleBinding", "kind: Deployment", "kind: Service",
+		"name: agenova-control-plane", "agenova.io/platform-revision",
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("rendered manifest is missing %q", expected)
+		}
+	}
+}
