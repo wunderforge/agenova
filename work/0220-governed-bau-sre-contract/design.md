@@ -16,12 +16,15 @@
 
 Add a small backend-neutral parser/formatter in `internal/gateway` and invoke it during Tool Gateway structural validation, before claim resolution.
 
-The parser:
+The parser and operation/resource validator:
 
 1. splits the scope once at `:` into a closed logical kind and path;
 2. rejects whitespace, controls, backslashes, wildcards, query/fragment delimiters, empty segments, and `.`/`..` segments;
 3. checks a kind-specific segment shape;
 4. returns immutable logical data and a formatter that round-trips to the identical canonical string.
+5. rejects an explicit E21 mutation denylist and validates known E21 read-operation/resource pairs before claim attribution.
+
+Unknown legacy/custom operations are not added to the E21 supported vocabulary, but continue to the existing exact-authority and policy checks for compatibility. This avoids turning a BAU/SRE vertical slice into a global removal of unrelated experimental operations. Real adapters must still explicitly route an operation; this compatibility behavior does not create a provider route.
 
 The Tool Gateway retains the existing order:
 
@@ -84,6 +87,7 @@ issue invocation ID
 ## Risks and Compatibility
 
 - A closed logical-kind set means new resource categories require an explicit contract change. This is intentional fail-closed behavior.
+- The operation vocabulary is closed for E21 adapter support but not a global ban on existing custom operations. The explicit mutation denylist is enforced structurally; other custom operations remain exact-authority governed until their own contract changes.
 - Some future list/query operations may need collection scopes or typed selectors. M1 accepts only the bounded namespace/target forms and defers selectors to real adapter evidence.
 - Existing third-party consumers using arbitrary scope prefixes would be rejected at the Tool Gateway after this change. The repository's supported fixtures use `repo:`; the change is documented as an intentional contract tightening for governed provider access.
 - Canonical syntax does not prove authorization, identity, isolation or safe provider behavior. Those claims remain separately evidenced.

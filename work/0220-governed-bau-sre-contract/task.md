@@ -94,6 +94,9 @@ Out of scope:
 - Decision: reuse the existing `Tool.Action` operation model, exact effective-authority enforcement, invocation IDs, decisions, and facts; E21 does not create a parallel policy or evidence engine.
 - Decision: validate a closed set of E21 resource kinds at the Tool Gateway boundary while preserving the existing `repo:owner/name` form.
 - Decision: capability ceilings may retain one terminal wildcard during resolution, but individual governed invocations must always name one exact canonical resource.
+- Decision: known E21 read operations receive structural operation/resource checks; an explicit mutation denylist fails before claim attribution. Other legacy custom operations remain governed by exact issued authority so this vertical slice does not remove unrelated experimental contracts.
+- Decision: preserve legacy `file.read` with a repository-level scope; new adapters should use the exact `repo-object:.../path/...` form when a path is known.
 - Blocker: the branch baseline does not yet contain E16's real provider transport/catalog implementation; M1 can define and test the shared contract, while M2 must integrate the accepted E16 boundary instead of duplicating it.
 - Verification: focused packages and all Go packages passed on 2026-10-14. Two loopback `httptest` packages initially failed under the filesystem/network sandbox and passed when rerun with local-port permission. See `docs/evidence/220/README.md`.
+- Verification: on 2026-10-15 the operation/resource matrix, explicit mutation denial, exact-scope enforcement, and legacy multi-agent compatibility all passed; the complete `go test ./...` gate passed with local test-port permission.
 - Environment blocker: `pwsh` is not installed on this macOS host, so the repository-owned `scripts/check.ps1 -Docs/-All` wrapper and its frontend/browser portions were not executed here.

@@ -11,7 +11,7 @@ This contract is a sanitized product slice. Company-specific systems, topology, 
 
 ## In Scope
 
-- The existing tool operation representation `tool.action`, using the following E21 read-only vocabulary:
+- The existing tool operation representation `tool.action`, using the following E21 read-only vocabulary. These operations receive operation/resource structural checks; legacy custom operations remain governed by exact issued authority so E21 does not break unrelated experimental contracts:
 
   | Category | Operations |
   | --- | --- |
@@ -40,6 +40,8 @@ This contract is a sanitized product slice. Company-specific systems, topology, 
 - Stable structural rejection categories before claim attribution:
   - existing `ambiguous-resource-scope` for blank or wildcard input;
   - `invalid-resource-scope` for unsupported kinds, wrong segment shape, forbidden characters, or non-canonical encoding.
+  - `unsupported-tool-operation` for the E21 read-only slice's explicit mutation denylist (`git.write`, `kubernetes.delete`, `kubernetes.patch`, `gitopsapplication.sync`, and `terraform.apply`).
+  - `operation-resource-mismatch` when a known E21 read operation is combined with the wrong canonical resource kind.
 
 ## Out of Scope
 
@@ -54,6 +56,8 @@ This contract is a sanitized product slice. Company-specific systems, topology, 
 - Given an unsupported kind or malformed/non-canonical scope, when it reaches the Tool Gateway, then it is denied as `invalid-resource-scope` before claim resolution, policy evaluation, fact attribution, or adapter dispatch.
 - Given an empty or wildcard scope, when it reaches the Tool Gateway, then the existing `ambiguous-resource-scope` behavior remains unchanged.
 - Given an operation outside the claim's exact effective `tools`, when the claim is Running, then it is denied as `tool-not-granted`, records one correlated claim fact, and makes zero adapter calls.
+- Given an explicitly forbidden E21 mutation operation, when it reaches the Tool Gateway, then it is rejected before claim attribution, policy evaluation, or adapter dispatch even if an invalid authority snapshot contains that string.
+- Given a known E21 read operation with the wrong resource kind, when it reaches the Tool Gateway, then it is rejected as `operation-resource-mismatch` before claim attribution, policy evaluation, or adapter dispatch.
 - Given a canonical resource outside the claim's exact effective `resourceScopes`, when the claim is Running, then it is denied as `resource-scope-not-granted`, records one correlated claim fact, and makes zero adapter calls.
 - Given an allowed operation and exact resource, when the claim is Running and policy allows, then exactly one correlated Allow fact is recorded before exactly one adapter call.
 - Given caller/model/tool parameters containing a resource-looking string, when the granted `ResourceScope` does not match, then parameters do not change the authority decision.
@@ -62,7 +66,7 @@ This contract is a sanitized product slice. Company-specific systems, topology, 
 ## Negative Cases
 
 - Reject `kubernetes:lab/namespace/*`, `kubernetes:lab/namespace/monitoring/`, `kubernetes:lab/namespace/../pod/x`, `repo:example//payments`, `repo:example/payments?ref=main`, an unknown `company:` kind, whitespace, and backslash variants before adapter dispatch.
-- Deny `kubernetes.delete` even when its resource is canonical and a read operation for that resource is granted.
+- Deny `kubernetes.delete` even when its resource is canonical and an invalid authority snapshot contains the operation.
 - Deny a canonical resource in another namespace/repository/project with zero adapter calls.
 - Deny governed calls for Pending, Bound, Succeeded, Failed and Expired claims.
 - Never accept a provider credential or kubeconfig through resource scopes or parameters.
@@ -70,6 +74,8 @@ This contract is a sanitized product slice. Company-specific systems, topology, 
 ## Compatibility
 
 - Existing `repo:acme/payments` requests and fixtures remain valid.
+- Existing experimental/custom operations remain subject to exact issued authority and additional policy. E21 does not claim their provider safety or add them to the supported BAU/SRE vocabulary.
+- Legacy `file.read` with a repository-level scope remains valid; new adapters should issue the more precise `repo-object:.../path/...` form when the exact path is known.
 - Existing capability-ceiling terminal wildcards remain an authority-resolution concern. A concrete Tool Gateway invocation still forbids every wildcard.
 - `ClaimRequest`, `AgentTemplate`, `EffectiveAuthority`, `SandboxClaim`, `ToolInvocation`, `RuntimeEvent` and evidence-view public types do not change in M1.
 - E16 owns real governed provider transport/catalog behavior; E21 M1 defines the logical contract consumed by that boundary.

@@ -67,3 +67,37 @@ The fixture uses only synthetic identifiers (`example`, `lab`, `tracker`, `INC-1
 - E16 still owns real governed provider routing/transport and provider result behavior.
 - E18 still owns durable evidence and observability across process restart.
 - Network isolation, Agent Sandbox execution, private integration configuration, and non-production deployment remain later E21 milestones.
+
+## 2026-10-15 operation/resource binding increment
+
+The second increment adds a sanitized operation/resource matrix at
+`internal/gateway/testdata/e21-operation-resources.json`.
+
+It proves:
+
+- known E21 read operations accept only their compatible canonical resource kinds;
+- `kubernetes.list` requires a namespace boundary and `kubernetes.logs` requires one exact Pod;
+- repository object reads distinguish path, commit and merge-request targets;
+- explicit mutation operations are rejected before claim attribution, policy evaluation and provider dispatch;
+- unrelated legacy/custom operations remain controlled by their exact issued authority, preserving the existing experimental multi-agent reference;
+- legacy `file.read` with a repository scope remains compatible, while the exact path form is available for new adapters.
+
+The first complete Go run exposed two compatibility regressions in the
+experimental multi-agent harness (`plan.compose` and repository-level
+`file.read`). The implementation was narrowed as described above, then the
+focused suite and complete suite were rerun:
+
+```text
+go test ./internal/gateway ./internal/toolgateway ./harness/e2e
+PASS
+
+go test ./...
+PASS
+```
+
+The full run used local ephemeral-port permission for repository tests built on
+`httptest`. No product code, fixture, or test expectation was skipped.
+
+Real provider transport is not part of this increment. This evidence covers
+contract validation and deterministic adapter spies only; provider dispatch
+remains a later integration step.
