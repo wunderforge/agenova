@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: bau-sre-smoke
+spec:
+  templateRef: bau-sre-investigator
+  projectRef: operations
+  task:
+    type: investigation
+    input:
+      objective: Read README.md from the approved repository and summarize its purpose. Do not request mutation.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:example/operations]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

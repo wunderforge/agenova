@@ -1,0 +1,35 @@
+# Secret-free reusable job shape. Copy into a private deployment repository.
+stages: [validate, plan, deploy, verify]
+
+.agenova:
+  image: registry.example/agenova/deployer@sha256:2222222222222222222222222222222222222222222222222222222222222222
+  variables:
+    AGENOVA_PLATFORM_FILE: deploy/nonproduction/platform.yaml
+    AGENOVA_STATE_DIR: .agenova-state
+  artifacts:
+    when: always
+    paths: [.agenova-state/]
+
+agenova:validate:
+  extends: .agenova
+  stage: validate
+  script: ["deploy/nonproduction/verify.sh validate"]
+
+agenova:plan:
+  extends: .agenova
+  stage: plan
+  script: ["deploy/nonproduction/verify.sh plan"]
+
+agenova:deploy:
+  extends: .agenova
+  stage: deploy
+  needs: ["agenova:plan"]
+  when: manual
+  allow_failure: false
+  script: ["deploy/nonproduction/verify.sh apply"]
+
+agenova:verify:
+  extends: .agenova
+  stage: verify
+  needs: ["agenova:deploy"]
+  script: ["deploy/nonproduction/verify.sh verify"]
