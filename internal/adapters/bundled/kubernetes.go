@@ -1108,11 +1108,11 @@ func managedKubernetesDefaults(path string) map[string]any {
 		return map[string]any{"resources": map[string]any{}, "terminationMessagePath": "/dev/termination-log", "terminationMessagePolicy": "File"}
 	case "pod/containers[]/ports[]":
 		return map[string]any{"protocol": "TCP"}
-	case "pod/containers[]/readinessProbe":
+	case "pod/containers[]/readinessProbe", "pod/containers[]/livenessProbe":
 		return map[string]any{"failureThreshold": float64(3), "successThreshold": float64(1), "timeoutSeconds": float64(1)}
-	case "pod/containers[]/readinessProbe/httpGet":
+	case "pod/containers[]/readinessProbe/httpGet", "pod/containers[]/livenessProbe/httpGet":
 		return map[string]any{"scheme": "HTTP"}
-	case "pod/volumes[]/configMap", "pod/volumes[]/projected":
+	case "pod/volumes[]/configMap", "pod/volumes[]/projected", "pod/volumes[]/secret":
 		return map[string]any{"defaultMode": float64(420)}
 	default:
 		return nil

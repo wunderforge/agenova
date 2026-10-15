@@ -721,8 +721,42 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 		t.Fatal("unexpected nested probe timeout must be reconciled")
 	}
 	probe["timeoutSeconds"] = float64(1)
+	probe["failureThreshold"] = float64(3)
+	probe["successThreshold"] = float64(1)
+	probe["httpGet"].(map[string]any)["scheme"] = "HTTP"
+	liveness := container["livenessProbe"].(map[string]any)
+	liveness["failureThreshold"] = float64(3)
+	liveness["successThreshold"] = float64(1)
+	liveness["timeoutSeconds"] = float64(1)
+	liveness["httpGet"].(map[string]any)["scheme"] = "HTTP"
 	if !deploymentMatches(actual, desired, request.Platform.Revision) {
-		t.Fatal("normal Kubernetes probe default must be accepted")
+		t.Fatal("normal Kubernetes readiness and liveness probe defaults must be accepted")
+	}
+}
+
+func TestDeploymentMatchesAcceptsSecretVolumeDefaultMode(t *testing.T) {
+	request := deploymentRequest()
+	request.Config["ca-bundle-secret"] = "agenova-runtime-ca/ca.crt"
+	desired := deploymentObject(request, "agenova-system")
+	data, err := json.Marshal(desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual map[string]any
+	if err := json.Unmarshal(data, &actual); err != nil {
+		t.Fatal(err)
+	}
+	actual["metadata"].(map[string]any)["generation"] = float64(1)
+	actual["status"] = map[string]any{"observedGeneration": float64(1), "replicas": float64(1), "updatedReplicas": float64(1), "availableReplicas": float64(1)}
+	volumes := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["volumes"].([]any)
+	for _, raw := range volumes {
+		volume := raw.(map[string]any)
+		if secret, ok := volume["secret"].(map[string]any); ok {
+			secret["defaultMode"] = float64(420)
+		}
+	}
+	if !deploymentMatches(actual, desired, request.Platform.Revision) {
+		t.Fatal("normal Kubernetes Secret volume defaultMode must be accepted")
 	}
 }
 
