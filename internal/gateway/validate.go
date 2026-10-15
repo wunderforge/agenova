@@ -144,7 +144,7 @@ func validateResourceShape(scope ResourceScope) error {
 func SupportedToolOperation(operation string) bool {
 	switch operation {
 	case "workitem.read",
-		"repository.read", "git.read", "file.read", "commit.read", "mergerequest.read",
+		"repo.read", "repository.read", "git.read", "file.read", "commit.read", "mergerequest.read",
 		"kubernetes.get", "kubernetes.list", "kubernetes.logs",
 		"metrics.query", "dashboard.read", "gitopsapplication.read":
 		return true
@@ -190,7 +190,7 @@ func ValidateToolOperationResource(operation string, scope ResourceScope) error 
 	switch operation {
 	case "workitem.read":
 		return kindIs("workitem")
-	case "repository.read":
+	case "repo.read", "repository.read":
 		return kindIs("repo")
 	case "git.read":
 		if scope.Kind != "repo" && scope.Kind != "repo-object" {

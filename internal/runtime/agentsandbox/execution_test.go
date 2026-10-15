@@ -91,7 +91,7 @@ func TestExecutionExchangeTaskDependentResult(t *testing.T) {
 	decoder := json.NewDecoder(&output)
 	var sent workerprotocol.Task
 	var reply workerprotocol.Reply
-	if decoder.Decode(&sent) != nil || sent != task || decoder.Decode(&reply) != nil || reply.Text != result {
+	if decoder.Decode(&sent) != nil || !reflect.DeepEqual(sent, task) || decoder.Decode(&reply) != nil || reply.Text != result {
 		t.Fatal("task and governed response were not sent through stdio")
 	}
 }
@@ -204,16 +204,16 @@ func TestExecutionPinsKubernetesArguments(t *testing.T) {
 func TestReActTransportKeepsFinalAndActionEvidence(t *testing.T) {
 	task := executionTask()
 	task.Mode = workerprotocol.ReAct
-	task.ResourceScope = "repo:acme/payments"
+	task.Tools = []workerprotocol.Tool{{Operation: "repo.read", Description: "Read one allowlisted file.", ResourceScope: "repo:acme/payments", Parameter: "file", AllowedValues: []string{"README.md"}}}
 	model := modelMessage(task)
 	model.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
-	tool := workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: task.ResourceScope, Input: "README.md"}}
+	tool := workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "repo.read", ResourceScope: "repo:acme/payments", Input: "README.md"}}
 	for _, final := range []string{"Verified deadline fix.", "forged"} {
 		calls := 0
 		result, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(model, tool, model, workerprotocol.Message{Result: final})), io.Discard, task, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			calls++
 			if calls == 1 {
-				return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","input":"README.md"}`}, nil
+				return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"repo.read","resource":"repo:acme/payments","input":"README.md"}`}, nil
 			}
 			if op.Kind == "tool" {
 				return workerprotocol.Reply{Allowed: true, Text: "mock deadline log"}, nil
@@ -317,5 +317,38 @@ func TestExecutionHelperProcess(t *testing.T) {
 	case "fail":
 		os.Stderr.WriteString("sensitive credential-plugin output")
 		os.Exit(3)
+	}
+}
+
+func TestReActTransportRejectsToolsOutsideTheWorkCatalog(t *testing.T) {
+	task := executionTask()
+	task.Mode = workerprotocol.ReAct
+	task.Tools = []workerprotocol.Tool{{Operation: "repo.read", Description: "Read one allowlisted file.", ResourceScope: "repo:acme/payments", Parameter: "file", AllowedValues: []string{"README.md"}}}
+	model := modelMessage(task)
+	model.Operation.Prompt = workerprotocol.LoopPrompt(task, "")
+	for name, op := range map[string]workerprotocol.Operation{
+		"other scope":     {ClaimID: task.ClaimID, Kind: "tool", Tool: "repo.read", ResourceScope: "repo:acme/other", Input: "README.md"},
+		"legacy tool":     {ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "README.md"},
+		"unlisted input":  {ClaimID: task.ClaimID, Kind: "tool", Tool: "repo.read", ResourceScope: "repo:acme/payments", Input: "secrets.txt"},
+		"prompt smuggled": {ClaimID: task.ClaimID, Kind: "tool", Tool: "repo.read", ResourceScope: "repo:acme/payments", Input: "README.md", Prompt: "x"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			selected, _ := json.Marshal(workerprotocol.Action{Action: "tool", Tool: op.Tool, Resource: op.ResourceScope, Input: op.Input})
+			tools := 0
+			_, err := exchangeWorker(context.Background(), strings.NewReader(protocolLines(model, workerprotocol.Message{Operation: &op})), io.Discard, task, func(_ context.Context, call workerprotocol.Operation) (workerprotocol.Reply, error) {
+				if call.Kind == "tool" {
+					tools++
+				}
+				return workerprotocol.Reply{Allowed: true, Text: string(selected)}, nil
+			})
+			if err == nil || tools != 0 {
+				t.Fatalf("off-catalog tool reached the host: err=%v calls=%d", err, tools)
+			}
+		})
+	}
+	bad := task
+	bad.Tools = append(bad.Tools, bad.Tools[0])
+	if _, err := exchangeWorker(context.Background(), strings.NewReader(""), io.Discard, bad, nil); err == nil {
+		t.Fatal("duplicate catalog entries were sent to a worker")
 	}
 }

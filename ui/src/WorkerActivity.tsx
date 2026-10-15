@@ -1,7 +1,7 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from 'react';
-import { groupWorkerTurns, type WorkerAction } from './worker-activity-model';
+import { groupWorkerTurns, toolCallLabels, type WorkerAction } from './worker-activity-model';
 
 export function WorkerActivity({ actions, status, activityHref, failure }: { actions: WorkerAction[]; status: string; activityHref: string; failure?: {reason: string; href: string} }) {
   const [chosen, setChosen] = useState<string>();
@@ -12,14 +12,14 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
   const turn = [...actions].reverse().find(a => a.label === 'Agent turn')?.target;
   const turns = actions.filter(a => a.label === 'Agent turn' && a.state === 'Started').length;
   const observations = actions.filter(a => a.label === 'Agent turn' && a.state === 'Observation received').length;
-  const toolsWaiting = pending.some(a => a.label === 'Tool call (mock)');
+  const toolsWaiting = pending.some(a => toolCallLabels.includes(a.label));
   if (!actions.length && !['Running', 'Failed', 'Finishing'].includes(status)) return null;
   const summary = pending.length ? toolsWaiting ? 'Waiting for tool observation' : `Waiting for ${pending.length === 1 ? 'a model response' : `${pending.length} model responses`}`
     : status === 'Running' ? 'Worker running · No active call recorded'
     : status === 'Failed' ? 'Work failed · Inspect the recorded failure'
     : 'No active calls';
   return <section className={`portal-worker ${pending.length ? 'has-active-call' : ''}`} aria-label="Worker activity">
-    <div className="portal-section-head"><div><h2>Agent activity</h2><p className="portal-activity-help">{turn ? 'Model calls and tool results, grouped by turn.' : actions.some(a => ['Model request', 'Tool call (mock)'].includes(a.label)) ? 'Recorded model and tool calls.' : 'Access checks only; no execution calls recorded.'}</p></div><a href={activityHref}>View records</a></div>
+    <div className="portal-section-head"><div><h2>Agent activity</h2><p className="portal-activity-help">{turn ? 'Model calls and tool results, grouped by turn.' : actions.some(a => ['Model request', ...toolCallLabels].includes(a.label)) ? 'Recorded model and tool calls.' : 'Access checks only; no execution calls recorded.'}</p></div><a href={activityHref}>View records</a></div>
     <p className="portal-worker-current" data-negative={status === 'Failed'} role="status"><span>{turn && `${turn} · `}{summary}</span></p>
     {turns > 0 && <p className="portal-turn-count">{turns} model turns · {observations} tool observations</p>}
     <div className="portal-turns">{groups.map(group => {
@@ -37,7 +37,7 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
         }}>
           <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${callCount} ${noun}${callCount === 1 ? '' : 's'}`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{retries > 0 && <span className="portal-turn-retry"> · Format retry</span>}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-failed"> · {blocked} blocked</span>}</span>
         </summary>
-        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-kind={a.label === 'Tool call (mock)' ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
+        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-kind={toolCallLabels.includes(a.label) ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
           <span className="portal-worker-lamp" aria-hidden="true"/>
           <div><a href={a.href}>{a.label}</a><small>{a.target}</small></div>
           <span className={`portal-worker-state ${/deny|denied|failed|cancelled/i.test(a.state) ? 'negative' : /^(succeeded|allowed|allow)$/i.test(a.state) ? 'positive' : ''}`}>{a.state}</span>

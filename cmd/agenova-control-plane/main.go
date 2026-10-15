@@ -27,6 +27,7 @@ import (
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
@@ -88,15 +89,29 @@ func configuredService(path string) (*console.Service, error) {
 	if resolved.Revision == "" {
 		return nil, fmt.Errorf("installed Platform revision is missing")
 	}
+	registry, err := bundled.NewRegistry()
+	if err != nil {
+		return nil, err
+	}
+	_, namespace, err := app.DeploymentCoordinates(&resolved)
+	if err != nil {
+		return nil, err
+	}
+	// Token references resolve in the install namespace only, on each call.
+	tools, err := buildInstalledTools(&resolved, registry, kubectlSecretReader{namespace: namespace})
+	if err != nil {
+		return nil, err
+	}
+	// "configured" reports installed configuration, not a successful call.
+	toolStatus := "mock"
+	if tools != nil {
+		toolStatus = "configured"
+	}
 	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
 	if compatibleWorkerImage == "" {
 		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
 	}
 	if err := setInClusterKubeconfig(); err != nil {
-		return nil, err
-	}
-	_, namespace, err := app.DeploymentCoordinates(&resolved)
-	if err != nil {
 		return nil, err
 	}
 	store := registration.KubernetesStore{Namespace: namespace}
@@ -139,7 +154,8 @@ func configuredService(path string) (*console.Service, error) {
 			runtimeProfiles[profile.Name] = true
 		}
 	}
-	provider, err := bundled.NewInstalledModelClient(context.Background(), &resolved, []byte(workerprotocol.ActionSchema))
+	// The service sends each Work's schema with every model request; this one is only the fallback.
+	provider, err := bundled.NewInstalledModelClient(context.Background(), &resolved, []byte(workerprotocol.FinishSchema))
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +165,7 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, err
 	}
 	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+		ToolBackend: tools,
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
@@ -162,7 +179,7 @@ func configuredService(path string) (*console.Service, error) {
 				return console.Setup{}, fmt.Errorf("reference Portal requires exactly one registered AgentTemplate")
 			}
 			return console.Setup{Principal: principal.Principal(), Template: templates[0], Policy: bundle,
-				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"},
+				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": toolStatus, "memory": "notConnected"},
 				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
 		Prepare: func(data []byte) (app.PreparedAssignment, error) {
@@ -185,7 +202,7 @@ func configuredService(path string) (*console.Service, error) {
 				return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
 			}
 			if prepared.Issued != nil && prepared.Issued.Claim != nil {
-				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelProfiles, runtimeProfiles); err != nil {
+				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelProfiles, runtimeProfiles, tools); err != nil {
 					return app.PreparedAssignment{}, err
 				}
 			}
@@ -213,11 +230,11 @@ func configuredService(path string) (*console.Service, error) {
 	})
 }
 
-// This reference composition currently provides only a synthetic git.read
-// adapter and no Memory Interface. Check the issued effective grant before
+// This reference composition uses the installed tool catalog when configured,
+// otherwise the explicit synthetic git.read fixture. Check the grant before
 // the console journals a claim or configures a worker: a broader template
 // ceiling must never be mistaken for an implemented gateway capability.
-func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[string]string, runtimeProfiles map[string]bool) error {
+func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[string]string, runtimeProfiles map[string]bool, tools *toolbackend.Set) error {
 	if authority == nil {
 		return &console.SubmissionError{Code: "authority_missing", Message: "Issued effective authority is missing; inspect policy and template configuration."}
 	}
@@ -228,8 +245,13 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 		return &console.SubmissionError{Code: "runtime_profile_unavailable", Message: "Granted runtime profile is not installed; update the Platform runtime configuration."}
 	}
 	for _, tool := range authority.Tools {
-		if tool != "git.read" {
+		if (tools == nil && tool != "git.read") || (tools != nil && !tools.Catalog().Supports(tool)) {
 			return &console.SubmissionError{Code: "tool_unsupported", Message: "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway."}
+		}
+		// An installed operation with no route for any granted scope would leave
+		// the Work's catalog empty, and the Work would run without the tool.
+		if tools != nil && len(tools.Catalog().Intersect([]string{tool}, authority.ResourceScopes).Entries()) == 0 {
+			return &console.SubmissionError{Code: "tool_route_unavailable", Message: "Granted tool has no installed route for the granted resource scopes; narrow the template or configure a tool profile for those scopes."}
 		}
 	}
 	if len(authority.MemoryScopes) != 0 {
