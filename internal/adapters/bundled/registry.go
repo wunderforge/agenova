@@ -50,6 +50,7 @@ func kubernetesDeploymentRegistration() adapterregistry.Registration {
 			{Path: "namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace for Agenova control-plane resources", Default: "agenova-system"},
 			{Path: "control-plane-image", Kind: adapterregistry.ValueString, Description: "Operator-built control plane, registry reference pinned by sha256 digest"},
 			{Path: "image-pull-policy", Kind: adapterregistry.ValueString, Description: "Control-plane image pull policy: Always or IfNotPresent"},
+			{Path: "ca-bundle-secret", Kind: adapterregistry.ValueString, Description: "Optional runtime CA bundle Secret reference <name>/<key> in the install namespace"},
 		}},
 	}
 	return adapterregistry.Registration{
@@ -116,7 +117,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy", "ca-bundle-secret"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -142,6 +143,18 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 			return nil, platform.NewAdapterConfigError("unsupported-pull-policy", "image-pull-policy")
 		}
 		result["image-pull-policy"] = policy
+	}
+	if value, exists := input["ca-bundle-secret"]; exists {
+		ref, ok := value.(string)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-ca-bundle-secret", "ca-bundle-secret")
+		}
+		if ref != "" {
+			if _, _, ok := parseMCPTokenSecret(ref); !ok {
+				return nil, platform.NewAdapterConfigError("invalid-ca-bundle-secret", "ca-bundle-secret")
+			}
+			result["ca-bundle-secret"] = ref
+		}
 	}
 	return result, nil
 }
