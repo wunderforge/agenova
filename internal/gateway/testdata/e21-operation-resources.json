@@ -1,6 +1,7 @@
 {
   "allowed": [
     {"operation": "workitem.read", "resource": "workitem:tracker/example/INC-123"},
+    {"operation": "repo.read", "resource": "repo:example/payments"},
     {"operation": "repository.read", "resource": "repo:example/payments"},
     {"operation": "git.read", "resource": "repo:example/payments"},
     {"operation": "git.read", "resource": "repo-object:example/payments/path/docs/runbook.md"},

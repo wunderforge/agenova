@@ -176,6 +176,11 @@ func TestToolConfigAndRoutesFailClosed(t *testing.T) {
 			p.Spec.Services.ToolProfiles[0].Config["parameter-allowed-values"] = "README.md\n"
 		}},
 		{"credential parameter", func(p *v0.Platform) { p.Spec.Services.ToolProfiles[0].Config["parameter-name"] = "api_key" }},
+		{"invalid resource scope", func(p *v0.Platform) { p.Spec.Services.ToolProfiles[0].Config["resource-scope"] = "repo:example/*" }},
+		{"forbidden operation", func(p *v0.Platform) { p.Spec.Services.ToolProfiles[0].Config["logical-operation"] = "git.write" }},
+		{"operation resource mismatch", func(p *v0.Platform) {
+			p.Spec.Services.ToolProfiles[0].Config["logical-operation"] = "kubernetes.logs"
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

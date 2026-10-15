@@ -16,6 +16,7 @@ import (
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapterregistry"
+	"github.com/wunderforge/agenova/internal/gateway"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 )
@@ -141,6 +142,19 @@ func canonicalizeMCPProfile(_ platform.Capability, backend, input map[string]any
 			return nil, err
 		}
 		out[key] = value
+	}
+	operation := out["logical-operation"].(string)
+	scope, scopeErr := gateway.ParseResourceScope(out["resource-scope"].(string))
+	if scopeErr != nil {
+		return nil, platform.NewAdapterConfigError("invalid-resource-scope", "resource-scope")
+	}
+	if gateway.ForbiddenToolOperation(operation) {
+		return nil, platform.NewAdapterConfigError("unsupported-operation", "logical-operation")
+	}
+	if gateway.SupportedToolOperation(operation) {
+		if err := gateway.ValidateToolOperationResource(operation, scope); err != nil {
+			return nil, platform.NewAdapterConfigError("operation-resource-mismatch", "resource-scope")
+		}
 	}
 	if !mcpName.MatchString(out["mcp-tool"].(string)) {
 		return nil, platform.NewAdapterConfigError("invalid-tool-name", "mcp-tool")
