@@ -79,6 +79,19 @@ type DeploymentAdapter interface {
 	Apply(context.Context, DeploymentRequest) (status []ComponentStatus, mutationAttempted bool, err error)
 }
 
+// ManifestRenderer is the optional offline GitOps boundary for a deployment
+// adapter. Rendering must not inspect or mutate the target cluster.
+type ManifestRenderer interface {
+	Render(DeploymentRequest) ([]byte, error)
+}
+
+type RenderResult struct {
+	PlatformName string
+	Revision     string
+	Target       string
+	Manifest     []byte
+}
+
 // CompositionValidator is an optional, read-only deployment-adapter hook for
 // constraints spanning multiple Platform instances. It must not inspect or
 // mutate the target; ValidateFile invokes it before Plan/Apply touch the target.
@@ -156,6 +169,35 @@ func (s Service) PlanFile(ctx context.Context, path string) (Plan, error) {
 		return Plan{}, err
 	}
 	return s.Plan(ctx, resolved, lock)
+}
+
+// RenderFile resolves and validates a Platform, then renders deterministic
+// deployment manifests without contacting the selected target.
+func (s Service) RenderFile(path string) (RenderResult, error) {
+	resolved, lock, err := s.ValidateFile(path)
+	if err != nil {
+		return RenderResult{}, err
+	}
+	request, adapter, err := s.deployment(resolved, lock)
+	if err != nil {
+		return RenderResult{}, err
+	}
+	renderer, ok := adapter.(ManifestRenderer)
+	if !ok {
+		return RenderResult{}, fmt.Errorf("deployment adapter does not support offline manifest rendering")
+	}
+	manifest, err := renderer.Render(request)
+	if err != nil {
+		return RenderResult{}, fmt.Errorf("render deployment target: %w", err)
+	}
+	contextName, namespace := "", ""
+	if value, ok := request.Config["context"].(string); ok {
+		contextName = strings.TrimSpace(value)
+	}
+	if value, ok := request.Config["namespace"].(string); ok {
+		namespace = strings.TrimSpace(value)
+	}
+	return RenderResult{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Target: SafeTarget(contextName, namespace), Manifest: manifest}, nil
 }
 
 func (s Service) Plan(ctx context.Context, resolved *platform.ResolvedPlatform, lock *platform.PlatformLock) (Plan, error) {

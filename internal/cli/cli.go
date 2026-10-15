@@ -82,7 +82,7 @@ Commands:
   version    Print version and the hosted runtime backend
   run        Submit one ClaimRequest file through application resolution
   adapters   Inspect and activate bundled adapter implementations
-  platform   Validate, plan, apply, and inspect one declarative Platform
+  platform   Validate, render, plan, apply, and inspect one declarative Platform
   policy     Register and activate an immutable PolicyBundle
   agent-template Register an immutable AgentTemplate
   work       Query current-session Work evidence from the installed service
@@ -144,12 +144,14 @@ Init emits a reviewable Platform YAML fragment; it does not grant authority.
 
 const platformHelpText = `Usage:
   agenova platform validate -f <platform.yaml> [--json]
+  agenova platform render -f <platform.yaml> [--json]
   agenova platform plan -f <platform.yaml> [--json]
   agenova platform apply -f <platform.yaml> [--yes] [--json]
   agenova platform status [--json]
 
-Validate and plan never mutate the selected target. Apply uses the context and
-namespace from the deployment adapter config and the caller's current identity.
+Validate and render are offline. Plan never mutates the selected target. Apply
+uses the context and namespace from the deployment adapter config and the
+caller's current identity.
 `
 
 type parsedArgs struct {
@@ -451,6 +453,25 @@ func printPlatform(stdout, stderr io.Writer, parsed parsedArgs, services Service
 			return printJSON(stdout, stderr, result)
 		}
 		fmt.Fprintf(stdout, "valid: %s\nrevision: %s\n", resolved.PlatformName, resolved.Revision)
+		return 0
+	case "render":
+		result, err := service.RenderFile(parsed.file)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, struct {
+				PlatformName string `json:"platformName"`
+				Revision     string `json:"revision"`
+				Target       string `json:"target"`
+				Manifest     string `json:"manifest"`
+			}{result.PlatformName, result.Revision, result.Target, string(result.Manifest)})
+		}
+		if _, err := stdout.Write(result.Manifest); err != nil {
+			fmt.Fprintln(stderr, "write rendered manifests")
+			return 1
+		}
 		return 0
 	case "plan":
 		plan, err := service.PlanFile(ctx, parsed.file)

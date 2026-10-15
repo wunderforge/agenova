@@ -95,6 +95,37 @@ func (*KubernetesDeployment) ValidateComposition(request platformapply.Deploymen
 	return validateReferenceRuntime(request)
 }
 
+// Render produces the exact reference installation resources for GitOps. It
+// is deliberately offline: unlike Plan and Apply it never invokes kubectl.
+func (*KubernetesDeployment) Render(request platformapply.DeploymentRequest) ([]byte, error) {
+	_, namespace, err := deploymentCoordinates(request.Config)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateReferenceRuntime(request); err != nil {
+		return nil, err
+	}
+	if err := (ReferencePolicyCatalog{}).Require(request.Platform.InitialPolicyRef); err != nil {
+		return nil, fmt.Errorf("initial policy: %w", err)
+	}
+	steps, err := referenceSteps(request, namespace, true)
+	if err != nil {
+		return nil, err
+	}
+	var output bytes.Buffer
+	for index, step := range steps {
+		if index > 0 {
+			output.WriteString("---\n")
+		}
+		data, err := yaml.Marshal(step.object)
+		if err != nil {
+			return nil, fmt.Errorf("render %s: %w", step.name, err)
+		}
+		output.Write(data)
+	}
+	return output.Bytes(), nil
+}
+
 // A later policy registration may legitimately activate a different version.
 // The initial reference is only used when no valid active registry pointer
 // exists; platform reconciliation must not silently undo policy apply.
