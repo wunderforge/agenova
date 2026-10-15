@@ -387,6 +387,47 @@ func tokenClient(endpoint string, secrets ProvisionalSecretReader) *mcpClient {
 	return client
 }
 
+// A server that reflects the token in a successful result, whole or split
+// across content parts, fails the call: the text never reaches the Set, the
+// worker or the model, and tools/call is not replayed.
+func TestMCPClientRefusesAResultThatReflectsTheToken(t *testing.T) {
+	half := len(testToken) / 2
+	parts := func(texts ...string) func(http.ResponseWriter, json.RawMessage) {
+		return func(w http.ResponseWriter, id json.RawMessage) {
+			content := make([]map[string]any, len(texts))
+			for i, text := range texts {
+				content[i] = map[string]any{"type": "text", "text": text}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{"content": content}})
+			_, _ = w.Write(body)
+		}
+	}
+	for name, tc := range map[string]struct {
+		onCall  func(http.ResponseWriter, json.RawMessage)
+		refused bool
+	}{
+		"ordinary text":        {onCall: parts("payment notes"), refused: false},
+		"reflected header":     {onCall: parts("request Authorization: Bearer " + testToken), refused: true},
+		"token split in parts": {onCall: parts("notes "+testToken[:half], testToken[half:]+" end"), refused: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake, server := startFake(t, tc.onCall)
+			result, err := tokenClient(server.URL, &secretDouble{value: []byte(testToken)}).Invoke(context.Background(), readCall("README.md"))
+			if tc.refused {
+				if !errors.Is(err, toolbackend.ErrProtocol) || result.Text != "" {
+					t.Fatalf("result %+v err %v, want a protocol error and no text", result, err)
+				}
+			} else if err != nil || strings.Contains(result.Text, testToken) {
+				t.Fatalf("ordinary result %+v err %v", result, err)
+			}
+			if got := fake.calls("tools/call"); got != 1 {
+				t.Fatalf("tools/call sent %d times", got)
+			}
+		})
+	}
+}
+
 func TestMCPClientSendsResolvedTokenOnEveryRequestAndRereadsPerCall(t *testing.T) {
 	fake, server := startFake(t, jsonResult("payment notes"))
 	secrets := &secretDouble{value: []byte(testToken)}

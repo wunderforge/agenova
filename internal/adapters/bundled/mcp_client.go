@@ -83,12 +83,14 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 		return toolbackend.Result{}, toolbackend.ErrArguments
 	}
 	var authorization bearer
+	token := ""
 	if c.token != nil {
-		token, err := c.resolveToken(ctx)
+		resolved, err := c.resolveToken(ctx)
 		if err != nil {
 			return toolbackend.Result{}, err
 		}
-		authorization = func() string { return "Bearer " + token }
+		token = resolved
+		authorization = func() string { return "Bearer " + resolved }
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -97,6 +99,11 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 	result, err := session.run(ctx, route.tool, route.parameter, value)
 	if err != nil {
 		return toolbackend.Result{}, classifyMCPError(ctx, err)
+	}
+	// A server that reflects the token, whole or split across content parts,
+	// must not pass it to the worker or the model; the call fails closed.
+	if token != "" && (strings.Contains(result, token) || strings.Contains(strings.ReplaceAll(result, "\n", ""), token)) {
+		return toolbackend.Result{}, toolbackend.ErrProtocol
 	}
 	// The reference is optional: omit it when the scope or file would break
 	// the shared contract, so a successful read is never reported as failed.
