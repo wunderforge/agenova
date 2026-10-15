@@ -50,13 +50,18 @@ type upstreamPodSpec struct {
 	// non-pointer, non-omitempty field so the manifest cannot prove the policy
 	// merely by omitting the upstream default.
 	AutomountServiceAccountToken bool                `json:"automountServiceAccountToken"`
+	SecurityContext              map[string]any      `json:"securityContext"`
 	Containers                   []upstreamContainer `json:"containers"`
+	Volumes                      []map[string]any    `json:"volumes"`
 }
 
 type upstreamContainer struct {
-	Name    string   `json:"name"`
-	Image   string   `json:"image"`
-	Command []string `json:"command,omitempty"`
+	Name            string           `json:"name"`
+	Image           string           `json:"image"`
+	Command         []string         `json:"command,omitempty"`
+	SecurityContext map[string]any   `json:"securityContext"`
+	Resources       map[string]any   `json:"resources"`
+	VolumeMounts    []map[string]any `json:"volumeMounts"`
 }
 
 // upstreamSandboxWarmPool matches extensions.agents.x-k8s.io/v1alpha1 SandboxWarmPool.
