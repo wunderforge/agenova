@@ -103,13 +103,28 @@ func (a *SpikeAdapter) AddTemplate(template v1alpha1.AgentSandboxTemplate) error
 		Spec: upstreamSandboxTemplateSpec{
 			PodTemplate: upstreamPodTemplate{
 				Spec: upstreamPodSpec{
+					SecurityContext: map[string]any{"seccompProfile": map[string]any{"type": "RuntimeDefault"}},
 					Containers: []upstreamContainer{
 						{
 							Name:    "agent",
 							Image:   template.Spec.Image,
 							Command: template.Spec.Command,
+							SecurityContext: map[string]any{
+								"allowPrivilegeEscalation": false,
+								"capabilities":             map[string]any{"drop": []any{"ALL"}},
+								"readOnlyRootFilesystem":   true,
+								"runAsNonRoot":             true,
+								"runAsUser":                65532,
+								"runAsGroup":               65532,
+							},
+							Resources: map[string]any{
+								"requests": map[string]any{"cpu": "25m", "memory": "32Mi"},
+								"limits":   map[string]any{"cpu": "500m", "memory": "256Mi"},
+							},
+							VolumeMounts: []map[string]any{{"name": "tmp", "mountPath": "/tmp"}},
 						},
 					},
+					Volumes: []map[string]any{{"name": "tmp", "emptyDir": map[string]any{}}},
 				},
 			},
 		},
