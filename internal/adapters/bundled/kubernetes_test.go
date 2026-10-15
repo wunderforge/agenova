@@ -1230,6 +1230,40 @@ func TestDeploymentUsesRestrictedPodSecurityAndBoundedResources(t *testing.T) {
 	}
 }
 
+func TestDeploymentMountsOnlyConfiguredRuntimeCABundleKey(t *testing.T) {
+	request := deploymentRequest()
+	request.Config["ca-bundle-secret"] = "agenova-runtime-ca/ca.pem"
+	object := deploymentObject(request, "agenova-system")
+	pod := object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	container := pod["containers"].([]any)[0].(map[string]any)
+	if !namedVolumeMounted(container, "runtime-ca", "/etc/agenova/tls") {
+		t.Fatal("runtime CA bundle is not mounted")
+	}
+	foundEnv := false
+	for _, raw := range container["env"].([]any) {
+		env := raw.(map[string]any)
+		if env["name"] == "SSL_CERT_FILE" && env["value"] == "/etc/agenova/tls/ca.crt" {
+			foundEnv = true
+		}
+	}
+	if !foundEnv {
+		t.Fatal("SSL_CERT_FILE does not point at the mounted runtime CA")
+	}
+	foundVolume := false
+	for _, raw := range pod["volumes"].([]any) {
+		volume := raw.(map[string]any)
+		if volume["name"] != "runtime-ca" {
+			continue
+		}
+		secret := volume["secret"].(map[string]any)
+		items := secret["items"].([]any)
+		foundVolume = secret["secretName"] == "agenova-runtime-ca" && len(items) == 1 && items[0].(map[string]any)["key"] == "ca.pem"
+	}
+	if !foundVolume {
+		t.Fatalf("runtime CA volume is broader than the configured key: %#v", pod["volumes"])
+	}
+}
+
 func namedVolumeMounted(container map[string]any, name, path string) bool {
 	for _, raw := range container["volumeMounts"].([]any) {
 		mount := raw.(map[string]any)
