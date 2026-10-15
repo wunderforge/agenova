@@ -1,0 +1,25 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Apply with an explicit context only:
+#   kubectl --context <kind-context> apply -k harness/integration/mcpfixture
+# The Deployment also needs Secret e16-mcp-token, which the campaign runner
+# creates; it is deliberately not generated here (see deploy.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agenova-e16
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: agenova-e16-fixture
+    includeSelectors: false
+resources:
+  - deploy.yaml
+configMapGenerator:
+  - name: e16-mcp-data
+    files:
+      - readme.md=data/README.md
+      - timeout.log=data/logs/timeout.log
+      - slow.log=data/logs/slow.log
+      - full-trace.log=data/logs/full-trace.log
+      - retry.txt=data/src/retry.txt
+      - incident-timeline.md=data/notes/incident-timeline.md

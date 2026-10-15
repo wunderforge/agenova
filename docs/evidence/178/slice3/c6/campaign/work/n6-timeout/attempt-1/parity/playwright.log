@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (127ms)
+  ✓  2 installed/mcp.spec.ts:147:3 › n6-timeout: the tool failure is explicit, never mock, and fails the Work @n6-timeout (1.0s)
+
+  2 passed (1.6s)

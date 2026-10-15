@@ -1,0 +1,252 @@
+
+In campaign.sh line 406:
+    [ -s "$archive" ] && [ "$(archive_config_digest "$archive")" = "$id" ] && archive_complete "$archive" ||
+                                                                           ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In campaign.sh line 660:
+  [ -s "$OUTPUT/$1-follow.pid" ] && kill -0 "$(cat "$OUTPUT/$1-follow.pid")" 2>/dev/null ||
+                                 ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In campaign.sh line 822:
+  [ "$(grep -c "image: $(fixture_image)\$" "$1")" -eq 1 ] && ! grep -q "image: ${FIXTURE_DEFAULT_IMAGE}" "$1" ||
+                                                          ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In campaign.sh line 950:
+  [ "$rc" -eq 0 ] && grep -q -- "--- PASS: $INTEROP_TEST " "$out/interop.log" && ! grep -q -- '--- SKIP' "$out/interop.log" ||
+                                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 49:
+  rm -rf "$TMP/$1"; cp -R "$TMP/fake" "$TMP/$1"
+         ^-------^ SC2115 (warning): Use "${var:?}" to ensure this never expands to / .
+
+
+In test-campaign.sh line 265:
+not_called 'scale'; ! state_complete "$OUTPUT/protect-state.txt"
+                    ^-- SC2251 (info): This ! is not on a condition and skips errexit. Use `&& exit 1` instead, or make sure $? is checked.
+
+Did you mean:
+not_called 'scale';  state_complete "$OUTPUT/protect-state.txt" && exit 1
+
+
+In test-campaign.sh line 272:
+not_called 'scale'; ! state_complete "$OUTPUT/protect-state.txt"
+                    ^-- SC2251 (info): This ! is not on a condition and skips errexit. Use `&& exit 1` instead, or make sure $? is checked.
+
+Did you mean:
+not_called 'scale';  state_complete "$OUTPUT/protect-state.txt" && exit 1
+
+
+In test-campaign.sh line 277:
+called 'scale deployment agenova-control-plane --replicas=0'; ! state_complete "$OUTPUT/protect-state.txt"
+                                                              ^-- SC2251 (info): This ! is not on a condition and skips errexit. Use `&& exit 1` instead, or make sure $? is checked.
+
+Did you mean:
+called 'scale deployment agenova-control-plane --replicas=0';  state_complete "$OUTPUT/protect-state.txt" && exit 1
+
+
+In test-campaign.sh line 310:
+! state_complete "$OUTPUT/protect-state.txt"
+^-- SC2251 (info): This ! is not on a condition and skips errexit. Use `&& exit 1` instead, or make sure $? is checked.
+
+Did you mean:
+ state_complete "$OUTPUT/protect-state.txt" && exit 1
+
+
+In test-campaign.sh line 315:
+kubectl() {
+^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 331:
+archive_other_work() { real_archive_other_work "$@"; }
+^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 413:
+! grep -q 'agenova-e16-mcp:0.1.0' "$OUTPUT/fixture.yaml"
+^-- SC2251 (info): This ! is not on a condition and skips errexit. Use `&& exit 1` instead, or make sure $? is checked.
+
+Did you mean:
+ grep -q 'agenova-e16-mcp:0.1.0' "$OUTPUT/fixture.yaml" && exit 1
+
+
+In test-campaign.sh line 428:
+preflight_stubbed() { ( docker() { :; }; kind() { :; }; kubectl() { :; }; go() { :; }; openssl() { :; }; base64() { :; }; preflight ); }
+                                         ^-----------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+                                                        ^--------------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+                                                                          ^---------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+                                                                                       ^--------------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 432:
+  called 'get namespace agenova-e16-system -o name --ignore-not-found' && called 'get namespace agenova-e16 -o name --ignore-not-found' ||
+                                                                       ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 434:
+grep -qx "model $PLATFORM_MODEL sha256-test" "$OUTPUT/preflight.txt" && called 'curl -fsS --max-time 10 http://127.0.0.1:11434/api/tags' ||
+                                                                     ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 544:
+[ "$(grep -c '^secret agenova-e16/e16-mcp-token uid=uid-agenova-e16_e16-mcp-token resourceVersion=1 ' "$OUTPUT/secrets.txt")" = 2 ] &&
+                                                                                                                                    ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 680:
+  [ -e "$dir/$step.txt" ] && grep -q "^command $step " "$dir/commands.txt" && grep -qx "exit $step 0" "$dir/commands.txt" ||
+                                                                           ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 684:
+grep -qx 'plan: 9 changes' "$dir/platform-plan.txt" && grep -qx 'validate output on stderr' "$dir/platform-validate.txt" ||
+                                                    ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 692:
+grep -qx 'exit platform-apply 1' "$dir/commands.txt" && ! grep -q '^command policy-apply' "$dir/commands.txt" ||
+                                                     ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 720:
+grep -q '^secret agenova-e16-system/e16-mcp-token uid=uid-agenova-e16-system_e16-mcp-token resourceVersion=1 created ' "$OUTPUT/secrets.txt" &&
+                                                                                                                                             ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 723:
+grep -qx 'compare agenova-e16-system/e16-mcp-token agenova-e16-system/e16-mcp-token-wrong mismatch' "$dir/tokens.txt" &&
+                                                                                                                      ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 730:
+[ "$(grep -c '^command ' "$dir/commands.txt")" = 13 ] && ! grep -qi 'secret\|token' "$dir/commands.txt" ||
+                                                      ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 808:
+[ ! -e "$d/agenova-pool-y-$OUID.json" ] && not_called 'exec agenova-pool-y' || { echo "[fail] a worker without a started container was captured"; exit 1; }
+                                        ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 822:
+[ -s "$d/agenova-pool-x-$WUID.environ" ] && [ ! -e "$d/agenova-pool-x-$WUID.mountinfo" ] && none_like "$d"/*.partial ||
+                                                                                         ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 826:
+[ ! -e "$d/agenova-pool-x-$WUID.mountinfo" ] && none_like "$d"/*.partial || { echo "[fail] an empty read left a capture"; exit 1; }
+                                             ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1040:
+host_go() { printf -- '--- PASS: %s (0.10s)\n' "$INTEROP_TEST"; }
+^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 1067:
+host_go() { printf -- '--- PASS: %s (0.10s)\n' "$INTEROP_TEST"; good_read | grep -v inv-m2 >>"$OUTPUT/fixture-follow.jsonl"; }
+^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 1094:
+    printf '#!/bin/bash\nnode -e %q "$API_PORT" "Forwarding from 127.0.0.1:$API_PORT -> 8081" &\nwait\n' "$LISTEN_JS" >"$OUTPUT/bin/agenova"
+           ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In test-campaign.sh line 1096:
+    printf '#!/bin/bash\necho "error: unable to listen on port $API_PORT" >&2\nexit 1\n' >"$OUTPUT/bin/agenova"
+           ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In test-campaign.sh line 1105:
+  ! port_listening "$API_PORT" && ! port_listening "$UI_PORT" || { echo "[fail] $1: a parity port still has a listener"; exit 1; }
+                               ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1136:
+called 'playwright test' && port_listening "$API_PORT" && port_listening "$UI_PORT" || { echo "[fail] parity never reached its tests"; exit 1; }
+                                                       ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1168:
+    pod_identity() { [ -z "${WORKER_LINE:-}" ] || printf '%s\n' "$WORKER_LINE"; }; snapshot_fixture() { :; }
+                                                                                   ^-----------------------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 1171:
+    verify_worker_captures() { [ "$CAPTURES" != real ] || real_verify_worker_captures "$@"; }
+    ^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 1172:
+    verify_claimed_worker() {
+    ^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In test-campaign.sh line 1193:
+out="$( (stubbed_work positive --attempt 5) 2>&1 )" && grep -q 'work positive attempt 5 (e16-positive-a5) pass' "$OUTPUT/campaign.log" ||
+                                                    ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1204:
+[ ! -s "$OUTPUT/prior-at-check.txt" ] && [ "$(cut -d' ' -f1 "$OUTPUT/work-invocations.txt")" = inv-a1 ] && grep -q 'work positive attempt 1 (e16-positive-a1) pass' "$OUTPUT/campaign.log" ||
+                                                                                                        ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1238:
+grep -q 'work positive attempt 2 (e16-positive-a2) pass' "$OUTPUT/campaign.log" && ! grep -q 'work positive attempt 1 .* pass' "$OUTPUT/campaign.log" ||
+                                                                                ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1254:
+[ -s "$f1/parity/playwright.json" ] && called "playwright-env case=n8-truncation ref=e16-n8-truncation-a1" && grep -q '^inv-f1 ' "$OUTPUT/work-invocations.txt" ||
+                                                                                                           ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1263:
+[ -s "$OUTPUT/work/positive/attempt-1/parity/playwright.json" ] && grep -q '^inv-f2 ' "$OUTPUT/work-invocations.txt" ||
+                                                                ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1269:
+  [ "$(last_failure "$out")" = "[fail] worker agenova-pool-x was never captured while the Work ran" ] && grep -q '^inv-f3 ' "$OUTPUT/work-invocations.txt" ||
+                                                                                                      ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1288:
+  [ ! -e "$OUTPUT/work-invocations.txt" ] && ! grep -q ' pass$' "$OUTPUT/campaign.log" 2>/dev/null ||
+                                          ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1314:
+grep -qx 'run-exit 1' "$OUTPUT/work/admission-deny/attempt-1/exit-codes.txt" && grep -q 'work admission-deny attempt 1 (e16-admission-deny-a1) pass' "$OUTPUT/campaign.log" ||
+                                                                             ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1367:
+  [ -s "$OUTPUT/work/$case/attempt-1/parity/playwright.json" ] && grep -q "^inv-wc-$case " "$OUTPUT/work-invocations.txt" &&
+                                                                                                                          ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1414:
+grep -qxF "go build -o $OUTPUT/bin/e16-evidence ./harness/integration/e16/evidence" "$LOG" && grep -qxF "go-env GOTOOLCHAIN=go1.22.12 GOFLAGS=$(host_goflags)" "$LOG" &&
+                                                                                                                                                                      ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1419:
+[ -s "$OUTPUT/scan/scan.txt" ] && [ -s "$OUTPUT/scan/control-plane-full.jsonl" ] && [ -s "$OUTPUT/scan/fixture-full.jsonl" ] && [ ! -e "$OUTPUT/scan.partial" ] && grep -q 'scan pass' "$OUTPUT/campaign.log" ||
+                                                                                                                                                                ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In test-campaign.sh line 1514:
+( run() { "$@"; }; cd "$ROOT" && host_go build -o "$TMP/agenova-host" ./cmd/agenova ) ||
+  ^-------------^ SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2115 -- Use "${var:?}" to ensure this nev...
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...
+  https://www.shellcheck.net/wiki/SC2016 -- Expressions don't expand in singl...
