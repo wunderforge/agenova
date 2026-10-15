@@ -6,6 +6,8 @@ stages: [validate, render, plan, verify]
   variables:
     AGENOVA_PLATFORM_FILE: deploy/nonproduction/platform.yaml
     AGENOVA_STATE_DIR: .agenova-state
+    # Set this in the private pipeline to its reviewed v0.4.6 image reference.
+    AGENOVA_EXPECTED_AGENT_SANDBOX_CONTROLLER_IMAGE: registry.example/agent-sandbox/controller@sha256:3333333333333333333333333333333333333333333333333333333333333333
   artifacts:
     when: always
     paths: [.agenova-state/]
