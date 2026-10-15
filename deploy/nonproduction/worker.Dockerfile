@@ -4,7 +4,7 @@
 # Build with the repository root as context. Pin both base images to approved
 # digests in the private deployment repository before promotion.
 ARG GO_IMAGE=golang:1.22-alpine
-ARG RUNTIME_IMAGE=alpine:3.20
+ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot
 
 FROM ${GO_IMAGE} AS build
 WORKDIR /src
@@ -17,8 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/agenova
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/agenova-demo-worker ./cmd/agenova-demo-worker
 
 FROM ${RUNTIME_IMAGE}
-RUN addgroup -S -g 65532 agenova && adduser -S -D -H -u 65532 -G agenova agenova
 COPY --from=build --chown=65532:65532 /out/agenova-workerctl /agenova-workerctl
 COPY --from=build --chown=65532:65532 /out/agenova-demo-worker /agenova-demo-worker
-USER 65532:65532
+USER nonroot:nonroot
 ENTRYPOINT ["/agenova-workerctl", "serve"]
