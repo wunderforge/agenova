@@ -56,6 +56,12 @@ require_api_resource "${core_resources}" "sandboxes.agents.x-k8s.io"
 
 controller_namespace="${AGENOVA_AGENT_SANDBOX_CONTROLLER_NAMESPACE:-agent-sandbox-system}"
 controller_name="${AGENOVA_AGENT_SANDBOX_CONTROLLER_NAME:-agent-sandbox-controller}"
+expected_controller_image="${AGENOVA_EXPECTED_AGENT_SANDBOX_CONTROLLER_IMAGE:?set AGENOVA_EXPECTED_AGENT_SANDBOX_CONTROLLER_IMAGE to the reviewed v0.4.6 controller image}"
+actual_controller_images="$(kubectl --context "${expected_context}" --namespace "${controller_namespace}" get deployment "${controller_name}" -o jsonpath='{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}')"
+if ! grep -Fxq "${expected_controller_image}" <<<"${actual_controller_images}"; then
+  echo "Agent Sandbox controller image does not match the reviewed v0.4.6 image" >&2
+  exit 2
+fi
 available_replicas="$(kubectl --context "${expected_context}" --namespace "${controller_namespace}" get deployment "${controller_name}" -o jsonpath='{.status.availableReplicas}')"
 if [[ -z "${available_replicas}" || "${available_replicas}" == "0" ]]; then
   echo "Agent Sandbox controller ${controller_namespace}/${controller_name} has no available replica" >&2
