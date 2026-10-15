@@ -878,6 +878,10 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 		"livenessProbe":  map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 5, "periodSeconds": 10},
 	}
+	caSecret, caKey, hasCA := deploymentCABundle(request.Config)
+	if hasCA {
+		container["env"] = append(container["env"].([]any), map[string]any{"name": "SSL_CERT_FILE", "value": "/etc/agenova/tls/ca.crt"})
+	}
 	template := map[string]any{
 		"metadata": map[string]any{"labels": labels, "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec": map[string]any{
@@ -893,10 +897,19 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true},
 		map[string]any{"name": "tmp", "mountPath": "/tmp"},
 	}
+	if hasCA {
+		container["volumeMounts"] = append(container["volumeMounts"].([]any), map[string]any{"name": "runtime-ca", "mountPath": "/etc/agenova/tls", "readOnly": true})
+	}
 	template["spec"].(map[string]any)["volumes"] = []any{
 		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
 		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
 		map[string]any{"name": "tmp", "emptyDir": map[string]any{}},
+	}
+	if hasCA {
+		template["spec"].(map[string]any)["volumes"] = append(template["spec"].(map[string]any)["volumes"].([]any), map[string]any{
+			"name":   "runtime-ca",
+			"secret": map[string]any{"secretName": caSecret, "items": []any{map[string]any{"key": caKey, "path": "ca.crt"}}},
+		})
 	}
 
 	return map[string]any{
@@ -904,6 +917,11 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		"metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec":     map[string]any{"replicas": 1, "selector": map[string]any{"matchLabels": labels}, "template": template},
 	}
+}
+
+func deploymentCABundle(config map[string]any) (string, string, bool) {
+	value, _ := config["ca-bundle-secret"].(string)
+	return parseMCPTokenSecret(value)
 }
 
 func serviceAccountObject(namespace string) map[string]any {

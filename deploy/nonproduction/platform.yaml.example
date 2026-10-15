@@ -30,6 +30,7 @@ spec:
         namespace: agenova-nonprod
         control-plane-image: registry.example/agenova/control-plane@sha256:0000000000000000000000000000000000000000000000000000000000000000
         image-pull-policy: IfNotPresent
+        ca-bundle-secret: agenova-runtime-ca/ca.crt
     runtimeBackends:
       - name: primary-runtime
         adapterRef: agent-sandbox-runtime

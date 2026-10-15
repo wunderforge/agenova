@@ -19,6 +19,8 @@ Copy the examples into the private repository and replace:
 Secret values, kubeconfigs and private endpoints must not be committed here.
 The control plane reads the named Secret key per invocation. Its Role grants
 `get` only for Secret names referenced by the resolved Platform.
+When private HTTPS endpoints use an internal CA, `ca-bundle-secret` mounts only
+the named key and sets `SSL_CERT_FILE`; the Secret value remains external.
 
 For a self-contained first `kubernetes.list` route, build
 `mcp-kubernetes.Dockerfile` and adapt `mcp-kubernetes.yaml.example`. The server
