@@ -695,7 +695,6 @@ func TestDeploymentMatchesCurrentRolloutAndOwnedSpec(t *testing.T) {
 	pod := actual["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
 	pod["dnsPolicy"] = "ClusterFirst"
 	pod["restartPolicy"] = "Always"
-	container["resources"] = map[string]any{}
 	actual["spec"].(map[string]any)["progressDeadlineSeconds"] = float64(600)
 	actual["spec"].(map[string]any)["revisionHistoryLimit"] = float64(10)
 	if !deploymentMatches(actual, desired, request.Platform.Revision) {
@@ -1196,6 +1195,59 @@ func TestRemoteImagesReachInstalledManifestAndExactWorkerBinding(t *testing.T) {
 			t.Fatalf("manifest does not contain %s", want)
 		}
 	}
+}
+
+func TestDeploymentUsesRestrictedPodSecurityAndBoundedResources(t *testing.T) {
+	object := deploymentObject(deploymentRequest(), "agenova-system")
+	pod := object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	podSecurity := pod["securityContext"].(map[string]any)
+	if podSecurity["seccompProfile"].(map[string]any)["type"] != "RuntimeDefault" {
+		t.Fatalf("pod seccomp profile = %#v", podSecurity)
+	}
+	container := pod["containers"].([]any)[0].(map[string]any)
+	security := container["securityContext"].(map[string]any)
+	for _, key := range []string{"allowPrivilegeEscalation", "readOnlyRootFilesystem", "runAsNonRoot"} {
+		if security[key] != (key != "allowPrivilegeEscalation") {
+			t.Fatalf("container security %s = %#v", key, security[key])
+		}
+	}
+	if security["runAsUser"] != 65532 || security["runAsGroup"] != 65532 {
+		t.Fatalf("container identity = %#v", security)
+	}
+	drops := security["capabilities"].(map[string]any)["drop"].([]any)
+	if len(drops) != 1 || drops[0] != "ALL" {
+		t.Fatalf("capability drops = %#v", drops)
+	}
+	resources := container["resources"].(map[string]any)
+	if resources["requests"].(map[string]any)["memory"] != "64Mi" || resources["limits"].(map[string]any)["memory"] != "256Mi" {
+		t.Fatalf("container resources = %#v", resources)
+	}
+	if container["livenessProbe"] == nil {
+		t.Fatal("liveness probe is missing")
+	}
+	if !namedVolumeMounted(container, "tmp", "/tmp") || !namedEmptyDir(pod, "tmp") {
+		t.Fatal("read-only root filesystem requires a dedicated /tmp emptyDir")
+	}
+}
+
+func namedVolumeMounted(container map[string]any, name, path string) bool {
+	for _, raw := range container["volumeMounts"].([]any) {
+		mount := raw.(map[string]any)
+		if mount["name"] == name && mount["mountPath"] == path {
+			return true
+		}
+	}
+	return false
+}
+
+func namedEmptyDir(pod map[string]any, name string) bool {
+	for _, raw := range pod["volumes"].([]any) {
+		volume := raw.(map[string]any)
+		if volume["name"] == name && volume["emptyDir"] != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func TestKubernetesRenderIsOfflineAndComplete(t *testing.T) {
