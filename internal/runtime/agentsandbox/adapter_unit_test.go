@@ -45,7 +45,14 @@ func TestAddTemplateRendersNoCredentialInjectionSurface(t *testing.T) {
 		Spec struct {
 			PodTemplate struct {
 				Spec struct {
-					AutomountServiceAccountToken *bool `json:"automountServiceAccountToken"`
+					AutomountServiceAccountToken *bool          `json:"automountServiceAccountToken"`
+					SecurityContext              map[string]any `json:"securityContext"`
+					Containers                   []struct {
+						SecurityContext map[string]any   `json:"securityContext"`
+						Resources       map[string]any   `json:"resources"`
+						VolumeMounts    []map[string]any `json:"volumeMounts"`
+					} `json:"containers"`
+					Volumes []map[string]any `json:"volumes"`
 				} `json:"spec"`
 			} `json:"podTemplate"`
 		} `json:"spec"`
@@ -55,6 +62,16 @@ func TestAddTemplateRendersNoCredentialInjectionSurface(t *testing.T) {
 	}
 	if rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken == nil || *rendered.Spec.PodTemplate.Spec.AutomountServiceAccountToken {
 		t.Fatalf("rendered worker template must explicitly set automountServiceAccountToken:false: %s", kube.manifest)
+	}
+	pod := rendered.Spec.PodTemplate.Spec
+	if pod.SecurityContext["seccompProfile"].(map[string]any)["type"] != "RuntimeDefault" {
+		t.Fatalf("rendered worker template lacks RuntimeDefault seccomp: %s", kube.manifest)
+	}
+	if len(pod.Containers) != 1 || pod.Containers[0].SecurityContext["readOnlyRootFilesystem"] != true || pod.Containers[0].SecurityContext["allowPrivilegeEscalation"] != false {
+		t.Fatalf("rendered worker container is not restricted: %s", kube.manifest)
+	}
+	if pod.Containers[0].Resources["limits"] == nil || len(pod.Containers[0].VolumeMounts) != 1 || len(pod.Volumes) != 1 {
+		t.Fatalf("rendered worker container lacks resource or writable tmp bounds: %s", kube.manifest)
 	}
 	encoded := string(kube.manifest)
 	for _, forbidden := range []string{`"env"`, `"envFrom"`, `"secretKeyRef"`} {
