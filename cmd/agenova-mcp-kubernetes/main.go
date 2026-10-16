@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
@@ -70,9 +71,23 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.Handle("POST /mcp", s)
-	httpServer := &http.Server{Addr: cfg.listen, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}
+	httpServer := &http.Server{
+		Addr: cfg.listen, Handler: mux,
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second,
+		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: rotatingCertificate(cfg.tlsCertFile, cfg.tlsKeyFile)},
+	}
 	log.Printf("Agenova Kubernetes MCP listening on %s", cfg.listen)
-	log.Fatal(httpServer.ListenAndServeTLS(cfg.tlsCertFile, cfg.tlsKeyFile))
+	log.Fatal(httpServer.ListenAndServeTLS("", ""))
+}
+
+func rotatingCertificate(certFile, keyFile string) func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, errors.New("TLS certificate unavailable")
+		}
+		return &certificate, nil
+	}
 }
 
 func loadConfig() (config, error) {

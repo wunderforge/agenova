@@ -6,8 +6,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeRunner struct {
@@ -154,5 +161,60 @@ func TestLoadConfigRequiresExplicitBoundary(t *testing.T) {
 	t.Setenv("AGENOVA_MCP_TLS_KEY_FILE", "")
 	if _, err := loadConfig(); err == nil {
 		t.Fatal("empty security boundary accepted")
+	}
+}
+
+func TestRotatingCertificateReloadsMountedFiles(t *testing.T) {
+	directory := t.TempDir()
+	certFile := filepath.Join(directory, "tls.crt")
+	keyFile := filepath.Join(directory, "tls.key")
+	writeCertificate := func() []byte {
+		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		template := &x509.Certificate{
+			SerialNumber: big.NewInt(time.Now().UnixNano()),
+			Subject:      pkix.Name{CommonName: "agenova-mcp-test"},
+			NotBefore:    time.Now().Add(-time.Minute),
+			NotAfter:     time.Now().Add(time.Hour),
+			KeyUsage:     x509.KeyUsageDigitalSignature,
+			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}
+		certDER, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, privateKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+		keyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+		if err := os.WriteFile(certFile, certPEM, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return certDER
+	}
+
+	firstDER := writeCertificate()
+	load := rotatingCertificate(certFile, keyFile)
+	first, err := load(nil)
+	if err != nil || !bytes.Equal(first.Certificate[0], firstDER) {
+		t.Fatalf("first certificate load = %#v, %v", first, err)
+	}
+	secondDER := writeCertificate()
+	second, err := load(nil)
+	if err != nil || !bytes.Equal(second.Certificate[0], secondDER) || bytes.Equal(first.Certificate[0], second.Certificate[0]) {
+		t.Fatalf("rotated certificate load = %#v, %v", second, err)
+	}
+	if err := os.WriteFile(certFile, []byte("invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := load(nil); err == nil || strings.Contains(err.Error(), certFile) {
+		t.Fatalf("invalid certificate did not fail closed or leaked its path: %v", err)
 	}
 }

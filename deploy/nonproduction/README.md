@@ -35,7 +35,9 @@ and exposes no mutation tool. Response kind and namespace are revalidated
 before any observation is returned. It never returns object specs, log text,
 events or Secret data. Its token and TLS Secrets are external inputs. The TLS
 chain must already be trusted by the control-plane image or be supplied
-through the approved runtime CA mechanism.
+through the approved runtime CA mechanism. The MCP server rereads its bearer
+token for every request and its certificate/key for every TLS handshake, so
+atomic projected-Secret rotation does not require a Pod restart.
 
 ## Delivery sequence
 
