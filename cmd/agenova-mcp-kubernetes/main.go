@@ -217,6 +217,7 @@ func boundedResourceSummary(data []byte, namespace, resourceKind string) (string
 		APIVersion string `json:"apiVersion"`
 		Kind       string `json:"kind"`
 		Items      []struct {
+			Kind     string                           `json:"kind"`
 			Metadata struct{ Name, Namespace string } `json:"metadata"`
 			Status   struct {
 				Phase             string `json:"phase"`
@@ -231,18 +232,18 @@ func boundedResourceSummary(data []byte, namespace, resourceKind string) (string
 			} `json:"status"`
 		} `json:"items"`
 	}
-	expectedListKind := map[string]string{"pods": "PodList", "deployments": "DeploymentList"}[resourceKind]
-	if len(data) > 2<<20 || namespace == "" || expectedListKind == "" || json.Unmarshal(data, &list) != nil || list.Kind != expectedListKind || list.Items == nil {
+	expectedItemKind := map[string]string{"pods": "Pod", "deployments": "Deployment"}[resourceKind]
+	if len(data) > 2<<20 || namespace == "" || expectedItemKind == "" || json.Unmarshal(data, &list) != nil || list.Kind != "List" || list.Items == nil {
 		return "", errors.New("invalid Kubernetes list")
 	}
 	rows := make([]map[string]any, 0, len(list.Items))
 	for _, item := range list.Items {
-		if item.Metadata.Name == "" || item.Metadata.Namespace != namespace || strings.ContainsAny(item.Metadata.Name, "\r\n\t") {
+		if item.Kind != expectedItemKind || item.Metadata.Name == "" || item.Metadata.Namespace != namespace || strings.ContainsAny(item.Metadata.Name, "\r\n\t") {
 			return "", errors.New("invalid resource name")
 		}
 		row := map[string]any{"name": item.Metadata.Namespace + "/" + item.Metadata.Name}
-		switch list.Kind {
-		case "PodList":
+		switch item.Kind {
+		case "Pod":
 			if item.Status.Phase != "Pending" && item.Status.Phase != "Running" && item.Status.Phase != "Succeeded" && item.Status.Phase != "Failed" && item.Status.Phase != "Unknown" {
 				return "", errors.New("invalid pod status")
 			}
@@ -261,7 +262,7 @@ func boundedResourceSummary(data []byte, namespace, resourceKind string) (string
 			row["readyContainers"] = ready
 			row["totalContainers"] = len(item.Status.ContainerStatuses)
 			row["restartCount"] = restarts
-		case "DeploymentList":
+		case "Deployment":
 			if item.Status.Replicas < 0 || item.Status.ReadyReplicas < 0 || item.Status.ReadyReplicas > item.Status.Replicas || item.Status.UpdatedReplicas < 0 || item.Status.UpdatedReplicas > item.Status.Replicas || item.Status.AvailableReplicas < 0 || item.Status.AvailableReplicas > item.Status.Replicas {
 				return "", errors.New("invalid deployment status")
 			}

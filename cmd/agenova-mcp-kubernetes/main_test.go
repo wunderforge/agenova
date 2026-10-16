@@ -68,7 +68,7 @@ func rpc(t *testing.T, s http.Handler, method string, id any, params any, token 
 }
 
 func TestMCPHandshakeAndAllowlistedList(t *testing.T) {
-	runner := &fakeRunner{data: []byte(`{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"b","namespace":"monitoring"},"status":{"phase":"Pending","containerStatuses":[]}},{"metadata":{"name":"a","namespace":"monitoring"},"status":{"phase":"Running","containerStatuses":[{"ready":true,"restartCount":2},{"ready":false,"restartCount":1}]}}]}`)}
+	runner := &fakeRunner{data: []byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Pod","metadata":{"name":"b","namespace":"monitoring"},"status":{"phase":"Pending","containerStatuses":[]}},{"kind":"Pod","metadata":{"name":"a","namespace":"monitoring"},"status":{"phase":"Running","containerStatuses":[{"ready":true,"restartCount":2},{"ready":false,"restartCount":1}]}}]}`)}
 	s, _ := testServer(t, runner)
 	init := rpc(t, s, "initialize", 1, map[string]any{"protocolVersion": protocolVersion}, "test-token", false)
 	if init.Code != http.StatusOK || !strings.Contains(init.Body.String(), `"protocolVersion":"2025-06-18"`) {
@@ -123,7 +123,7 @@ func TestMCPProviderFailureIsSanitized(t *testing.T) {
 }
 
 func TestBoundedResourceSummaryRejectsOversizeAndSorts(t *testing.T) {
-	text, err := boundedResourceSummary([]byte(`{"apiVersion":"apps/v1","kind":"DeploymentList","items":[{"metadata":{"name":"z","namespace":"n"},"status":{"replicas":3,"readyReplicas":2,"updatedReplicas":3,"availableReplicas":2}},{"metadata":{"name":"a","namespace":"n"},"status":{"replicas":1,"readyReplicas":1,"updatedReplicas":1,"availableReplicas":1}}]}`), "n", "deployments")
+	text, err := boundedResourceSummary([]byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Deployment","metadata":{"name":"z","namespace":"n"},"status":{"replicas":3,"readyReplicas":2,"updatedReplicas":3,"availableReplicas":2}},{"kind":"Deployment","metadata":{"name":"a","namespace":"n"},"status":{"replicas":1,"readyReplicas":1,"updatedReplicas":1,"availableReplicas":1}}]}`), "n", "deployments")
 	if err != nil || strings.Index(text, "n/a") > strings.Index(text, "n/z") {
 		t.Fatalf("result = %q err=%v", text, err)
 	}
@@ -135,19 +135,19 @@ func TestBoundedResourceSummaryRejectsOversizeAndSorts(t *testing.T) {
 	if _, err := boundedResourceSummary(bytes.Repeat([]byte("x"), (2<<20)+1), "n", "pods"); err == nil {
 		t.Fatal("oversized Kubernetes response accepted")
 	}
-	foreign := []byte(`{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"p","namespace":"other"}}]}`)
+	foreign := []byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Pod","metadata":{"name":"p","namespace":"other"},"status":{"phase":"Running"}}]}`)
 	if _, err := boundedResourceSummary(foreign, "n", "pods"); err == nil {
 		t.Fatal("cross-namespace response accepted")
 	}
-	mismatched := []byte(`{"apiVersion":"v1","kind":"SecretList","items":[]}`)
+	mismatched := []byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Secret","metadata":{"name":"s","namespace":"n"}}]}`)
 	if _, err := boundedResourceSummary(mismatched, "n", "pods"); err == nil {
 		t.Fatal("mismatched Kubernetes list kind accepted")
 	}
-	invalidPhase := []byte(`{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"p","namespace":"n"},"status":{"phase":"Injected"}}]}`)
+	invalidPhase := []byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Pod","metadata":{"name":"p","namespace":"n"},"status":{"phase":"Injected"}}]}`)
 	if _, err := boundedResourceSummary(invalidPhase, "n", "pods"); err == nil {
 		t.Fatal("invalid pod phase accepted")
 	}
-	inconsistentDeployment := []byte(`{"apiVersion":"apps/v1","kind":"DeploymentList","items":[{"metadata":{"name":"d","namespace":"n"},"status":{"replicas":1,"readyReplicas":2}}]}`)
+	inconsistentDeployment := []byte(`{"apiVersion":"v1","kind":"List","items":[{"kind":"Deployment","metadata":{"name":"d","namespace":"n"},"status":{"replicas":1,"readyReplicas":2}}]}`)
 	if _, err := boundedResourceSummary(inconsistentDeployment, "n", "deployments"); err == nil {
 		t.Fatal("inconsistent deployment status accepted")
 	}
