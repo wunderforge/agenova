@@ -189,7 +189,7 @@ func (s *server) call(w http.ResponseWriter, r *http.Request, req rpcRequest) {
 		s.rpcResult(w, req.ID, map[string]any{"isError": true, "content": []map[string]string{{"type": "text", "text": "Kubernetes read failed"}}})
 		return
 	}
-	text, err := boundedResourceNames(data)
+	text, err := boundedResourceSummary(data, s.config.namespace, kind)
 	if err != nil {
 		s.rpcResult(w, req.ID, map[string]any{"isError": true, "content": []map[string]string{{"type": "text", "text": "Kubernetes response was invalid"}}})
 		return
@@ -197,25 +197,69 @@ func (s *server) call(w http.ResponseWriter, r *http.Request, req rpcRequest) {
 	s.rpcResult(w, req.ID, map[string]any{"content": []map[string]string{{"type": "text", "text": text}}})
 }
 
-func boundedResourceNames(data []byte) (string, error) {
+func boundedResourceSummary(data []byte, namespace, resourceKind string) (string, error) {
 	var list struct {
 		APIVersion string `json:"apiVersion"`
 		Kind       string `json:"kind"`
 		Items      []struct {
 			Metadata struct{ Name, Namespace string } `json:"metadata"`
+			Status   struct {
+				Phase             string `json:"phase"`
+				Replicas          int32  `json:"replicas"`
+				ReadyReplicas     int32  `json:"readyReplicas"`
+				UpdatedReplicas   int32  `json:"updatedReplicas"`
+				AvailableReplicas int32  `json:"availableReplicas"`
+				ContainerStatuses []struct {
+					Ready        bool  `json:"ready"`
+					RestartCount int32 `json:"restartCount"`
+				} `json:"containerStatuses"`
+			} `json:"status"`
 		} `json:"items"`
 	}
-	if len(data) > 2<<20 || json.Unmarshal(data, &list) != nil || list.Kind == "" || list.Items == nil {
+	expectedListKind := map[string]string{"pods": "PodList", "deployments": "DeploymentList"}[resourceKind]
+	if len(data) > 2<<20 || namespace == "" || expectedListKind == "" || json.Unmarshal(data, &list) != nil || list.Kind != expectedListKind || list.Items == nil {
 		return "", errors.New("invalid Kubernetes list")
 	}
-	rows := make([]string, 0, len(list.Items))
+	rows := make([]map[string]any, 0, len(list.Items))
 	for _, item := range list.Items {
-		if item.Metadata.Name == "" || strings.ContainsAny(item.Metadata.Name, "\r\n\t") {
+		if item.Metadata.Name == "" || item.Metadata.Namespace != namespace || strings.ContainsAny(item.Metadata.Name, "\r\n\t") {
 			return "", errors.New("invalid resource name")
 		}
-		rows = append(rows, item.Metadata.Namespace+"/"+item.Metadata.Name)
+		row := map[string]any{"name": item.Metadata.Namespace + "/" + item.Metadata.Name}
+		switch list.Kind {
+		case "PodList":
+			if item.Status.Phase != "Pending" && item.Status.Phase != "Running" && item.Status.Phase != "Succeeded" && item.Status.Phase != "Failed" && item.Status.Phase != "Unknown" {
+				return "", errors.New("invalid pod status")
+			}
+			ready := 0
+			restarts := int64(0)
+			for _, status := range item.Status.ContainerStatuses {
+				if status.RestartCount < 0 {
+					return "", errors.New("invalid pod status")
+				}
+				if status.Ready {
+					ready++
+				}
+				restarts += int64(status.RestartCount)
+			}
+			row["phase"] = item.Status.Phase
+			row["readyContainers"] = ready
+			row["totalContainers"] = len(item.Status.ContainerStatuses)
+			row["restartCount"] = restarts
+		case "DeploymentList":
+			if item.Status.Replicas < 0 || item.Status.ReadyReplicas < 0 || item.Status.ReadyReplicas > item.Status.Replicas || item.Status.UpdatedReplicas < 0 || item.Status.UpdatedReplicas > item.Status.Replicas || item.Status.AvailableReplicas < 0 || item.Status.AvailableReplicas > item.Status.Replicas {
+				return "", errors.New("invalid deployment status")
+			}
+			row["replicas"] = item.Status.Replicas
+			row["readyReplicas"] = item.Status.ReadyReplicas
+			row["updatedReplicas"] = item.Status.UpdatedReplicas
+			row["availableReplicas"] = item.Status.AvailableReplicas
+		default:
+			return "", errors.New("invalid Kubernetes list")
+		}
+		rows = append(rows, row)
 	}
-	sort.Strings(rows)
+	sort.Slice(rows, func(i, j int) bool { return rows[i]["name"].(string) < rows[j]["name"].(string) })
 	result, err := json.Marshal(map[string]any{"apiVersion": list.APIVersion, "kind": list.Kind, "resources": rows})
 	if err != nil || len(result) > maxResultBytes {
 		return "", errors.New("result too large")

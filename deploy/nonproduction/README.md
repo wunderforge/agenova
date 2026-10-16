@@ -29,10 +29,13 @@ the named key and sets `SSL_CERT_FILE`; the Secret value remains external.
 For a self-contained first `kubernetes.list` route, build
 `mcp-kubernetes.Dockerfile` and adapt `mcp-kubernetes.yaml.example`. The server
 accepts only the exact configured resource kinds and namespace, emits only
-sorted resource identities, uses in-cluster RBAC, requires bearer
-authentication and TLS, and exposes no mutation tool. Its token and TLS
-Secrets are external inputs. The TLS chain must already be trusted by the
-control-plane image or be supplied through the approved runtime CA mechanism.
+sorted resource identities plus bounded Pod readiness/restart or Deployment
+replica status, uses in-cluster RBAC, requires bearer authentication and TLS,
+and exposes no mutation tool. Response kind and namespace are revalidated
+before any observation is returned. It never returns object specs, log text,
+events or Secret data. Its token and TLS Secrets are external inputs. The TLS
+chain must already be trusted by the control-plane image or be supplied
+through the approved runtime CA mechanism.
 
 ## Delivery sequence
 
