@@ -32,7 +32,9 @@ accepts only the exact configured resource kinds and namespace, emits only
 sorted resource identities plus bounded Pod readiness/restart or Deployment
 replica status, uses in-cluster RBAC, requires bearer authentication and TLS,
 and exposes no mutation tool. Response kind and namespace are revalidated
-before any observation is returned. It never returns object specs, log text,
+before any observation is returned, and every response declares the
+`health-v1` observation contract so deployment verification can bind the
+runtime response to its image lock. It never returns object specs, log text,
 events or Secret data. Its token and TLS Secrets are external inputs. The TLS
 chain must already be trusted by the control-plane image or be supplied
 through the approved runtime CA mechanism. The MCP server rereads its bearer

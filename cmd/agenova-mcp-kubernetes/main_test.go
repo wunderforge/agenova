@@ -82,7 +82,7 @@ func TestMCPHandshakeAndAllowlistedList(t *testing.T) {
 	if call.Code != http.StatusOK || !strings.Contains(call.Body.String(), `monitoring/a`) || !strings.Contains(call.Body.String(), `monitoring/b`) {
 		t.Fatalf("call = %d %s", call.Code, call.Body.String())
 	}
-	for _, expected := range []string{`\"phase\":\"Running\"`, `\"readyContainers\":1`, `\"totalContainers\":2`, `\"restartCount\":3`} {
+	for _, expected := range []string{`\"contract\":\"health-v1\"`, `\"phase\":\"Running\"`, `\"readyContainers\":1`, `\"totalContainers\":2`, `\"restartCount\":3`} {
 		if !strings.Contains(call.Body.String(), expected) {
 			t.Fatalf("call omitted bounded pod diagnostic %s: %s", expected, call.Body.String())
 		}

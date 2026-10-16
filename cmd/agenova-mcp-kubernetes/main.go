@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	protocolVersion   = "2025-06-18"
-	correlationHeader = "X-Agenova-Correlation"
-	maxRequestBytes   = 8192
-	maxResultBytes    = 60 << 10
+	protocolVersion     = "2025-06-18"
+	observationContract = "health-v1"
+	correlationHeader   = "X-Agenova-Correlation"
+	maxRequestBytes     = 8192
+	maxResultBytes      = 60 << 10
 )
 
 type config struct {
@@ -276,7 +277,7 @@ func boundedResourceSummary(data []byte, namespace, resourceKind string) (string
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i]["name"].(string) < rows[j]["name"].(string) })
-	result, err := json.Marshal(map[string]any{"apiVersion": list.APIVersion, "kind": list.Kind, "resources": rows})
+	result, err := json.Marshal(map[string]any{"apiVersion": list.APIVersion, "kind": list.Kind, "contract": observationContract, "resources": rows})
 	if err != nil || len(result) > maxResultBytes {
 		return "", errors.New("result too large")
 	}
