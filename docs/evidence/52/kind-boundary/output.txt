@@ -1,0 +1,494 @@
+#52 kind boundary probes: raw output. Probe rounds ran 2026-10-05 01:57-03:16 UTC against main c56ba3a; the baseline was re-captured read-only on 2026-10-06. Canary values are synthetic.
+
+===== 0. Baseline (read-only) =====
+captured: 2026-10-06T11:55:39Z  repo: ebb4c04 (main)
+--- versions
+docker server 29.8.0
+kind v0.33.0 go1.27.0 darwin/arm64
+Client Version: v1.36.1
+Server Version: v1.37.0
+{"version":"0.34.4"}
+--- node
+NAME                            VERSION   IP           RUNTIME              KERNEL
+agenova-k8s-lab-control-plane   v1.37.0   172.18.0.2   containerd://2.3.4   7.0.12-linuxkit
+--- CNI and controller images
+kindnet: docker.io/kindest/kindnetd:v20260820-69b56db7
+agent-sandbox-controller: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6
+--- kindnet policy engine log lines
+I1006 11:54:11.320648       1 controller.go:178] "Waiting for the policy engine to become ready..."
+I1006 11:54:11.821281       1 controller.go:185] "Policy engine is ready."
+--- services
+NS                     NAME                       TYPE        CLUSTER-IP     PORTS
+agenova-system         agenova-control-plane      ClusterIP   10.96.79.138   8080
+agent-sandbox-system   agent-sandbox-controller   ClusterIP   10.96.20.199   8080
+default                kubernetes                 ClusterIP   10.96.0.1      443
+kube-system            kube-dns                   ClusterIP   10.96.0.10     53,53,9153
+--- provider endpoint (deploy/reference/platform.kind.yaml)
+41:          endpoint: http://host.docker.internal:11434/v1
+host.docker.internal (from node, IPv4): 192.168.65.254
+--- NetworkPolicy objects (all namespaces)
+NAMESPACE        NAME                                   POD-SELECTOR                                         AGE
+agenova-system   agenova-tmpl-engineer-network-policy   agents.x-k8s.io/sandbox-template-ref-hash=5e94118c   8d
+--- agenova-tmpl-engineer-network-policy spec
+spec:
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 169.254.0.0/16
+    - ipBlock:
+        cidr: ::/0
+        except:
+        - fc00::/7
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: sandbox-router
+  podSelector:
+    matchLabels:
+      agents.x-k8s.io/sandbox-template-ref-hash: 5e94118c
+  policyTypes:
+  - Ingress
+  - Egress
+--- SandboxTemplate / SandboxWarmPool
+template spec keys: {"envVarsInjectionPolicy":"Disallowed","networkPolicyManagement":"Managed","podTemplate":{"spec":{"automountServiceAccountToken":false,"containers":[{"command":["/agenova-workerctl","serve"],"image":"agenova-testworker:kind","name":"agent"}]}}}
+warm pool spec: {"replicas":1,"sandboxTemplateRef":{"name":"agenova-tmpl-engineer"}}
+--- worker Pod (warm pool), names only
+pod=agenova-pool-pool-engineer-mzf95
+labels={"agents.x-k8s.io/sandbox-name-hash":"a6ea1a02","agents.x-k8s.io/sandbox-pod-template-hash":"2d5fd3d1","agents.x-k8s.io/sandbox-template-ref-hash":"5e94118c","agents.x-k8s.io/warm-pool-sandbox":"33893da2"}
+serviceAccount=default
+automountServiceAccountToken=false
+hostNetwork=
+dnsPolicy=None
+dnsConfig={"nameservers":["8.8.8.8","1.1.1.1"]}
+image=agenova-testworker:kind
+envNames=
+envFrom=
+volumes=
+volumeMounts=
+alpine=3.20.10
+tools: /usr/bin/nc /usr/bin/wget /usr/bin/nslookup 
+resolv.conf: nameserver 8.8.8.8 nameserver 1.1.1.1 
+ls: /var/run/secrets: No such file or directory
+command terminated with exit code 1
+--- control-plane Pod labels (not selected by the generated policy)
+{"app.kubernetes.io/managed-by":"agenova","app.kubernetes.io/name":"agenova-control-plane","pod-template-hash":"67fdf6874"}
+
+===== 1. Control Pod created (same image, not selected by the generated policy) =====
+pod/e15-probe-control created
+pod/e15-probe-control condition met
+
+===== 2. Round 1 Ollama request counts (host log) =====
+2026-10-05T01:57:57Z
+ollama total before: 37
+ollama after control: total=38 marker=1
+ollama after warm: total=38 marker=0
+
+===== 3. Probe from the control Pod =====
+# pod=agenova-system/e15-probe-control container=agent marker=e15-r1-control
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.2
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	0	0	 
+control-public-dns	example.com	0	0	Address: 2606:4700:10::ac42:93f3 Address: 2606:4700:10::6814:179a 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	0	0	 
+ollama-http-marker	http://192.168.65.254:11434/e15-r1-control	1	0	wget: server returned error: HTTP/1.1 404 Not Found 
+ollama-dns	host.docker.internal	1	0	** server can't find host.docker.internal: NXDOMAIN ** server can't find host.docker.internal: NXDOMAIN 
+ollama-dns-http-marker	http://host.docker.internal:11434/e15-r1-control-dns	1	0	wget: bad address 'host.docker.internal:11434' 
+k8s-api-svc	10.96.0.1:443	0	0	 
+k8s-api-node	172.18.0.2:6443	0	0	 
+k8s-api-dns	kubernetes.default.svc.cluster.local	1	0	** server can't find kubernetes.default.svc.cluster.local: NXDOMAIN ** server can't find kubernetes.default.svc.cluster.
+kube-dns	10.96.0.10:53	0	0	 
+control-plane-svc	10.96.79.138:8080	0	0	 
+control-plane-pod-8080	10.244.0.2:8080	0	0	 
+control-plane-pod-8081	10.244.0.2:8081	1	0	 
+metadata	169.254.169.254:80	1	3	 
+
+===== 4. Probe from the warm-pool worker (unbound) =====
+# pod=agenova-system/agenova-pool-pool-engineer-fcn96 container=agent marker=e15-r1-warm
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.2
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	0	0	 
+control-public-dns	example.com	0	0	Address: 172.66.147.243 Address: 104.20.23.154 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	1	3	 
+ollama-http-marker	http://192.168.65.254:11434/e15-r1-warm	1	3	wget: download timed out 
+ollama-dns	host.docker.internal	1	0	** server can't find host.docker.internal: NXDOMAIN ** server can't find host.docker.internal: NXDOMAIN 
+ollama-dns-http-marker	http://host.docker.internal:11434/e15-r1-warm-dns	1	0	wget: bad address 'host.docker.internal:11434' 
+k8s-api-svc	10.96.0.1:443	1	3	 
+k8s-api-node	172.18.0.2:6443	1	3	 
+k8s-api-dns	kubernetes.default.svc.cluster.local	1	0	** server can't find kubernetes.default.svc.cluster.local: NXDOMAIN ** server can't find kubernetes.default.svc.cluster.
+kube-dns	10.96.0.10:53	1	3	 
+control-plane-svc	10.96.79.138:8080	1	3	 
+control-plane-pod-8080	10.244.0.2:8080	1	3	 
+control-plane-pod-8081	10.244.0.2:8081	1	3	 
+metadata	169.254.169.254:80	1	3	 
+
+===== 5. Governed run through the Gateway, with a probe of its bound worker (probe cut short when the claim ended) =====
+warm pod before run: agenova-pool-pool-engineer-fcn96
+ollama total before: 38
+claim seen: sandboxclaim.extensions.agents.x-k8s.io/agenova-claim-hash-claim-e15-52-claim-probe-1-d51f42a1db927e3d at 02:01:09
+        {"apiVersion":"extensions.agents.x-k8s.io/v1alpha1","kind":"SandboxClaim","metadata":{"annotations":{},"name":"agenova-claim-hash-claim-e15-52-claim-probe-1-d51f42a1db927e3d","namespace":"agenova-system"},"spec":{"lifecycle":{"shutdownPolicy":"Delete","ttlSecondsAfterFinished":300},"sandboxTemplateRef":{"name":"agenova-tmpl-engineer"},"warmpool":"agenova-pool-pool-engineer"},"status":{}}
+      agents.x-k8s.io/sandbox-name: agenova-pool-pool-engineer-fcn96
+    name: agenova-claim-hash-claim-e15-52-claim-probe-1-d51f42a1db927e3d
+    sandboxTemplateRef:
+      name: agenova-tmpl-engineer
+    warmpool: agenova-pool-pool-engineer
+    sandbox:
+      name: agenova-pool-pool-engineer-fcn96
+NAME                                    READY   STATUS    RESTARTS      AGE     IP            NODE                            NOMINATED NODE   READINESS GATES
+agenova-control-plane-67fdf6874-4chc8   1/1     Running   1 (11m ago)   7d11h   10.244.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+agenova-pool-pool-engineer-fcn96        1/1     Running   0             10m     10.244.0.10   agenova-k8s-lab-control-plane   <none>           <none>
+agenova-pool-pool-engineer-lnftx        1/1     Running   0             0s      10.244.0.12   agenova-k8s-lab-control-plane   <none>           <none>
+e15-probe-control                       1/1     Running   0             3m12s   10.244.0.11   agenova-k8s-lab-control-plane   <none>           <none>
+claim present after probe: 
+ollama after: total=42 marker=0
+request: e15-52-claim-probe-1
+decision: Allow
+principal: user:team-a-engineer
+allocated: true
+claim: claim:e15-52-claim-probe-1:issuance:e84fe799ac7a115bd906c5abaece03e3
+phase: Succeeded
+result: The synthetic payment retries exceed the deadline because the retry loop allows multiple attempts with a fixed backoff time, and each attempt starts a fresh 5s deadline instead of using the remaining time. This can be fixed by modifying the retry loop to use the remaining time for each subsequent attempt, rather than starting a new fixed deadline.
+model tokens: 362 in / 78 out
+run exit=0
+# pod=agenova-system/agenova-pool-pool-engineer-fcn96 container=agent marker=e15-r1-claim
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.2
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	0	0	 
+control-public-dns	example.com	0	0	Address: 172.66.147.243 Address: 104.20.23.154 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	1	3	 
+
+===== 6. Held SandboxClaim (same sandboxTemplateRef and warmpool as the adapter) and full probe of its bound worker =====
+agenova-pool-pool-engineer-lnftx podTemplateHash=2d5fd3d1
+sandboxclaim.extensions.agents.x-k8s.io/e15-52-held-claim created
+bound sandbox/pod: agenova-pool-pool-engineer-lnftx
+podTemplateHash= templateRefHash=5e94118c SA=default automount=false image=agenova-testworker:kind
+ollama total before: 42
+ollama after: total=42 marker=0
+claim still bound: agenova-pool-pool-engineer-lnftx
+# pod=agenova-system/agenova-pool-pool-engineer-lnftx container=agent marker=e15-r1-held
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.2
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	0	0	 
+control-public-dns	example.com	0	0	Address: 2606:4700:10::6814:179a Address: 2606:4700:10::ac42:93f3 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	1	3	 
+ollama-http-marker	http://192.168.65.254:11434/e15-r1-held	1	3	wget: download timed out 
+ollama-dns	host.docker.internal	1	0	** server can't find host.docker.internal: NXDOMAIN ** server can't find host.docker.internal: NXDOMAIN 
+ollama-dns-http-marker	http://host.docker.internal:11434/e15-r1-held-dns	1	0	wget: bad address 'host.docker.internal:11434' 
+k8s-api-svc	10.96.0.1:443	1	3	 
+k8s-api-node	172.18.0.2:6443	1	3	 
+k8s-api-dns	kubernetes.default.svc.cluster.local	1	0	** server can't find kubernetes.default.svc.cluster.local: NXDOMAIN ** server can't find kubernetes.default.svc.cluster.
+kube-dns	10.96.0.10:53	1	3	 
+control-plane-svc	10.96.79.138:8080	1	3	 
+control-plane-pod-8080	10.244.0.2:8080	1	3	 
+control-plane-pod-8081	10.244.0.2:8081	1	3	 
+metadata	169.254.169.254:80	1	3	 
+
+===== 7. Control-plane-side canary B placed =====
+canary B: CANARY-E15-52-B-17a56ecbfcd1
+secret/e15-52-canary-b created
+secret/e15-52-canary-b labeled
+deployment.apps/agenova-control-plane env updated
+Waiting for deployment "agenova-control-plane" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "agenova-control-plane" rollout to finish: 1 old replicas are pending termination...
+deployment "agenova-control-plane" successfully rolled out
+control-plane pod agenova-control-plane-5978796d7d-4q2kn env names: AGENOVA_PLATFORM_NAME AGENOVA_PLATFORM_REVISION AGENOVA_POLICY_REF AGENOVA_ALLOWED_WORKER_IMAGE E15_CANARY_B
+--- delete held claim so the pool creates a worker after canary B exists
+sandboxclaim.extensions.agents.x-k8s.io "e15-52-held-claim" deleted from agenova-system namespace
+
+===== 8. Canary scans: worker created after canary B, before and after binding =====
+canary B placed: 2026-10-05T02:02:31Z (Secret e15-52-canary-b + control-plane env E15_CANARY_B)
+warm pod: agenova-pool-pool-engineer-h5rdf created=2026-10-05T02:09:06Z
+=== warm worker, canary B (expect none)
+# pod=agenova-system/agenova-pool-pool-engineer-h5rdf container=agent
+## pod spec (names only)
+serviceAccount=default
+automountToken=false
+envNames=
+envFrom=
+volumes=
+mountPaths=
+## environment variable names (process 1 and this shell)
+AGENOVA_CONTROL_PLANE_PORT AGENOVA_CONTROL_PLANE_PORT_8080_TCP AGENOVA_CONTROL_PLANE_PORT_8080_TCP_ADDR AGENOVA_CONTROL_PLANE_PORT_8080_TCP_PORT AGENOVA_CONTROL_PLANE_PORT_8080_TCP_PROTO AGENOVA_CONTROL_PLANE_SERVICE_HOST AGENOVA_CONTROL_PLANE_SERVICE_PORT AGENOVA_CONTROL_PLANE_SERVICE_PORT_HTTP HOME HOSTNAME KUBERNETES_PORT KUBERNETES_PORT_443_TCP KUBERNETES_PORT_443_TCP_ADDR KUBERNETES_PORT_443_TCP_PORT KUBERNETES_PORT_443_TCP_PROTO KUBERNETES_SERVICE_HOST KUBERNETES_SERVICE_PORT KUBERNETES_SERVICE_PORT_HTTPS PATH PWD SHLVL 
+## credential-like variable names
+(none)
+## known credential paths
+absent:  /var/run/secrets
+absent:  /run/secrets
+absent:  /root/.kube
+absent:  /root/.aws
+absent:  /root/.docker/config.json
+absent:  /root/.config/gcloud
+absent:  /etc/agenova
+absent:  //.kube
+absent:  //.aws
+## mounts (non-pseudo filesystems)
+/ overlay
+/etc/hosts ext4
+/dev/termination-log ext4
+/etc/hostname ext4
+/etc/resolv.conf ext4
+## files containing the canary (paths only)
+(none)
+## environment containing the canary (names only)
+=== warm worker, planted canary A in /tmp/e15-canary-a (expect found)
+## files containing the canary (paths only)
+/tmp/e15-canary-a
+## environment containing the canary (names only)
+=== bound to e15-52-held-claim-2: agenova-pool-pool-engineer-h5rdf
+=== bound worker, canary B (expect none)
+## credential-like variable names
+(none)
+## known credential paths
+absent:  /var/run/secrets
+absent:  /run/secrets
+absent:  /root/.kube
+absent:  /root/.aws
+absent:  /root/.docker/config.json
+absent:  /root/.config/gcloud
+absent:  /etc/agenova
+absent:  //.kube
+absent:  //.aws
+## mounts (non-pseudo filesystems)
+/ overlay
+/etc/hosts ext4
+/dev/termination-log ext4
+/etc/hostname ext4
+/etc/resolv.conf ext4
+## files containing the canary (paths only)
+(none)
+## environment containing the canary (names only)
+=== bound worker, canary A (expect found)
+## files containing the canary (paths only)
+/tmp/e15-canary-a
+## environment containing the canary (names only)
+
+===== 9. Experimental default-deny policy on a second control Pod, probed at policy age 0 s =====
+pod/e15-probe-deny created
+networkpolicy.networking.k8s.io/e15-probe-deny-experimental-deny created
+pod/e15-probe-deny condition met
+NAME                                   POD-SELECTOR                                         AGE
+agenova-tmpl-engineer-network-policy   agents.x-k8s.io/sandbox-template-ref-hash=5e94118c   7d12h
+e15-probe-deny-experimental-deny       e15.agenova.io/probe=e15-probe-deny                  0s
+ollama total before: 42
+ollama after: total=43 marker=1
+# pod=agenova-system/e15-probe-deny container=agent marker=e15-r1-deny
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.14
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	0	0	 
+control-public-dns	example.com	0	0	Address: 104.20.23.154 Address: 172.66.147.243 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	0	0	 
+ollama-http-marker	http://192.168.65.254:11434/e15-r1-deny	1	0	wget: server returned error: HTTP/1.1 404 Not Found 
+ollama-dns	host.docker.internal	1	0	** server can't find host.docker.internal: NXDOMAIN ** server can't find host.docker.internal: NXDOMAIN 
+ollama-dns-http-marker	http://host.docker.internal:11434/e15-r1-deny-dns	1	0	wget: bad address 'host.docker.internal:11434' 
+k8s-api-svc	10.96.0.1:443	0	0	 
+k8s-api-node	172.18.0.2:6443	0	0	 
+k8s-api-dns	kubernetes.default.svc.cluster.local	1	0	** server can't find kubernetes.default.svc.cluster.local: NXDOMAIN ** server can't find kubernetes.default.svc.cluster.
+kube-dns	10.96.0.10:53	0	0	 
+control-plane-svc	10.96.79.138:8080	0	0	 
+control-plane-pod-8080	10.244.0.14:8080	0	0	 
+control-plane-pod-8081	10.244.0.14:8081	1	0	 
+metadata	169.254.169.254:80	1	0	 
+
+===== 10. Same Pod probed again at policy age 20 s =====
+02:15:00
+policy created 2026-10-05T02:14:40Z
+ollama total before: 43
+ollama after: total=43 marker=0
+# pod=agenova-system/e15-probe-deny container=agent marker=e15-r2-deny
+# ollama=192.168.65.254 api=10.96.0.1 node=172.18.0.2 dns=10.96.0.10 cp-svc=10.96.79.138 cp-pod=10.244.0.14
+target	address	rc	seconds	detail
+control-public-ip	1.1.1.1:443	1	3	 
+control-public-dns	example.com	1	10	;; connection timed out; no servers could be reached 
+control-local-refused	127.0.0.1:9	1	0	 
+ollama-ip	192.168.65.254:11434	1	3	 
+ollama-http-marker	http://192.168.65.254:11434/e15-r2-deny	1	3	wget: download timed out 
+ollama-dns	host.docker.internal	1	10	;; connection timed out; no servers could be reached 
+ollama-dns-http-marker	http://host.docker.internal:11434/e15-r2-deny-dns	1	5	wget: bad address 'host.docker.internal:11434' 
+k8s-api-svc	10.96.0.1:443	1	3	 
+k8s-api-node	172.18.0.2:6443	1	3	 
+k8s-api-dns	kubernetes.default.svc.cluster.local	1	10	;; connection timed out; no servers could be reached 
+kube-dns	10.96.0.10:53	1	3	 
+control-plane-svc	10.96.79.138:8080	1	3	 
+control-plane-pod-8080	10.244.0.14:8080	1	3	 
+control-plane-pod-8081	10.244.0.14:8081	1	3	 
+metadata	169.254.169.254:80	1	3	 
+
+===== 11. ES-5: exposed services and what :8080 serves =====
+=== ES-5: services exposed outside the cluster
+agenova-system/agenova-control-plane type=ClusterIP
+agent-sandbox-system/agent-sandbox-controller type=ClusterIP
+default/kubernetes type=ClusterIP
+kube-system/kube-dns type=ClusterIP
+No resources found
+=== ES-5: what :8080 serves (from the control Pod, which can reach it)
+/ -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/healthz -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/readyz -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/status -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/api -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/v1 -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/facts -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+/claims -> wget: bad address 'agenova-control-plane.agenova-system.svc:8080' 
+=== ES-5: what :8080 serves (control Pod -> Service IP 10.96.79.138)
+/ -> wget: server returned error: HTTP/1.1 404 Not Found 
+/healthz -> wget: server returned error: HTTP/1.1 404 Not Found 
+/readyz -> ready 
+/status -> wget: server returned error: HTTP/1.1 404 Not Found 
+/api/work -> wget: server returned error: HTTP/1.1 404 Not Found 
+/api/setup -> wget: server returned error: HTTP/1.1 404 Not Found 
+/facts -> wget: server returned error: HTTP/1.1 404 Not Found 
+/claims -> wget: server returned error: HTTP/1.1 404 Not Found 
+{"platform":"reference-kind","revision":"sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f","initialPolicyRef":"reference-default-deny@1","state":"installation-ready","readinessScope":"installation-components","providerHealth":"not-checked"}
+
+===== 12. RI-2: exposure audit (names and keys only) =====
+=== RI-2: Deployments in agenova-system (env names, envFrom, SA)
+agenova-control-plane SA=agenova-control-plane env=AGENOVA_PLATFORM_NAME AGENOVA_PLATFORM_REVISION AGENOVA_POLICY_REF AGENOVA_ALLOWED_WORKER_IMAGE E15_CANARY_B envFrom=
+=== RI-2: ConfigMaps (name: keys)
+agenova-active-policy: reference.json 
+agenova-platform: effective-platform.json platform-lock.json 
+agenova-policy-3c894142a815b4b87b6a8c70: policy.json 
+agenova-template-slot: template.json 
+kube-root-ca.crt: ca.crt 
+=== RI-2: credential-like strings in ConfigMap values (line numbers only)
+=== RI-2: Secrets (name type keys; values not read)
+e15-52-canary-b Opaque: E15_CANARY_B 
+=== RI-2: bindings mentioning agenova
+agenova-system       rolebinding.rbac.authorization.k8s.io/agenova-control-plane-runtime                       Role/agenova-control-plane-runtime                    7d12h                                                                                                                           agenova-system/agenova-control-plane
+=== RI-2: local CLI config files
+ls: ~/.agenova: No such file or directory
+ls: ~/.config/agenova: No such file or directory
+agenova
+agenova-k8s-lab-owner
+agent-sandbox-v0.4.6
+gocache
+ui-smoke
+
+===== 13. Cleanup after rounds 1-12 =====
+sandboxclaim.extensions.agents.x-k8s.io "e15-52-held-claim-2" deleted from agenova-system namespace
+networkpolicy.networking.k8s.io "e15-probe-deny-experimental-deny" deleted from agenova-system namespace
+pod "e15-probe-deny" deleted from agenova-system namespace
+pod "e15-probe-control" deleted from agenova-system namespace
+secret "e15-52-canary-b" deleted from agenova-system namespace
+deployment.apps/agenova-control-plane env updated
+Waiting for deployment "agenova-control-plane" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "agenova-control-plane" rollout to finish: 1 old replicas are pending termination...
+deployment "agenova-control-plane" successfully rolled out
+=== leftovers (expect none)
+No resources found
+NAME                                   POD-SELECTOR                                         AGE
+agenova-tmpl-engineer-network-policy   agents.x-k8s.io/sandbox-template-ref-hash=5e94118c   7d12h
+control-plane env: AGENOVA_PLATFORM_NAME AGENOVA_PLATFORM_REVISION AGENOVA_POLICY_REF AGENOVA_ALLOWED_WORKER_IMAGE
+=== platform status
+platform: reference-kind
+revision: sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f
+target: kind-agenova-k8s-lab/agenova-system
+changes: 0
+- adapter/agent-sandbox-runtime: configured (agenova.io/runtime/agent-sandbox@0.1.0)
+- adapter/kubernetes-deployment: used (agenova.io/deployment/kubernetes@0.1.0)
+- adapter/openai-compatible-backend: configured (agenova.io/model/openai-compatible@0.1.0)
+- deployment/agenova-control-plane: available
+
+===== 14. Startup probe, claim without warmpool (bound an existing warm Pod, 42 s old; not a fresh-start datapoint) =====
+# mode=cold pod=agenova-pool-pool-engineer-wmgzn created=2026-10-05T03:13:02Z containerStarted=2026-10-05T03:13:02Z target=192.168.65.254:11434
+attempt	epoch	rc	detail
+1	1791170024	1	wget: download timed out
+2	1791170025	1	wget: download timed out
+3	1791170026	1	wget: download timed out
+4	1791170027	1	wget: download timed out
+5	1791170028	1	wget: download timed out
+6	1791170029	1	wget: download timed out
+7	1791170030	1	wget: download timed out
+8	1791170031	1	wget: download timed out
+9	1791170032	1	wget: download timed out
+10	1791170033	1	wget: download timed out
+11	1791170034	1	wget: download timed out
+12	1791170035	1	wget: download timed out
+13	1791170036	1	wget: download timed out
+14	1791170037	1	wget: download timed out
+15	1791170038	1	wget: download timed out
+16	1791170039	1	wget: download timed out
+17	1791170040	1	wget: download timed out
+18	1791170041	1	wget: download timed out
+19	1791170042	1	wget: download timed out
+20	1791170043	1	wget: download timed out
+21	1791170044	1	wget: download timed out
+22	1791170045	1	wget: download timed out
+23	1791170046	1	wget: download timed out
+24	1791170047	1	wget: download timed out
+25	1791170048	1	wget: download timed out
+26	1791170049	1	wget: download timed out
+27	1791170050	1	wget: download timed out
+28	1791170051	1	wget: download timed out
+29	1791170052	1	wget: download timed out
+30	1791170053	1	wget: download timed out
+# ollama log lines with marker e15-sw-cold-1: before=0 after=0
+
+===== 15. Startup probe, freshly created worker, run 1 =====
+# mode=pool pod=agenova-pool-pool-engineer-knh45 created=2026-10-05T03:15:00Z containerStarted=2026-10-05T03:15:00Z target=192.168.65.254:11434
+attempt	epoch	rc	detail
+1	1791170100	1	wget: server returned error: HTTP/1.1 404 Not Found
+2	1791170101	1	wget: download timed out
+3	1791170102	1	wget: download timed out
+4	1791170103	1	wget: download timed out
+5	1791170104	1	wget: download timed out
+6	1791170105	1	wget: download timed out
+7	1791170106	1	wget: download timed out
+8	1791170107	1	wget: download timed out
+9	1791170108	1	wget: download timed out
+10	1791170109	1	wget: download timed out
+11	1791170110	1	wget: download timed out
+12	1791170111	1	wget: download timed out
+13	1791170112	1	wget: download timed out
+14	1791170113	1	wget: download timed out
+15	1791170114	1	wget: download timed out
+16	1791170115	1	wget: download timed out
+17	1791170116	1	wget: download timed out
+18	1791170117	1	wget: download timed out
+19	1791170118	1	wget: download timed out
+20	1791170119	1	wget: download timed out
+21	1791170120	1	wget: download timed out
+22	1791170121	1	wget: download timed out
+23	1791170122	1	wget: download timed out
+24	1791170123	1	wget: download timed out
+25	1791170124	1	wget: download timed out
+26	1791170125	1	wget: download timed out
+27	1791170126	1	wget: download timed out
+28	1791170127	1	wget: download timed out
+29	1791170128	1	wget: download timed out
+30	1791170129	1	wget: download timed out
+# ollama log lines with marker e15-sw-pool-1: before=0 after=1
+
+===== 16. Startup probe, freshly created worker, run 2 =====
+# mode=pool pod=agenova-pool-pool-engineer-9v7k5 created=2026-10-05T03:15:48Z containerStarted=2026-10-05T03:15:48Z target=192.168.65.254:11434
+attempt	epoch	rc	detail
+1	1791170148	1	wget: server returned error: HTTP/1.1 404 Not Found
+2	1791170149	1	wget: download timed out
+3	1791170150	1	wget: download timed out
+4	1791170151	1	wget: download timed out
+5	1791170152	1	wget: download timed out
+# ollama log lines with marker e15-sw-pool-2: before=0 after=1
+
+===== 17. Startup probe, freshly created worker, run 3 =====
+# mode=pool pod=agenova-pool-pool-engineer-x52pb created=2026-10-05T03:15:54Z containerStarted=2026-10-05T03:15:54Z target=192.168.65.254:11434
+attempt	epoch	rc	detail
+1	1791170154	1	wget: server returned error: HTTP/1.1 404 Not Found
+2	1791170155	1	wget: download timed out
+3	1791170156	1	wget: download timed out
+4	1791170157	1	wget: download timed out
+5	1791170158	1	wget: download timed out
+# ollama log lines with marker e15-sw-pool-3: before=0 after=1
+
+===== 18. Ollama host log lines for the startup probe markers =====
+[GIN] 2026/10/05 - 14:15:00 | 404 |      11.208µs |       127.0.0.1 | GET      "/e15-sw-pool-1-1"
+[GIN] 2026/10/05 - 14:15:48 | 404 |      27.292µs |       127.0.0.1 | GET      "/e15-sw-pool-2-1"
+[GIN] 2026/10/05 - 14:15:54 | 404 |      13.125µs |       127.0.0.1 | GET      "/e15-sw-pool-3-1"
