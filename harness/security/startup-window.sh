@@ -2,7 +2,8 @@
 # Checks whether a freshly started claim worker can reach a protected target
 # before the generated NetworkPolicy takes effect. It creates a labelled
 # SandboxClaim, starts direct requests the moment the worker accepts exec, and
-# leaves the verdict to the Ollama log (count of the unique marker).
+# leaves the verdict to the Ollama log (count of the unique marker). On exit it
+# deletes only the claims it created; test-startup-window.sh covers that.
 #
 #   startup-window.sh --context kind-agenova-k8s-lab --namespace agenova-system \
 #     --mode cold|pool --marker <unique-text> [--target-ip <ollama-ipv4>] [--attempts 30]
@@ -29,6 +30,8 @@ for v in context namespace mode marker; do
   [ -n "${!v}" ] || { echo "--$v is required" >&2; exit 2; }
 done
 case "$marker" in *[!a-zA-Z0-9-]*) echo "--marker must be [a-zA-Z0-9-]" >&2; exit 2 ;; esac
+case "$mode" in cold|pool) ;; *) echo "--mode must be cold or pool" >&2; exit 2 ;; esac
+case "$attempts" in ''|0|*[!0-9]*) echo "--attempts must be a positive integer" >&2; exit 2 ;; esac
 
 k() { kubectl --context "$context" "$@"; }
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -38,14 +41,19 @@ if [ -z "$target_ip" ]; then
   target_ip="$(docker exec "$node" getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}')"
 fi
 
+# Only claims this invocation created are cleaned up, each by name and UID.
+# `create` refuses an existing name, so another run's claim is never adopted.
+owned=()
 claim() {
-  local name="$1" warm="$2"
-  {
+  local name="$1" warm="$2" uid
+  uid="$({
     printf 'apiVersion: extensions.agents.x-k8s.io/v1alpha1\nkind: SandboxClaim\n'
-    printf 'metadata: {name: %s, labels: {e15.agenova.io/probe: startup-window}}\n' "$name"
+    printf 'metadata: {name: %s, labels: {e15.agenova.io/probe: startup-window, e15.agenova.io/marker: %s}}\n' "$name" "$marker"
     printf 'spec:\n  sandboxTemplateRef: {name: %s}\n' "$template"
     if [ -n "$warm" ]; then printf '  warmpool: %s\n' "$warm"; fi
-  } | k -n "$namespace" apply -f - >/dev/null
+  } | k -n "$namespace" create -f - -o 'jsonpath={.metadata.uid}')"
+  [ -n "$uid" ] || { echo "claim $name was created without a UID" >&2; exit 1; }
+  owned+=("$name=$uid")
 }
 bound_pod() {
   local name="$1" p=""
@@ -56,15 +64,24 @@ bound_pod() {
   done
   echo "claim $name was not bound" >&2; exit 1
 }
-cleanup() { k -n "$namespace" delete sandboxclaim -l e15.agenova.io/probe=startup-window --ignore-not-found --wait=false >/dev/null; }
+cleanup() {
+  local entry name uid
+  for entry in ${owned[@]+"${owned[@]}"}; do
+    name="${entry%%=*}" uid="${entry#*=}"
+    # The UID precondition makes the API server refuse a same-named replacement.
+    printf '{"kind":"DeleteOptions","apiVersion":"v1","preconditions":{"uid":"%s"}}' "$uid" |
+      k delete --raw "/apis/extensions.agents.x-k8s.io/v1alpha1/namespaces/$namespace/sandboxclaims/$name" -f - >/dev/null ||
+      echo "cleanup: claim $name (uid $uid) was not deleted" >&2
+  done
+}
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 before="$(bash "$here/ollama-count.sh" --match "$marker")"
 case "$mode" in
   cold) claim "e15-startup-$marker" "" ;;
   pool) claim "e15-startup-$marker-consume" "$pool"; bound_pod "e15-startup-$marker-consume" >/dev/null
         claim "e15-startup-$marker" "$pool" ;;
-  *) echo "--mode must be cold or pool" >&2; exit 2 ;;
 esac
 pod="$(bound_pod "e15-startup-$marker")"
 

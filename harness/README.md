@@ -26,7 +26,7 @@ Static fixture files do not count as runtime evidence. Add a harness scenario on
 
 ## Security Boundary Probes
 
-`security/` holds E15 probes for the kind reference: an in-Pod network probe, a control Pod with an optional experimental default-deny policy, a provider-side request counter read from the Ollama host log, a names-only credential and canary scan, and a worker startup probe. They need an explicit kube context and namespace, do not run in `.\scripts\check.ps1 -All`, and remove the test objects they create. Commands and the accepted run are in [`docs/evidence/52/`](../docs/evidence/52/kind-boundary/summary.md).
+`security/` holds E15 probes for the kind reference: an in-Pod network probe, a control Pod with an optional experimental default-deny policy, a provider-side request counter read from the Ollama host log, a names-only credential and canary scan, and a worker startup probe. They need an explicit kube context and namespace, do not run in `.\scripts\check.ps1 -All`, and remove only the test objects they create; `security/test-startup-window.sh` checks that boundary for the startup probe with a fake kubectl. Commands and the accepted run are in [`docs/evidence/52/`](../docs/evidence/52/kind-boundary/summary.md).
 
 ## `spike/`
 

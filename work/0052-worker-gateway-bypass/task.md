@@ -101,6 +101,7 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 ## Quality Gates
 
 - `bash -n harness/security/*.sh` and `shellcheck harness/security/*.sh` when available
+- `bash harness/security/test-startup-window.sh` (fake kubectl: cleanup touches only claims this run created)
 - `bash harness/security/probe-pod.sh --context kind-agenova-k8s-lab --namespace agenova-system --pod <pod> --marker <id>` and `startup-window.sh` (real kind run; output committed as evidence)
 - `.\scripts\check.ps1 -Docs`
 - `.\scripts\check.ps1 -All` (known macOS-only failure `ui/smoke/console.spec.ts:74`, passes on CI)
@@ -132,4 +133,5 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 - First run (5 Oct): a real `agenova run` ends before a full probe completes (one bound-worker datapoint only), so the full probe used a held `SandboxClaim` with the same `sandboxTemplateRef` and `warmpool` as the adapter. The control-plane canary needs a temporary env var on the control-plane Deployment; it was reverted and `platform status` returned `changes: 0`.
 - Disclosure (5–6 Oct): the AC-9 startup result was sent to the maintainer privately under the #194 Disclosure rule. The maintainer confirmed it as a real vulnerability and asked for a public issue: #208. Public egress (TM-1) is #202.
 - Related: #201 (E13) owns the EKS worker egress boundary; the kind public-egress result (TM-1) is filed separately.
+- Review (12 Oct, PR #209): `startup-window.sh` cleanup deleted every claim with the shared probe label, so a second or failed run could remove another run's worker. Fixed: arguments are validated before any create, claims are created with `create` (an existing name is refused, not adopted), and cleanup deletes only the claims this run created, by name with a UID precondition. Covered by `test-startup-window.sh`. The committed evidence run (5 Oct) used the earlier script; the fix changes cleanup only, not the probe.
 - Dates: packet 9 Oct, probe results 16 Oct, conclusion and docs 23 Oct 2026.
