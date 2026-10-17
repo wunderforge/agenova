@@ -1,0 +1,1 @@
+installed: agenova.io/model/openai-compatible@0.1.0

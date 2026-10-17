@@ -172,7 +172,7 @@ func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gatew
 	d := decision(id, outcome)
 	if g.observer != nil {
 		if err := g.observer(req, d); err != nil {
-			return d, fmt.Errorf("tool decision recording failed")
+			return d, fmt.Errorf("tool decision recording failed: %w", err)
 		}
 	}
 	g.store.RecordToolInvocation(req.ClaimID, toolName(req), id, outcome.Result)

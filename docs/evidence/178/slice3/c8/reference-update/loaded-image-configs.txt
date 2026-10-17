@@ -1,0 +1,2 @@
+agenova-control-plane:0.1.0 sha256:f50e38d25324e0233ed7417c57fd6a652520451f332e496e0720cb1210f79626
+agenova-testworker:kind sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91

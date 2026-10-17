@@ -1,0 +1,4 @@
+node-image agenova-control-plane:0.1.0 sha256:f50e38d25324e0233ed7417c57fd6a652520451f332e496e0720cb1210f79626
+node-image agenova-testworker:kind sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91
+node-image agenova-e16-mcp:c50a6bc9af3c sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc
+node-image agenova-e16-probe:c50a6bc9af3c sha256:f03e51f655df74b373ba7f12c14122054d285e136d7d588b0d9afaa4938b7d5a

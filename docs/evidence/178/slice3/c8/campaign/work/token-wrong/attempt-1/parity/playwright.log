@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:38491) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (125ms)
+  ✓  2 installed/mcp.spec.ts:189:3 › token-wrong: the credential failure is explicit, never mock, never retried, and fails the Work @token-wrong (1.2s)
+
+  2 passed (1.8s)

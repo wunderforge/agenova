@@ -6,8 +6,10 @@ package facts
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authority"
@@ -34,6 +36,39 @@ type Fact struct {
 	Operation        string                          `json:"operation,omitempty"`
 	Target           string                          `json:"target,omitempty"`
 	ProviderStatus   string                          `json:"providerStatus,omitempty"`
+	// ResultRef names the external result of a successful tool call. It is
+	// separate from Target, which stays equal across attempt and outcome.
+	ResultRef string `json:"resultRef,omitempty"`
+	// Truncated marks a successful tool outcome whose observation was cut to
+	// the configured budget. Absence is not proof that an observation was
+	// complete: facts recorded before this field existed never carry it.
+	Truncated bool `json:"truncated,omitempty"`
+}
+
+// ValidResultRef accepts a bounded logical reference, never a fetchable URL.
+// A reference may start with a scope kind such as "repo:", but not with "//",
+// a URI scheme followed by "/" (file:/etc/passwd) or a scheme that clients
+// dereference without a slash (data:text/plain,..., ws:host/x).
+func ValidResultRef(ref string) bool {
+	if ref == "" || len(ref) > 256 || !utf8.ValidString(ref) || strings.ContainsAny(ref, " \t\r\n\x00?#@") || strings.Contains(ref, "://") || strings.HasPrefix(ref, "//") {
+		return false
+	}
+	scheme, rest, found := strings.Cut(ref, ":")
+	return !found || !uriScheme(scheme) || (!strings.HasPrefix(rest, "/") && !fetchableSchemes[strings.ToLower(scheme)])
+}
+
+// The WHATWG special schemes plus data and javascript.
+var fetchableSchemes = map[string]bool{"data": true, "file": true, "ftp": true, "http": true, "https": true, "javascript": true, "ws": true, "wss": true}
+
+// uriScheme matches RFC 3986 scheme syntax: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+func uriScheme(s string) bool {
+	for i, c := range s {
+		letter := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+		if !letter && (i == 0 || !(c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.')) {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Journal supplies the strict correlation spine for the application path.
@@ -167,6 +202,12 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 			return Fact{}, fmt.Errorf("provider attempt requires one recorded Allow")
 		}
 		stage.attempted = true
+	}
+	if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !ValidResultRef(fact.ResultRef)) {
+		return Fact{}, fmt.Errorf("result reference is only valid on a successful tool outcome")
+	}
+	if fact.Truncated && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded") {
+		return Fact{}, fmt.Errorf("truncation is only valid on a successful tool outcome")
 	}
 	if fact.Kind == "ProviderOutcome" {
 		if fact.InvocationID == "" || !stage.attempted || stage.completed || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {
