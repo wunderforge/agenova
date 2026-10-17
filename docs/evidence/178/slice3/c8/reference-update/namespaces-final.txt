@@ -1,0 +1,8 @@
+NAME                   STATUS   AGE
+agenova-system         Active   24d
+agent-sandbox-system   Active   24d
+default                Active   24d
+kube-node-lease        Active   24d
+kube-public            Active   24d
+kube-system            Active   24d
+local-path-storage     Active   24d

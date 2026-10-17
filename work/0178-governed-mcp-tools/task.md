@@ -74,6 +74,8 @@ The complete case matrix is in [spec.md](spec.md#negative-cases). In particular,
 
 ## Quality Gates
 
+Latest installed rerun (2026-10-15): [c8 at `c50a6bc`](../../docs/evidence/178/slice3/c8/summary.md) passed all eight Work cases on attempt 1, every CLI/API/Portal parity check, and the 30-receipt probe against real server logs. The full macOS gate, fixture module and 52 runner groups also passed on that source. The initial final scan could not traverse an execution-control FIFO; its failure is retained, and the same checker completed successfully after the FIFO was moved outside evidence roots (782 files). c7 had stopped before its first Work when the execution session reaped its log collectors; c8 kept one session alive. The reference installation was then updated to the same production images and passed its real Ollama allowed/denied Works and two installed browser tests. This does not resolve the private R6 / AC-7 finding, supply native Windows execution, or replace independent human approval.
+
 Planning gate (run now): `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` and `git diff --check`.
 
 Implementation gates (run for every slice; the c6 run at `fd08ac0` is archived in [c6 gates](../../docs/evidence/178/slice3/c6/gates/), and the full gate on the current code, at `09f086b` (after the console smoke fix, the review fixes, the live checkpoint fix, the catalog and result-reference fixes, the MCP tools-capability check, the merge of `main` after #196 and the fixes for the maintainer's review at `677a206`), is in [full-gate.log](../../docs/evidence/178/full-gate.log)):

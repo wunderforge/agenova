@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd <repo>
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+source harness/integration/e16/campaign.sh
+CONTEXT=kind-agenova-k8s-lab
+INSTALL_NAMESPACE=agenova-e16-system
+OUTPUT="$ROOT/.tmp/e16-c8"
+REF_OUT="$ROOT/.tmp/kind-refresh-c50a6bc"
+REF_CLI="$OUTPUT/bin/agenova"
+REF_STATE="$HOME/Library/Application Support/agenova"
+[ "$(source_sha)" = c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d ] || fail 'source HEAD changed'
+[ -z "$(git diff --name-only -- '*.go' go.mod go.sum 'deploy/*' 'harness/*' 'ui/*')" ] || fail 'product source changed'
+archive_other_work agenova-system agenova-control-plane "$REF_OUT/work-before-update.json"
+[ "$(active_work_count "$REF_OUT/work-before-update.json")" = 0 ] || fail 'reference Work is active'
+cp "$REF_STATE/current-platform.json" "$REF_OUT/current-platform.before.json"
+kctl -n agenova-system get deployment agenova-control-plane -o json > "$REF_OUT/deployment.before.json"
+kctl -n agenova-system get sandboxwarmpool agenova-pool-pool-engineer -o json > "$REF_OUT/pool.before.json"
+for image in "$CONTROL_PLANE_IMAGE" "$WORKER_IMAGE"; do verify_recorded_archive "$image"; done
+kctl -n agenova-system scale deployment agenova-control-plane --replicas=0
+kctl -n agenova-system patch sandboxwarmpool agenova-pool-pool-engineer --type merge -p '{"spec":{"replicas":0}}'
+wait_no_fixed_tag_pods others || fail 'old reference Pods still run fixed tags'
+for image in "$CONTROL_PLANE_IMAGE" "$WORKER_IMAGE"; do
+  kind load image-archive "$(image_archive "$image")" --name agenova-k8s-lab
+  verify_node_tag "$image"
+  printf '%s %s\n' "$image" "$(node_image_id "$image")" >> "$REF_OUT/loaded-image-configs.txt"
+done
+"$REF_CLI" platform validate -f deploy/reference/platform.kind.yaml > "$REF_OUT/platform-validate.txt"
+"$REF_CLI" platform plan -f deploy/reference/platform.kind.yaml > "$REF_OUT/platform-plan.txt"
+"$REF_CLI" platform apply -f deploy/reference/platform.kind.yaml --yes > "$REF_OUT/platform-apply.txt"
+"$REF_CLI" policy apply -f deploy/reference/demo/policy.yaml > "$REF_OUT/policy-apply.txt"
+"$REF_CLI" agent-template apply -f deploy/reference/demo/engineer.yaml > "$REF_OUT/template-apply.txt"
+kctl -n agenova-system patch sandboxwarmpool agenova-pool-pool-engineer --type merge -p '{"spec":{"replicas":1}}'
+kctl -n agenova-system rollout status deployment/agenova-control-plane --timeout=180s
+wait_ready agenova-system agents.x-k8s.io/warm-pool-sandbox || fail 'reference worker is not Ready'
+pod_identity agenova-system app.kubernetes.io/name=agenova-control-plane > "$REF_OUT/control-plane-identity.txt"
+verify_identity_lines "$CONTROL_PLANE_IMAGE" "$REF_OUT/control-plane-identity.txt"
+pod_identity agenova-system agents.x-k8s.io/warm-pool-sandbox > "$REF_OUT/worker-identity.txt"
+verify_identity_lines "$WORKER_IMAGE" "$REF_OUT/worker-identity.txt"
+"$REF_CLI" platform apply -f deploy/reference/platform.kind.yaml --yes > "$REF_OUT/platform-reapply.txt"
+"$REF_CLI" platform status > "$REF_OUT/platform-status.txt"
+cp "$REF_CLI" .tmp/agenova
+printf 'source %s\n' "$(source_sha)" > "$REF_OUT/source.txt"
+printf 'Reference updated and image identities verified.\n'
