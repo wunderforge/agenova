@@ -1,0 +1,11 @@
+data.aws_route53_zone.existing: Reading...
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=931228356546]
+data.aws_route53_zone.existing: Read complete after 1s [id=Z00685831HNHNRLEZ9VYK]
+aws_acm_certificate.demo: Refreshing state... [id=arn:aws:acm:us-east-1:931228356546:certificate/b3491085-3fd7-4649-a2c8-40a12128de7f]
+aws_route53_record.validation["demo.agenova.app"]: Refreshing state... [id=Z00685831HNHNRLEZ9VYK__2072119b633521d8f4e042dc1dbab723.demo.agenova.app_CNAME]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.

@@ -95,3 +95,9 @@ Out of scope:
 - `AuthorityConstraints` are an internal cap, never a grant. M3 owns reference-YAML constraint authoring and full authority behavior.
 - No public `ClaimRequest` or `SandboxClaim` schema change is expected in M1.
 - Self-review completed after rebasing onto the advisory packet-approval workflow from #186. The packet matches #197, the PRD, and the architecture contract; no unresolved scope or architecture conflict blocks implementation.
+
+## Review follow-up — 12 October 2026
+
+- Owner review on PR #207 identified unbounded external evaluator output. Align Policy ID/version with the reference bundle's 128/64-byte limits; bound reason count/fields and constraint sets; reject evaluator-owned serialized output over 16 KiB before authorization continues. This leaves room below the connected CLI's 1 MiB per-Work evidence limit.
+- Focused tests prove oversized Policy identity, reason, constraint values, aggregate data, and JSON-escaped data fail closed. A fake external Allow with an oversized reason makes zero continuation calls.
+- `go test -count=1 ./internal/policy ./internal/authorization ./internal/authority ./internal/issuance ./internal/app` passed. Full gate result is recorded in the PR.

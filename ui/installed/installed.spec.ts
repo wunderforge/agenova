@@ -7,6 +7,7 @@ import type { Setup, View } from '../src/connected-source';
 const allowedRef = process.env.AGENOVA_LIVE_REQUEST_REF;
 const deniedRef = process.env.AGENOVA_LIVE_DENIED_REF;
 const cliPath = process.env.AGENOVA_CLI_PATH;
+const expectedModel = process.env.AGENOVA_LIVE_MODEL ?? 'llama3.1:latest';
 
 if (!allowedRef || !deniedRef || !cliPath) {
   throw new Error('Installed E2E requires AGENOVA_LIVE_REQUEST_REF, AGENOVA_LIVE_DENIED_REF and AGENOVA_CLI_PATH.');
@@ -43,7 +44,7 @@ test('installed API, CLI reference and Portal show the same allowed Work', async
   expect(detail.state?.claim?.backendIdentity?.backend).toBe('agent-sandbox');
   expect(detail.state?.claim?.backendIdentity?.workerId).toMatch(/^agenova-pool-/);
   expect(detail.outcome?.status).toBe('Succeeded');
-  expect(detail.outcome?.model?.model).toBe('llama3.1:latest');
+  expect(detail.outcome?.model?.model).toBe(expectedModel);
   const finalModelFacts = detail.facts.filter(fact => fact.invocationId === detail.outcome?.model?.invocationId);
   expect(finalModelFacts).toEqual(expect.arrayContaining([
     expect.objectContaining({ kind: 'ModelDecision', operation: 'model.invoke', result: 'Allow' }),

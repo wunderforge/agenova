@@ -1,0 +1,78 @@
+{
+  "url": "https://demo.agenova.app",
+  "dnsOverride": null,
+  "checks": [
+    {
+      "check": "anonymous page",
+      "status": 401
+    },
+    {
+      "check": "anonymous API",
+      "status": 401
+    },
+    {
+      "check": "wrong password",
+      "status": 401
+    },
+    {
+      "check": "authenticated page",
+      "status": 200
+    },
+    {
+      "check": "authenticated setup",
+      "status": 200
+    },
+    {
+      "check": "authenticated evidence",
+      "status": 200
+    },
+    {
+      "check": "anonymous after authenticated response",
+      "status": 401
+    },
+    {
+      "check": "health endpoint contains no application evidence",
+      "status": 200
+    },
+    {
+      "check": "cross-origin write",
+      "status": 403
+    },
+    {
+      "check": "cross-site fetch",
+      "status": 403
+    },
+    {
+      "check": "same-origin reaches validation",
+      "status": 400
+    },
+    {
+      "check": "external link prompts for authentication",
+      "status": 401
+    },
+    {
+      "check": "authenticated external link opens Portal",
+      "status": 200
+    },
+    {
+      "check": "external link wrong password rejected",
+      "status": 401
+    },
+    {
+      "check": "cross-site API navigation denied",
+      "status": 403
+    },
+    {
+      "check": "cross-site document POST denied",
+      "status": 403
+    },
+    {
+      "check": "cross-site iframe denied",
+      "status": 403
+    },
+    {
+      "check": "cross-site page fetch denied",
+      "status": 403
+    }
+  ]
+}
