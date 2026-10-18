@@ -377,7 +377,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Kind == "AuthorityResolved" {
 			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
 				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) || fact.PolicyRef == nil ||
-				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) ||
+				*fact.PolicyRef != view.State.PolicyRef || !validAuthorityChanges(view.Request, *view.State.EffectiveAuthority, fact.AuthorityChanges) ||
 				fact.BackendIdentity != nil || fact.InvocationID != "" || fact.ProviderStatus != "" || fact.Operation != "" || fact.Target != "" || fact.Decision != nil || fact.Result != "" {
 				return false
 			}
@@ -729,7 +729,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		time.Duration(granted.Runtime.Timeout) <= time.Duration(*request.Spec.Runtime.Timeout)
 }
 
-func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthority) []authority.Change {
+func validAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthority, actual []authority.Change) bool {
 	var changes []authority.Change
 	for _, dimension := range []struct {
 		field                string
@@ -741,17 +741,33 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 	} {
 		for _, value := range dimension.requested {
 			if !slices.Contains(dimension.effective, value) {
-				changes = append(changes, authority.Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+				changes = append(changes, authority.Change{Field: dimension.field, Requested: value})
 			}
 		}
 	}
 	if *request.Spec.Runtime.Timeout != granted.Runtime.Timeout {
 		changes = append(changes, authority.Change{
 			Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(),
-			Effective: time.Duration(granted.Runtime.Timeout).String(), ReasonCode: "template-timeout-cap",
+			Effective: time.Duration(granted.Runtime.Timeout).String(),
 		})
 	}
-	return changes
+	if len(actual) != len(changes) {
+		return false
+	}
+	for index, expected := range changes {
+		got := actual[index]
+		if got.Field != expected.Field || got.Requested != expected.Requested || got.Effective != expected.Effective {
+			return false
+		}
+		if expected.Field == "runtime.timeout" {
+			if got.ReasonCode != "template-timeout-cap" && got.ReasonCode != "policy-timeout-cap" {
+				return false
+			}
+		} else if got.ReasonCode != "outside-template-ceiling" && got.ReasonCode != "outside-policy-constraint" {
+			return false
+		}
+	}
+	return true
 }
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {

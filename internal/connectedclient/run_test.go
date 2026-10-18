@@ -15,7 +15,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 )
+
+func TestClientAcceptsOnlyBoundedPolicyNarrowingReasons(t *testing.T) {
+	request, err := v0.ParseClaimRequestYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata: {name: policy-narrowed}
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task: {type: investigation, input: {objective: Inspect payment retries}}
+  requestedAccess: {tools: [git.read, git.write], modelProfile: coding-standard}
+  runtime: {profileRef: standard-isolated, timeout: 5m}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	granted := v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated", Timeout: v0.Duration(2 * time.Minute)}}
+	changes := []authority.Change{{Field: "tools", Requested: "git.write", ReasonCode: "outside-policy-constraint"}, {Field: "runtime.timeout", Requested: "5m0s", Effective: "2m0s", ReasonCode: "policy-timeout-cap"}}
+	if !validAuthorityChanges(request, granted, changes) {
+		t.Fatal("valid Policy-bounded authority provenance was rejected")
+	}
+	for _, mutate := range []func([]authority.Change){
+		func(c []authority.Change) { c[0].ReasonCode = "grant-by-request" },
+		func(c []authority.Change) { c[1].Effective = "5m0s" },
+		func(c []authority.Change) { c[1].ReasonCode = "outside-policy-constraint" },
+	} {
+		bad := append([]authority.Change(nil), changes...)
+		mutate(bad)
+		if validAuthorityChanges(request, granted, bad) {
+			t.Fatalf("invalid authority provenance accepted: %+v", bad)
+		}
+	}
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
