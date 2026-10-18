@@ -23,6 +23,33 @@ type fakeKubectl struct {
 	run    func([]string) (commandResult, error)
 }
 
+func TestKubernetesDeploymentMountsOIDCConfigSecret(t *testing.T) {
+	request := deploymentRequest()
+	request.Config["oidc-config-secret"] = "company-oidc"
+	adapter := &KubernetesDeployment{}
+	if err := adapter.ValidateComposition(request); err != nil {
+		t.Fatalf("valid OIDC Secret reference rejected: %v", err)
+	}
+	manifest, err := json.Marshal(deploymentObject(request, "agenova-system"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{`"name":"AGENOVA_OIDC_CONFIG_FILE"`, `"value":"/etc/agenova-oidc/oidc.json"`, `"secretName":"company-oidc"`, `"key":"oidc.json"`, `"readOnly":true`} {
+		if !strings.Contains(string(manifest), required) {
+			t.Fatalf("OIDC manifest missing %s", required)
+		}
+	}
+	if strings.Contains(string(manifest), `"issuer"`) || strings.Contains(string(manifest), `"jwksUrl"`) {
+		t.Fatalf("OIDC configuration leaked into Deployment manifest")
+	}
+	for _, invalid := range []any{"", "Bad_Name", "../secret", "a..b", "a-.b", 42, strings.Repeat("a", 254)} {
+		request.Config["oidc-config-secret"] = invalid
+		if err := adapter.ValidateComposition(request); err == nil {
+			t.Fatalf("invalid OIDC Secret reference accepted: %#v", invalid)
+		}
+	}
+}
+
 func TestInstalledRoleCanListOnlyNamespaceConfigMapsForRegisteredSetup(t *testing.T) {
 	role := roleObject("agenova-system")
 	if role["kind"] != "Role" || role["metadata"].(map[string]any)["namespace"] != "agenova-system" {
