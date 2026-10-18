@@ -133,7 +133,7 @@ func validate(bundle PolicyBundle) error {
 	}
 	// These identifiers are repeated in issued state and multiple evidence
 	// facts. Bound their encoded size before an operator can register them.
-	if len(bundle.ID) > 128 || len(bundle.Version) > 64 {
+	if len(bundle.ID) > maxPolicyIDBytes || len(bundle.Version) > maxPolicyVersionBytes {
 		return errors.New("policy bundle ID or version exceeds the evidence-safe limit")
 	}
 
