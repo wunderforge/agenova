@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -32,7 +33,10 @@ const (
 	activePolicyRecord      = "agenova-active-policy"
 	controlPlaneRole        = "agenova-control-plane-runtime"
 	controlPlaneImage       = "agenova-control-plane:0.1.0"
+	oidcConfigPath          = "/etc/agenova-oidc/oidc.json"
 )
+
+var kubernetesSecretName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
 // The reference install writes the same immutable record name as the
 // operator registration store; otherwise ActivePolicy cannot read the seed.
@@ -92,6 +96,12 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 // ValidateComposition is target-specific but read-only: generic Platform
 // validation calls it before planning or applying cluster resources.
 func (*KubernetesDeployment) ValidateComposition(request platformapply.DeploymentRequest) error {
+	if value, present := request.Config["oidc-config-secret"]; present {
+		name, ok := value.(string)
+		if !ok || len(name) == 0 || len(name) > 253 || !kubernetesSecretName.MatchString(name) {
+			return fmt.Errorf("oidc-config-secret must name an existing Kubernetes Secret")
+		}
+	}
 	return validateReferenceRuntime(request)
 }
 
@@ -822,14 +832,23 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 	}
+	if secretName, ok := request.Config["oidc-config-secret"].(string); ok && secretName != "" {
+		container["env"] = append(container["env"].([]any), map[string]any{"name": "AGENOVA_OIDC_CONFIG_FILE", "value": oidcConfigPath})
+	}
 	template := map[string]any{
 		"metadata": map[string]any{"labels": labels, "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec":     map[string]any{"serviceAccount": controlPlaneName, "serviceAccountName": controlPlaneName, "automountServiceAccountToken": false, "containers": []any{container}},
 	}
 	container["volumeMounts"] = []any{map[string]any{"name": "platform", "mountPath": "/etc/agenova", "readOnly": true}, map[string]any{"name": "service-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true}}
+	if secretName, ok := request.Config["oidc-config-secret"].(string); ok && secretName != "" {
+		container["volumeMounts"] = append(container["volumeMounts"].([]any), map[string]any{"name": "oidc-config", "mountPath": "/etc/agenova-oidc", "readOnly": true})
+	}
 	template["spec"].(map[string]any)["volumes"] = []any{
 		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
 		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
+	}
+	if secretName, ok := request.Config["oidc-config-secret"].(string); ok && secretName != "" {
+		template["spec"].(map[string]any)["volumes"] = append(template["spec"].(map[string]any)["volumes"].([]any), map[string]any{"name": "oidc-config", "secret": map[string]any{"secretName": secretName, "items": []any{map[string]any{"key": "oidc.json", "path": "oidc.json"}}}})
 	}
 
 	return map[string]any{

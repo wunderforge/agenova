@@ -100,6 +100,7 @@ Out of scope:
 - Decision: return not-found semantics for cross-owner evidence references to avoid disclosure through existence or status differences.
 - Decision: keep rich verified claims internal and persist only the current stable public `Principal` projection plus an internal immutable ownership key.
 - Decision: the bounded initial verifier accepts only RS256 keys/tokens from the explicitly configured JWKS endpoint; unsupported algorithms fail closed rather than widening the cryptographic profile implicitly.
+- Decision: the Kubernetes reference deployment accepts an optional `oidc-config-secret` name in its deployment adapter config. It mounts only the existing Secret's `oidc.json` into the control plane and selects authenticated HTTP mode; the Platform manifest carries no issuer mapping or token material. Invalid Secret names fail validation before apply. The Secret must exist before the rollout; absent configuration remains the explicit fixed-principal reference mode.
 - Blocker: M1 PR #207 must merge before this milestone can be proposed for review.
 - Evidence: `go test ./cmd/agenova-control-plane ./cmd/agenova ./internal/connectedclient ./internal/console ./internal/identity` passed on 8 October 2026.
 - Evidence: `npm test -- --run src/server-token.test.ts` and `npm run typecheck` passed on 8 October 2026.
