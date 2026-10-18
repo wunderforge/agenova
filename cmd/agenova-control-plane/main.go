@@ -98,6 +98,12 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, fmt.Errorf("installed Platform revision is missing")
 	}
 	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
+	if compatibleWorkerImage == "" {
+		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
+	}
+	if err := setInClusterKubeconfig(); err != nil {
+		return nil, err
+	}
 	_, namespace, err := app.DeploymentCoordinates(&resolved)
 	if err != nil {
 		return nil, err
