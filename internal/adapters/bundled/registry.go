@@ -49,6 +49,7 @@ func kubernetesDeploymentRegistration() adapterregistry.Registration {
 			{Path: "namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace for Agenova control-plane resources", Default: "agenova-system"},
 			{Path: "control-plane-image", Kind: adapterregistry.ValueString, Description: "Operator-built control plane, registry reference pinned by sha256 digest"},
 			{Path: "image-pull-policy", Kind: adapterregistry.ValueString, Description: "Control-plane image pull policy: Always or IfNotPresent"},
+			{Path: "oidc-config-secret", Kind: adapterregistry.ValueString, Description: "Existing same-namespace Secret containing oidc.json for authenticated Work mode"},
 		}},
 	}
 	return adapterregistry.Registration{
@@ -115,7 +116,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy", "oidc-config-secret"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -141,6 +142,13 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 			return nil, platform.NewAdapterConfigError("unsupported-pull-policy", "image-pull-policy")
 		}
 		result["image-pull-policy"] = policy
+	}
+	if value, exists := input["oidc-config-secret"]; exists {
+		name, ok := value.(string)
+		if !ok || len(name) == 0 || len(name) > 253 || !kubernetesSecretName.MatchString(name) {
+			return nil, platform.NewAdapterConfigError("invalid-secret-name", "oidc-config-secret")
+		}
+		result["oidc-config-secret"] = name
 	}
 	return result, nil
 }
