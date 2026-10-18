@@ -42,6 +42,15 @@ func TestKubernetesDeploymentMountsOIDCConfigSecret(t *testing.T) {
 	if strings.Contains(string(manifest), `"issuer"`) || strings.Contains(string(manifest), `"jwksUrl"`) {
 		t.Fatalf("OIDC configuration leaked into Deployment manifest")
 	}
+	var observed map[string]any
+	if err := json.Unmarshal(manifest, &observed); err != nil {
+		t.Fatal(err)
+	}
+	volumes := observed["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["volumes"].([]any)
+	volumes[len(volumes)-1].(map[string]any)["secret"].(map[string]any)["defaultMode"] = float64(420)
+	if !managedDeploymentSpecMatches(observed, deploymentObject(request, "agenova-system")) {
+		t.Fatal("Kubernetes Secret defaultMode caused false Deployment drift")
+	}
 	for _, invalid := range []any{"", "Bad_Name", "../secret", "a..b", "a-.b", 42, strings.Repeat("a", 254)} {
 		request.Config["oidc-config-secret"] = invalid
 		if err := adapter.ValidateComposition(request); err == nil {

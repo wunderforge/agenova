@@ -1035,7 +1035,7 @@ func managedKubernetesDefaults(path string) map[string]any {
 		return map[string]any{"failureThreshold": float64(3), "successThreshold": float64(1), "timeoutSeconds": float64(1)}
 	case "pod/containers[]/readinessProbe/httpGet":
 		return map[string]any{"scheme": "HTTP"}
-	case "pod/volumes[]/configMap", "pod/volumes[]/projected":
+	case "pod/volumes[]/configMap", "pod/volumes[]/projected", "pod/volumes[]/secret":
 		return map[string]any{"defaultMode": float64(420)}
 	default:
 		return nil
