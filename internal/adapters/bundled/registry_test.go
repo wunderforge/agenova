@@ -207,6 +207,20 @@ func TestRemoteControlPlaneRejectsMutableImageAndInvalidPullPolicy(t *testing.T)
 	}
 }
 
+func TestKubernetesDeploymentCanonicalizesOIDCSecretReference(t *testing.T) {
+	base := map[string]any{"context": "kind-agenova", "namespace": "agenova-system", "oidc-config-secret": "company-oidc"}
+	got, err := canonicalizeKubernetesDeployment(platform.CapabilityDeployment, base)
+	if err != nil || got["oidc-config-secret"] != "company-oidc" {
+		t.Fatalf("OIDC Secret reference was not retained: %v, %v", got, err)
+	}
+	for _, invalid := range []any{"", "Bad_Name", "a..b", 7} {
+		base["oidc-config-secret"] = invalid
+		if _, err := canonicalizeKubernetesDeployment(platform.CapabilityDeployment, base); err == nil {
+			t.Fatalf("invalid OIDC Secret reference accepted: %#v", invalid)
+		}
+	}
+}
+
 func TestBedrockCompositionRejectsMissingProfilesAndMixedBackends(t *testing.T) {
 	request := deploymentRequest()
 	request.Platform.Adapters = []platform.ResolvedAdapter{{Name: "bedrock", ID: BedrockModelID, Version: ReferenceVersion}}
