@@ -4,6 +4,7 @@
 package policy
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -98,7 +99,31 @@ func TestValidateEvaluationFailsClosed(t *testing.T) {
 			e.Decision = DecisionDeny
 			e.PolicyRef = PolicyReference{}
 		},
-		"missing reason": func(e *Evaluation) { e.Reasons = nil },
+		"missing reason":           func(e *Evaluation) { e.Reasons = nil },
+		"oversized policy ID":      func(e *Evaluation) { e.PolicyRef.ID = strings.Repeat("p", maxPolicyIDBytes+1) },
+		"oversized policy version": func(e *Evaluation) { e.PolicyRef.Version = strings.Repeat("v", maxPolicyVersionBytes+1) },
+		"too many reasons":         func(e *Evaluation) { e.Reasons = make([]Reason, maxEvaluationReasons+1) },
+		"oversized reason code":    func(e *Evaluation) { e.Reasons[0].Code = strings.Repeat("c", maxReasonCodeBytes+1) },
+		"oversized reason message": func(e *Evaluation) { e.Reasons[0].Message = strings.Repeat("m", maxReasonMessageBytes+1) },
+		"too many constraint values": func(e *Evaluation) {
+			e.Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: make([]string, maxConstraintValues+1)}}
+		},
+		"oversized constraint value": func(e *Evaluation) {
+			e.Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: []string{strings.Repeat("v", maxConstraintValueBytes+1)}}}
+		},
+		"oversized aggregate content": func(e *Evaluation) {
+			values := make([]string, maxConstraintValues)
+			for i := range values {
+				values[i] = strings.Repeat("x", maxConstraintValueBytes-4) + string(rune('a'+i))
+			}
+			e.Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: values}}
+		},
+		"oversized escaped content": func(e *Evaluation) {
+			e.Reasons = make([]Reason, maxEvaluationReasons)
+			for i := range e.Reasons {
+				e.Reasons[i] = Reason{Code: "c", Message: strings.Repeat("\x01", maxReasonMessageBytes)}
+			}
+		},
 		"blank constraint": func(e *Evaluation) {
 			e.Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: []string{" "}}}
 		},

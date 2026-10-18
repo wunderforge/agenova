@@ -4,6 +4,7 @@
 package policy
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -15,6 +16,15 @@ import (
 type Decision string
 
 const (
+	maxPolicyIDBytes          = 128
+	maxPolicyVersionBytes     = 64
+	maxEvaluationReasons      = 16
+	maxReasonCodeBytes        = 128
+	maxReasonMessageBytes     = 1024
+	maxConstraintValues       = 64
+	maxConstraintValueBytes   = 256
+	maxEvaluationContentBytes = 16 << 10
+
 	DecisionAllow            Decision = "Allow"
 	DecisionDeny             Decision = "Deny"
 	DecisionApprovalRequired Decision = "ApprovalRequired"
@@ -140,6 +150,12 @@ func ValidateEvaluation(expected EvaluationContext, evaluation Evaluation) error
 	if policyID == "" || policyVersion == "" {
 		return errors.New("evaluation requires a complete policy reference")
 	}
+	if len(evaluation.PolicyRef.ID) > maxPolicyIDBytes || len(evaluation.PolicyRef.Version) > maxPolicyVersionBytes {
+		return errors.New("evaluation policy reference exceeds the evidence-safe limit")
+	}
+	if len(evaluation.Reasons) > maxEvaluationReasons {
+		return errors.New("evaluation has too many reasons")
+	}
 	if len(evaluation.Reasons) == 0 {
 		return errors.New("evaluation requires at least one reason")
 	}
@@ -147,8 +163,17 @@ func ValidateEvaluation(expected EvaluationContext, evaluation Evaluation) error
 		if strings.TrimSpace(reason.Code) == "" || strings.TrimSpace(reason.Message) == "" {
 			return fmt.Errorf("evaluation reason %d requires code and message", index)
 		}
+		if len(reason.Code) > maxReasonCodeBytes || len(reason.Message) > maxReasonMessageBytes {
+			return fmt.Errorf("evaluation reason %d exceeds the evidence-safe limit", index)
+		}
 	}
-	return validateConstraints(evaluation.Constraints)
+	if err := validateConstraints(evaluation.Constraints); err != nil {
+		return err
+	}
+	if evaluationContentSize(evaluation) > maxEvaluationContentBytes {
+		return errors.New("evaluation content exceeds the evidence-safe limit")
+	}
+	return nil
 }
 
 // ValidateContext validates trusted context before an evaluator is called.
@@ -232,10 +257,16 @@ func validateConstraints(constraints *AuthorityConstraints) error {
 		if item.set == nil {
 			continue
 		}
+		if len(item.set.Values) > maxConstraintValues {
+			return fmt.Errorf("authority constraint %s has too many values", item.name)
+		}
 		seen := make(map[string]struct{}, len(item.set.Values))
 		for index, value := range item.set.Values {
 			if strings.TrimSpace(value) == "" {
 				return fmt.Errorf("authority constraint %s[%d] is blank", item.name, index)
+			}
+			if len(value) > maxConstraintValueBytes {
+				return fmt.Errorf("authority constraint %s[%d] exceeds the evidence-safe limit", item.name, index)
 			}
 			if _, duplicate := seen[value]; duplicate {
 				return fmt.Errorf("authority constraint %s[%d] is duplicated", item.name, index)
@@ -247,6 +278,21 @@ func validateConstraints(constraints *AuthorityConstraints) error {
 		return errors.New("authority constraint maxTimeout must be positive")
 	}
 	return nil
+}
+
+// evaluationContentSize measures only evaluator-owned output. The trusted
+// request context has already been validated separately. JSON size includes
+// escaping and framing, so it cannot undercount a serialized result.
+func evaluationContentSize(evaluation Evaluation) int {
+	data, err := json.Marshal(struct {
+		PolicyRef   PolicyReference
+		Reasons     []Reason
+		Constraints *AuthorityConstraints
+	}{evaluation.PolicyRef, evaluation.Reasons, evaluation.Constraints})
+	if err != nil {
+		return maxEvaluationContentBytes + 1
+	}
+	return len(data)
 }
 
 func cloneConstraints(constraints *AuthorityConstraints) *AuthorityConstraints {
