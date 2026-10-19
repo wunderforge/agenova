@@ -364,18 +364,18 @@ type followingExecutor struct {
 
 func (e followingExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
 	*e.tools = task.Tools
-	model := workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
+	model := workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
 	if _, err := h(ctx, model); err != nil {
 		return "", err
 	}
-	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "logs/timeout.log"})
+	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "logs/timeout.log"})
 	if err != nil {
 		return "", err
 	}
 	*e.observed = reply
 	for _, op := range []workerprotocol.Operation{
-		{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "logs/timeout.log"},
-		{ClaimID: task.ClaimID, Kind: "tool", Tool: "shell.exec", ResourceScope: "repo:acme/payments", Input: "id"},
+		{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "logs/timeout.log"},
+		{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "shell.exec", ResourceScope: "repo:acme/payments", Input: "id"},
 	} {
 		forged, err := h(ctx, op)
 		*e.forged = append(*e.forged, forged)

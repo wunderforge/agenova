@@ -13,6 +13,7 @@ import (
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
 	"github.com/wunderforge/agenova/internal/governance"
+	"github.com/wunderforge/agenova/internal/workloadidentity"
 )
 
 // Request identifies a governed model profile, never a provider model or
@@ -40,13 +41,15 @@ func (unconfiguredAdapter) Invoke(string, Request) error {
 type Policy func(req Request) gateway.Outcome
 
 type Gateway struct {
-	claims   app.ClaimAuthorityReader
-	lineage  *governance.Lineage
-	store    *facts.Store
-	adapter  Adapter
-	ids      gateway.IDSource
-	policy   Policy
-	observer func(Request, gateway.Decision) error
+	claims          app.ClaimAuthorityReader
+	lineage         *governance.Lineage
+	store           *facts.Store
+	adapter         Adapter
+	ids             gateway.IDSource
+	policy          Policy
+	observer        func(Request, gateway.Decision) error
+	identity        *workloadidentity.Service
+	requireIdentity bool
 }
 
 type Option func(*Gateway)
@@ -81,6 +84,12 @@ func WithPolicy(policy Policy) Option {
 	}
 }
 
+// WithWorkloadIdentity turns this Gateway into a live worker boundary. Its
+// ordinary Invoke entry point then fails closed; callers must authenticate.
+func WithWorkloadIdentity(identity *workloadidentity.Service) Option {
+	return func(g *Gateway) { g.identity = identity; g.requireIdentity = true }
+}
+
 func NewGateway(claims app.ClaimAuthorityReader, lineage *governance.Lineage, store *facts.Store, opts ...Option) *Gateway {
 	if store == nil {
 		store = facts.NewStore()
@@ -103,6 +112,39 @@ func NewGateway(claims app.ClaimAuthorityReader, lineage *governance.Lineage, st
 // invoke the provider adapter. The error channel is reserved for gateway or
 // adapter execution failure, not a governance outcome.
 func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
+	if g != nil && g.requireIdentity {
+		return decision(g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "verified workload identity is required"}), nil
+	}
+	return g.invoke(req)
+}
+
+// InvokeAuthenticated authenticates the worker before reading claim authority.
+// The supplied claim ID is only checked against the verified identity.
+func (g *Gateway) InvokeAuthenticated(req Request, token string) (gateway.Decision, error) {
+	if g == nil {
+		return gateway.Decision{}, errors.New("model gateway is unavailable")
+	}
+	deny := func() (gateway.Decision, error) {
+		return decision(g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "workload identity rejected"}), nil
+	}
+	if g.identity == nil {
+		return deny()
+	}
+	verified, err := g.identity.Verify(token, "model-gateway")
+	if err != nil || g.claims == nil {
+		return deny()
+	}
+	snapshot, ok := g.claims.ClaimAuthority(verified.ClaimID)
+	if !ok || snapshot.Claim.BackendIdentity == nil || snapshot.Claim.BackendIdentity.WorkerID != verified.WorkerID || app.RequireRunningClaimSnapshot(snapshot.Claim, verified.ClaimID) != nil {
+		return deny()
+	}
+	if req.ClaimID != verified.ClaimID {
+		return g.record(Request{ClaimID: verified.ClaimID, Profile: req.Profile}, g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "target claim differs from verified worker claim"})
+	}
+	return g.invoke(req)
+}
+
+func (g *Gateway) invoke(req Request) (gateway.Decision, error) {
 	if g == nil {
 		return gateway.Decision{}, errors.New("model gateway is unavailable")
 	}
