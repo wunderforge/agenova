@@ -1,0 +1,6 @@
+HTTP/1.1 401 Unauthorized
+Content-Type: text/plain; charset=utf-8
+Www-Authenticate: Bearer realm="agenova-e16-fixture"
+X-Content-Type-Options: nosniff
+Date: Mon, 05 Oct 2026 01:40:44 GMT
+Content-Length: 22

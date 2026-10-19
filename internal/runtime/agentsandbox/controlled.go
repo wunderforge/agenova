@@ -57,13 +57,14 @@ type cleanupOperation struct {
 // to report ErrUnsupported for Start/Terminate on ordinary images.
 type ControlledAdapter struct {
 	*SpikeAdapter
-	control  workerControl
-	mu       sync.Mutex
-	changed  *sync.Cond
-	phases   map[string]controlPhase // keyed by the observed worker identity
-	stops    map[string]*terminateOperation
-	cleanups map[string]*cleanupOperation
-	releases map[string]runtime.CleanupResult
+	control   workerControl
+	mu        sync.Mutex
+	changed   *sync.Cond
+	phases    map[string]controlPhase // keyed by the observed worker identity
+	stops     map[string]*terminateOperation
+	cleanups  map[string]*cleanupOperation
+	recovered map[string]string // worker -> claim, attached only for cleanup
+	releases  map[string]runtime.CleanupResult
 }
 
 var _ runtime.RuntimeBackend = (*ControlledAdapter)(nil)
@@ -83,6 +84,7 @@ func newControlledAdapter(base *SpikeAdapter, control workerControl) *Controlled
 		stops:        make(map[string]*terminateOperation),
 		cleanups:     make(map[string]*cleanupOperation),
 		releases:     make(map[string]runtime.CleanupResult),
+		recovered:    make(map[string]string),
 	}
 	adapter.changed = sync.NewCond(&adapter.mu)
 	return adapter

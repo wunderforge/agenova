@@ -1,0 +1,2 @@
+scanned files=782 bytes=120617848 zip-entries=0 patterns=12 roots=4
+[pass] scan: no token value in the scanned evidence

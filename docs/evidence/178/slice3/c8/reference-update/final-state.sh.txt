@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd <repo>
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+source harness/integration/e16/campaign.sh
+CONTEXT=kind-agenova-k8s-lab
+INSTALL_NAMESPACE=agenova-e16-system
+OUTPUT="$ROOT/.tmp/e16-c8"
+REF_OUT="$ROOT/.tmp/kind-refresh-c50a6bc"
+pod_identity agenova-system app.kubernetes.io/name=agenova-control-plane > "$REF_OUT/control-plane-final.txt"
+verify_identity_lines "$CONTROL_PLANE_IMAGE" "$REF_OUT/control-plane-final.txt"
+pod_identity agenova-system agents.x-k8s.io/warm-pool-sandbox > "$REF_OUT/worker-final.txt"
+verify_identity_lines "$WORKER_IMAGE" "$REF_OUT/worker-final.txt"
+kctl get nodes -o wide > "$REF_OUT/nodes-final.txt"
+kctl get pods -A -o wide > "$REF_OUT/pods-final.txt"
+kctl get ns > "$REF_OUT/namespaces-final.txt"
+.tmp/agenova platform status > "$REF_OUT/platform-status-final.txt"
+.tmp/agenova work list --json > "$REF_OUT/work-list-final.json"
+printf 'source %s\ncompleted %s\n' "$(source_sha)" "$(stamp)" > "$REF_OUT/completion.txt"
+cat "$REF_OUT/control-plane-final.txt.mapping" "$REF_OUT/worker-final.txt.mapping"

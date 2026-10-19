@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd <repo>
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+source harness/integration/e16/campaign.sh
+REF_OUT="$ROOT/.tmp/kind-refresh-c50a6bc"
+REF_CLI="$ROOT/.tmp/agenova"
+"$REF_CLI" run -f deploy/reference/demo/work.yaml --json > "$REF_OUT/allowed-run.json" 2> "$REF_OUT/allowed-run.err"
+"$REF_CLI" work show investigate-payment-retries --json > "$REF_OUT/allowed-work.json"
+set +e
+"$REF_CLI" run -f deploy/reference/demo/denied-work.yaml --json > "$REF_OUT/denied-run.json" 2> "$REF_OUT/denied-run.err"
+rc=$?
+set -e
+printf 'denied CLI exit=%s\n' "$rc"
+"$REF_CLI" work show investigate-unapproved-project --json > "$REF_OUT/denied-work.json"
+python3 - <<'PY'
+import json
+from pathlib import Path
+p=Path('.tmp/kind-refresh-c50a6bc')
+a=json.loads((p/'allowed-work.json').read_text());d=json.loads((p/'denied-work.json').read_text())
+assert a['outcome']['status']=='Succeeded',a.get('outcome')
+assert a['outcome']['model']['model']=='llama3.1:latest'
+assert any(f.get('operation')=='CleanupSucceeded' for f in a['facts'])
+assert d['outcome']['status']=='Deny'
+assert not d['state'].get('claim')
+assert not any(f['kind'] in ['Runtime','ModelDecision','ProviderAttempt','ProviderOutcome','ToolDecision'] for f in d['facts'])
+assert json.loads((p/'allowed-run.json').read_text())==a
+assert json.loads((p/'denied-run.json').read_text())==d
+print('Reference allowed/denied Work and cleanup checks passed.')
+PY
+for port in 8088 5177; do ! port_listening "$port" || fail "port $port is in use"; done
+trap 'stop_parity_servers' EXIT
+"$REF_CLI" api connect > "$REF_OUT/api-connect.log" 2>&1 &
+api=$!
+PARITY_PIDS="$api"
+npm --prefix "$ROOT/ui" run dev -- --port 5177 --strictPort > "$REF_OUT/ui-dev.log" 2>&1 &
+PARITY_PIDS="$PARITY_PIDS $!"
+wait_api_connected "$api" "$REF_OUT/api-connect.log" || fail 'reference API tunnel did not start'
+sleep 5
+(cd "$ROOT/ui" && AGENOVA_CLI_PATH="$REF_CLI" AGENOVA_LIVE_REQUEST_REF=investigate-payment-retries AGENOVA_LIVE_DENIED_REF=investigate-unapproved-project PLAYWRIGHT_JSON_OUTPUT_NAME="$REF_OUT/playwright.json" npx playwright test --config playwright.installed.config.ts installed/installed.spec.ts --reporter=list,json --output "$REF_OUT/playwright") > "$REF_OUT/playwright.log" 2>&1
+process_alive "$api" || fail 'reference API tunnel exited'
+parity_report_ok "$REF_OUT/playwright.json" || fail 'reference parity did not pass exactly two tests'
+stop_parity_servers
+trap - EXIT
+cat "$REF_OUT/playwright.log"
+printf 'Reference CLI/API/Portal parity passed.\n'

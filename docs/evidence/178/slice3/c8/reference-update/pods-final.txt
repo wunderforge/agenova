@@ -1,0 +1,13 @@
+NAMESPACE              NAME                                                    READY   STATUS    RESTARTS       AGE     IP            NODE                            NOMINATED NODE   READINESS GATES
+agenova-system         agenova-control-plane-67fdf6874-r9bv9                   1/1     Running   0              3m17s   10.244.0.25   agenova-k8s-lab-control-plane   <none>           <none>
+agenova-system         agenova-pool-pool-engineer-ht852                        1/1     Running   0              2m36s   10.244.0.27   agenova-k8s-lab-control-plane   <none>           <none>
+agent-sandbox-system   agent-sandbox-controller-854b999dc4-c5cpt               1/1     Running   16 (18m ago)   24d     10.244.0.5    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            coredns-559f6c778d-4qq8t                                1/1     Running   4 (18m ago)    24d     10.244.0.4    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            coredns-559f6c778d-4r578                                1/1     Running   4 (18m ago)    24d     10.244.0.3    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            etcd-agenova-k8s-lab-control-plane                      1/1     Running   4 (18m ago)    24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            kindnet-5gc4q                                           1/1     Running   4 (18m ago)    24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            kube-apiserver-agenova-k8s-lab-control-plane            1/1     Running   4 (18m ago)    24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            kube-controller-manager-agenova-k8s-lab-control-plane   1/1     Running   13 (18m ago)   24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            kube-proxy-tddwd                                        1/1     Running   4 (18m ago)    24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+kube-system            kube-scheduler-agenova-k8s-lab-control-plane            1/1     Running   15 (18m ago)   24d     172.18.0.2    agenova-k8s-lab-control-plane   <none>           <none>
+local-path-storage     local-path-provisioner-75f7fc7dc5-vs6b5                 1/1     Running   6 (18m ago)    24d     10.244.0.6    agenova-k8s-lab-control-plane   <none>           <none>

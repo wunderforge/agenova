@@ -108,7 +108,7 @@ Owner requested provider-issued HTTPS hostname and minimum access control, while
   Validate auth isolation, same-origin writes, negative cases and rendered Work.
 - Latest Owner decision supersedes CloudFront/tunnel routing: use Route 53 alias
   directly to a Sydney ALB. Terraform manages the ALB, HTTPS listener, SG rules,
-  NodePort target group and managed-node ASG attachment in `infra/demo/edge`;
+  NodePort target group and managed-node ASG attachment in `infra/production/edge`;
   permanent Sydney ACM certificate stays in `infra/domain`. Preserve auth; verify
   target health, real Portal/API and denial. Remove CloudFront and cloudflared,
   update cleanup to destroy edge before EKS while preserving domain/certificates.

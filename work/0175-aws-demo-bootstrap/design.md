@@ -9,7 +9,7 @@ At task start, no Terraform infrastructure or AWS CLI/Terraform existed in this 
 
 ## Decision
 
-Propose isolated `infra/demo/aws/` Terraform with pinned AWS provider and lock file, a dedicated VPC, two public subnets in distinct AZs, internet gateway, restricted EKS public endpoint plus private endpoint, and a single managed worker node. Avoid NAT and load balancer recurring costs for this initial demo. Public addressing does not authorize inbound traffic: no SSH/application ingress, and required cluster/node rules only. Verify this topology against official EKS documentation before implementation.
+Propose isolated `infra/production/eks/` Terraform with pinned AWS provider and lock file, a dedicated VPC, two public subnets in distinct AZs, internet gateway, restricted EKS public endpoint plus private endpoint, and a single managed worker node. Avoid NAT and load balancer recurring costs for this initial demo. Public addressing does not authorize inbound traffic: no SSH/application ingress, and required cluster/node rules only. Verify this topology against official EKS documentation before implementation.
 
 Use explicit service-role trust policies, EKS operator access entries and node roles. Prefer a temporary non-root operator session; any initial human identity bootstrap is outside Terraform secret state. Bedrock permissions are not granted to worker nodes. Separate gateway credentials are a later E13/E14 integration step.
 

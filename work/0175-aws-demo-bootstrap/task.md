@@ -2,7 +2,7 @@
 
 - Ticket: [#175](https://github.com/wunderforge/agenova/issues/175)
 - Mission: Prepare reproducible, disposable Sydney AWS infrastructure for the team E13 demonstration.
-- Target: Proposed `infra/demo/aws/` Terraform configuration and operator runbook.
+- Target: Proposed `infra/production/eks/` Terraform configuration and operator runbook.
 - User value: A new team account can host the later Agenova EKS/Bedrock acceptance path.
 - PRD outcome: [Reference installation](../../docs/product/prd.md#6-reference-installation-and-initial-policy-bootstrap); infrastructure is an external prerequisite, not a new Agenova cluster-provisioning feature.
 
@@ -61,9 +61,9 @@ Out of scope:
 
 ## Quality Gates
 
-- `terraform fmt -check -recursive infra/demo/aws`
-- `terraform -chdir=infra/demo/aws init -backend=false`
-- `terraform -chdir=infra/demo/aws validate`
+- `terraform fmt -check -recursive infra/production/eks`
+- `terraform -chdir=infra/production/eks init -backend=false`
+- `terraform -chdir=infra/production/eks validate`
 - Authenticated saved plan and post-apply EKS/node checks; no secrets in logs.
 - `pwsh -NoProfile -File ./scripts/check.ps1 -All`
 
