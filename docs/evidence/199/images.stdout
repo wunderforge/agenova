@@ -1,0 +1,175 @@
+[
+    {
+        "Id": "sha256:890ff5606814def1175d7a0f5600eee8c6681804f906c796fb4d0e03de043cb9",
+        "RepoTags": [
+            "agenova-control-plane:0.1.0"
+        ],
+        "RepoDigests": [
+            "agenova-control-plane@sha256:890ff5606814def1175d7a0f5600eee8c6681804f906c796fb4d0e03de043cb9"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-17T12:13:14.054580666Z",
+        "Config": {
+            "User": "nonroot:nonroot",
+            "ExposedPorts": {
+                "8080/tcp": {}
+            },
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+            ],
+            "Entrypoint": [
+                "/agenova-control-plane"
+            ],
+            "WorkingDir": "/home/nonroot"
+        },
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Size": 90123006,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:6fc9269a8b4d61cdd276e80d170e4caa1566efc1b9f42442fdad4f69836b3c4f",
+                "sha256:8fa10c0194df9b7c054c90dbe482585f768a54428fc90a5b78a0066a123b1bba",
+                "sha256:35b5ba6e08cdd034b8d1920f9c7203e5d66f258e1915f164a01de0af14f34710",
+                "sha256:114dde0fefebbca13165d0da9c500a66190e497a82a53dcaabc3172d630be1e9",
+                "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "sha256:6e7fbcf090d09b73a4aa85f9dce690d0ace73877c150b7c56955487b6e7a822a",
+                "sha256:5904c32f457c96a16c8c68f5ccdf518c8138cd9e5971de9ce6d564fc481af222",
+                "sha256:3021ccb9065e0b4bcf05cc2657a6d949b2f4cfecd491e92ca3185dc90a56d755",
+                "sha256:a1b6b186c6200ed4ad054b0658023c0e8877557fd9bced0475c2f603f18a35e2"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-17T12:13:14.981977917Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:890ff5606814def1175d7a0f5600eee8c6681804f906c796fb4d0e03de043cb9",
+            "size": 856
+        },
+        "Identity": {
+            "Build": [
+                {
+                    "Ref": "9r2o16l5apr71rqkac80q7pzz",
+                    "CreatedAt": "2026-10-17T12:13:15.157825042Z"
+                }
+            ]
+        }
+    },
+    {
+        "Id": "sha256:38039a29d83342527d823d8809162c9fcc458ed88604f23e324a511615be4342",
+        "RepoTags": [
+            "agenova-testworker:kind"
+        ],
+        "RepoDigests": [
+            "agenova-testworker@sha256:38039a29d83342527d823d8809162c9fcc458ed88604f23e324a511615be4342"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-09-27T14:08:31.600865715Z",
+        "Config": {
+            "User": "65532:65532",
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Entrypoint": [
+                "/agenova-workerctl",
+                "serve"
+            ],
+            "WorkingDir": "/"
+        },
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Size": 23202722,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:88b4fba61c4c714a2fc173ddf7e9324a257304696830bf41ad28ecc58c11c95f",
+                "sha256:04f1b04573b004f80fe89ea46bcc1526ae85073b2ca8820ddd26e77c6139691a",
+                "sha256:76272d553ac0dfcc82dff8b9b2c3e38a57099ff3a86a392b212ef0a8118a6fce"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-05T01:50:05.123268167Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:38039a29d83342527d823d8809162c9fcc458ed88604f23e324a511615be4342",
+            "size": 855
+        },
+        "Identity": {
+            "Build": [
+                {
+                    "Ref": "ssz0qxdvloy6xm20xt261ynu9",
+                    "CreatedAt": "2026-10-05T01:50:05.126306125Z"
+                }
+            ]
+        }
+    },
+    {
+        "Id": "sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d",
+        "RepoTags": [
+            "ollama/ollama:0.13.5"
+        ],
+        "RepoDigests": [
+            "ollama/ollama@sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2025-12-18T21:23:43.758687421Z",
+        "Config": {
+            "ExposedPorts": {
+                "11434/tcp": {}
+            },
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64",
+                "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+                "NVIDIA_VISIBLE_DEVICES=all",
+                "OLLAMA_HOST=0.0.0.0:11434"
+            ],
+            "Entrypoint": [
+                "/bin/ollama"
+            ],
+            "Cmd": [
+                "serve"
+            ],
+            "Labels": {
+                "org.opencontainers.image.ref.name": "ubuntu",
+                "org.opencontainers.image.version": "24.04"
+            },
+            "ArgsEscaped": true
+        },
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Size": 8566440747,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:a8777d7885428f109ae6a59eec92d9aad13dd105afe5c44aadc1fcad90550610",
+                "sha256:c4778edcbb847c787816b84314355f6751ed6bf69f45ac87c4da41afb73dbf50",
+                "sha256:7cfaae470814ce8e690003d3332f5ba4f9fdf04efa04a6ebf11b89c5bf3cfddb",
+                "sha256:4d90b2430d3461084ab5badcda1d4da1e044e62cf482851aae5c9f312a3dc96b"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-19T05:09:51.785140346Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d",
+            "size": 1609
+        },
+        "Identity": {
+            "Pull": [
+                {
+                    "Repository": "docker.io/ollama/ollama"
+                }
+            ]
+        }
+    }
+]

@@ -1,0 +1,6 @@
+Couldn't find '/root/.ollama/id_ed25519'. Generating new private key.
+Your new public key is: 
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILT8UqSgZPTVHO1jMv8jNVUvkdRkhHpRds9jUHtGjJ3q
+
+[GIN] 2026/10/19 - 05:10:07 | 200 |       1.695ms |      172.17.0.1 | GET      "/api/tags"
