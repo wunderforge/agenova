@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"time"
 
@@ -99,6 +100,18 @@ func (s Store) AcceptGoogleInvitation(ctx context.Context, id googleoidc.LoginId
 			return v0.Principal{}, denied
 		}
 	}
+	// Serialize with registration so it cannot leave a pending row after acceptance.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(215008)`); err != nil {
+		return v0.Principal{}, denied
+	}
+	var requestTeam, requestStatus string
+	requestErr := tx.QueryRowContext(ctx, `SELECT team,status FROM agenova_access_requests WHERE issuer=$1 AND subject=$2 FOR UPDATE`, id.Issuer, id.Subject).Scan(&requestTeam, &requestStatus)
+	if requestErr != nil && requestErr != sql.ErrNoRows {
+		return v0.Principal{}, denied
+	}
+	if requestErr == nil && (requestTeam != team || requestStatus != "pending") {
+		return v0.Principal{}, denied
+	}
 	principal := "user:" + inviteID
 	// Unique issuer/subject and principal constraints reject existing identities,
 	// including disabled members; an invitation can never reactivate or link them.
@@ -114,8 +127,59 @@ func (s Store) AcceptGoogleInvitation(ctx context.Context, id googleoidc.LoginId
 	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_identity_audit(actor,operation,principal) VALUES($1,'invitation.accepted',$1)`, principal); err != nil {
 		return v0.Principal{}, denied
 	}
+	if _, err = tx.ExecContext(ctx, `UPDATE agenova_access_requests SET status='approved',principal=$3,reviewed_at=now() WHERE issuer=$1 AND subject=$2 AND team=$4 AND status='pending'`, id.Issuer, id.Subject, principal, team); err != nil {
+		return v0.Principal{}, denied
+	}
 	if tx.Commit() != nil {
 		return v0.Principal{}, denied
 	}
 	return v0.Principal{Subject: principal, Team: team, AuthenticationContext: "oidc"}, nil
+}
+
+// DeliverGoogleOwner is an operator-only bootstrap/recovery path. It can rotate
+// only the exact unaccepted Owner reservation, never an established membership.
+// Delivery must durably store the proof before returning; commit uncertainty must
+// preserve the delivered file so the operator can reconcile without losing it.
+func (s Store) DeliverGoogleOwner(ctx context.Context, team string, r invitations.Request, deliver func(string) error) error {
+	if s.DB == nil || team == "" || len(team) > 128 || !invitations.Validate(r) || r.Role != Admin || deliver == nil {
+		return invitations.ErrInvalid
+	}
+	// A previous failed delivery may already have reserved this exact bootstrap.
+	_, _ = s.ReserveOwner(ctx, googleoidc.Issuer, team, r)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return invitations.ErrUnavailable
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(215003)`); err != nil {
+		return invitations.ErrUnavailable
+	}
+	var exists bool
+	if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members WHERE team=$1)`, team).Scan(&exists) != nil || exists {
+		return authentication.ErrForbidden
+	}
+	var key string
+	if tx.QueryRowContext(ctx, `SELECT id FROM agenova_invitations WHERE team=$1 AND email=$2 AND project=$3 AND issuer=$4 AND actor='operator-bootstrap' AND account_role='owner' AND project_role='admin' AND subject IS NULL AND status IN ('reserved','pending') FOR UPDATE`, team, r.Email, r.Project, googleoidc.Issuer).Scan(&key) != nil {
+		return authentication.ErrForbidden
+	}
+	var b [32]byte
+	if _, err = rand.Read(b[:]); err != nil {
+		return invitations.ErrUnavailable
+	}
+	proof := base64.RawURLEncoding.EncodeToString(b[:])
+	if err = deliver(proof); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE agenova_invitations SET acceptance_hash=$2,status='pending',expires_at=now()+interval '7 days' WHERE id=$1`, key, applicationTokenHash(proof)); err != nil {
+		return invitations.ErrUnavailable
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_identity_audit(actor,operation,principal) VALUES('operator-bootstrap','owner.proof-delivered',$1)`, "invitation:"+key); err != nil {
+		return invitations.ErrUnavailable
+	}
+	if tx.Commit() != nil {
+		return invitations.ErrUnavailable
+	}
+	return nil
 }

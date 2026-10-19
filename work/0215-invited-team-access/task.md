@@ -569,3 +569,17 @@ disable/re-enable against disposable PostgreSQL. Anonymous login-attempt capacit
 exhaustion remains an open P2; source limiting must not trust arbitrary forwarded
 headers, and verified callbacks need isolated capacity. No production flood test
 or teammate session modification is authorized by this review.
+
+## Review corrections, 19 October
+
+Resolve anonymous source-capacity exhaustion with migration 009, PostgreSQL-backed
+source counts and reserved verified-code capacity; keep proxy trust explicitly
+opt-in and pin the ALB/VPC boundary. Test floods only in disposable environments.
+Fail authenticated durable evidence reads closed after terminal persistence failure
+so CLI polling terminates with a storage error, without redispatch.
+Also reconcile all newly posted review findings: validate Owner team before bootstrap,
+allow operator-only exact pending Owner proof delivery/recovery, reconcile pending
+registration on invitation acceptance, and align proxy governance payload limits.
+Preserve active Owner/disabled identity protections, old migration checksums and
+main CI unchanged. These changes are PR-only until the documented coordinated
+migration/configuration/control-plane rollout; Worker protocol/image is unchanged.
