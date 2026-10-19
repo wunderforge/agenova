@@ -1,6 +1,6 @@
 # Agenova Team Quick Guide
 
-Environment details last verified: 13 October 2026.
+Role guide updated: 19 October 2026. Cloud access and installation availability are environment-specific.
 
 See also: [team use cases and permission examples (Chinese)](team-use-cases.zh-CN.md).
 
@@ -18,26 +18,50 @@ Open <https://app.agenova.app/> and select **Continue with Google**.
 If access is pending, send your sign-in email to an administrator. After approval
 and project-role assignment, sign in again.
 
-Choose **Developer** (submit Work), **Read-only** (view project evidence), or
-**Team administrator** (account administration plus administration of the selected
-project, project governance and current-installation deployment authorization; Owner only). Developer is the default. Owner remains a protected identity.
+Administrators use **[Administration](https://app.agenova.app/admin)** to manage users and approve access requests. The previous `/members` URL redirects there.
 
-Deployment and governance duties are under each member's **Advanced permissions**.
-Team administrators include governance in administered projects and authorization
-for the serving installation; other members can receive separate scoped duties.
-Neither option grants AWS/Kubernetes credentials. Existing
-custom account/project combinations are retained; inspect advanced role mapping
-when needed. The server still checks every operation.
+| Role | Application permissions |
+| --- | --- |
+| Platform Admin | Manage other users and their operational roles, run Work/read project evidence, manage governance in assigned projects, deploy the serving installation |
+| Platform Operator | Deploy/upgrade/diagnose the assigned installation; no Work, business evidence, user or governance management |
+| Member | Submit approved Work and read your own results in assigned projects |
+
+Owner is protected and is not an assignable everyday role. Owner and Platform Admins can assign operational roles. Owner and self-role changes remain protected. Platform Admin includes deployment authorization, so it
+does not need a second Operator role. Cloud IAM/Kubernetes permissions are separate.
+Role changes atomically replace incompatible grants; they do not modify Work policy.
+Model configuration changes are not part of the existing image-only upgrade command.
 
 ## 2. Install and use the Agenova CLI
 
 See [platform installation instructions](cli-installation.md) for macOS, Linux, WSL2 and Windows.
 
-On macOS or configured Linux/WSL2 with [Homebrew](https://brew.sh/) installed:
+The same `agenova` commands work on macOS and Windows; only installation differs.
+
+### macOS (Homebrew)
+
+With [Homebrew](https://brew.sh/) installed:
 
 ```bash
 brew install Leo1piece/agenova/agenova
 agenova --version
+```
+
+### Windows (PowerShell)
+
+Download [install-windows.ps1](https://github.com/Leo1piece/homebrew-agenova/releases/download/v0.1.0-preview.20261013.1/install-windows.ps1), review it, then run from your Downloads directory:
+
+```powershell
+.\install-windows.ps1
+agenova --version
+```
+
+No WSL, Homebrew or administrator shell is needed. If your execution policy blocks
+scripts, use the verified ZIP method in the installation guide instead. Windows
+interactive login still needs a real Windows acceptance check.
+
+### All platforms: login and run
+
+```bash
 agenova login --server https://app.agenova.app
 ```
 
@@ -172,3 +196,15 @@ network policy with an operator if connectivity changes.
 
 Use your own Google account. Do not share credentials, SSO caches or another
 member's CLI login data.
+
+## Edit Policy and AgentTemplate in the browser
+
+Platform Admins can open [Administration](https://app.agenova.app/admin#governance),
+choose a project and document type, then **Load current configuration**. Edit the
+JSON and **Save configuration**. For changed Policy content, increment
+`metadata.version`; saving activates that version for new Work. For changed
+Template content, use a new `metadata.name`, allow it in the project Policy, and
+select it when submitting Work. Existing registrations and running Work are not
+overwritten. The compatible worker image/entrypoint restrictions still apply.
+A conflict or denied request is shown explicitly; configuration does not grant
+cloud access. The editor is JSON; the existing CLI also accepts YAML.

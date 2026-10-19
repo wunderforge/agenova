@@ -1,209 +1,92 @@
 'use strict';
-const registrationEnabled = document.body.dataset.registration === 'true';
-if(registrationEnabled){document.querySelector('#invite-section').hidden=true;document.querySelector('#invitation-list-section').hidden=true;}
-const form = document.querySelector('#invite');
-const notice = document.querySelector('#notice');
-const list = document.querySelector('#invitations');
-const loading = document.querySelector('#loading');
-const send = document.querySelector('#send');
-const roles = {member:'Members can run Work and read their own evidence in this project.',viewer:'Viewers can read project evidence. They cannot submit Work.',admin:'Admins can run Work and read project evidence, and manage Member and Viewer invitations. Only the Owner can invite an Admin.'};
-document.querySelector('#role').addEventListener('change', e => { document.querySelector('#role-help').textContent = roles[e.target.value]; });
-function accessPreset(container, account, projectRole, owner, label, advanced) {
- const wrapper=node('label','Access');const select=node('select');select.setAttribute('aria-label',label);
- for(const [value,title] of [['developer','Developer'],['readonly','Read-only'],...(owner?[['admin','Team administrator']]:[]),['custom','Custom (advanced)']]) {const option=node('option',title);option.value=value;select.append(option);}
- const help=node('small');
- function sync(){select.value=account.value==='member'&&projectRole.value==='member'?'developer':account.value==='member'&&projectRole.value==='viewer'?'readonly':account.value==='admin'&&projectRole.value==='admin'?'admin':'custom';help.textContent=`Account: ${account.value} · Selected project: ${projectRole.value}. ${select.value==='admin'?'Includes project governance and current-installation deployment; cloud permissions required.':'No bundled deployment or governance access.'}`;}
- select.addEventListener('change',()=>{if(select.value==='custom'){advanced.open=true;return;}account.value=select.value==='admin'?'admin':'member';projectRole.value=select.value==='admin'?'admin':select.value==='readonly'?'viewer':'member';sync();});
- account.addEventListener('change',sync);projectRole.addEventListener('change',sync);sync();wrapper.append(select);container.append(wrapper,help);
+const titles={'platform-admin':'Platform Admin','platform-operator':'Platform Operator',member:'Member'};
+const registrationEnabled=document.body.dataset.registration==='true';
+const memberList=document.querySelector('#members');
+const memberNotice=document.querySelector('#member-notice');
+function node(tag,text){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;}
+function roleOf(m){
+ if(m.accountRole==='owner')return 'owner';
+ if(m.accountRole==='admin' && m.projects.length && m.projects.every(g=>g.role==='admin'))return 'platform-admin';
+ if(m.accountRole==='member' && !m.projects.length && m.roles?.length && m.roles.every(g=>g.role==='platform-operator'))return 'platform-operator';
+ if(m.accountRole==='member' && m.projects.every(g=>g.role==='member') && !(m.roles||[]).length)return 'member';
+ return 'legacy';
 }
-async function refresh() {
- loading.textContent = 'Loading invitations…';
- try {
-  const response = await fetch('/api/invitations', {credentials:'same-origin',redirect:'error',cache:'no-store'});
-  if (!response.ok) throw new Error(response.status === 403 ? 'Only an Owner or account Admin can manage invitations.' : 'Sign in with an active administrator account to view invitations.');
-  const items = await response.json();
-  if (!Array.isArray(items)) throw new Error('Invitations are unavailable.');
-  list.replaceChildren();
-  for (const invite of items) {
-   const row = document.createElement('li');
-   const detail = document.createElement('div');
-   const email = document.createElement('strong'); email.textContent = invite.email;
-   const project = document.createElement('small'); project.textContent = `Account: ${invite.accountRole || "member"} · ${invite.project}: ${invite.role}`;
-   const status = document.createElement('span'); status.className = 'badge'; status.textContent = invite.status;
-   detail.append(email,project);
-   if(invite.linkManaged && ['pending','expired','reserved','cancelled'].includes(invite.status)) {
-    const actions=node('div'); actions.className='invitation-actions';
-    for(const action of (invite.status==='cancelled' ? ['reissue'] : ['cancel','reissue'])) {
-     const button=node('button',action==='cancel'?'Cancel invitation':'Replace link'); button.className='quiet';button.type='button';button.setAttribute('aria-label',`${button.textContent} for ${invite.email}`);
-     button.addEventListener('click',()=>manageInvitation(invite.id,action,button));actions.append(button);
-    }
-    detail.append(actions);
-   }
-   row.append(detail,status); list.append(row);
-  }
-  loading.textContent = items.length ? 'Pending invitations activate only after the invited person signs in. Uncertain delivery requires administrator review.' : 'No invitations yet.';
- } catch (error) { list.replaceChildren(); loading.textContent = error.message || 'Invitations are unavailable.'; }
+function selector(label,owner,current){
+ const s=node('select');s.setAttribute('aria-label',label);
+ for(const value of ['member','platform-operator',...(owner?['platform-admin']:[])]){const o=node('option',titles[value]);o.value=value;s.append(o);}
+ if(current==='legacy'){const o=node('option','Select a role to replace legacy permissions');o.value='';o.disabled=true;s.prepend(o);s.value='';}else s.value=current||'member';
+ s.required=true;return s;
 }
-form.addEventListener('submit', async e => {
- e.preventDefault(); send.disabled = true; notice.textContent = 'Creating invitation…';
- try {
-  const response = await fetch('/api/invitations', {method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.elements.namedItem('email').value.trim().toLowerCase(),project:form.elements.namedItem('project').value.trim(),role:form.elements.namedItem('role').value,accountRole:form.elements.namedItem('accountRole').value})});
-  if (!response.ok) throw new Error(response.status === 403 ? 'Your role cannot send this invitation. Only the Owner can invite an Admin.' : 'The invitation was not confirmed. Refresh the list and review its status before trying again.');
-  const invitation = await response.json();
-  if (invitation.acceptanceUrl) {
-   showInvitationLink(invitation.acceptanceUrl);
-  } else {
-   notice.textContent = 'Invitation sent. The recipient can follow the email to set up their account.';
-  }
-  form.elements.namedItem('email').value = '';
-  await refresh();
- } catch (error) { notice.textContent = error.message || 'The invitation could not be confirmed.'; }
- finally { send.disabled = false; }
-});
-document.querySelector('#refresh').addEventListener('click',refresh);
-if(!registrationEnabled) refresh();
-
-const memberList = document.querySelector('#members');
-const memberNotice = document.querySelector('#member-notice');
-const memberLoading = document.querySelector('#members-loading');
-function node(tag, text) { const el = document.createElement(tag); if (text) el.textContent = text; return el; }
-async function changeMember(change, button) {
- button.disabled = true;
- memberNotice.textContent = 'Saving member access…';
- try {
-  const response = await fetch('/api/members', {method:'POST', credentials:'same-origin', redirect:'error', headers:{'Content-Type':'application/json'}, body:JSON.stringify(change)});
-  if (!response.ok) throw new Error(response.status === 403 ? 'Your current role cannot change this member.' : 'Change not confirmed. Refresh members before retrying.');
-  memberNotice.textContent = change.action === 'disable' ? 'Member disabled. Existing login sessions no longer grant access.' : 'Member access updated.';
-  await refreshMembers();
- } catch(error) { memberNotice.textContent = error.message || 'Member change failed.'; }
- finally { button.disabled = false; }
-}
-function roleForm(member, owner, project) {
- const form = node('form'); form.className = 'member-actions';
- const label = node('label', project ? `Project: ${project.project}` : 'Account role');
- const select = node('select'); select.setAttribute('aria-label', `${member.email || member.principal} ${project ? project.project + ' role' : 'account role'}`);
- const choices = project ? [['','No access'],['member','Developer'],['viewer','Read-only'],...(owner ? [['admin','Admin']] : [])] : [['member','Member'],['admin','Admin']];
- for(const [value,text] of choices) { const option = node('option',text); option.value = value; select.append(option); }
- select.value = project ? project.role : member.accountRole;
- label.append(select); const button = node('button','Save'); button.type = 'submit';
- form.append(label,button); form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:project?'project-role':'account-role',role:select.value,...(project ? {project:project.project} : {})},button);});
- return form;
-}
-function dutyForm(member, team) {
- const form=node('form');form.className='member-actions';
- const who=member.email || member.principal;
- const role=node('select');role.setAttribute('aria-label',`Additional role for ${who}`);
- for(const [value,title] of [['governance-admin','Governance access'],['platform-operator','Deployment access']]) { const option=node('option',title);option.value=value;role.append(option); }
- const scope=node('select');scope.setAttribute('aria-label',`Role scope for ${who}`);
- const ref=node('input');ref.required=true;ref.maxLength=128;ref.setAttribute('aria-label',`Scope reference for ${who}`);
- function scopes() { scope.replaceChildren();for(const value of (role.value==='platform-operator'?['installation']:['project','account'])) {const option=node('option',value);option.value=value;scope.append(option);}reference(); }
- function reference() {ref.readOnly=scope.value==='account';ref.value=ref.readOnly?team:'';ref.placeholder=scope.value==='installation'?'Installed Platform name':'Existing project';}
- role.addEventListener('change',scopes);scope.addEventListener('change',reference);scopes();
- const button=node('button','Grant advanced permission');button.type='submit';
- form.append(role,scope,ref,button);
- form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'grant-role',role:role.value,scopeKind:scope.value,scopeRef:ref.value.trim()},button);});
- return form;
-}
-async function refreshMembers() {
- memberLoading.textContent = 'Loading members…';
- try {
-  const [response, meResponse] = await Promise.all(['/api/members','/auth/me'].map(path=>fetch(path,{credentials:'same-origin',redirect:'error',cache:'no-store'})));
-  if(!response.ok || !meResponse.ok) throw new Error('Member administration is unavailable for this account.');
-  const rows = await response.json(); const me = await meResponse.json();
-  if(!Array.isArray(rows)) throw new Error('Member list unavailable.');
-  const isOwner = rows.some(m=>m.principal===me.subject && m.accountRole==='owner');
-  const isAccountAdmin = isOwner || rows.some(m=>m.principal===me.subject && m.accountRole==='admin');
- if(registrationEnabled){document.querySelector('#access-section').hidden=!isAccountAdmin;if(isAccountAdmin){document.querySelector('#refresh-access').onclick=()=>refreshAccessRequests(isOwner);await refreshAccessRequests(isOwner);}}
- document.querySelector('#account-role').disabled=!isOwner;
- if(!isOwner) document.querySelector('#account-role').value='member';
- document.querySelector('#role option[value=admin]').disabled=!isOwner;
- const preset=document.querySelector('#invite-preset');preset.replaceChildren();accessPreset(preset,document.querySelector('#account-role'),document.querySelector('#role'),isOwner,'Access',document.querySelector('#invite-advanced'));
+async function post(path,payload){const r=await fetch(path,{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw new Error('Change not confirmed. Check permissions and refresh before retrying.');}
+async function changeMember(change,button){button.disabled=true;memberNotice.textContent='Saving…';try{await post('/api/members',change);await refreshMembers();memberNotice.textContent='User access updated.';}catch(e){memberNotice.textContent=e.message;}finally{button.disabled=false;}}
+async function refreshMembers(){
+ const loading=document.querySelector('#members-loading');loading.textContent='Loading users…';
+ try{
+  const [r,mr]=await Promise.all(['/api/members','/auth/me'].map(p=>fetch(p,{credentials:'same-origin',redirect:'error',cache:'no-store'})));
+  if(!r.ok||!mr.ok)throw new Error('Administrator access is required.');
+  const rows=await r.json(),me=await mr.json();if(!Array.isArray(rows))throw new Error('Users unavailable.');
+  const actor=rows.find(m=>m.principal===me.subject),owner=actor?.accountRole==='owner',admin=owner||actor?.accountRole==='admin';
   memberList.replaceChildren();
-  for(const member of rows) {
-   const row = node('article'); row.className = 'member';
-   row.append(node('h3',member.email || member.principal),node('p',`${member.accountRole} · ${member.active?'Active':'Disabled'}`));
-   for(const grant of member.projects) row.append(node('small',`${grant.project} · ${grant.role==='member'?'Developer':grant.role==='viewer'?'Read-only':member.accountRole==='admin'?'Team administrator':'Project administrator'}`));
-   const advanced=node('details');advanced.className='advanced-permissions';advanced.append(node('summary','Advanced permissions'));
-   advanced.append(node('small','Explicit additional duties are scoped separately. They do not grant AWS credentials or Work access.'));
-   if(member.accountRole==='admin' && member.projects.some(g=>g.role==='admin')) row.append(node('small','Team administrator includes governance for administered projects and deployment access to this service’s installation. AWS/Kubernetes access is still required.'));
-   if((member.roles || []).length) row.append(node('small',`${member.roles.length} advanced permission(s) assigned`));
-   for(const grant of member.roles || []) {
-    const line=node('p',`${grant.role} · ${grant.scopeKind}: ${grant.scopeRef}`);
-    if(isOwner && member.active) {const remove=node('button','Revoke role');remove.type='button';remove.addEventListener('click',()=>changeMember({principal:member.principal,action:'revoke-role',...grant},remove));line.append(remove);}
-    advanced.append(line);
+  if(!document.querySelector('#governance-project').value)document.querySelector('#governance-project').value=actor?.projects.find(g=>g.role==='admin')?.project||'';
+  for(const m of rows){
+   const who=m.email||m.principal,role=roleOf(m),row=node('article');row.className='member';
+   row.append(node('h3',who),node('p',`${role==='owner'?'Owner':titles[role]||'Legacy permissions — review required'} · ${m.active?'Active':'Disabled'}`));
+   row.append(node('small',m.projects.length?'Projects: '+m.projects.map(g=>g.project).join(', '):'No business project access'));
+   if(role==='platform-operator')row.append(node('small','Installations: '+m.roles.map(g=>g.scopeRef).join(', ')));
+   if(m.accountRole!=='owner' && admin && m.principal!==me.subject){
+    const form=node('form');form.className='member-actions';
+    const select=selector(`Role for ${who}`,admin,role);
+    const project=node('input');project.setAttribute('aria-label',`Project for ${who}`);project.placeholder='Existing project';project.required=true;project.maxLength=128;project.value=m.projects[0]?.project||actor.projects[0]?.project||'';
+    const save=node('button','Save role');save.type='submit';save.disabled=!m.active;
+    form.append(select,project,save,node('small','Changing role replaces legacy duties. Operators receive deployment access only; the project identifies the administration scope.'));
+    form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'platform-role',role:select.value,project:project.value.trim()},save);});row.append(form);
+    const toggle=node('button',m.active?'Disable user':'Enable user');toggle.type='button';toggle.addEventListener('click',()=>changeMember({principal:m.principal,action:m.active?'disable':'enable'},toggle));if(owner || m.accountRole!=='admin' && !(m.roles||[]).length)row.append(toggle);
    }
-   if(isOwner && member.active) advanced.append(dutyForm(member,me.team));
-   const canManage = member.accountRole !== 'owner' && (isOwner || member.accountRole !== 'admin');
-   if(canManage) {
-    const details = node('details'); details.append(node('summary','Manage access'));
-    if(isOwner) advanced.append(roleForm(member,true,null));
-    if(isOwner && member.active && member.accountRole==='admin') {
-     const transfer=node('form');transfer.className='member-actions';
-     const label=node('label',`Transfer ownership: type ${member.email || member.principal}`);
-     const confirm=node('input');confirm.required=true;confirm.autocomplete='off';confirm.setAttribute('aria-label',`Confirm ownership transfer to ${member.email || member.principal}`);label.append(confirm);
-     const button=node('button','Transfer ownership');button.type='submit';transfer.append(label,button,node('small','You will become Account Admin. This member becomes the only Owner. Project grants stay unchanged.'));
-     transfer.addEventListener('submit',e=>{e.preventDefault();if(confirm.value!==(member.email || member.principal)){memberNotice.textContent='Type the recipient exactly to confirm.';return;}changeMember({principal:member.principal,action:'transfer-owner',confirmation:member.principal},button);});advanced.append(transfer);
-    }
-    if(member.active) {
-     for(const project of member.projects) if(isOwner || project.role!=='admin') details.append(roleForm(member,isOwner,project));
-     const grantForm=node('form');grantForm.className='member-actions';
-     const label=node('label','Add project membership');const input=node('input');input.required=true;input.maxLength=128;input.placeholder='Existing project';input.setAttribute('aria-label',`New project for ${member.email || member.principal}`);label.append(input);
-     const grant=node('button','Add as Developer');grant.type='submit';grantForm.append(label,grant);
-     grantForm.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:member.principal,action:'project-role',project:input.value.trim(),role:'member'},grant);});details.append(grantForm);
-    }
-    if(isAccountAdmin) { const toggle = node('button',member.active?'Disable member':'Enable member'); toggle.type='button';toggle.className='quiet';
-    toggle.addEventListener('click',()=>changeMember({principal:member.principal,action:member.active?'disable':'enable'},toggle)); details.append(toggle); } row.append(details);
-   }
-   row.append(advanced);memberList.append(row);
+   memberList.append(row);
   }
-  memberLoading.textContent = `${rows.length} members. Only the Owner can appoint or remove an account Admin.`;
- } catch(error) {memberList.replaceChildren();memberLoading.textContent=error.message || 'Members unavailable.';}
+  loading.textContent=`${rows.length} users. Owner and Platform Admins can update roles. Owner and your own role are protected.`;
+  document.querySelector('#access-section').hidden=!registrationEnabled||!admin;
+  if(registrationEnabled&&admin){document.querySelector('#refresh-access').onclick=()=>refreshAccessRequests(admin);await refreshAccessRequests(admin);}
+ }catch(e){memberList.replaceChildren();loading.textContent=e.message;}
+}
+async function refreshAccessRequests(admin){
+ const notice=document.querySelector('#access-notice'),list=document.querySelector('#access-requests');notice.textContent='Loading requests…';
+ try{const r=await fetch('/api/access-requests',{credentials:'same-origin',redirect:'error',cache:'no-store'});if(!r.ok)throw new Error('Access requests unavailable.');const requests=await r.json();list.replaceChildren();
+ for(const request of requests){const row=node('article');row.className='member';row.append(node('h3',request.email));const form=node('form');form.className='member-actions';
+ const role=selector(`Role for ${request.email}`,admin,'member'),project=node('input');project.required=true;project.maxLength=128;project.placeholder='Existing project';project.setAttribute('aria-label',`Project for ${request.email}`);
+ const approve=node('button','Approve access');approve.type='submit';const reject=node('button','Decline');reject.type='button';form.append(role,project,approve,reject);
+ async function review(action){approve.disabled=true;reject.disabled=true;try{await post('/api/access-requests',{id:request.id,action,...(action==='approve'?{platformRole:role.value,project:project.value.trim()}:{})});await refreshMembers();notice.textContent='Access decision saved. The user can sign in again after approval.';}catch(e){notice.textContent=e.message;}finally{approve.disabled=false;reject.disabled=false;}}
+ form.addEventListener('submit',e=>{e.preventDefault();review('approve');});reject.addEventListener('click',()=>review('reject'));row.append(form);list.append(row);}
+ notice.textContent=requests.length?`${requests.length} pending requests.`:'No pending access requests.';
+ }catch(e){list.replaceChildren();notice.textContent=e.message;}
 }
 document.querySelector('#refresh-members').addEventListener('click',refreshMembers);
 refreshMembers();
 
-function showInvitationLink(value) {
- const link = new URL(value);
- if(link.origin!==window.location.origin || link.pathname!=='/login' || !/^#invite=[A-Za-z0-9_-]{43}$/.test(link.hash)) throw new Error('Invalid invitation link.');
- notice.textContent='Invitation created. Share this one-time link with the invited person. No email has been sent. ';
- const field=node('input');field.readOnly=true;field.value=link.href;field.setAttribute('aria-label','One-time invitation link');notice.append(field);
-}
-async function manageInvitation(id,action,button) {
- button.disabled=true;notice.textContent='Updating invitation…';
- try {
-  const response=await fetch('/api/invitations/manage',{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action})});
-  if(!response.ok) throw new Error('Invitation change not confirmed. Refresh before retrying.');
-  const result=await response.json();
-  if(result.acceptanceUrl) showInvitationLink(result.acceptanceUrl);else notice.textContent='Invitation cancelled. Its previous link no longer grants access.';
-  await refresh();
- }catch(error){notice.textContent=error.message || 'Invitation update failed.';}finally{button.disabled=false;}
-}
-
-async function refreshAccessRequests(isOwner) {
- const notice=document.querySelector('#access-notice');const list=document.querySelector('#access-requests');
- notice.textContent='Loading access requests…';
- try {
-  const response=await fetch('/api/access-requests',{credentials:'same-origin',redirect:'error',cache:'no-store'});
-  if(!response.ok) throw new Error('Account Owner or Account Admin access is required.');
-  const requests=await response.json();list.replaceChildren();
-  for(const request of requests){
-   const row=node('article');row.className='member';row.append(node('h3',request.email));
-   const form=node('form');form.className='member-actions';
-   function select(label,choices){const wrapper=node('label',label);const field=node('select');field.setAttribute('aria-label',`${request.email} ${label}`);for(const [value,text] of choices){const opt=node('option',text);opt.value=value;field.append(opt);}wrapper.append(field);form.append(wrapper);return field;}
-   const advanced=node('details');advanced.append(node('summary','Advanced role mapping'));
-   const account=select('Account role',[['member','Member'],...(isOwner?[['admin','Account Admin']]:[])]);
-   const label=node('label','Project');const project=node('input');project.required=true;project.maxLength=128;project.placeholder='Existing project';project.setAttribute('aria-label',`${request.email} project`);label.append(project);form.append(label);
-   const role=select('Project role',[['member','Developer'],['viewer','Read-only'],...(isOwner?[['admin','Project Admin']]:[])]);
-   advanced.append(account.parentElement,role.parentElement);const preset=node('div');accessPreset(preset,account,role,isOwner,`${request.email} Access`,advanced);form.append(preset,advanced);
-   const approve=node('button','Approve access');approve.type='submit';const reject=node('button','Decline');reject.type='button';form.append(approve,reject);
-   async function review(action){approve.disabled=true;reject.disabled=true;notice.textContent='Saving access decision…';try{
-    const payload={id:request.id,action,...(action==='approve'?{accountRole:account.value,project:project.value.trim(),role:role.value}:{})};
-    const result=await fetch('/api/access-requests',{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!result.ok)throw new Error('Access decision not confirmed. Check your permissions and project, then refresh.');
-    await refreshMembers();notice.textContent=action==='approve'?'Access approved. The user can sign in again through Portal or CLI.':'Access request declined.';
-   }catch(error){notice.textContent=error.message;}finally{approve.disabled=false;reject.disabled=false;}}
-   form.addEventListener('submit',e=>{e.preventDefault();review('approve');});reject.addEventListener('click',()=>review('reject'));row.append(form);list.append(row);
-  }
-  notice.textContent=requests.length?`${requests.length} pending requests.`:'No pending access requests.';
- }catch(error){list.replaceChildren();notice.textContent=error.message;}
-}
+// The editor only displays configuration. Authorization and validation stay on the server.
+const gp=document.querySelector('#governance-project'),gk=document.querySelector('#governance-kind'),gt=document.querySelector('#governance-template'),gd=document.querySelector('#governance-document'),gs=document.querySelector('#governance-save'),gl=document.querySelector('#governance-load'),gn=document.querySelector('#governance-notice');
+let loadedGovernance=null,governanceBusy=false;
+function invalidateGovernance(){loadedGovernance=null;gd.disabled=true;gs.disabled=true;gd.value='';document.querySelector('#governance-source').textContent='';document.querySelector('#governance-template-label').hidden=gk.value!=='template';gn.textContent='Load the selected configuration before editing.';}
+[gp,gk,gt].forEach(input=>input.addEventListener('input',invalidateGovernance));
+function governanceLock(busy){governanceBusy=busy;[gp,gk,gt,gl].forEach(e=>e.disabled=busy);gs.disabled=busy||!loadedGovernance;gd.disabled=busy||!loadedGovernance;}
+gl.addEventListener('click',async()=>{
+ if(governanceBusy)return;
+ const project=gp.value.trim(),kind=gk.value,template=gt.value.trim();if(!project){gn.textContent='Choose an existing project.';return;}
+ invalidateGovernance();governanceLock(true);gn.textContent='Loading configuration…';
+ try{const q=new URLSearchParams({project});if(kind==='template'&&template)q.set('template',template);
+ const r=await fetch('/api/setup?'+q,{credentials:'same-origin',redirect:'error',cache:'no-store'});if(!r.ok)throw new Error('Configuration unavailable. Check project access and template name.');const setup=await r.json();if(setup.project!==project)throw new Error('Project selection mismatch. Nothing loaded.');
+ const doc=kind==='policy'?{apiVersion:'agenova.io/v1alpha1',kind:'PolicyBundle',metadata:{name:setup.policy.ID,version:setup.policy.Version},spec:{rules:setup.policy.Rules}}:setup.template;
+ if(!doc?.metadata?.name)throw new Error('No registered configuration found.');
+ gd.value=JSON.stringify(doc,null,2);loadedGovernance={project,kind};document.querySelector('#governance-source').textContent='Loaded '+doc.metadata.name+(doc.metadata.version?' · version '+doc.metadata.version:'')+' from '+project+'.';gn.textContent='Ready to edit. Use a new policy version or template name for changed content.';
+ }catch(e){gn.textContent=e.message;}finally{governanceLock(false);}
+});
+document.querySelector('#governance-form').addEventListener('submit',async e=>{
+ e.preventDefault();if(governanceBusy||!loadedGovernance)return;
+ let doc;try{doc=JSON.parse(gd.value);}catch{gn.textContent='Invalid JSON. Correct the document before saving.';return;}
+ if(doc?.kind!==(loadedGovernance.kind==='policy'?'PolicyBundle':'AgentTemplate')){gn.textContent='Document kind does not match the selected type.';return;}
+ const target={...loadedGovernance};governanceLock(true);gn.textContent='Saving configuration…';
+ try{const r=await fetch('/api/governance',{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({...target,document:gd.value})});
+ if(!r.ok)throw new Error(r.status===409?'Version conflict. Use a new policy version or template name; existing content was not overwritten.':r.status===403?'Permission denied. Platform Admin access to this project is required.':r.status===400?'Configuration rejected. Check fields, project rules and the compatible worker image/entrypoint.':'Save not confirmed. Reload the configuration before retrying.');
+ const result=await r.json();gn.textContent='Configuration saved'+(target.kind==='policy'?' and activated for new Work.':'. Select this template in new Work and ensure Policy allows it.');document.querySelector('#governance-source').textContent='Saved '+(result.name||doc.metadata.name)+' in '+target.project+'.';
+ }catch(e){gn.textContent=e.message;}finally{governanceLock(false);}
+});

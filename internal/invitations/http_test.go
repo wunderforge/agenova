@@ -82,7 +82,7 @@ func TestInvitationPageRequiresAdminAndUsesBoundedScripts(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	Page(Service{Store: pageStore{}}, memberAuth{}).ServeHTTP(w, r)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "Create invitation") || strings.Contains(w.Body.String(), "{{script}}") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'sha256-") || strings.Contains(w.Body.String(), "Bearer member") {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Administration") || strings.Contains(w.Body.String(), "{{script}}") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'sha256-") || strings.Contains(w.Body.String(), "Bearer member") {
 		t.Fatal("unsafe or incomplete page")
 	}
 }

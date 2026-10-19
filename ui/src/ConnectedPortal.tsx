@@ -492,10 +492,6 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
-    {!!setup.projects?.length && <div className="portal-toolbar">
-      <label>Project <select aria-label="Configuration project" value={setup.project || ''} onChange={e=>{const url=new URL(window.location.href);url.searchParams.set('project',e.target.value);url.searchParams.delete('template');window.location.assign(url.href);}}>{setup.projects.map(project=><option key={project}>{project}</option>)}</select></label>
-      {!!setup.templates?.length && <label>Template <select aria-label="Configuration template" value={setup.template?.metadata.name || ''} onChange={e=>{const url=new URL(window.location.href);url.searchParams.set('template',e.target.value);window.location.assign(url.href);}}>{setup.templates.map(template=><option key={template}>{template}</option>)}</select></label>}
-    </div>}
     {data.paused && <p role="status" className="portal-source-note">
       Automatic refresh paused. <button className="portal-button" onClick={retry}>Refresh progress</button>
     </p>}

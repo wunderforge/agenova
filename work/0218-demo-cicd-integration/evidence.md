@@ -66,3 +66,50 @@ Tool credential finding remains open; no complete OTEL implementation, business
 task-condition policy or actual AWS multi-component acceptance is certified.
 The independent-login lab infrastructure is not included. Original worktrees and
 the separately owned CI/CD branch were not modified.
+
+## Latest #216 refresh, 19 October
+
+Owner requested bringing the latest reviewed member implementation into the test
+candidate. Merged source `88888a28994dd16f54cd3d1faccf9e9885881ccc` locally over
+`5da048d`; Git resolved the merge without conflicts. This includes operational
+three-role administration, the project governance editor, session-capacity repair,
+Portal toolbar cleanup and upstream production-directory reorganization. Existing
+Tool/member/durable composition and Windows fixture fixes remain in place.
+Task-type conditional authorization remains explicitly excluded.
+
+GitHub still reported #216 OPEN and main `ae24a67` when checked. This is local
+integration of the reviewed source, not a claim that #216 was merged upstream.
+The historical #223 [release preflight](release-preflight.md) remains applicable;
+no workflow was enabled, no image pushed, no deployment or AWS state move made.
+
+Re-executed on the refreshed source:
+
+- Fresh verify-full TLS PostgreSQL campaign passed all six packages: identity
+  postgres, websession, console, workstore, connectedclient and control-plane.
+  New role/session tests and the combined member/Tool/durable tests ran against
+  this disposable database. Its container was removed; no live Google/provider
+  or cloud database was used.
+- Administration, access-request and governance-editor browser harnesses passed,
+  including protected Owner/self behavior, explicit role changes, denied writes,
+  policy/template save requests, malformed JSON, immutable conflicts, project
+  target reset and desktop/mobile layout. These use synthetic API fixtures;
+  desktop governance screenshot was inspected, not treated as live API proof.
+- Independent official-SDK MCP fixture module passed again.
+- Actual linux/amd64 Control Plane and Worker Dockerfiles built; both no-network,
+  read-only, capability-dropped fail-closed executable smokes passed. New local
+  tags are `agenova-cicd-local:control-plane-8d78fda42375` and
+  `agenova-cicd-local:worker-50aeacbeb581`. Current local image identities:
+  `sha256:f481f63892e7ac4c8be5f3c0a99e71107566f4bcce9e01a053d4bd5fb2a07306`
+  and `sha256:a9d887b2f5f810054734b07207d9a324e56dd5bab6610b488d7a1572d3f15b74`.
+  These are local images, not ECR publication digests.
+
+- Complete `scripts/check.ps1 -All` exited 0 on the refreshed source: docs,
+  contracts, formatter, module tidy, vet, all Go tests, opt-in package compilation,
+  probe tests, 128 UI unit tests, production UI build and 56 Playwright tests.
+  Existing Windows configuration fixtures passed after retaining the local fixes.
+- CI file is byte-identical to the observed main version, as required by the
+  latest #216 decision. This refresh does not install the separate #223 workflow.
+
+Previous full-gate/image results above describe the earlier candidate. Native
+race and live release restrictions, the open anonymous-login-capacity issue, and
+the Tool credential finding are not resolved by this refresh.

@@ -32,16 +32,36 @@ interactive workstation instead. Do not put real passwords in shell scripts.
 
 ## Windows x64
 
-Download the Windows ZIP and matching `.sha256` file from the
-[preview releases](https://github.com/Leo1piece/homebrew-agenova/releases).
-Verify with `Get-FileHash -Algorithm SHA256`, extract `agenova.exe` into a directory
-on your user PATH, then open a new terminal.
+The Windows package contains `agenova.exe`, a terminal application. Docker, WSL,
+Homebrew and an administrator shell are not required.
 
-Alternatively download `install-windows.ps1` from the same release, review it,
-and run it in Windows PowerShell. It verifies the archive checksum, installs to
-`%LOCALAPPDATA%\Agenova\bin` and adds that directory to your user PATH. No admin
-rights or execution-policy changes are required; if local policy prevents running
-scripts, use the ZIP method. Windows Credential Manager stores the login.
+### PowerShell installer
+
+Run in Windows PowerShell from a writable folder:
+
+```powershell
+$installer = Join-Path $PWD 'install-agenova.ps1'
+Invoke-WebRequest 'https://github.com/Leo1piece/homebrew-agenova/releases/download/v0.1.0-preview.20261013.1/install-windows.ps1' -OutFile $installer
+Get-Content $installer # Review the installer before running it.
+& $installer
+agenova --version
+```
+
+The script verifies the downloaded ZIP's SHA256, installs `agenova.exe` to
+`%LOCALAPPDATA%\Agenova\bin`, and adds it to your user PATH. Open a new PowerShell
+window for subsequent use. It does not change your execution policy.
+
+### ZIP installation (if scripts are blocked)
+
+Download both:
+
+- [Windows x64 ZIP](https://github.com/Leo1piece/homebrew-agenova/releases/download/v0.1.0-preview.20261013.1/agenova_0.1.0-preview.20261013.1_windows_amd64.zip)
+- [SHA256 checksum](https://github.com/Leo1piece/homebrew-agenova/releases/download/v0.1.0-preview.20261013.1/agenova_0.1.0-preview.20261013.1_windows_amd64.zip.sha256)
+
+Compare `Get-FileHash -Algorithm SHA256` with the checksum, extract the ZIP, then
+run `.\agenova.exe --version` from its folder. Add that folder to your **user PATH**
+through Windows Environment Variables to use `agenova` from any folder.
+Windows Credential Manager stores the login; it is not a shared credentials file.
 
 The installer selects x64. ARM64 emulation and native ARM64 are not acceptance-tested.
 Uninstall by logging out, removing the installed directory and its user PATH entry.

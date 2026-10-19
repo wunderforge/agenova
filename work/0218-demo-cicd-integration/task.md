@@ -15,7 +15,7 @@
 
 ## Scope
 
-Integrate application changes from pinned PR #216, #192 and #217. Preserve authentication, scoped registry, durable facts and role checks. Repair integration defects, test and document the release contract. No external-service deployment, AWS/Kubernetes mutation, image push, GitHub PR merge or public comments. Do not implement teammates' Collector/OTEL or business tools. Task-conditional Policy integration awaits the Owner's scope choice; no new authority semantics by default.
+Integrate application changes from pinned PR #216, #192 and #217. Preserve authentication, scoped registry, durable facts and role checks. Repair integration defects, test and document the release contract. No external-service deployment, AWS/Kubernetes mutation, image push, GitHub PR merge or public comments. Do not implement teammates' Collector/OTEL or business tools. Owner confirmed this round excludes task-conditional Policy integration; no new authority semantics are introduced.
 
 ## Acceptance Criteria
 
@@ -44,3 +44,12 @@ Invalid/unavailable configured Tool routes fail explicitly without mock fallback
 ## Decisions and Risks
 
 Base #216 `2ad6daef564f252a909cdc873761952ce426bf00`; Tool #192 `127d793853b79b69d5fd61dda88dd570fb2d8a47`; diagnosis #217 `296d2d0d253cede029f0d1adf71fa9a471ff1eb9`. Do not import abandoned lab IaC/private files. Local Git integration is authorized; upstream PRs/main remain untouched. Windows evidence checkout needs per-command `core.longpaths=true`; a failed initial checkout is recoverably stashed, not deleted.
+
+Owner requested refreshing the test candidate with the latest reviewed #216 on
+19 October. Integrate `88888a28994dd16f54cd3d1faccf9e9885881ccc`, retaining the
+existing Tool/durable/diagnosis composition and Windows fixture fixes. GitHub
+still reported #216 OPEN and main `ae24a67` when checked; this local integration
+must not be described as an upstream merge. New upstream source includes three
+operational roles, administration/governance editor, session-capacity repair and
+production-directory migration. These are source changes only: do not move local
+AWS state or apply infrastructure. Rerun the combined SQL, full and browser gates.

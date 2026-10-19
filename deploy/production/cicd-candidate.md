@@ -5,6 +5,13 @@ not permission to deploy or approval of the upstream PRs. See the
 [task packet](../../work/0218-demo-cicd-integration/task.md) and
 [evidence](../../work/0218-demo-cicd-integration/evidence.md).
 
+The refreshed candidate includes reviewed #216 source
+`88888a28994dd16f54cd3d1faccf9e9885881ccc`, not only the original `2ad6dae`
+foundation. Three-role administration, project configuration editor and session
+capacity repair accompany the existing Tool/diagnosis integration. Source under
+`infra/production` is inherited documentation/configuration; no infrastructure
+apply or local Terraform state migration is performed by this candidate.
+
 ## Included / deliberately excluded
 
 | Included in this source | Separately owned |

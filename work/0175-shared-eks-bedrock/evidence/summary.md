@@ -18,7 +18,7 @@ Captured 2026-09-28 in Sydney, account 931228356546, region ap-southeast-2, clus
 
 ## Reproduction
 
-The exact nonsecret [Platform](platform.yaml) and [AgentTemplate](engineer.yaml) reference immutable ECR digests from this session. After cleanup those images must be rebuilt/pushed and digests replaced; they are not permanent hosted artifacts. Build/registration procedure and limitations: [runbook](../../../deploy/demo/eks/README.md).
+The exact nonsecret [Platform](platform.yaml) and [AgentTemplate](engineer.yaml) reference immutable ECR digests from this session. After cleanup those images must be rebuilt/pushed and digests replaced; they are not permanent hosted artifacts. Build/registration procedure and limitations: [runbook](../../../deploy/production/member-service.md).
 
 Run with AWS_PROFILE=agenova-demo and KUBECONFIG=/Users/neoliu/.kube/agenova-demo. Session CLI: .tmp/e13/agenova, state: .tmp/e13/state. Explicit --state-dir is required to avoid another installation's state. Local Portal at http://127.0.0.1:5177/?mode=connected#/work/investigate-payment-retries, with .tmp/e13/agenova api connect --state-dir .tmp/e13/state maintaining port 8088.
 
@@ -86,7 +86,7 @@ Certificate readiness does not imply website routing has been configured.
 
 Owner explicitly replaced both CloudFront and Cloudflare with ALB. Permanent
 Sydney ACM certificate 05298630-af13-42c2-8ffa-4bed2401d2ea is ISSUED for apex and
-wildcard. Disposable `infra/demo/edge` owns ALB agenova-demo, HTTPS 443 listener,
+wildcard. Disposable `infra/production/edge` owns ALB agenova-demo, HTTPS 443 listener,
 instance/NodePort target group, ASG attachment, restricted SG rules and the
 `demo.agenova.app` A alias. No AAAA alias is published for this IPv4 ALB.
 

@@ -1,3 +1,11 @@
+# Archived E13 reference deployment
+
+Historical evidence only. The shared-password proxy and its deployment scripts have
+been removed. Do not execute this runbook against the member service. Use
+[the member service guide](../../deploy/production/member-service.md) and
+[production infrastructure](../../infra/production/README.md). Historical commands
+below describe the retired installation and are not supported deployment steps.
+
 # E13 EKS and Bedrock vertical slice
 
 This extends the existing installed reference service to EKS and Bedrock. It is
@@ -6,8 +14,8 @@ The current service still uses reference Team A and is accessed through a local
 Kubernetes tunnel. Do not publish its private API or present two tunnel clients
 as two authenticated application users.
 
-Use the [task packet](../../../work/0175-shared-eks-bedrock/task.md) and
-[Terraform runbook](../../../infra/demo/aws/README.md). Select an existing EKS
+Use the [task packet](../../work/0175-shared-eks-bedrock/task.md) and
+[Terraform runbook](../../infra/production/eks/README.md). Select an existing EKS
 context, install the repository-pinned Agent Sandbox v0.4.6 substrate, and build
 both repository images for linux/amd64. Push them to operator-owned ECR and use
 immutable sha256 references. Setting `compatible-worker-protocol: controlled-v1`

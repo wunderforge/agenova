@@ -39,11 +39,11 @@ Uninvited/disabled users, reused/expired invitation, forged/expired/wrong-issuer
 - [x] Assignee self-review: Owner explicitly reprioritized production/invite-only scope on 2026-10-12. Preserve architecture; do not change #203/#204 assignments or producer contracts.
 - [x] Define shared behavior, dependencies and production release gates in spec/design.
 - [x] Implement bounded Cognito access-token verification and a required current-membership/revocation source interface with negative fixtures.
-- [ ] Supply the durable membership/revocation source and integrate it with each API request.
+- [x] Supply the durable membership/revocation source and integrate it with each API request.
 - [x] Add authenticated HTTPS transport to the connected client without a Kubernetes target; reject token-bearing redirects and ambiguous transport configuration.
-- [ ] Integrate request-local principal, action/ownership checks and CLI login/profile selection.
-- [ ] Implement PKCE login, OS credential storage, refresh/revocation and Portal sessions.
-- [ ] Implement durable storage, migrations, restart reconciliation and data-preserving stop/start.
+- [x] Integrate request-local principal, action/ownership checks and CLI login/profile selection.
+- [x] Implement PKCE login, OS credential storage, refresh/revocation and Portal sessions.
+- [x] Implement durable storage, migrations, restart reconciliation and data-preserving stop/start.
 - [ ] Review and deploy bounded infrastructure after budget/SLO decisions.
 - [ ] Execute two-user real-backend, negative, recovery and rendered tests.
 - [ ] Run focused gates and ./scripts/check.ps1 -All; independent review and cutover.
@@ -480,3 +480,92 @@ Published preview 0.1.0-preview.20261013.1 and updated public tap.
 [Cross-platform evidence](evidence/cross-platform-cli.md) records native Windows/Linux
 CI, actual package installation, local full gate and the remaining real WSL2/Google
 acceptance boundary. No real-user WSL login is claimed.
+
+## Owner decision: three operational roles, 19 October
+
+Replace everyday role choices with Platform Admin, Platform Operator, Member.
+Owner remains a protected identity. Platform Admin is the existing account-admin
+and assigned-project-admin bundle (including governance and serving-installation
+deployment); Platform Operator has scoped deployment only; Member has assigned
+project submission and own evidence only. AWS IAM/RBAC remain independent.
+Implement atomic role transitions over the existing persisted grant model, clearing
+incompatible grants on demotion, with audit and active-member/team locking.
+Keep legacy storage/API compatibility but expose no extra role choices in the new
+management flow. Do not mislabel legacy custom grants as canonical roles.
+Owner explicitly authorizes migrating all five current team accounts to Platform
+Admin, preserving Owner and disabled states; do not apply automatic promotion to
+future registrations or other accounts. Record exact targets and before/after
+state. Test operator/member denials, downgrade, unknown role/scope/cross-team,
+rollback and UI; run focused PostgreSQL and full gate before deployment. Update
+quick guide/use cases and verify real deployment/HTTPS. Existing image-only
+upgrade cannot change model configuration; no new unsupported capability claims.
+
+## Follow-up, 19 October: navigation and administrator delegation
+
+Owner requests Administration and Log out alongside Work/Agents/Policy/Platform
+in the Portal sidebar, sharing its desktop/mobile styles. Server emits only a
+non-authoritative navigation hint; all API authorization remains server-side.
+Platform Admin may now assign all three operational roles to other users, including
+other administrators, within its administered projects. Owner and self-role changes
+remain protected. This supersedes the Owner-only administrator appointment rule.
+Test administrator approval/role transition, protected Owner/self, and navigation.
+
+## Owner follow-up: browser governance editor, 19 October
+
+Add project Policy/AgentTemplate read/edit/save in Administration through existing
+setup and governance APIs. Preserve immutable policy versions/template names:
+changed content requires new identity; no overwrite, delete or general CRUD.
+Server role/project checks, validation, worker compatibility, audit and atomic
+activation remain authoritative. Show conflict/denial/invalid input explicitly,
+protect unsaved text during submission and clear stale selection on target change.
+Test positive saving, denial, conflict, malformed JSON, project switching and mobile
+rendering; run PostgreSQL tests/full gate and deploy with live idempotent save proof.
+
+## Merge-readiness audit, 19 October
+
+The original implementation checkboxes above are reconciled with later evidence;
+checked implementation does not imply the whole production acceptance campaign.
+See [current acceptance status](evidence/merge-readiness-20261019.md). Keep review,
+live interruption/revocation and long-term hosting decisions open. Historical
+Cognito and pre-persistence gaps in earlier evidence are not current blockers.
+
+## Owner follow-up: infrastructure directory migration, 19 October
+
+Move active infra/demo roots to infra/production/eks and edge while preserving
+local Terraform state, lineage, serial, resource addresses and physical names.
+Do not apply infrastructure changes or affect RDS/shared network. Retire obsolete
+shared-password deployment scripts and archive their runbook as historical only.
+Preserve local-only active network policy/add-on configuration. Update operator
+references and scheduled cleanup paths without changing authorized lifetime.
+Evidence: private backups, identical state hashes and before/after plan comparison,
+Terraform validation, RDS health, documentation and full repository gate.
+CI remains enabled; latest pre-migration run 39232189020 passed all three jobs.
+
+## Owner correction: preserve main CI unchanged, 19 October
+
+Remove this PR's cli-platforms workflow addition. The CI file must match latest
+main exactly; do not move the jobs into another workflow. Existing baseline stays
+unchanged. Previously recorded native Windows/Linux runs remain historical evidence;
+packaging scripts and installation artifacts remain in scope. This does not waive
+native release verification or remaining production acceptance.
+
+## Acceptance continuation and Portal cleanup, 19 October
+
+Keep CI byte-identical to main. Add an opt-in real-cluster cleanup-recovery test
+using a compatible explicitly selected worker image and unique resources. Discard
+adapter memory while its worker runs, reject a second Start and premature Cleanup,
+then confirm stop and Kubernetes resource absence. This is not a whole-service
+crash or a Bedrock replay campaign. Run durable/isolation/revocation tests against
+disposable PostgreSQL. Owner declined live Fisher revocation; preserve his grants
+and sessions and retain that acceptance gap. Remove the global Project/Template
+selector toolbar at Owner request, retaining scoped setup URLs, server checks and
+required Work submission fields. Verify rendered UI and deploy assets only.
+
+## Independent review follow-up, 19 October
+
+Fix session issuance capacity accounting without deleting revocation tombstones or
+audit records. Keep the 32-active-session cap. Regress repeated logout/relogin and
+disable/re-enable against disposable PostgreSQL. Anonymous login-attempt capacity
+exhaustion remains an open P2; source limiting must not trust arbitrary forwarded
+headers, and verified callbacks need isolated capacity. No production flood test
+or teammate session modification is authorized by this review.

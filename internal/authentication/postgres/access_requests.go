@@ -131,6 +131,19 @@ func (s Store) ReviewAccessRequest(ctx context.Context, p v0.Principal, c invita
 	if c.ID == "" || len(c.ID) > 128 || len(c.Project) > 128 {
 		return invitations.ErrInvalid
 	}
+	if c.PlatformRole != "" {
+		if c.Action != "approve" || c.AccountRole != "" || c.Role != "" || c.Installation == "" {
+			return invitations.ErrInvalid
+		}
+		switch c.PlatformRole {
+		case PlatformAdmin:
+			c.AccountRole, c.Role = Admin, Admin
+		case PlatformOperator, MemberRole:
+			c.AccountRole, c.Role = MemberRole, MemberRole
+		default:
+			return invitations.ErrInvalid
+		}
+	}
 	switch c.Action {
 	case "approve":
 		if c.AccountRole != MemberRole && c.AccountRole != Admin {
@@ -161,7 +174,7 @@ func (s Store) ReviewAccessRequest(ctx context.Context, p v0.Principal, c invita
 		return err
 	}
 	if c.Action == "approve" {
-		if actor != Owner && (c.AccountRole == Admin || c.Role == Admin) {
+		if actor != Owner && c.PlatformRole == "" && (c.AccountRole == Admin || c.Role == Admin) {
 			return authentication.ErrForbidden
 		}
 		var permitted bool
@@ -179,7 +192,11 @@ func (s Store) ReviewAccessRequest(ctx context.Context, p v0.Principal, c invita
 		if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_members(issuer,subject,principal,team,active,account_role) VALUES($1,$2,$3,$4,true,$5)`, issuer, subject, principal, p.Team, c.AccountRole); err != nil {
 			return invitations.ErrUnavailable
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_project_grants(principal,team,project,role) VALUES($1,$2,$3,$4)`, principal, p.Team, c.Project, c.Role); err != nil {
+		if c.PlatformRole == PlatformOperator {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_scoped_roles(principal,team,role,scope_kind,scope_ref) VALUES($1,$2,'platform-operator','installation',$3)`, principal, p.Team, c.Installation); err != nil {
+				return invitations.ErrUnavailable
+			}
+		} else if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_project_grants(principal,team,project,role) VALUES($1,$2,$3,$4)`, principal, p.Team, c.Project, c.Role); err != nil {
 			return invitations.ErrUnavailable
 		}
 		status = "approved"
@@ -191,7 +208,7 @@ func (s Store) ReviewAccessRequest(ctx context.Context, p v0.Principal, c invita
 	if _, err = tx.ExecContext(ctx, `UPDATE agenova_access_requests SET status=$2,principal=$3,reviewed_at=now() WHERE id=$1`, c.ID, status, bound); err != nil {
 		return invitations.ErrUnavailable
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_identity_audit(actor,operation,principal) VALUES($1,$2,$3)`, p.Subject, "access."+status+".account."+c.AccountRole+".project."+c.Project+".role."+c.Role, principal); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_identity_audit(actor,operation,principal) VALUES($1,$2,$3)`, p.Subject, "access."+status+".platform."+c.PlatformRole+".account."+c.AccountRole+".project."+c.Project+".role."+c.Role, principal); err != nil {
 		return invitations.ErrUnavailable
 	}
 	if tx.Commit() != nil {

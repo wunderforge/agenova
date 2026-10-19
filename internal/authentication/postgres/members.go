@@ -84,6 +84,9 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 	if c.Principal == "" || len(c.Principal) > 256 || len(c.Project) > 128 {
 		return invitations.ErrInvalid
 	}
+	if c.Action == "platform-role" {
+		return s.ChangePlatformRole(ctx, p, c)
+	}
 	if c.Action == "transfer-owner" {
 		return s.TransferOwner(ctx, p, c)
 	}
