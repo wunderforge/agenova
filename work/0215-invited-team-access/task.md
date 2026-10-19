@@ -540,3 +540,11 @@ references and scheduled cleanup paths without changing authorized lifetime.
 Evidence: private backups, identical state hashes and before/after plan comparison,
 Terraform validation, RDS health, documentation and full repository gate.
 CI remains enabled; latest pre-migration run 39232189020 passed all three jobs.
+
+## Owner correction: preserve main CI unchanged, 19 October
+
+Remove this PR's cli-platforms workflow addition. The CI file must match latest
+main exactly; do not move the jobs into another workflow. Existing baseline stays
+unchanged. Previously recorded native Windows/Linux runs remain historical evidence;
+packaging scripts and installation artifacts remain in scope. This does not waive
+native release verification or remaining production acceptance.
