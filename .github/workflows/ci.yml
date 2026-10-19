@@ -56,6 +56,11 @@ jobs:
           cd ui
           npx playwright install --with-deps chromium
 
+      - name: Validate release logic without cloud credentials
+        run: |
+          node --test scripts/release/release.test.mjs
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/shared-eks-release.yml .github/workflows/ci.yml
+
       - name: Run shared repository quality gate
         shell: pwsh
         run: ./scripts/check.ps1 -Profile $env:AGENOVA_CHECK_PROFILE
