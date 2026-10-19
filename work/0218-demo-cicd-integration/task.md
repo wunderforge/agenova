@@ -53,3 +53,32 @@ must not be described as an upstream merge. New upstream source includes three
 operational roles, administration/governance editor, session-capacity repair and
 production-directory migration. These are source changes only: do not move local
 AWS state or apply infrastructure. Rerun the combined SQL, full and browser gates.
+
+## Owner-authorized shared-cluster delivery continuation
+
+Owner authorizes publishing this candidate branch, temporarily permitting its
+exact OIDC ref, testing shared-cluster deployment tonight, AWS/Agenova CLI
+verification, and merging the validated source into the default branch without
+an additional review round. Team deployment heads-up is confirmed. Default branch
+is `main`, not `master`. No other cluster, database migration, Secret read,
+external MCP/Collector installation or resource destruction is authorized.
+
+Owner explicitly selected reviewed #216 `88888a2`: newer migration 009/proxy
+changes remain on #216 for separate deployment. Do not close #215/#216 as fully
+delivered or accidentally merge their newer untested head.
+
+Integrate #223 `9fa7838`; add a manual exact-ref/exact-SHA first-pair mode through
+the existing dispatchable CI workflow. Preserve ordinary main/PR gates. Publish
+the member CP with its Portal and the matching Worker; atomically patch only the
+CP image and its one compatible-Worker environment value, checking live UID,
+resource version, all other Pod configuration and unchanged installed registry.
+Unknown prior source stays null; build both images rather than inventing a base.
+Use a new project-scoped immutable template and policy version through the real
+API, not deletion/overwrite of the reference slot. Preserve rollback images and
+configuration. Temporary publisher trust and environment branch access must be
+removed after testing; automatic main deployment stays disabled.
+
+Acceptance: real GitHub Actions OIDC/ECR publication and rollout; AWS CLI image
+digests and Kubernetes ready/source/configuration confirmation; matching Agenova
+CLI registration, allowed real-model Work, query and zero-allocation admission
+denial. Existing external Tool credentials and OTEL restrictions remain explicit.

@@ -13,10 +13,14 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   baseline:
+    if: >-
+      !(github.event_name == 'workflow_dispatch' &&
+        vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
+        github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA)
     name: baseline
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -56,6 +60,11 @@ jobs:
           cd ui
           npx playwright install --with-deps chromium
 
+      - name: Validate release logic without cloud credentials
+        run: |
+          node --test scripts/release/release.test.mjs
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/shared-eks-release.yml .github/workflows/ci.yml
+
       - name: Run shared repository quality gate
         shell: pwsh
         run: ./scripts/check.ps1 -Profile $env:AGENOVA_CHECK_PROFILE
@@ -68,3 +77,17 @@ jobs:
           path: .tmp/ui-smoke
           include-hidden-files: true
           if-no-files-found: ignore
+
+  candidate-release:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
+      github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/shared-eks-release.yml
+    with:
+      candidate: true
+      publish: true
+      deploy: true

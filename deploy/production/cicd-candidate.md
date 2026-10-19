@@ -90,6 +90,16 @@ do not present it as a working OTEL backend.
 
 ## CI/CD trial boundary
 
+Owner authorized the exact manual candidate branch on 19 October, including an
+atomic CP/Worker-binding rollout and post-verification merge. The new path and
+temporary access cleanup are documented in
+[shared EKS delivery](../../docs/development/shared-eks-release.md).
+It uses the Portal-inclusive member release Dockerfile, not the bare reference
+image. It does not change the installed immutable slot or Platform ConfigMap;
+new project-scoped records are registered through authenticated CLI after rollout.
+The older main-only findings below are historical context, not a requirement to
+merge untested code first. New schema-009 work is explicitly excluded by Owner.
+
 The separately developed `codex/neo-shared-eks-cicd` workflow inspected on
 19 October is main-ref scoped and intentionally stops deployment when the Worker
 changes. This candidate changes Worker/catalog behavior. A branch validation run,
