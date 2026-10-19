@@ -103,3 +103,58 @@ func TestApplicationSessionLimits(t *testing.T) {
 	}
 	var _ authentication.Verifier = ApplicationSessions{}
 }
+
+func TestApplicationSessionInvalidatedLoginsDoNotConsumeCapacity(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	m := Member{Issuer: "https://accounts.google.com", Subject: "sub", Principal: "member", Team: "team", Active: true}
+	if err := s.PutMember(ctx, "operator", m); err != nil {
+		t.Fatal(err)
+	}
+	verifier := ApplicationSessions{s}
+	for i := 0; i < 40; i++ {
+		raw, id, err := s.IssueApplicationSession(ctx, m.Issuer, m.Subject, time.Hour)
+		if err != nil {
+			t.Fatalf("login %d after logout: %v", i, err)
+		}
+		if err := s.Revoke(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := verifier.Verify(ctx, raw); err == nil {
+			t.Fatal("revoked token revived")
+		}
+	}
+	var revoked int
+	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_revocations`).Scan(&revoked); err != nil || revoked != 40 {
+		t.Fatalf("revocation tombstones lost: %d %v", revoked, err)
+	}
+	var old string
+	for i := 0; i < 32; i++ {
+		raw, _, err := s.IssueApplicationSession(ctx, m.Issuer, m.Subject, time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		old = raw
+	}
+	if _, _, err := s.IssueApplicationSession(ctx, m.Issuer, m.Subject, time.Hour); err == nil {
+		t.Fatal("active session cap ignored")
+	}
+	m.Active = false
+	if err := s.PutMember(ctx, "operator", m); err != nil {
+		t.Fatal(err)
+	}
+	m.Active = true
+	if err := s.PutMember(ctx, "operator", m); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _, err := s.IssueApplicationSession(ctx, m.Issuer, m.Subject, time.Hour)
+	if err != nil {
+		t.Fatal("invalidated sessions exhausted fresh login capacity", err)
+	}
+	if _, err := verifier.Verify(ctx, old); err == nil {
+		t.Fatal("re-enable revived old token")
+	}
+	if _, err := verifier.Verify(ctx, fresh); err != nil {
+		t.Fatal("fresh login rejected", err)
+	}
+}

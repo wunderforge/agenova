@@ -66,3 +66,32 @@ During single-replica rollout the browser briefly reported unavailable/502; afte
 readiness and retry the list and new task succeeded. This is not zero-downtime HA.
 Rendered proof is privately retained as `.tmp/acceptance-20261019/live-work.png`.
 Anonymous /api/requests and /api/setup both returned 401 after the rollout.
+
+## Independent agent review, 19 October
+
+An independent agent reviewed member/session authority, evidence SQL scoping,
+Google/native sessions, recovery and the image-only upgrade path. This is a scoped
+review, not approval of every changed file or a GitHub maintainer approval.
+
+Two P2 availability findings were confirmed:
+
+- Revoked sessions and sessions invalidated by member disable/re-enable still
+  counted toward the 32-active-session limit. Session issuance now removes only
+  expired/revoked/invalidated rows under its existing member lock. Revocation
+  tombstones and audit records remain intact. A disposable PostgreSQL regression
+  performs 40 login/logout cycles, preserves all tombstones, enforces the limit
+  for genuinely active sessions, and verifies re-enable cannot revive old tokens.
+  Uncached race tests for authentication/postgres and console passed.
+- Anonymous native authorization requests share a global 128-entry attempt pool
+  with browser attempts and verified callback codes. An anonymous caller can
+  exhaust it for up to five minutes. This remains open: a fix must distinguish
+  trustworthy source limits from caller-supplied forwarding headers and reserve
+  verified callback capacity. Do not load-test this against the production login
+  service or describe the PR as merge-ready while the finding is unresolved.
+
+The session-cap change has not yet been deployed to the live service. Private
+regression log: `.tmp/acceptance-20261019/review-session-fix.log`.
+
+Full `scripts/check.ps1 -All` passed after the session-cap fix, including 125
+frontend unit tests and 56 browser smokes. CI configuration remains identical to
+main. This local gate does not resolve the anonymous-attempt finding.

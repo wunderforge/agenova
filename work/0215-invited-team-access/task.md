@@ -560,3 +560,12 @@ disposable PostgreSQL. Owner declined live Fisher revocation; preserve his grant
 and sessions and retain that acceptance gap. Remove the global Project/Template
 selector toolbar at Owner request, retaining scoped setup URLs, server checks and
 required Work submission fields. Verify rendered UI and deploy assets only.
+
+## Independent review follow-up, 19 October
+
+Fix session issuance capacity accounting without deleting revocation tombstones or
+audit records. Keep the 32-active-session cap. Regress repeated logout/relogin and
+disable/re-enable against disposable PostgreSQL. Anonymous login-attempt capacity
+exhaustion remains an open P2; source limiting must not trust arbitrary forwarded
+headers, and verified callbacks need isolated capacity. No production flood test
+or teammate session modification is authorized by this review.

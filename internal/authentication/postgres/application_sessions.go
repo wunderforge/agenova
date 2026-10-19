@@ -50,7 +50,10 @@ func (s Store) IssueApplicationSession(ctx context.Context, issuer, subject stri
 	if tx.QueryRowContext(ctx, `SELECT principal FROM agenova_members WHERE issuer=$1 AND subject=$2 AND active FOR UPDATE`, issuer, subject).Scan(&principal) != nil {
 		return "", authentication.Identity{}, denied
 	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM agenova_application_sessions WHERE issuer=$1 AND subject=$2 AND expires_at<=clock_timestamp()`, issuer, subject); err != nil {
+	if _, err = tx.ExecContext(ctx, `DELETE FROM agenova_application_sessions a USING agenova_members m
+ WHERE a.issuer=$1 AND a.subject=$2 AND m.issuer=a.issuer AND m.subject=a.subject
+ AND (a.expires_at<=clock_timestamp() OR a.authenticated_at<=m.login_after
+ OR EXISTS (SELECT 1 FROM agenova_revocations r WHERE r.issuer=a.issuer AND r.subject=a.subject AND r.session_id=a.session_id))`, issuer, subject); err != nil {
 		return "", authentication.Identity{}, denied
 	}
 	var count int
