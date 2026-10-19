@@ -31,7 +31,10 @@ import (
 )
 
 var ErrConflict = errors.New("request already exists")
-var ErrCapacity = errors.New("local demo request capacity reached; restart only after active work completes")
+
+// The cap at Submit counts every record, including terminal ones, and records
+// are retained as the operator's only queryable evidence. Waiting frees nothing.
+var ErrCapacity = errors.New("local demo request capacity reached; completed requests are retained for evidence, so only a restart frees capacity")
 
 type Executor interface {
 	Execute(context.Context, v0.SandboxClaimBackendIdentity, workerprotocol.Task, workerprotocol.Handler) (string, error)
@@ -224,11 +227,24 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		return evidence.View{}, ErrCapacity
 	}
 	// Reserve before issuance to prevent duplicate submissions racing to allocate.
-	s.records[request.Metadata.Name] = &record{owner: owner, sessionCheck: sessionCheck}
+	reservation := &record{owner: owner, sessionCheck: sessionCheck}
+	s.records[request.Metadata.Name] = reservation
 	s.wg.Add(1)
 	s.mu.Unlock()
 	runOwned := false
 	defer func() {
+		// Every return below either replaces this reservation with a queryable
+		// record or abandons the submission. A surviving reservation never
+		// enters order, so List cannot show it and QueryRequest reports it as
+		// not found, while it still holds a capacity slot and shadows its own
+		// reference until restart. Identity decides, not a flag: the terminal
+		// non-Allow record and the template-configuration record replace it and
+		// must survive. Release before Done so Close never returns with one left.
+		s.mu.Lock()
+		if s.records[request.Metadata.Name] == reservation {
+			delete(s.records, request.Metadata.Name)
+		}
+		s.mu.Unlock()
 		if !runOwned {
 			s.wg.Done()
 		}
@@ -238,9 +254,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		err = s.checkWorkCatalog(prepared)
 	}
 	if err != nil {
-		s.mu.Lock()
-		delete(s.records, request.Metadata.Name)
-		s.mu.Unlock()
+		// The reservation is released by the deferred cleanup above.
 		return evidence.View{}, err
 	}
 	ref := request.Metadata.Name
@@ -282,6 +296,9 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		reason := "runtime template configuration failed; check the installed runtime and operator logs"
 		view.State.Claim.Phase = v0.ClaimPhaseFailed
 		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
+		// Attribution is already established. In durable mode a storage failure
+		// latches storageFailed; persistFinished below must then refuse success.
+		// No worker was allocated on this configuration-failure path.
 		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
 		s.mu.Lock()
 		s.records[ref] = &record{view: evidence.Clone(view), owner: owner, sessionCheck: sessionCheck}
@@ -537,12 +554,23 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			code, outcome.Failure = "tool-evidence-failed", "A governed tool call could not be fully recorded. If a provider attempt is recorded, treat its external effect as unknown."
 		}
 	}
+	// Attribution is already established. Unlike the reference-only journal,
+	// durable writes may fail: its commit callback latches storageFailed and
+	// persistFinished refuses publication. Never panic or replay a provider.
 	_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: code, Reason: outcome.Failure})
 	s.mu.Lock()
-	if final != nil {
-		s.records[ref].view.State = final
+	// A missing key yields a nil *record. Submit installs the record before
+	// starting this goroutine and no path deletes an installed record, so it is
+	// normally present; guard anyway, because a nil dereference here happens on
+	// a goroutine where the panic is unrecoverable and would take down the
+	// console together with every other request's evidence. The RunOutcome fact
+	// above is already in the journal, so the outcome is not lost.
+	if r := s.records[ref]; r != nil {
+		if final != nil {
+			r.view.State = final
+		}
+		r.view.Outcome = outcome
 	}
-	s.records[ref].view.Outcome = outcome
 	s.mu.Unlock()
 	_ = s.persistFinished(ref)
 }
