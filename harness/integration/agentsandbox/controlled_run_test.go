@@ -171,14 +171,14 @@ func testControlledLifecycle(t *testing.T, recoverWorker bool) {
 		}
 		switch callbackCalls {
 		case 1:
-			return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","input":"README.md","answer":""}`}, nil
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"git.read","resource":"repo:acme/payments","input":"README.md","answer":""}`}, nil
 		case 2:
 			if op.Kind != "tool" {
 				return workerprotocol.Reply{}, fmt.Errorf("expected governed tool call")
 			}
 			return workerprotocol.Reply{Allowed: true, Text: "synthetic observation"}, nil
 		default:
-			return workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","input":"","answer":"hello"}`}, nil
+			return workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","resource":"","input":"","answer":"hello"}`}, nil
 		}
 	})
 	if err != nil || answer != "hello" || callbackCalls != 3 {
