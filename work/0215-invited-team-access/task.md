@@ -480,3 +480,43 @@ Published preview 0.1.0-preview.20261013.1 and updated public tap.
 [Cross-platform evidence](evidence/cross-platform-cli.md) records native Windows/Linux
 CI, actual package installation, local full gate and the remaining real WSL2/Google
 acceptance boundary. No real-user WSL login is claimed.
+
+## Owner decision: three operational roles, 19 October
+
+Replace everyday role choices with Platform Admin, Platform Operator, Member.
+Owner remains a protected identity. Platform Admin is the existing account-admin
+and assigned-project-admin bundle (including governance and serving-installation
+deployment); Platform Operator has scoped deployment only; Member has assigned
+project submission and own evidence only. AWS IAM/RBAC remain independent.
+Implement atomic role transitions over the existing persisted grant model, clearing
+incompatible grants on demotion, with audit and active-member/team locking.
+Keep legacy storage/API compatibility but expose no extra role choices in the new
+management flow. Do not mislabel legacy custom grants as canonical roles.
+Owner explicitly authorizes migrating all five current team accounts to Platform
+Admin, preserving Owner and disabled states; do not apply automatic promotion to
+future registrations or other accounts. Record exact targets and before/after
+state. Test operator/member denials, downgrade, unknown role/scope/cross-team,
+rollback and UI; run focused PostgreSQL and full gate before deployment. Update
+quick guide/use cases and verify real deployment/HTTPS. Existing image-only
+upgrade cannot change model configuration; no new unsupported capability claims.
+
+## Follow-up, 19 October: navigation and administrator delegation
+
+Owner requests Administration and Log out alongside Work/Agents/Policy/Platform
+in the Portal sidebar, sharing its desktop/mobile styles. Server emits only a
+non-authoritative navigation hint; all API authorization remains server-side.
+Platform Admin may now assign all three operational roles to other users, including
+other administrators, within its administered projects. Owner and self-role changes
+remain protected. This supersedes the Owner-only administrator appointment rule.
+Test administrator approval/role transition, protected Owner/self, and navigation.
+
+## Owner follow-up: browser governance editor, 19 October
+
+Add project Policy/AgentTemplate read/edit/save in Administration through existing
+setup and governance APIs. Preserve immutable policy versions/template names:
+changed content requires new identity; no overwrite, delete or general CRUD.
+Server role/project checks, validation, worker compatibility, audit and atomic
+activation remain authoritative. Show conflict/denial/invalid input explicitly,
+protect unsaved text during submission and clear stale selection on target change.
+Test positive saving, denial, conflict, malformed JSON, project switching and mobile
+rendering; run PostgreSQL tests/full gate and deploy with live idempotent save proof.

@@ -149,3 +149,23 @@ test('connected status stays readable on mobile', async ({ page }, info) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('portal-connected-mobile.png'), fullPage: true });
 });
+
+test('account actions share sidebar navigation and preserve POST logout', async ({ page }, info) => {
+  await page.route('**/', async route => {
+    const response = await route.fetch();
+    const html = (await response.text()).replace('</head>', '<meta name="agenova-account-navigation" content="admin"></head>');
+    await route.fulfill({ response, body: html });
+  });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(nav.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/admin');
+  await expect(nav.getByRole('button', { name: 'Log out' })).toBeVisible();
+  await expect(nav.locator('form')).toHaveAttribute('method', 'post');
+  await expect(nav.locator('form')).toHaveAttribute('action', '/logout');
+  await expect(page.getByRole('navigation', { name: 'Account', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('account-sidebar.png'), fullPage: true });
+  await page.setViewportSize({width:390,height:844});
+  await expect(nav.getByRole('button', { name: 'Log out' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('account-mobile.png'), fullPage: true });
+});

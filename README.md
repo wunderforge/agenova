@@ -16,6 +16,14 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 
 ## Start Here
 
+**Using the hosted team service:** start with the [Team Quick Guide](docs/team-quick-guide.md)
+for Google sign-in, approval, macOS Homebrew / Windows installation and common CLI
+commands. [Installation details](docs/cli-installation.md) and
+[team use cases](docs/team-use-cases.zh-CN.md) cover troubleshooting and permissions.
+Ordinary members do not need AWS access; infrastructure operators follow the
+separate AWS SSO/EKS section. Hosting availability is environment-specific.
+
+
 1. [Project design](docs/project-design.md) — the product model, flows, diagrams, and end-state vision.
 2. [MVP PRD](docs/product/prd.md) — the current shared delivery target and acceptance criteria.
 3. [Current status](docs/project-status.md) — what is implemented, what is only a spike, and what comes next.

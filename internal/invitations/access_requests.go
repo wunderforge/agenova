@@ -20,18 +20,20 @@ type AccessRequest struct {
 	Status string `json:"status"`
 }
 type AccessReview struct {
-	ID          string `json:"id"`
-	Action      string `json:"action"`
-	AccountRole string `json:"accountRole"`
-	Project     string `json:"project"`
-	Role        string `json:"role"`
+	PlatformRole string `json:"platformRole,omitempty"`
+	Installation string `json:"-"`
+	ID           string `json:"id"`
+	Action       string `json:"action"`
+	AccountRole  string `json:"accountRole"`
+	Project      string `json:"project"`
+	Role         string `json:"role"`
 }
 type AccessRequests interface {
 	ListAccessRequests(context.Context, v0.Principal) ([]AccessRequest, error)
 	ReviewAccessRequest(context.Context, v0.Principal, AccessReview) error
 }
 
-func AccessRequestHandler(store AccessRequests, auth Authenticator) http.Handler {
+func AccessRequestHandler(store AccessRequests, auth Authenticator, installation ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		p, err := auth.Authenticate(r)
@@ -70,6 +72,13 @@ func AccessRequestHandler(store AccessRequests, auth Authenticator) http.Handler
 			if d.Decode(&change) != nil || d.Decode(new(any)) != io.EOF {
 				fail(ErrInvalid)
 				return
+			}
+			if change.PlatformRole != "" {
+				if len(installation) != 1 || installation[0] == "" {
+					fail(ErrInvalid)
+					return
+				}
+				change.Installation = installation[0]
 			}
 			if err := store.ReviewAccessRequest(r.Context(), p, change); err != nil {
 				fail(err)

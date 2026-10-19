@@ -273,14 +273,15 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	}
 	mux := http.NewServeMux()
 	invitationService := invitations.Service{Registration: d.config.RegistrationTeam != "", Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
-	mux.Handle("/members", invitations.Page(invitationService, d.boundary))
+	mux.Handle("/admin", invitations.Page(invitationService, d.boundary))
+	mux.HandleFunc("/members", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin", http.StatusSeeOther) })
 	mux.Handle("/api/invitations", invitations.Handler(invitationService, d.boundary))
 	mux.Handle("/api/platform/authorize", d.platformAuthorizationHandler())
 	mux.Handle("/api/governance", d.governanceHandler())
 	if d.config.RegistrationTeam != "" {
-		mux.Handle("/api/access-requests", invitations.AccessRequestHandler(d.store, d.boundary))
+		mux.Handle("/api/access-requests", invitations.AccessRequestHandler(d.store, d.boundary, os.Getenv("AGENOVA_PLATFORM_NAME")))
 	}
-	mux.Handle("/api/members", invitations.MemberHandler(d.store, d.boundary))
+	mux.Handle("/api/members", invitations.MemberHandler(d.store, d.boundary, os.Getenv("AGENOVA_PLATFORM_NAME")))
 	if d.google != nil {
 		mux.Handle("/api/invitations/manage", invitations.ManageHandler(d.store, d.boundary, d.config.Origin))
 	}
@@ -308,15 +309,15 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 				http.Error(w, "Portal unavailable", 503)
 				return
 			}
-			managementLink := ""
+			accountNavigation := "member"
 			if p, err := d.boundary.Authenticate(r); err == nil {
 				if _, err = d.store.ListInvitations(r.Context(), p); err == nil {
-					managementLink = `<a href="/members">Team invitations</a>`
+					accountNavigation = "admin"
 				}
 			}
-			nav := `<nav aria-label="Account" style="display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:8px 20px">` + managementLink + `<form method="post" action="/logout"><button type="submit">Log out</button></form></nav>`
+			marker := `<meta name="agenova-account-navigation" content="` + accountNavigation + `">`
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = io.WriteString(w, strings.Replace(string(index), "<body>", "<body>"+nav, 1))
+			_, _ = io.WriteString(w, strings.Replace(string(index), "</head>", marker+"</head>", 1))
 			return
 		}
 		assets.ServeHTTP(w, r)

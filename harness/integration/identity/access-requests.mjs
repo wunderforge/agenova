@@ -23,26 +23,16 @@ try{
   throw new Error(`Unexpected request ${path}`);
  });
  await page.goto('https://identity.example/members');await page.getByText('1 pending requests.',{exact:true}).waitFor();
- assert.equal(await page.getByRole('button',{name:'Create invitation'}).isVisible(),false);
- assert.equal(await page.getByLabel('pending@example.com Access').inputValue(),'developer');
- assert.equal(await page.getByLabel('pending@example.com Account role').isVisible(),false);
- await page.getByLabel('pending@example.com Access').selectOption('admin');
- await page.getByLabel('pending@example.com project',{exact:true}).fill('payments');
-
- await page.locator('#access-section').screenshot({path:resolve(out,'approval-desktop.png')});
- await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.locator('#access-section').screenshot({path:resolve(out,'approval-mobile.png')});
- await page.getByRole('button',{name:'Approve access'}).click();await page.getByText('Access approved.',{exact:false}).waitFor();assert.equal(approved,true);
- for(const preset of ['developer','readonly']) {
-  approved=false;actor='admin';expected={accountRole:'member',role:preset==='developer'?'member':'viewer'};
+ for(const role of ['member','platform-operator','platform-admin']) {
+  approved=false;actor='owner';expected={platformRole:role};
   await page.reload();await page.getByText('1 pending requests.',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Grant advanced permission',exact:true}).count(),0);
-  assert.equal(await page.getByLabel('pending@example.com Access').locator('option[value=admin]').count(),0);
-  assert.equal(await page.getByLabel('pending@example.com Account role').locator('option[value=admin]').count(),0);
-  assert.equal(await page.getByLabel('pending@example.com Project role').locator('option[value=admin]').count(),0);
-  await page.getByLabel('pending@example.com Access').selectOption(preset);
-  await page.getByLabel('pending@example.com project',{exact:true}).fill('payments');
-  await page.getByRole('button',{name:'Approve access'}).click();await page.getByText('Access approved.',{exact:false}).waitFor();assert.equal(approved,true);
+  await page.getByLabel('Role for pending@example.com').selectOption(role);
+  await page.getByLabel('Project for pending@example.com',{exact:true}).fill('payments');
+  await page.getByRole('button',{name:'Approve access'}).click();await page.getByText('Access decision saved.',{exact:false}).waitFor();assert.equal(approved,true);
  }
+ approved=false;actor='admin';await page.reload();await page.getByText('1 pending requests.',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Role for pending@example.com').locator('option[value="platform-admin"]').count(),1);
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:resolve(out,'approval-mobile.png'),fullPage:true});
  console.log('PASS access request UI: pending list, explicit role approval, no invitation, mobile layout');
 }finally{await browser.close();}

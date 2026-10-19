@@ -49,7 +49,7 @@ type MemberStore interface {
 
 // MemberHandler is behind the session BFF's origin checks. Identity/team are
 // taken only from authentication, never from a management payload.
-func MemberHandler(store MemberStore, auth Authenticator) http.Handler {
+func MemberHandler(store MemberStore, auth Authenticator, installation ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if store == nil || auth == nil {
@@ -92,6 +92,13 @@ func MemberHandler(store MemberStore, auth Authenticator) http.Handler {
 			if d.Decode(&change) != nil || d.Decode(new(any)) != io.EOF {
 				fail(ErrInvalid)
 				return
+			}
+			if change.Action == "platform-role" {
+				if change.ScopeRef != "" || len(installation) != 1 || installation[0] == "" {
+					fail(ErrInvalid)
+					return
+				}
+				change.ScopeRef = installation[0]
 			}
 			if err := store.ChangeMember(r.Context(), p, change); err != nil {
 				fail(err)
