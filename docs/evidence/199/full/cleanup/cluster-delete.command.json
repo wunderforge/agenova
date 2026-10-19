@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "kind",
+    "delete",
+    "cluster",
+    "--name",
+    "agenova-e15-199-faults"
+  ],
+  "exit": 0
+}

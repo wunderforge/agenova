@@ -1,0 +1,7 @@
+namespace/agent-sandbox-system created
+serviceaccount/agent-sandbox-controller created
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller created
+service/agent-sandbox-controller created
+deployment.apps/agent-sandbox-controller created
+customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io created
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller created

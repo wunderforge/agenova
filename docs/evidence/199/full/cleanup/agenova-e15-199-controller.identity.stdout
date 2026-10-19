@@ -1,0 +1,21 @@
+{
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+        "creationTimestamp": "2026-10-19T12:27:49Z",
+        "labels": {
+            "kubernetes.io/metadata.name": "agenova-e15-199-controller"
+        },
+        "name": "agenova-e15-199-controller",
+        "resourceVersion": "4185",
+        "uid": "2c60b29f-c625-4853-9887-1bf4c4485bae"
+    },
+    "spec": {
+        "finalizers": [
+            "kubernetes"
+        ]
+    },
+    "status": {
+        "phase": "Active"
+    }
+}

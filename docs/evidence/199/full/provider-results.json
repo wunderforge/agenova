@@ -1,0 +1,44 @@
+{
+  "healthy": {
+    "outcome": "Succeeded",
+    "cliExit": 0,
+    "providerBefore": {
+      "requests": 42,
+      "completed": 42
+    },
+    "providerAfter": {
+      "requests": 44,
+      "completed": 44
+    },
+    "attempts": 2,
+    "modelOutcomes": 2
+  },
+  "outage": {
+    "outcome": "Failed",
+    "cliExit": 1,
+    "providerBefore": {
+      "requests": 44,
+      "completed": 44
+    },
+    "providerAfter": {
+      "requests": 44,
+      "completed": 44
+    },
+    "attempts": 1,
+    "modelOutcomes": 1
+  },
+  "recovery": {
+    "outcome": "Succeeded",
+    "cliExit": 0,
+    "providerBefore": {
+      "requests": 44,
+      "completed": 44
+    },
+    "providerAfter": {
+      "requests": 46,
+      "completed": 46
+    },
+    "attempts": 2,
+    "modelOutcomes": 2
+  }
+}

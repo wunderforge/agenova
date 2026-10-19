@@ -7,6 +7,7 @@ Run from repository root; raw outputs and assertions are retained on failure.
 """
 import argparse
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -18,10 +19,19 @@ def main():
     p.add_argument('--output', required=True)
     p.add_argument('--state-dir', required=True)
     p.add_argument('--cli', default='.tmp/agenova')
+    p.add_argument('--context', choices=['kind-agenova-k8s-lab','kind-agenova-e15-199-faults'], default='kind-agenova-k8s-lab')
+    p.add_argument('--kubeconfig')
     a = p.parse_args()
+    dedicated = a.context == 'kind-agenova-e15-199-faults'
+    if dedicated and not a.kubeconfig:
+        p.error('Dedicated matrix cluster requires its explicit kubeconfig')
+    if a.kubeconfig:
+        os.environ['KUBECONFIG'] = str(Path(a.kubeconfig).resolve())
     out = Path(a.output)
     out.mkdir(parents=True, exist_ok=True)
-    k = ['kubectl', '--context', 'kind-agenova-k8s-lab', '-n', 'agenova-e15-199-provider']
+    k = ['kubectl', '--context', a.context, '-n', 'agenova-e15-199-full' if dedicated else 'agenova-e15-199-provider']
+    if a.kubeconfig:
+        k[1:1] = ['--kubeconfig', a.kubeconfig]
 
     def cmd(argv, label, check=True):
         r = subprocess.run(argv, text=True, capture_output=True, timeout=420)
@@ -38,7 +48,7 @@ def main():
     identity = json.loads(cmd(['docker', 'inspect', a.container_id], 'provider.before').stdout)[0]
     assert identity['Id'] == a.container_id
     assert identity['Config']['Labels'].get('agenova.ticket') == '199'
-    assert identity['Name'] == '/agenova-e15-199-provider'
+    assert identity['Name'] == ('/agenova-e15-199-full-provider' if dedicated else '/agenova-e15-199-provider')
     assert identity['State']['Running']
     cli = [a.cli]
     def call(argv, label, check=True):
@@ -75,7 +85,7 @@ def main():
                 else:raise RuntimeError('provider did not recover')
             state=json.loads(cmd(['docker','inspect',a.container_id],scenario+'.provider-state').stdout)[0]['State']
             assert state['Running'] == (scenario != 'outage')
-            probe=cmd(['docker','exec','agenova-k8s-lab-control-plane','curl','-fsS','--max-time','5','http://host.docker.internal:11439/api/tags'],scenario+'.provider-probe',False)
+            probe=cmd(['docker','exec',a.context.removeprefix('kind-')+'-control-plane','curl','-fsS','--max-time','5','http://host.docker.internal:11439/api/tags'],scenario+'.provider-probe',False)
             assert (probe.returncode == 0) == (scenario != 'outage')
             before=logs(scenario+'.provider-log-before')
             request['metadata']['name']='e15-199-'+scenario+'-'+run_id

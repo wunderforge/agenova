@@ -1,3 +1,7 @@
+# Historical first-slice draft
+
+Superseded by the [full-matrix publication drafts](full/publication-draft.md). Nothing below was published.
+
 # Proposed PR
 
 Title: test: capture real provider outage and recovery evidence for RI-3

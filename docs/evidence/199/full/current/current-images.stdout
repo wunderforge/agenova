@@ -1,0 +1,114 @@
+[
+    {
+        "Id": "sha256:fe2993e4b5dbe427cfc97f2bb24c164018f6c0fe686f3ea6482961e299071d3c",
+        "RepoTags": [
+            "agenova-control-plane:0.1.0"
+        ],
+        "RepoDigests": [
+            "agenova-control-plane@sha256:fe2993e4b5dbe427cfc97f2bb24c164018f6c0fe686f3ea6482961e299071d3c"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-19T12:20:32.372763509Z",
+        "Config": {
+            "User": "nonroot:nonroot",
+            "ExposedPorts": {
+                "8080/tcp": {}
+            },
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+            ],
+            "Entrypoint": [
+                "/agenova-control-plane"
+            ],
+            "WorkingDir": "/home/nonroot"
+        },
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Size": 95405206,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:6fc9269a8b4d61cdd276e80d170e4caa1566efc1b9f42442fdad4f69836b3c4f",
+                "sha256:8fa10c0194df9b7c054c90dbe482585f768a54428fc90a5b78a0066a123b1bba",
+                "sha256:35b5ba6e08cdd034b8d1920f9c7203e5d66f258e1915f164a01de0af14f34710",
+                "sha256:114dde0fefebbca13165d0da9c500a66190e497a82a53dcaabc3172d630be1e9",
+                "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "sha256:6e7fbcf090d09b73a4aa85f9dce690d0ace73877c150b7c56955487b6e7a822a",
+                "sha256:5904c32f457c96a16c8c68f5ccdf518c8138cd9e5971de9ce6d564fc481af222",
+                "sha256:06281afa2b60ae8d630cacb5deb882f342b9b9f4b0cffc3cb576b1bc0f22c239",
+                "sha256:4d6e4b5157e37a2ce64bb506571d454349cc7da459d91f9ab55f94d9b6c5532d"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-19T12:20:33.196474634Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:fe2993e4b5dbe427cfc97f2bb24c164018f6c0fe686f3ea6482961e299071d3c",
+            "size": 856
+        },
+        "Identity": {
+            "Build": [
+                {
+                    "Ref": "7hzmychtwxkjklw36m590f1kv",
+                    "CreatedAt": "2026-10-19T12:20:33.399276051Z"
+                }
+            ]
+        }
+    },
+    {
+        "Id": "sha256:116e66aea071b6ce7b4254f17c1c6433799b99ef67e97ea4d4b6d5ce4bfd3b6d",
+        "RepoTags": [
+            "agenova-testworker:kind"
+        ],
+        "RepoDigests": [
+            "agenova-testworker@sha256:116e66aea071b6ce7b4254f17c1c6433799b99ef67e97ea4d4b6d5ce4bfd3b6d"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-19T12:20:37.783697594Z",
+        "Config": {
+            "User": "65532:65532",
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Entrypoint": [
+                "/agenova-workerctl",
+                "serve"
+            ],
+            "WorkingDir": "/"
+        },
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Size": 27499506,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:88b4fba61c4c714a2fc173ddf7e9324a257304696830bf41ad28ecc58c11c95f",
+                "sha256:3d96bde7f2f15cc80e86f49167c4f9bcec4cb39d6ed8bab7a0e76d3333bae520",
+                "sha256:a5f4669f8cd60118552bdc3db0918f085392cd5aab50a413e59a1c66d53c71ea"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-19T12:20:37.900147303Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:116e66aea071b6ce7b4254f17c1c6433799b99ef67e97ea4d4b6d5ce4bfd3b6d",
+            "size": 855
+        },
+        "Identity": {
+            "Build": [
+                {
+                    "Ref": "lp7siqn06vb96duppi063k1tj",
+                    "CreatedAt": "2026-10-19T12:20:37.93081322Z"
+                }
+            ]
+        }
+    }
+]

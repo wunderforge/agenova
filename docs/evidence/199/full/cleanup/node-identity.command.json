@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "docker",
+    "inspect",
+    "agenova-e15-199-faults-control-plane"
+  ],
+  "exit": 0
+}

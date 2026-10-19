@@ -1,5 +1,7 @@
 # Provider outage evidence — #199 pre-Demo RI-3
 
+Historical first slice. The user subsequently authorized the complete matrix; see the [current-main full campaign](full/summary.md).
+
 Measured on 19 October 2026. This is a partial delivery of [#199](https://github.com/wunderforge/agenova/issues/199), following [#177](https://github.com/wunderforge/agenova/issues/177). It does not complete the post-Demo fault matrix or close either issue. No product behavior was changed.
 
 ## Environment and fault

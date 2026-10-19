@@ -1,0 +1,236 @@
+[
+    {
+        "Id": "5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5",
+        "Created": "2026-10-19T12:05:55.684852297Z",
+        "Path": "/usr/local/bin/entrypoint",
+        "Args": [
+            "/sbin/init"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 41924,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-19T12:05:56.579427381Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+        "ResolvConfPath": "/var/lib/docker/containers/5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5/hostname",
+        "HostsPath": "/var/lib/docker/containers/5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5/hosts",
+        "LogPath": "/var/lib/docker/containers/5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5/5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5-json.log",
+        "Name": "/agenova-e15-199-faults-control-plane",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/lib/modules:/lib/modules:ro"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "kind",
+            "PortBindings": {
+                "6443/tcp": [
+                    {
+                        "HostIp": "127.0.0.1",
+                        "HostPort": "54177"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "on-failure",
+                "MaximumRetryCount": 1
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": true,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": [
+                "seccomp=unconfined",
+                "apparmor=unconfined",
+                "label=disable"
+            ],
+            "Tmpfs": {
+                "/run": "",
+                "/tmp": ""
+            },
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": null,
+            "ReadonlyPaths": null,
+            "Init": false
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "volume",
+                "Name": "08517cd0705b5c934560499494f3c2138fe6d50e3af40e558bb56ebdbb67bf19",
+                "Source": "/var/lib/docker/volumes/08517cd0705b5c934560499494f3c2138fe6d50e3af40e558bb56ebdbb67bf19/_data",
+                "Destination": "/var",
+                "Driver": "local",
+                "Mode": "",
+                "RW": true,
+                "Propagation": ""
+            },
+            {
+                "Type": "bind",
+                "Source": "/lib/modules",
+                "Destination": "/lib/modules",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "agenova-e15-199-faults-control-plane",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "6443/tcp": {}
+            },
+            "Tty": true,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER",
+                "KUBECONFIG=/etc/kubernetes/admin.conf",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "container=docker",
+                "HTTP_PROXY=",
+                "HTTPS_PROXY=",
+                "NO_PROXY="
+            ],
+            "Cmd": null,
+            "Image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+            "Volumes": {
+                "/var": {}
+            },
+            "WorkingDir": "/",
+            "Entrypoint": [
+                "/usr/local/bin/entrypoint",
+                "/sbin/init"
+            ],
+            "Labels": {
+                "io.x-k8s.kind.cluster": "agenova-e15-199-faults",
+                "io.x-k8s.kind.role": "control-plane"
+            },
+            "StopSignal": "SIGRTMIN+3"
+        },
+        "NetworkSettings": {
+            "SandboxID": "941cfafd22f8a6ae5af3a9300a54d8e6dd2f18525ed0a1d989740e1682804244",
+            "SandboxKey": "/var/run/docker/netns/941cfafd22f8",
+            "Ports": {
+                "6443/tcp": [
+                    {
+                        "HostIp": "127.0.0.1",
+                        "HostPort": "54177"
+                    }
+                ]
+            },
+            "Networks": {
+                "kind": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "46a5be4645a672a8d762176b090b44b322705ec12cf82381f8b85b9d34d12a38",
+                    "EndpointID": "4786e1158955c4d93b5586592721321646ae42a6896e33ac5acc4408bc19a865",
+                    "Gateway": "172.18.0.1",
+                    "IPAddress": "172.18.0.3",
+                    "MacAddress": "ce:ce:a2:4b:b6:22",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "fc00:f853:ccd:e793::1",
+                    "GlobalIPv6Address": "fc00:f853:ccd:e793::3",
+                    "GlobalIPv6PrefixLen": 64,
+                    "DNSNames": [
+                        "agenova-e15-199-faults-control-plane",
+                        "5e921213ef07"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:6a3345f517a7df05185c648f83d18d464f2a94ea4a69eaee39b7e1de02611e59",
+            "size": 753,
+            "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+            }
+        }
+    }
+]

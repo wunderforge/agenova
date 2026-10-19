@@ -1,0 +1,342 @@
+{
+  "evidence": {
+    "version": "agenova.evidence/v0",
+    "requestRef": "e15-199-terminal-failed-1792413286026860000",
+    "request": {
+      "apiVersion": "agenova.io/v1alpha1",
+      "kind": "ClaimRequest",
+      "metadata": {
+        "name": "e15-199-terminal-failed-1792413286026860000"
+      },
+      "spec": {
+        "templateRef": "engineer",
+        "projectRef": "payments",
+        "task": {
+          "type": "investigation",
+          "input": {
+            "objective": "Explain why synthetic payment retries need a deadline. Do not use tools."
+          }
+        },
+        "requestedAccess": {
+          "tools": [
+            "git.read"
+          ],
+          "resourceScopes": [
+            "repo:acme/payments"
+          ],
+          "modelProfile": "coding-standard"
+        },
+        "runtime": {
+          "profileRef": "standard-isolated",
+          "timeout": "1m30s"
+        }
+      }
+    },
+    "state": {
+      "requestRef": "e15-199-terminal-failed-1792413286026860000",
+      "principal": {
+        "subject": "user:team-a-engineer",
+        "team": "team-a",
+        "authenticationContext": "reference:local"
+      },
+      "action": {
+        "name": "claim.create",
+        "project": "payments",
+        "templateRef": "engineer"
+      },
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "effectiveAuthority": {
+        "id": "authority:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "tools": [
+          "git.read"
+        ],
+        "resourceScopes": [
+          "repo:acme/payments"
+        ],
+        "modelProfile": "coding-standard",
+        "runtime": {
+          "profileRef": "standard-isolated",
+          "timeout": "1m30s"
+        }
+      },
+      "claim": {
+        "id": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "templateRef": "engineer",
+        "authorityRef": "authority:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "phase": "Failed",
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        }
+      },
+      "decision": {
+        "id": "decision:e15-199-terminal-failed-1792413286026860000:authorization:0e02d45d372ed3758ee1eb4d683c6710",
+        "principalRef": "user:team-a-engineer",
+        "action": "claim.create",
+        "result": "Allow",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "reason": "exact policy rule matched the trusted principal and requested assignment"
+      },
+      "evidence": {
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "decisionIds": [
+          "decision:e15-199-terminal-failed-1792413286026860000:authorization:0e02d45d372ed3758ee1eb4d683c6710"
+        ],
+        "runtimeEvents": [
+          {
+            "kind": "Bound"
+          },
+          {
+            "kind": "BackendReady"
+          },
+          {
+            "kind": "Running"
+          },
+          {
+            "kind": "Failed"
+          },
+          {
+            "kind": "TerminateSucceeded"
+          },
+          {
+            "kind": "CleanupSucceeded"
+          }
+        ],
+        "toolInvocations": [],
+        "modelInvocations": []
+      }
+    },
+    "facts": [
+      {
+        "id": "fact:1",
+        "sequence": 1,
+        "timestamp": "2026-10-19T12:34:46.04812Z",
+        "kind": "RequestReceived",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000"
+      },
+      {
+        "id": "fact:2",
+        "sequence": 2,
+        "timestamp": "2026-10-19T12:34:46.048153Z",
+        "kind": "RequestResolution",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "decision": {
+          "id": "decision:e15-199-terminal-failed-1792413286026860000:authorization:0e02d45d372ed3758ee1eb4d683c6710",
+          "principalRef": "user:team-a-engineer",
+          "action": "claim.create",
+          "result": "Allow",
+          "policyRef": {
+            "id": "reference-default-deny",
+            "version": "1"
+          },
+          "reason": "exact policy rule matched the trusted principal and requested assignment"
+        },
+        "result": "Allow",
+        "reasonCode": "assignment-allow",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        }
+      },
+      {
+        "id": "fact:3",
+        "sequence": 3,
+        "timestamp": "2026-10-19T12:34:46.048162Z",
+        "kind": "AuthorityResolved",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "admitted-template-ceiling",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "effectiveAuthority": {
+          "id": "authority:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+          "tools": [
+            "git.read"
+          ],
+          "resourceScopes": [
+            "repo:acme/payments"
+          ],
+          "modelProfile": "coding-standard",
+          "runtime": {
+            "profileRef": "standard-isolated",
+            "timeout": "1m30s"
+          }
+        }
+      },
+      {
+        "id": "fact:4",
+        "sequence": 4,
+        "timestamp": "2026-10-19T12:34:46.048271Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-Pending",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "operation": "Pending"
+      },
+      {
+        "id": "fact:5",
+        "sequence": 5,
+        "timestamp": "2026-10-19T12:34:46.119774Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-Bound",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "Bound"
+      },
+      {
+        "id": "fact:6",
+        "sequence": 6,
+        "timestamp": "2026-10-19T12:34:46.179483Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-BackendReady",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "BackendReady"
+      },
+      {
+        "id": "fact:7",
+        "sequence": 7,
+        "timestamp": "2026-10-19T12:34:46.371455Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-Running",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "Running"
+      },
+      {
+        "id": "fact:8",
+        "sequence": 8,
+        "timestamp": "2026-10-19T12:34:46.489751Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-Failed",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "Failed"
+      },
+      {
+        "id": "fact:9",
+        "sequence": 9,
+        "timestamp": "2026-10-19T12:34:46.642116Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-TerminateSucceeded",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "TerminateSucceeded"
+      },
+      {
+        "id": "fact:10",
+        "sequence": 10,
+        "timestamp": "2026-10-19T12:34:46.785023Z",
+        "kind": "Runtime",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "runtime-CleanupSucceeded",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "backendIdentity": {
+          "backend": "agent-sandbox",
+          "workerId": "agenova-pool-terminal-pool-5rs55"
+        },
+        "operation": "CleanupSucceeded"
+      },
+      {
+        "id": "fact:11",
+        "sequence": 11,
+        "timestamp": "2026-10-19T12:34:46.785133Z",
+        "kind": "RunOutcome",
+        "requestRef": "e15-199-terminal-failed-1792413286026860000",
+        "claimId": "claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06",
+        "reasonCode": "execution-failed",
+        "reason": "Execution failed; no more specific failure reason was recorded.",
+        "operation": "Failed"
+      }
+    ],
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    }
+  },
+  "factsUnchanged": true,
+  "mode": "failed",
+  "providerAfterReplay": {
+    "completed": 42,
+    "responses": 42
+  },
+  "providerBeforeReplay": {
+    "completed": 42,
+    "responses": 42
+  },
+  "providerStart": {
+    "completed": 42,
+    "responses": 42
+  },
+  "replays": [
+    {
+      "allowed": false,
+      "error": "claim \"claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06\" is not running (phase: Failed)",
+      "kind": "model"
+    },
+    {
+      "allowed": false,
+      "error": "claim \"claim:e15-199-terminal-failed-1792413286026860000:issuance:0cd7335d0e12571ecf95868c3f646d06\" is not running (phase: Failed)",
+      "kind": "tool"
+    }
+  ],
+  "scope": "supplementary real-backend console composition, not installed HTTP replay"
+}

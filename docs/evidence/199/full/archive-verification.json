@@ -1,0 +1,5 @@
+{
+  "allMemberHashesVerified": true,
+  "members": 522,
+  "excluded": "kubeconfig, client private keys, host files"
+}
