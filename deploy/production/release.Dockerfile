@@ -2,15 +2,21 @@
 # Copyright 2026 Agenova contributors.
 # SPDX-License-Identifier: Apache-2.0
 # Self-contained member image: the installed member service needs these Portal assets.
+FROM golang:1.27.2-alpine AS go-tools
+
 FROM node:24.11.1-alpine AS portal
+COPY --from=go-tools /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOTOOLCHAIN=local
 WORKDIR /src/ui
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
 COPY ui ./
 COPY api /src/api
 COPY harness /src/harness
+COPY internal /src/internal
 COPY go.mod go.sum /src/
-# Canonical contract generation is checked before release; this stage only bundles.
+# Vite compiles canonical Go fixtures; the locked Go toolchain is build-only.
 RUN npx tsc --noEmit && npx vite build
 
 FROM golang:1.27.2-alpine AS build

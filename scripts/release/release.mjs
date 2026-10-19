@@ -25,7 +25,8 @@ function hash(value) { return createHash('sha256').update(canonical(value)).dige
 
 // Do not print subprocess output/errors that could contain Pod configuration or tokens.
 export function command(file, args, options = {}) {
-  return execFileSync(file, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'], ...options }).trim();
+  const output = execFileSync(file, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'], ...options });
+  return typeof output === 'string' ? output.trim() : '';
 }
 export function config(env = process.env) {
   const c = {
@@ -147,17 +148,20 @@ export function publish(releasePlan, c, run = command) {
     const repo = c[name];
     const registry = repo.split('/')[0];
     const repoName = repo.slice(registry.length + 1);
+    console.log(`Checking immutable ${name} image for ${releasePlan.target}`);
     let digest = existingDigest(repoName, tag, run);
     if (!digest) {
       if (!loggedIn) {
+        console.log('Authenticating ECR publisher (credential kept on stdin)');
         const password = run('aws', ['ecr', 'get-login-password', '--region', c.region]);
         run('docker', ['login', '--username', 'AWS', '--password-stdin', registry], { input: password });
         loggedIn = true;
       }
+      console.log(`Building/publishing public-source ${name} image`);
       run('docker', ['buildx', 'build', '--platform', 'linux/amd64', '--file', component.dockerfile,
         '--label', `org.opencontainers.image.revision=${releasePlan.target}`,
         '--label', 'org.opencontainers.image.source=https://github.com/wunderforge/agenova',
-        '--tag', `${repo}:${tag}`, '--push', '.']);
+        '--tag', `${repo}:${tag}`, '--push', '.'], { stdio: ['ignore', 'inherit', 'inherit'] });
       digest = existingDigest(repoName, tag, run);
       requireValue(digest, 'Published digest not available');
     }

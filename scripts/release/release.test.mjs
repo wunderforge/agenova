@@ -174,6 +174,7 @@ test('publication selects only changed image, full SHA tag, stdin login and dige
   const build = calls.find(v => v[1][0] === 'buildx')[1];
   assert.ok(build.includes(`${c.controlPlane}:sha-${B}`));
   assert.ok(build.includes('linux/amd64'));
+  assert.deepEqual(calls.find(v => v[1][0] === 'buildx')[2].stdio, ['ignore', 'inherit', 'inherit']);
   assert.ok(!result.images.worker);
 });
 test('no component changes perform no ECR/docker operations', () => {

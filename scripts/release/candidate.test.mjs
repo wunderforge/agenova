@@ -75,6 +75,7 @@ test('concurrent configuration changes and post-recovery rebaselining require op
 });
 test('member release bundles Portal; candidate source/schema migration remains operator-owned',()=>{
  const docker=readFileSync(new URL('../../deploy/production/release.Dockerfile',import.meta.url),'utf8');assert.match(docker,/COPY --from=portal \/src\/ui\/dist \/opt\/agenova\/portal/);
+ assert.match(docker,/COPY --from=go-tools \/usr\/local\/go \/usr\/local\/go/);assert.match(docker,/COPY internal \/src\/internal/);
  const script=readFileSync(new URL('./candidate.mjs',import.meta.url),'utf8');assert.ok(!script.includes('identity-migrate'));assert.ok(!script.includes("'get','secret'"));
 });
 test('temporary publisher trust adds only exact candidate and leaves original main policy untouched',()=>{
