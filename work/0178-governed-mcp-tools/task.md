@@ -78,7 +78,7 @@ Latest installed rerun (2026-10-15): [c8 at `c50a6bc`](../../docs/evidence/178/s
 
 Planning gate (run now): `pwsh -NoProfile -File ./scripts/check.ps1 -Docs` and `git diff --check`.
 
-Implementation gates (run for every slice; the c6 run at `fd08ac0` is archived in [c6 gates](../../docs/evidence/178/slice3/c6/gates/), and the full gate on the current code, at `09f086b` (after the console smoke fix, the review fixes, the live checkpoint fix, the catalog and result-reference fixes, the MCP tools-capability check, the merge of `main` after #196 and the fixes for the maintainer's review at `677a206`), is in [full-gate.log](../../docs/evidence/178/full-gate.log)):
+Implementation gates (run for every slice; the c6 run at `fd08ac0` is archived in [c6 gates](../../docs/evidence/178/slice3/c6/gates/), and the full gate on the current code, at `abdefa6` (after the console smoke fix, the review fixes, the live checkpoint fix, the catalog and result-reference fixes, the MCP tools-capability check, the merge of `main` after #196, the fixes for the maintainer's review at `677a206` and the invalid UTF-8 fix from Codex's review at `d68f879`), is in [full-gate.log](../../docs/evidence/178/full-gate.log)):
 
 ```sh
 go test ./api/v1alpha1 ./internal/platform ./internal/adapterregistry ./internal/adapters/bundled ./internal/cli ./cmd/agenova ./cmd/agenova-control-plane
