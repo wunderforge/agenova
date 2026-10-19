@@ -7,7 +7,7 @@ Status: **draft; not accepted or mergeable as a release**. This is a review reco
 | M1 Policy evaluation | [#207](https://github.com/wunderforge/agenova/pull/207), local/full CI pass | Independent approval and merge pending |
 | M2 member identity | [#228](https://github.com/wunderforge/agenova/pull/228), synthetic two-member boundary/full gate | Draft; Ticket transport and real installed users pending |
 | M3 per-user Policy caps | [#229](https://github.com/wunderforge/agenova/pull/229), focused/full gate | Draft; installed two-user authority proof pending |
-| M4 worker identity | [#230](https://github.com/wunderforge/agenova/pull/230), focused/full gate and controlled-kind compile | Draft; integrated installed-kind run pending |
+| M4 worker identity | [#230](https://github.com/wunderforge/agenova/pull/230), focused/full gate and real kind worker run | Draft; cross-claim/post-terminal installed worker proof passed, two-user acceptance pending |
 | Host-token provider boundary | `TestGovernedWorkUsesHostProviderTokenOnlyAfterAllow` | Focused test pass; not installed proof |
 | Two real Google members | Same service, byte-equivalent Work spec, distinct Policy-bounded authority | Pending |
 | CLI/API/Portal parity | Redacted installed evidence for both members | Pending |

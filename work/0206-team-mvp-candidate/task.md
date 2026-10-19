@@ -19,7 +19,7 @@ Package the current member-service acceptance path, a canonical Work fixture and
 - [x] Review old M5 package against the selected main member service; remove obsolete direct-JWT/JWKS/Secret/token-file instructions and fixture.
 - [x] Retain and run the host-token provider boundary test.
 - [ ] Reproduce the integrated installed path with two real Google members, equivalent Work and CLI/API/Portal parity.
-- [ ] Re-run live installed worker cross-claim/post-terminal checks on this integrated branch.
+- [x] Re-run live installed worker cross-claim/post-terminal checks on this integrated branch: two model and one tool call; zero additional adapter calls on cross-claim/terminal denial, confirmed cleanup on kind.
 - [ ] Obtain a second teammate's independent clean-environment run.
 - [ ] Run focused and full gates on the final branch; review diff and record exact evidence.
 
@@ -32,3 +32,5 @@ Package the current member-service acceptance path, a canonical Work fixture and
 - M1 #207 has passed CI but awaits branch-policy approval/merge. M2 #228, M3 #229 and M4 #230 are draft stacked PRs with their own installed evidence pending.
 - The old M5 runbook targeted standalone JWT/JWKS plus `AGENOVA_TOKEN_FILE`, which conflicts with the Owner's selected current Google/member service. It was replaced rather than merged mechanically.
 - Two real approved Google members, a clean member-service installation path and a second teammate's independent run are not yet recorded. M5 remains draft until these are available.
+
+- 2026-10-20: The M4 kind worker smoke passed on the integrated stack using a unique image built from this branch. This proves worker-to-Gateway enforcement and cleanup only; real Google dual-user and independent clean-environment acceptance remain pending.
