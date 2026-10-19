@@ -462,7 +462,7 @@ test('recovered interrupted work shows unknown model outcome without fabricated 
  await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
 });
 
-test('project configuration selector reads the scoped policy and template',async({page},info)=>{
+test('scoped configuration remains readable without global selectors',async({page},info)=>{
  await api(page,()=>[]);
  await page.route('**/api/setup*',route=>{
   const query=new URL(route.request().url()).searchParams;
@@ -472,10 +472,10 @@ test('project configuration selector reads the scoped policy and template',async
  });
  await page.goto('/?mode=connected#/policy');
  await expect(page.getByText('payments-policy',{exact:true})).toBeVisible();
- await page.getByLabel('Configuration project').selectOption('analytics');
+ await expect(page.getByLabel('Configuration project')).toHaveCount(0);
+ await expect(page.getByLabel('Configuration template')).toHaveCount(0);
+ await page.goto('/?mode=connected&project=analytics&template=reviewer#/policy');
  await expect(page.getByText('analytics-policy',{exact:true})).toBeVisible();
- await page.getByLabel('Configuration template').selectOption('reviewer');
- await expect(page.getByLabel('Configuration template')).toHaveValue('reviewer');
  await expect(page.locator('tbody')).toContainText('reviewer');
  await page.screenshot({path:info.outputPath('scoped-policy.png'),fullPage:true});
 });

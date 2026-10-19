@@ -548,3 +548,15 @@ main exactly; do not move the jobs into another workflow. Existing baseline stay
 unchanged. Previously recorded native Windows/Linux runs remain historical evidence;
 packaging scripts and installation artifacts remain in scope. This does not waive
 native release verification or remaining production acceptance.
+
+## Acceptance continuation and Portal cleanup, 19 October
+
+Keep CI byte-identical to main. Add an opt-in real-cluster cleanup-recovery test
+using a compatible explicitly selected worker image and unique resources. Discard
+adapter memory while its worker runs, reject a second Start and premature Cleanup,
+then confirm stop and Kubernetes resource absence. This is not a whole-service
+crash or a Bedrock replay campaign. Run durable/isolation/revocation tests against
+disposable PostgreSQL. Owner declined live Fisher revocation; preserve his grants
+and sessions and retain that acceptance gap. Remove the global Project/Template
+selector toolbar at Owner request, retaining scoped setup URLs, server checks and
+required Work submission fields. Verify rendered UI and deploy assets only.
