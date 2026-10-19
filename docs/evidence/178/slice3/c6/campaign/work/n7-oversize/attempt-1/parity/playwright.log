@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (124ms)
+  ✓  2 installed/mcp.spec.ts:147:3 › n7-oversize: the tool failure is explicit, never mock, and fails the Work @n7-oversize (925ms)
+
+  2 passed (1.5s)

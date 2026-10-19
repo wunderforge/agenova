@@ -1,0 +1,6 @@
+source c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d
+start 2026-10-15T05:34:33Z
+command: token_lines | e16-evidence scan <repo>/.tmp/e16-c8 <repo>/.tmp/e16-c8-state <repo>/docs/evidence/178/slice3/c8 <repo>/.tmp/e16-c8-steps
+token-stream-exit 0
+checker-exit 0
+end 2026-10-15T05:34:33Z

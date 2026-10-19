@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -u
+cd <repo>
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+label="$*"
+label="${label// /-}"
+label="${label//\//_}"
+log=".tmp/e16-c8-steps/${label}.log"
+if [ -e "$log" ]; then printf 'Refusing to overwrite %s\n' "$log"; exit 2; fi
+start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+start_epoch=$(date +%s)
+printf '%s start %s\n' "$start" "$*"
+bash harness/integration/e16/campaign.sh --context kind-agenova-k8s-lab --install-namespace agenova-e16-system --state-dir .tmp/e16-c8-state --output .tmp/e16-c8 --model-profile coding-standard "$@" >"$log" 2>&1
+rc=$?
+end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+end_epoch=$(date +%s)
+printf '%s\t%s\t%s\t%s\t%s\n' "$start" "$end" "$((end_epoch-start_epoch))" "$rc" "$*" >> .tmp/e16-c8-steps/timings.tsv
+tail -18 "$log"
+printf '%s exit=%s %s (log: %s)\n' "$end" "$rc" "$*" "$log"
+exit "$rc"

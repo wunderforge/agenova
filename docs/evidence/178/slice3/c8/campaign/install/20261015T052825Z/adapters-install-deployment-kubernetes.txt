@@ -1,0 +1,1 @@
+installed: agenova.io/deployment/kubernetes@0.1.0

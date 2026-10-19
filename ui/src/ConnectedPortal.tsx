@@ -217,6 +217,8 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
           <Field label="Kind" value={category(fact)}/><Field label="Target" value={fact.target}/>
           <Field label="Permission" value={fact.result || fact.decision?.result}/>
           <Field label="Provider outcome" value={fact.providerStatus}/>
+          {fact.resultRef && <Field label="Result reference" value={fact.resultRef}/>}
+          {fact.truncated && <Field label="Observation" value="Truncated to the configured observation limit"/>}
           <Field label="Claim" value={fact.claimId}/><Field label="Invocation" value={fact.invocationId}/>
           <Field label="Policy" value={policy ? `${policy.id} / ${policy.version}` : undefined}/>
         </div>
@@ -296,8 +298,13 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
   </>;
 }
 function NewWork({ setup, created }: { setup: Setup; created: (work: View) => void }) {
-  const ceiling = setup.template.spec.capabilityCeiling;
-  const defaults = setup.template.spec.defaults;
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
+  return <ConfiguredWork setup={{...setup,template:setup.template}} created={created}/>;
+}
+function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Setup['template']>};created:(work:View)=>void}) {
+  const template = setup.template;
+  const ceiling = template.spec.capabilityCeiling;
+  const defaults = template.spec.defaults;
   const projects = suggestedProjects(setup);
   const defaultScope = ceiling?.resourceScopes?.find(scope => scope.startsWith('repo:'));
   const defaultRepository = defaultScope?.slice('repo:'.length) || '';
@@ -319,7 +326,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       apiVersion: 'agenova.io/v1alpha1', kind: 'ClaimRequest',
       metadata: { name: `work-${crypto.randomUUID()}` },
       spec: {
-        templateRef: setup.template.metadata.name,
+        templateRef: template.metadata.name,
         projectRef: project,
         task: {
           type: 'repository-change',
@@ -351,8 +358,8 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       <div>
         <section>
           <h2>Task</h2>
-          <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
-            <option>{setup.template.metadata.name}</option>
+          <label>Agent<select name="agent" defaultValue={template.metadata.name}>
+            <option>{template.metadata.name}</option>
           </select></label>
           <label>Project<input name="project" list="policy-projects" defaultValue={projects[0] || ''} required/>
             <datalist id="policy-projects">{projects.map(project => <option key={project} value={project}/>)}</datalist>
@@ -404,6 +411,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
   </>;
 }
 function Templates({ setup }: { setup: Setup }) {
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
   return <><Heading title="Agents"/>
     <section className="portal-panel">
       <h2>{setup.template.metadata.name}</h2>

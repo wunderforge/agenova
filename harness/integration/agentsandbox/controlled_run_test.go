@@ -8,6 +8,8 @@ package agentsandbox
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"flag"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,11 +20,23 @@ import (
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 )
 
+var controlledWorkerImage = flag.String("controlled-worker-image", "agenova-testworker:kind", "compatible worker image for the selected cluster")
+
 // TestControlledRuntimeBackend_Kind proves one actual task process on the
 // selected upstream v0.4.6 kind substrate. It never creates/deletes a cluster
 // and uses unique resource names in the explicitly selected namespace.
 // Before running, build/load agenova-testworker:kind into that kind cluster.
 func TestControlledRuntimeBackend_Kind(t *testing.T) {
+	testControlledLifecycle(t, false)
+}
+
+// This drops all adapter memory while the real worker remains running. It tests
+// cleanup-only reattachment, not a full service/database crash campaign.
+func TestControlledRuntimeBackend_Recovery(t *testing.T) {
+	testControlledLifecycle(t, true)
+}
+
+func testControlledLifecycle(t *testing.T, recoverWorker bool) {
 	if *kubeContext == "" {
 		t.Fatal("explicit -kube-context required; no cluster was contacted")
 	}
@@ -63,7 +77,7 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 	if err := adapter.AddTemplate(v1alpha1.AgentSandboxTemplate{
 		Metadata: v1alpha1.ObjectMeta{Name: templateRef},
 		Spec: v1alpha1.AgentSandboxTemplateSpec{
-			Image: "agenova-testworker:kind", Command: []string{"/agenova-workerctl", "serve"},
+			Image: *controlledWorkerImage, Command: []string{"/agenova-workerctl", "serve"},
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -115,6 +129,24 @@ func TestControlledRuntimeBackend_Kind(t *testing.T) {
 		t.Fatalf("wrong worker result: got %q, want %q", status, wantRunning)
 	}
 	t.Logf("actual child-task result: %s", strings.TrimSpace(string(status)))
+	if recoverWorker {
+		adapter = agentsandbox.NewControlled(*kubeContext, *namespace)
+		if err := adapter.RestoreForCleanup(claimID, alloc.Identity); err != nil {
+			t.Fatal(err)
+		}
+		if err := adapter.Start(alloc.Identity); !errors.Is(err, runtime.ErrAlreadyStarted) {
+			t.Fatalf("recovery allowed a second start: %v", err)
+		}
+		if _, err := adapter.Cleanup(alloc.Identity); err == nil {
+			t.Fatal("recovery deleted a worker before confirmed stop")
+		}
+		after, err := kubectl("exec", "pod/"+alloc.Identity.WorkerID, "-c", "agent", "--", "/agenova-workerctl", "status", claimToken)
+		if err != nil || string(after) != string(status) {
+			t.Fatalf("recovery changed running worker: %q %v", after, err)
+		}
+		t.Log("fresh adapter rejected Start and premature cleanup; worker status unchanged")
+	}
+
 	if err := adapter.Terminate(alloc.Identity); err != nil {
 		t.Fatalf("Terminate has no independent stop acknowledgement: %v", err)
 	}

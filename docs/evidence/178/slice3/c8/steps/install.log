@@ -1,0 +1,120 @@
+[info] plan: adapters install, platform validate/plan/apply/status, token Secrets, policy and template apply, identical reapply; transcript in <repo>/.tmp/e16-c8/install/20261015T052825Z
+installed: agenova.io/deployment/kubernetes@0.1.0
+installed: agenova.io/runtime/agent-sandbox@0.1.0
+installed: agenova.io/model/openai-compatible@0.1.0
+installed: agenova.io/tool/mcp-http@0.1.0
+valid: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changes: 9
+- reconcile agenova-active-policy: activate the initial policy in the operator registry
+- reconcile agenova-control-plane: run the internal reference control plane at the effective revision
+- reconcile agenova-control-plane-account: install reference control-plane namespace permissions
+- reconcile agenova-control-plane-runtime: install reference control-plane namespace permissions
+- reconcile agenova-control-plane-runtime-binding: install reference control-plane namespace permissions
+- create agenova-control-plane-service: expose the internal reference status endpoint inside the cluster
+- create agenova-e16-system: create the selected Agenova namespace
+- create agenova-platform: reconcile effective Platform revision and adapter lock
+- reconcile agenova-policy-3c894142a815b4b87b6a8c70: seed the versioned reference default-deny policy
+- adapter/agent-sandbox-runtime: configured (agenova.io/runtime/agent-sandbox@0.1.0)
+- adapter/kubernetes-deployment: used (agenova.io/deployment/kubernetes@0.1.0)
+- adapter/mcp-http-tool: configured (agenova.io/tool/mcp-http@0.1.0)
+- adapter/openai-compatible-backend: configured (agenova.io/model/openai-compatible@0.1.0)
+- deployment/agenova-control-plane: unavailable
+- deployment/agenova-control-plane-account: unavailable
+- deployment/agenova-control-plane-runtime: unavailable
+- deployment/agenova-control-plane-runtime-binding: unavailable
+- deployment/agenova-control-plane-service: unavailable
+- deployment/agenova-e16-system: unavailable
+- deployment/agenova-platform: unavailable (sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94)
+- policy/agenova-active-policy: unavailable (reference-default-deny@1)
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: unavailable (reference-default-deny@1)
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changed: true
+ready: true
+readiness scope: installation-components
+- adapter/agent-sandbox-runtime: configured
+- adapter/kubernetes-deployment: used
+- adapter/mcp-http-tool: configured
+- adapter/openai-compatible-backend: configured
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-e16-system: available
+- deployment/agenova-platform: configured
+- policy/agenova-active-policy: configured
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changes: 0
+- adapter/agent-sandbox-runtime: configured (agenova.io/runtime/agent-sandbox@0.1.0)
+- adapter/kubernetes-deployment: used (agenova.io/deployment/kubernetes@0.1.0)
+- adapter/mcp-http-tool: configured (agenova.io/tool/mcp-http@0.1.0)
+- adapter/openai-compatible-backend: configured (agenova.io/model/openai-compatible@0.1.0)
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-e16-system: available
+- deployment/agenova-platform: configured (sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94)
+- policy/agenova-active-policy: configured (reference-default-deny@1)
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured (reference-default-deny@1)
+installation ready: true
+readiness scope: installation-components
+provider health: not checked
+api after local connect: http://127.0.0.1:8088
+connect: agenova api connect --state-dir '<repo>/.tmp/e16-c8-state' (separate terminal; connection not checked)
+secret/e16-mcp-token created
+secret/e16-mcp-token-wrong created
+registered: PolicyBundle e16-mcp-acceptance@1 (active)
+registered: AgentTemplate e16-engineer
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changed: false
+ready: true
+readiness scope: installation-components
+- adapter/agent-sandbox-runtime: configured
+- adapter/kubernetes-deployment: used
+- adapter/mcp-http-tool: configured
+- adapter/openai-compatible-backend: configured
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-e16-system: available
+- deployment/agenova-platform: configured
+- policy/agenova-active-policy: configured
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured
+platform: e16-kind
+revision: sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94
+target: kind-agenova-k8s-lab/agenova-e16-system
+changes: 0
+- adapter/agent-sandbox-runtime: configured (agenova.io/runtime/agent-sandbox@0.1.0)
+- adapter/kubernetes-deployment: used (agenova.io/deployment/kubernetes@0.1.0)
+- adapter/mcp-http-tool: configured (agenova.io/tool/mcp-http@0.1.0)
+- adapter/openai-compatible-backend: configured (agenova.io/model/openai-compatible@0.1.0)
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-e16-system: available
+- deployment/agenova-platform: configured (sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94)
+- policy/agenova-active-policy: configured (e16-mcp-acceptance@1)
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured (reference-default-deny@1)
+installation ready: true
+readiness scope: installation-components
+provider health: not checked
+api after local connect: http://127.0.0.1:8088
+connect: agenova api connect --state-dir '<repo>/.tmp/e16-c8-state' (separate terminal; connection not checked)
+deployment "agenova-control-plane" successfully rolled out

@@ -1,0 +1,550 @@
+{
+  "campaign": "c8",
+  "source": "c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d",
+  "branch": "codex/e16-slice1",
+  "context": "kind-agenova-k8s-lab",
+  "installNamespace": "agenova-e16-system",
+  "fixtureNamespace": "agenova-e16",
+  "modelProfile": "coding-standard",
+  "model": {
+    "name": "qwen2.5:7b",
+    "digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+  },
+  "images": {
+    "control-plane": {
+      "tag": "agenova-control-plane:0.1.0",
+      "platform": "linux/arm64",
+      "build-tags": "none",
+      "local-id": "sha256:8b93d586277b4da4b99f98d683411bfda4fe58eaaa1a4c91d9bcec1d50dab0fe",
+      "config": "sha256:f50e38d25324e0233ed7417c57fd6a652520451f332e496e0720cb1210f79626",
+      "archive-sha256": "5fac538378f5c90af8e595671d8ff0536aea31105a738a7f56105b00fe24c05b"
+    },
+    "worker": {
+      "tag": "agenova-testworker:kind",
+      "platform": "linux/arm64",
+      "build-tags": "none",
+      "local-id": "sha256:a235fad47f02dbb1456d928b6c1c845212f77d5576e7b8a0a4b9e438a47dcc32",
+      "config": "sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91",
+      "archive-sha256": "c44b0d7645243cbb6cb1beecafd1cf387972b1b053b740e4cd2c0d897c20b0c9"
+    },
+    "fixture": {
+      "tag": "agenova-e16-mcp:c50a6bc9af3c",
+      "platform": "linux/arm64",
+      "build-tags": "none",
+      "local-id": "sha256:0f0f9fc808feffdff51eb729f1296b092dae9674ca1244d406f3d442d79b9c91",
+      "config": "sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc",
+      "archive-sha256": "5b70e387815abf0412ab7f8818b47e169a565d5a2e8c69d4bec1872fd758dea9"
+    },
+    "probe": {
+      "tag": "agenova-e16-probe:c50a6bc9af3c",
+      "platform": "linux/arm64",
+      "build-tags": "agenovaprobe",
+      "local-id": "sha256:d3daa5d156d1d1dd38944d2634f76ce3f32f61d655350a5bd4116e7788cdbf78",
+      "config": "sha256:f03e51f655df74b373ba7f12c14122054d285e136d7d588b0d9afaa4938b7d5a",
+      "archive-sha256": "c0b3999d86cf722463e3a76be4cba23db20f711d8ae7c7d2474e1396e12ca88b"
+    }
+  },
+  "toolchains": {
+    "cli": "go1.22.12",
+    "node": "v24.21.0",
+    "agenova-control-plane": "go1.22.12",
+    "agenova-workerctl": "go1.22.12",
+    "mcpfixture": "go1.27.1",
+    "e16-probe.test": "go1.22.12"
+  },
+  "steps": [
+    {
+      "command": "preflight",
+      "start": "2026-10-15T05:28:05Z",
+      "end": "2026-10-15T05:28:06Z",
+      "seconds": 1,
+      "exit": 0
+    },
+    {
+      "command": "build",
+      "start": "2026-10-15T05:28:06Z",
+      "end": "2026-10-15T05:28:13Z",
+      "seconds": 7,
+      "exit": 0
+    },
+    {
+      "command": "--yes protect",
+      "start": "2026-10-15T05:28:13Z",
+      "end": "2026-10-15T05:28:16Z",
+      "seconds": 3,
+      "exit": 0
+    },
+    {
+      "command": "--yes load",
+      "start": "2026-10-15T05:28:16Z",
+      "end": "2026-10-15T05:28:18Z",
+      "seconds": 2,
+      "exit": 0
+    },
+    {
+      "command": "fixture",
+      "start": "2026-10-15T05:28:18Z",
+      "end": "2026-10-15T05:28:24Z",
+      "seconds": 6,
+      "exit": 0
+    },
+    {
+      "command": "controlled-read",
+      "start": "2026-10-15T05:28:24Z",
+      "end": "2026-10-15T05:28:25Z",
+      "seconds": 1,
+      "exit": 0
+    },
+    {
+      "command": "install",
+      "start": "2026-10-15T05:28:25Z",
+      "end": "2026-10-15T05:28:35Z",
+      "seconds": 10,
+      "exit": 0
+    },
+    {
+      "command": "work positive",
+      "start": "2026-10-15T05:29:15Z",
+      "end": "2026-10-15T05:29:56Z",
+      "seconds": 41,
+      "exit": 0
+    },
+    {
+      "command": "work admission-deny",
+      "start": "2026-10-15T05:29:56Z",
+      "end": "2026-10-15T05:30:04Z",
+      "seconds": 8,
+      "exit": 0
+    },
+    {
+      "command": "work n6-timeout",
+      "start": "2026-10-15T05:30:04Z",
+      "end": "2026-10-15T05:30:53Z",
+      "seconds": 49,
+      "exit": 0
+    },
+    {
+      "command": "work n7-oversize",
+      "start": "2026-10-15T05:30:53Z",
+      "end": "2026-10-15T05:31:08Z",
+      "seconds": 15,
+      "exit": 0
+    },
+    {
+      "command": "work n8-truncation",
+      "start": "2026-10-15T05:31:08Z",
+      "end": "2026-10-15T05:31:40Z",
+      "seconds": 32,
+      "exit": 0
+    },
+    {
+      "command": "work token-valid",
+      "start": "2026-10-15T05:31:40Z",
+      "end": "2026-10-15T05:31:58Z",
+      "seconds": 18,
+      "exit": 0
+    },
+    {
+      "command": "work token-missing",
+      "start": "2026-10-15T05:31:58Z",
+      "end": "2026-10-15T05:32:17Z",
+      "seconds": 19,
+      "exit": 0
+    },
+    {
+      "command": "work token-wrong",
+      "start": "2026-10-15T05:32:17Z",
+      "end": "2026-10-15T05:32:31Z",
+      "seconds": 14,
+      "exit": 0
+    },
+    {
+      "command": "probe",
+      "start": "2026-10-15T05:32:31Z",
+      "end": "2026-10-15T05:32:39Z",
+      "seconds": 8,
+      "exit": 0
+    },
+    {
+      "command": "scan <repo>/docs/evidence/178/slice3/c8 <repo>/.tmp/e16-c8-steps",
+      "start": "2026-10-15T05:33:11Z",
+      "end": "2026-10-15T05:33:13Z",
+      "seconds": 2,
+      "exit": 1
+    },
+    {
+      "command": "--yes restore",
+      "start": "2026-10-15T05:35:07Z",
+      "end": "2026-10-15T05:35:12Z",
+      "seconds": 5,
+      "exit": 0
+    }
+  ],
+  "cases": [
+    {
+      "case": "positive",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-positive-a1",
+          "outcome": "Succeeded",
+          "parity": {
+            "startTime": "2026-10-15T05:29:51.074Z",
+            "duration": 4686.978,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/positive/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "admission-deny",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-admission-deny-a1",
+          "outcome": "Deny",
+          "parity": {
+            "startTime": "2026-10-15T05:30:03.150Z",
+            "duration": 1242.446,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/admission-deny/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "n6-timeout",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-n6-timeout-a1",
+          "outcome": "Failed",
+          "parity": {
+            "startTime": "2026-10-15T05:30:51.792Z",
+            "duration": 1731.807,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/n6-timeout/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "n7-oversize",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-n7-oversize-a1",
+          "outcome": "Failed",
+          "parity": {
+            "startTime": "2026-10-15T05:31:06.522Z",
+            "duration": 1615.251,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/n7-oversize/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "n8-truncation",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-n8-truncation-a1",
+          "outcome": "Succeeded",
+          "parity": {
+            "startTime": "2026-10-15T05:31:38.669Z",
+            "duration": 1538.1499999999999,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/n8-truncation/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "token-valid",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-token-valid-a1",
+          "outcome": "Succeeded",
+          "parity": {
+            "startTime": "2026-10-15T05:31:56.192Z",
+            "duration": 1856.285,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/token-valid/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "token-missing",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-token-missing-a1",
+          "outcome": "Failed",
+          "parity": {
+            "startTime": "2026-10-15T05:32:15.677Z",
+            "duration": 1786.0720000000001,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/token-missing/attempt-1"
+        }
+      ]
+    },
+    {
+      "case": "token-wrong",
+      "result": "pass",
+      "firstPassingAttempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "requestRef": "e16-token-wrong-a1",
+          "outcome": "Failed",
+          "parity": {
+            "startTime": "2026-10-15T05:32:29.506Z",
+            "duration": 1829.5639999999999,
+            "expected": 2,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "evidence": "campaign/work/token-wrong/attempt-1"
+        }
+      ]
+    }
+  ],
+  "scan": "pass",
+  "restore": "pass",
+  "priorCampaign": {
+    "campaign": "c7",
+    "result": "aborted before first Work submission",
+    "reason": "background log collectors were reaped after their execution session ended; c8 keeps one controller session alive",
+    "source": "c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d"
+  },
+  "datasetSha256": {
+    "README.md": "09bcd02beb4dc2bbd5837a31fb75a1d2eb23aa91ff7aa54441d4feef03f28276",
+    "logs/full-trace.log": "ee4d420452dbe1563548813a10fb66349ab2cda7ab25cd72956d40ad86e83469",
+    "logs/slow.log": "4070a323154dab86e5215f45698f1967c78aed94765d60011238ebad577e7716",
+    "logs/timeout.log": "b15569f3e3b6e181b00934d7893452852e775daa8c9b78bff304bfe6869bd6d5",
+    "notes/incident-timeline.md": "2e8b98cf7997a40ab7fadd0fddc6cf48b56aabb8ceb757bd8b1b41872777f497",
+    "src/retry.txt": "c96bd2de4c4cc1aa173f5d75e7879ec2c6f3cdeb653d57c71ea81e417e7d4567"
+  },
+  "probe": "pass",
+  "runnerScan": "incomplete: non-regular execution-control FIFO in extra steps root",
+  "scanMethod": "Same checker, Secret-identity checks and complete-log checks, after moving FIFO outside evidence roots; first failure retained.",
+  "scanReport": "scanned files=782 bytes=120617848 zip-entries=0 patterns=12 roots=4\n[pass] scan: no token value in the scanned evidence",
+  "probeReceiptCount": 30,
+  "probeVerdicts": [
+    {
+      "key": "N1/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N1/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N1/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N11/probe",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N2a/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N2a/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N2a/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N2b/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N2b/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N2b/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N3/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N3/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N3/control-matched-a",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N3/control-matched-b",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N3/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N4-Expired/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Expired/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Expired/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N4-Failed/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Failed/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Failed/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N4-Succeeded/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Succeeded/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N4-Succeeded/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N5a/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N5a/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N5a/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "N5b/control-after",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N5b/control-before",
+      "pass": true,
+      "detail": "one call expected: 1 tools/call, 1 successful handler, 1 initialize, 0 bad entries"
+    },
+    {
+      "key": "N5b/probe",
+      "pass": true,
+      "detail": "zero-call step: 0 server entries (0 tools/call, 0 handler, 0 initialize)"
+    },
+    {
+      "key": "campaign/unattributed",
+      "pass": true,
+      "detail": "0 server entries inside the probe campaign belong to no step"
+    }
+  ],
+  "platformRevision": "sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94",
+  "referenceUpdate": {
+    "source": "c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d",
+    "namespace": "agenova-system",
+    "result": "pass",
+    "imageConfigs": {
+      "control-plane": "sha256:f50e38d25324e0233ed7417c57fd6a652520451f332e496e0720cb1210f79626",
+      "worker": "sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91"
+    },
+    "platformRevision": "sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f",
+    "model": "llama3.1:latest",
+    "tools": "reference synthetic git.read",
+    "allowed": "Succeeded",
+    "denied": "Deny",
+    "installedBrowserTests": 2,
+    "idempotentReapply": "changed: false",
+    "acceptanceNamespaces": "removed after evidence archive and restore",
+    "completedUTC": "2026-10-15T05:38:52Z"
+  }
+}

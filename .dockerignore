@@ -1,5 +1,8 @@
 .git
 .cache
+.tmp
+**/.tmp
+**/node_modules
 ui/node_modules
 ui/test-results
 ui/playwright-report

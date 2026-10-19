@@ -1,0 +1,248 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "agenova-member-control-plane",
+        "namespace": "agenova-system"
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "agenova-member-control-plane"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "agenova-member-control-plane"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "env": [
+                  {
+                    "name": "AGENOVA_PLATFORM_NAME",
+                    "value": "demo-eks-bedrock"
+                  },
+                  {
+                    "name": "AGENOVA_PLATFORM_REVISION",
+                    "value": "sha256:dd6b937e475e5036551ebb5b55af14c3ff7d4c1b194f5a4b588899966acaee32"
+                  },
+                  {
+                    "name": "AGENOVA_POLICY_REF",
+                    "value": "reference-default-deny@1"
+                  },
+                  {
+                    "name": "AGENOVA_ALLOWED_WORKER_IMAGE",
+                    "value": "931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/worker@sha256:ec74e41c6348b4e4d10d4da3ab1ee0561d44c1e05964487adb2cc4a9c7b4ca9e"
+                  },
+                  {
+                    "name": "AGENOVA_AUTH_MODE",
+                    "value": "member"
+                  },
+                  {
+                    "name": "AGENOVA_MEMBER_CONFIG",
+                    "value": "/etc/member/member-service.json"
+                  }
+                ],
+                "image": "931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/control-plane@sha256:358d0c1a893a95121b61f23cf591fb1a05e5a4845d79f5aa5de5cd914a91e8d8",
+                "imagePullPolicy": "Always",
+                "name": "control-plane",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http",
+                    "protocol": "TCP"
+                  }
+                ],
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 1,
+                  "periodSeconds": 2,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "memory": "512Mi"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                  {
+                    "mountPath": "/etc/agenova",
+                    "name": "platform",
+                    "readOnly": true
+                  },
+                  {
+                    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                    "name": "service-token",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "member-config",
+                    "mountPath": "/etc/member",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "member-secrets",
+                    "mountPath": "/run/agenova-secrets",
+                    "readOnly": true
+                  }
+                ]
+              },
+              {
+                "name": "proxy",
+                "image": "nginx@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94",
+                "command": [
+                  "nginx",
+                  "-c",
+                  "/etc/member/nginx.conf",
+                  "-g",
+                  "daemon off;"
+                ],
+                "ports": [
+                  {
+                    "name": "proxy",
+                    "containerPort": 8089
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "member-config",
+                    "mountPath": "/etc/member",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "proxy-tmp",
+                    "mountPath": "/tmp"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "25m",
+                    "memory": "32Mi"
+                  },
+                  "limits": {
+                    "memory": "128Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "runAsUser": 101,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                }
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {
+              "fsGroup": 65532
+            },
+            "serviceAccount": "agenova-control-plane",
+            "serviceAccountName": "agenova-control-plane",
+            "terminationGracePeriodSeconds": 30,
+            "volumes": [
+              {
+                "configMap": {
+                  "defaultMode": 420,
+                  "name": "agenova-platform"
+                },
+                "name": "platform"
+              },
+              {
+                "name": "service-token",
+                "projected": {
+                  "defaultMode": 420,
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "expirationSeconds": 3600,
+                        "path": "token"
+                      }
+                    },
+                    {
+                      "configMap": {
+                        "items": [
+                          {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                          }
+                        ],
+                        "name": "kube-root-ca.crt"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "member-config",
+                "configMap": {
+                  "name": "agenova-member-config"
+                }
+              },
+              {
+                "name": "member-secrets",
+                "secret": {
+                  "secretName": "agenova-member-secrets",
+                  "defaultMode": 288
+                }
+              },
+              {
+                "name": "proxy-tmp",
+                "emptyDir": {}
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "agenova-member-public",
+        "namespace": "agenova-system"
+      },
+      "spec": {
+        "type": "NodePort",
+        "selector": {
+          "app": "agenova-member-control-plane"
+        },
+        "ports": [
+          {
+            "port": 8089,
+            "targetPort": "proxy",
+            "nodePort": 31090
+          }
+        ]
+      }
+    }
+  ]
+}
