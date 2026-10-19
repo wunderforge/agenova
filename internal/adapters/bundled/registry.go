@@ -37,6 +37,7 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
 		bedrockModelRegistration(),
+		mcpHTTPToolRegistration(),
 	)
 }
 
@@ -287,6 +288,8 @@ func DescribeImplementation(value any) string {
 		return fmt.Sprintf("%s@%s", AgentSandboxRuntimeID, ReferenceVersion)
 	case *BedrockModel:
 		return fmt.Sprintf("%s@%s", BedrockModelID, ReferenceVersion)
+	case *MCPHTTPTool:
+		return fmt.Sprintf("%s@%s", MCPHTTPToolID, ReferenceVersion)
 	case *OpenAICompatibleModel:
 		return fmt.Sprintf("%s@%s", OpenAICompatibleModelID, ReferenceVersion)
 	default:

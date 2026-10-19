@@ -1,0 +1,1 @@
+The original runner scan stopped on a non-regular controller FIFO in the additional steps root. That FIFO was moved outside all evidence roots; the original scan record is retained. This completion uses the same built checker, rechecks all three Secret identities, and recaptures complete logs and continuity without changing the product or acceptance checks.

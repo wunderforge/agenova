@@ -1,0 +1,172 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E16 acceptance Platform: one revision for the whole kind campaign (Slices 3 and 4).
+# Installed in its own namespace so an existing reference install is untouched.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: e16-kind
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: openai-compatible-backend
+      id: agenova.io/model/openai-compatible
+      version: 0.1.0
+    - name: mcp-http-tool
+      id: agenova.io/tool/mcp-http
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: kind-agenova-k8s-lab
+        namespace: agenova-e16-system
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-e16-system
+          compatible-worker-image: agenova-testworker:kind
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: local-ollama
+        adapterRef: openai-compatible-backend
+        config:
+          endpoint: http://host.docker.internal:11434/v1
+    modelProfiles:
+      # L12 (plan section 9): llama3.1:latest never passed the positive answer
+      # check off-cluster, so E16 uses qwen2.5:7b, a model of the same size.
+      # The reference install keeps its own Platform and model.
+      - name: coding-standard
+        backendRef: local-ollama
+        config:
+          model: qwen2.5:7b
+    toolBackends:
+      - name: e16-mcp
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+      # Slice 4: the same server's token-required path. Each backend names its
+      # own Secret in the install namespace. The runner creates e16-mcp-token
+      # (the fixture's value) and e16-mcp-token-wrong (another value), and
+      # never creates e16-mcp-token-absent.
+      - name: e16-mcp-token
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+      - name: e16-mcp-token-missing
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token-absent/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+      - name: e16-mcp-token-wrong
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp-token
+          provisional-token-secret: e16-mcp-token-wrong/token
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+    toolProfiles:
+      # Positive task files only, so the model never sees a fault file.
+      - name: e16-fixture
+        backendRef: e16-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-fixture
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+            logs/timeout.log
+            src/retry.txt
+      # Fault files for N6-N8, and the configured-but-ungranted route for N2a.
+      - name: e16-faults
+        backendRef: e16-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-faults
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            logs/slow.log
+            logs/full-trace.log
+            notes/incident-timeline.md
+      # Slice 4 token cases: one profile and scope per token backend, README.md only.
+      - name: e16-token
+        backendRef: e16-mcp-token
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+      - name: e16-token-missing
+        backendRef: e16-mcp-token-missing
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token-missing
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+      - name: e16-token-wrong
+        backendRef: e16-mcp-token-wrong
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:agenova/e16-token-wrong
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+  # The reference install seeds this Policy; the E16 Policy is registered and
+  # activated afterwards with `agenova policy`.
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

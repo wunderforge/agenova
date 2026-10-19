@@ -1,0 +1,2 @@
+[info] plan: port-forward service/e16-mcp in agenova-e16, run TestMCPClientInteroperatesWithFixtureServer and one header-less /mcp-token initialize through it, check the captured fixture log
+[pass] one controlled read captured end to end in <repo>/.tmp/e16-c8/controlled-read

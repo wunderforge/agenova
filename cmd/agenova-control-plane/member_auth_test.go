@@ -48,8 +48,9 @@ func TestMemberModeCannotFallBack(t *testing.T) {
 	}
 }
 func TestDatabaseTLSAndRedactedErrors(t *testing.T) {
-	good := "postgres://runtime:secret@db.example/agenova?sslmode=verify-full&sslrootcert=/ca.pem&connect_timeout=5"
-	for _, raw := range []string{strings.Replace(good, "verify-full", "disable", 1), strings.Replace(good, "verify-full", "require", 1), good + "&host=evil.example", good + "&sslmode=disable", strings.Replace(good, "/ca.pem", "ca.pem", 1)} {
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	good := "postgres://runtime:secret@db.example/agenova?" + url.Values{"sslmode": {"verify-full"}, "sslrootcert": {caFile}, "connect_timeout": {"5"}}.Encode()
+	for _, raw := range []string{strings.Replace(good, "verify-full", "disable", 1), strings.Replace(good, "verify-full", "require", 1), good + "&host=evil.example", good + "&sslmode=disable", strings.Replace(good, url.QueryEscape(caFile), "ca.pem", 1)} {
 		if secureDatabaseURL(raw) {
 			t.Fatal("unsafe DB configuration accepted")
 		}
@@ -70,7 +71,7 @@ func configFixture(t *testing.T) memberConfig {
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>Portal</html>"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return memberConfig{Origin: "https://app.example", Issuer: "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_Test", OAuthOrigin: "https://team.auth.ap-southeast-2.amazoncognito.com", NativeClientID: "native", WebClientID: "web", Scope: "agenova/api", DatabaseURLFile: "/secrets/db", SessionKeyFile: "/secrets/key", PortalDirectory: dir}
+	return memberConfig{Origin: "https://app.example", Issuer: "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_Test", OAuthOrigin: "https://team.auth.ap-southeast-2.amazoncognito.com", NativeClientID: "native", WebClientID: "web", Scope: "agenova/api", DatabaseURLFile: filepath.Join(dir, "db"), SessionKeyFile: filepath.Join(dir, "key"), PortalDirectory: dir}
 }
 func TestStrictMemberConfig(t *testing.T) {
 	c := configFixture(t)

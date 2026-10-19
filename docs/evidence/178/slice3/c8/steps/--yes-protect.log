@@ -1,0 +1,7 @@
+[info] plan: archive Work history, export node images for agenova-control-plane:0.1.0 and agenova-testworker:kind, then stop:
+  Deployment agenova-system agenova-control-plane 1
+  SandboxWarmPool agenova-system agenova-pool-pool-engineer 1
+[info] stopping a control plane discards its in-memory Work history; the plan archives it first
+deployment.apps/agenova-control-plane scaled
+sandboxwarmpool.extensions.agents.x-k8s.io/agenova-pool-pool-engineer patched
+[pass] other installs stopped, history archived and images exported; run restore after the campaign

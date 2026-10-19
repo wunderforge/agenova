@@ -35,6 +35,9 @@ try{
  const proof='a'.repeat(43);
  await page.goto(`${origin}/login#invite=${proof}`);
  await page.getByRole('button',{name:'Continue with Google'}).waitFor();
+ // Check actual styling, not just visible text: CSP must accept normalized CSS.
+ assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(16, 21, 29)');
+ assert.equal(await page.locator('main').evaluate(el=>getComputedStyle(el).borderRadius),'18px');
  assert.equal(await page.locator('input[name="invitation"]').inputValue(),proof);
  assert.equal(new URL(page.url()).hash,'');
  assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);

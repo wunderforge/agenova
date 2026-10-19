@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:34478) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (130ms)
+  ✓  2 installed/mcp.spec.ts:102:1 › positive Work: real MCP reads, two model turns, matching CLI, API and Portal @positive (4.0s)
+
+  2 passed (4.7s)

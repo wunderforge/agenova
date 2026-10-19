@@ -120,7 +120,7 @@ func TestInvitationAuthorityActivationAndReplay(t *testing.T) {
 	if err = db.QueryRow(`SELECT active FROM agenova_members WHERE subject='new-subject'`).Scan(&active); err != nil || active {
 		t.Fatal("pending invite activated before login")
 	}
-	identity := authentication.Identity{Issuer: "issuer", Subject: "new-subject", TokenID: "jti", SessionID: "grant", AuthenticatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
+	identity := authentication.Identity{Issuer: "issuer", Subject: "new-subject", TokenID: "jti", SessionID: "grant", AuthenticatedAt: databaseAuthTime(t, db), ExpiresAt: time.Now().Add(time.Hour)}
 	resolver := InvitedMemberships{s}
 	p, err := resolver.Resolve(ctx, identity)
 	if err != nil {

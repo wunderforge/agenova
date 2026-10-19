@@ -62,7 +62,7 @@ func TestPostgresMembershipAndGrantRevocation(t *testing.T) {
 	if _, err := s.Resolve(ctx, id); err == nil {
 		t.Fatal("re-enable revived the old login")
 	}
-	id.AuthenticatedAt = time.Now()
+	id.AuthenticatedAt = databaseAuthTime(t, db)
 	if _, err := s.Resolve(ctx, id); err != nil {
 		t.Fatal("fresh login denied after re-enable")
 	}
@@ -95,6 +95,16 @@ func TestPostgresMembershipAndGrantRevocation(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM agenova_identity_audit WHERE principal=$1", m.Principal).Scan(&audits); err != nil || audits != 4 {
 		t.Fatalf("audit atomicity: %d %v", audits, err)
 	}
+}
+
+// Synthetic identities use the DB clock after commit, avoiding host/VM skew.
+func databaseAuthTime(t *testing.T, db *sql.DB) time.Time {
+	t.Helper()
+	var now time.Time
+	if err := db.QueryRowContext(context.Background(), `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		t.Fatal("cannot obtain synthetic identity fixture timestamp")
+	}
+	return now
 }
 
 func TestProjectRolesCannotEscalateOrCrossTeams(t *testing.T) {

@@ -92,6 +92,7 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   await expect(page.getByText('Requested, not granted: github.pull-request')).toBeVisible();
   const select = page.getByLabel('Fixture presentation scenario');
   await select.focus();
+  await expect(select).toBeFocused();
   // Native select Home/ArrowDown handling differs by OS. Exercise keyboard
   // type-ahead for the named option instead of assuming a popup cursor index.
   await page.keyboard.press('l');
