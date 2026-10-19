@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "source": {
+    "kind": "installed",
+    "platform": "e15-198-supplement",
+    "revision": "sha256:ff1d9c484c0545eddca4d93a15d11698c3fa3ad6bd93df325c232d9baf5bea94"
+  },
+  "checks": [
+    {
+      "case": "control",
+      "requestRef": "e15-198-supplement-control-1792382992227273000",
+      "status": "Succeeded",
+      "cliApiExactMatch": true,
+      "renderedIdentifiersAndOutcome": true,
+      "screenshot": "control.png"
+    },
+    {
+      "case": "profile",
+      "requestRef": "e15-198-supplement-profile-1792382992227273000",
+      "status": "Failed",
+      "cliApiExactMatch": true,
+      "renderedIdentifiersAndOutcome": true,
+      "screenshot": "profile.png"
+    },
+    {
+      "case": "denied",
+      "requestRef": "e15-198-supplement-denied-1792382992227273000",
+      "status": "Denied",
+      "cliApiExactMatch": true,
+      "renderedIdentifiersAndOutcome": true,
+      "screenshot": "denied.png"
+    }
+  ],
+  "pageErrors": [],
+  "authorityNarrowing": "template ceiling only; not Policy constraints"
+}

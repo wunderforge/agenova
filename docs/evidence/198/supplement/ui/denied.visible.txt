@@ -1,0 +1,74 @@
+Skip to content
+A
+Agenova
+Work
+Agents
+Policy
+Platform
+Connected view
+Current server session
+Work
+Demo
+Connected
+Server data
+View identity
+Work
+/ Details
+e15-scenario=control
+Denied
+Team
+team-a
+Agent
+engineer
+Requested by
+user:team-a-engineer
+Task instructions
+Work status
+
+no exact policy rule matched the trusted principal and requested assignment
+
+✓
+Request
+Received
+×
+Access
+Denied
+3
+Agent
+Not reached
+4
+Result
+Not reached
+5
+Cleanup
+Not reached
+Access & limits
+Scope, tools and time limit
+No access issued
+
+no exact policy rule matched the trusted principal and requested assignment
+
+No authority was issued.
+
+Compare requested and granted
+View policy
+Execution details
+Lifecycle, identifiers and policy version
+15:09:52 last update
+Request received
+Request resolution
+
+no exact policy rule matched the trusted principal and requested assignment
+
+Request ID
+e15-198-supplement-denied-1792382992227273000
+Claim ID
+Not recorded
+Runtime backend
+Not recorded
+Worker ID
+Not recorded
+Policy version
+reference-default-deny / 1
+Copy request ID
+Full activity record

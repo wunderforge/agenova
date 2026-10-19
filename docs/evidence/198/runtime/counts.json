@@ -1,0 +1,179 @@
+[
+  {
+    "scenario": "control",
+    "exit": 0,
+    "before": 18,
+    "after": 20,
+    "delta": 2,
+    "phase": "Succeeded",
+    "outcome": {
+      "status": "Succeeded",
+      "text": "I will start examining the observations related to 'e15-scenario=control'.",
+      "model": {
+        "invocationId": "inv-b522a94528769e707f50591bee815791",
+        "model": "llama3.1:latest",
+        "responseId": "chatcmpl-292",
+        "inputTokens": 102,
+        "outputTokens": 30
+      }
+    },
+    "modelAttempts": 2,
+    "denials": [],
+    "runReasons": [
+      "run-Succeeded"
+    ]
+  },
+  {
+    "scenario": "profile",
+    "exit": 1,
+    "before": 20,
+    "after": 21,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "tool",
+    "exit": 1,
+    "before": 21,
+    "after": 22,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "scope",
+    "exit": 1,
+    "before": 22,
+    "after": 23,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "malformed",
+    "exit": 1,
+    "before": 23,
+    "after": 24,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "unsupported",
+    "exit": 1,
+    "before": 24,
+    "after": 25,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "turn-limit",
+    "exit": 1,
+    "before": 25,
+    "after": 31,
+    "delta": 6,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "The agent reached its model-turn limit without a final answer."
+    },
+    "modelAttempts": 6,
+    "denials": [],
+    "runReasons": [
+      "agent-turn-limit"
+    ]
+  },
+  {
+    "scenario": "cross-claim",
+    "exit": 1,
+    "before": 31,
+    "after": 32,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "Execution failed; no more specific failure reason was recorded."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "execution-failed"
+    ]
+  },
+  {
+    "scenario": "after-expiry",
+    "exit": 1,
+    "before": 32,
+    "after": 33,
+    "delta": 1,
+    "phase": "Expired",
+    "outcome": {
+      "status": "Expired",
+      "failure": "The work exceeded its execution time limit."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "run-deadline"
+    ]
+  },
+  {
+    "scenario": "after-failure",
+    "exit": 1,
+    "before": 33,
+    "after": 34,
+    "delta": 1,
+    "phase": "Failed",
+    "outcome": {
+      "status": "Failed",
+      "failure": "The agent returned a result that did not match its governed model and tool evidence."
+    },
+    "modelAttempts": 1,
+    "denials": [],
+    "runReasons": [
+      "agent-invalid-final-result"
+    ]
+  }
+]

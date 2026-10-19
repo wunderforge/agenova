@@ -1,0 +1,1 @@
+Test namespace absent. Temporary loopback tunnel and Vite processes stopped. Original reference installation reports changes=[] and installationReady=true.

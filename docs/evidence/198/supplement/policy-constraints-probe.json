@@ -1,0 +1,21 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "PolicyBundle",
+  "metadata": {
+    "name": "e15-198-constraints-probe",
+    "version": "1"
+  },
+  "spec": {
+    "rules": [
+      {
+        "team": "team-a",
+        "action": "claim.create",
+        "project": "payments",
+        "templateRef": "engineer",
+        "constraints": {
+          "tools": []
+        }
+      }
+    ]
+  }
+}

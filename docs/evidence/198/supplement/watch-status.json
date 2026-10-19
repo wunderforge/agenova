@@ -1,0 +1,14 @@
+[
+  {
+    "resource": "pods",
+    "exit": -15,
+    "stderr": "",
+    "events": 27
+  },
+  {
+    "resource": "sandboxclaims",
+    "exit": -15,
+    "stderr": "",
+    "events": 13
+  }
+]

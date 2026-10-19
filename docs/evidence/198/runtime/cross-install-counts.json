@@ -1,0 +1,9 @@
+{
+  "before": 35,
+  "after": 36,
+  "delta": 1,
+  "aPhase": "Failed",
+  "bPhaseBefore": "Running",
+  "bPhaseAfter": "Running",
+  "bFactsUnchanged": true
+}
