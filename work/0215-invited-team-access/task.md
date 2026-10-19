@@ -528,3 +528,15 @@ checked implementation does not imply the whole production acceptance campaign.
 See [current acceptance status](evidence/merge-readiness-20261019.md). Keep review,
 live interruption/revocation and long-term hosting decisions open. Historical
 Cognito and pre-persistence gaps in earlier evidence are not current blockers.
+
+## Owner follow-up: infrastructure directory migration, 19 October
+
+Move active infra/demo roots to infra/production/eks and edge while preserving
+local Terraform state, lineage, serial, resource addresses and physical names.
+Do not apply infrastructure changes or affect RDS/shared network. Retire obsolete
+shared-password deployment scripts and archive their runbook as historical only.
+Preserve local-only active network policy/add-on configuration. Update operator
+references and scheduled cleanup paths without changing authorized lifetime.
+Evidence: private backups, identical state hashes and before/after plan comparison,
+Terraform validation, RDS health, documentation and full repository gate.
+CI remains enabled; latest pre-migration run 39232189020 passed all three jobs.

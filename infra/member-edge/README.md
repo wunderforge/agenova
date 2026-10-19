@@ -11,7 +11,7 @@ review actual cluster names, compatible worker binding, image digest and mounted
 configuration before applying. No secrets belong in this root or the manifest.
 
 This root depends on the existing `agenova-demo` ALB, cluster, node group and VPC.
-Do not destroy `infra/demo/edge` or `infra/demo/aws` while member validation uses
+Do not destroy `infra/production/edge` or `infra/production/eks` while member validation uses
 those resources. The managed RDS database also currently uses that VPC. The old
 cleanup automation is paused. This dependency must be migrated explicitly before
 retiring the old stack; it is not the final AUD100/month hosting topology.

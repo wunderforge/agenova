@@ -12,7 +12,7 @@ PR text omitted the required `Linked ticket` section and other template structur
 Restored the canonical headings/labels, closing ticket, verification table and
 backend-neutrality confirmation. Validated with
 `pwsh -NoProfile -File scripts/check-pr-body.ps1 -BodyPath <saved body>`.
-No workflow checks were disabled. The edited PR triggers a fresh CI run.
+No workflow checks were disabled. The subsequent run 39232189020 passed all three jobs (baseline, Linux CLI, Windows CLI).
 
 ## Acceptance matrix
 

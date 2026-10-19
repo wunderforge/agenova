@@ -11,7 +11,7 @@
 - `AGENTS.md`, `docs/product/prd.md`, this packet.
 - Existing [slice spec](../0175-shared-eks-bedrock/spec.md), [design](../0175-shared-eks-bedrock/design.md), and [Owner decisions](../0175-shared-eks-bedrock/task.md).
 - [Architecture contract](../../docs/product/architecture-contract.md).
-- [Cloud runbook](../../deploy/demo/eks/README.md) and [evidence](../0175-shared-eks-bedrock/evidence/summary.md).
+- [Cloud runbook](../../deploy/production/member-service.md) and [evidence](../0175-shared-eks-bedrock/evidence/summary.md).
 
 ## Scope
 
