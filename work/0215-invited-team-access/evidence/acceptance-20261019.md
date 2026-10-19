@@ -55,3 +55,14 @@ and server permissions are unchanged. The live member Deployment was updated onl
 after confirming there were no active SandboxClaims, using an optimistic image patch.
 No schema or configuration migration. New immutable image: `931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/control-plane@sha256:282d9e32e73a87f562088c28a35490e7b4ddca2ae3a60192b3f3075091d6b10e`.
 Rollout reached ready.
+
+Live post-rollout Portal proof: `pr216-portal-acceptance-20261019`, request
+`work-c2abd63fedeaf89344d8b9f8e9ce3564a211f23b9e2286ae21f785b3c6f3623b`,
+Succeeded with Cleanup Released. The UI reports the final actual model
+`amazon.nova-micro-v1:0`, 749 input / 67 output tokens, two model turns and one tool
+observation. Existing four Work records remained visible after deployment.
+The reused authenticated browser is not a fresh Google registration test.
+During single-replica rollout the browser briefly reported unavailable/502; after
+readiness and retry the list and new task succeeded. This is not zero-downtime HA.
+Rendered proof is privately retained as `.tmp/acceptance-20261019/live-work.png`.
+Anonymous /api/requests and /api/setup both returned 401 after the rollout.
