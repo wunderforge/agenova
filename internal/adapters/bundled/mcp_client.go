@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wunderforge/agenova/internal/toolbackend"
 )
@@ -200,7 +201,9 @@ func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (st
 		} `json:"content"`
 		IsError bool `json:"isError"`
 	}
-	if json.Unmarshal(callResult, &result) != nil || len(result.Content) == 0 {
+	// encoding/json would replace invalid UTF-8 with U+FFFD and report altered
+	// text as a successful read.
+	if !utf8.Valid(callResult) || json.Unmarshal(callResult, &result) != nil || len(result.Content) == 0 {
 		return "", toolbackend.ErrProtocol
 	}
 	if result.IsError {

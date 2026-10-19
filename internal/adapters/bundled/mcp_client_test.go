@@ -182,6 +182,8 @@ func TestMCPClientFailuresAreClassifiedWithoutReplay(t *testing.T) {
 		{"tool error", rawResult("application/json", `{"jsonrpc":"2.0","id":$ID,"result":{"isError":true,"content":[{"type":"text","text":"not-found"}]}}`), toolbackend.ErrProvider},
 		{"non-text content", rawResult("application/json", `{"jsonrpc":"2.0","id":$ID,"result":{"content":[{"type":"image","data":"AA==","mimeType":"image/png"}]}}`), toolbackend.ErrProtocol},
 		{"empty content", rawResult("application/json", `{"jsonrpc":"2.0","id":$ID,"result":{"content":[]}}`), toolbackend.ErrProtocol},
+		{"invalid utf-8 text", rawResult("application/json", "{\"jsonrpc\":\"2.0\",\"id\":$ID,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"bad \xff byte\"}]}}"), toolbackend.ErrProtocol},
+		{"invalid utf-8 in stream", rawResult("text/event-stream", "data: {\"jsonrpc\":\"2.0\",\"id\":$ID,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"bad \xff byte\"}]}}\n\n"), toolbackend.ErrProtocol},
 		{"mismatched id", rawResult("application/json", `{"jsonrpc":"2.0","id":99,"result":{"content":[{"type":"text","text":"x"}]}}`), toolbackend.ErrProtocol},
 		{"malformed json", rawResult("application/json", `{"jsonrpc":`), toolbackend.ErrProtocol},
 		{"trailing json", rawResult("application/json", `{"jsonrpc":"2.0","id":$ID,"result":{"content":[{"type":"text","text":"x"}]}} {}`), toolbackend.ErrProtocol},
