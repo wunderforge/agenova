@@ -79,7 +79,8 @@ There are no AWS access keys in GitHub. Official Actions are pinned to commits.
 | Worker Go dependency or Dockerfile | Worker only | Blocked pending reviewed template migration |
 | Shared protocol / Go module lock | Both | Blocked pending compatible pair deployment |
 | Documentation or Go unit-test-only change | None | None |
-| UI, login proxy, Collector, other standalone service | Not part of these two images | Separate deployment required |
+| Bundled Portal UI | Control plane only | Same guarded CP-image rollout |
+| Login proxy, Collector, other standalone service | Not part of these two images | Separate deployment required |
 
 Go dependencies are discovered with `go list -deps`. A new package imported by a
 Worker is therefore included, not silently assumed to be control-plane-only.
