@@ -148,7 +148,7 @@ func testControlledLifecycle(t *testing.T, recoverWorker bool) {
 	modelGW := modelgateway.NewGateway(claims, nil, store, modelgateway.WithWorkloadIdentity(workload), modelgateway.WithAdapter(modelAdapter))
 	toolGW := toolgateway.NewGateway(claims, nil, store, toolgateway.WithWorkloadIdentity(workload), toolgateway.WithAdapter(toolAdapter))
 	callbackCalls := 0
-	answer, err := adapter.Execute(context.Background(), alloc.Identity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: "Say hello", ModelProfile: "approved-coding-model", Mode: workerprotocol.ReAct, ResourceScope: "repo:acme/payments"}, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+	answer, err := adapter.Execute(context.Background(), alloc.Identity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: "Say hello", ModelProfile: "approved-coding-model", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "git.read", Description: "Read a repository file", ResourceScope: "repo:acme/payments", Parameter: "file", AllowedValues: []string{"README.md"}}}}, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 		callbackCalls++
 		audience := "model-gateway"
 		if op.Kind == "tool" {
