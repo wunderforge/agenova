@@ -76,9 +76,15 @@ export function snapshot(object, c, baseline, allowUnknown = false) {
   delete entries[index].image;
   const source = m.annotations?.[SOURCE] || baseline;
   if (!(allowUnknown && !source)) sha(source);
-  return { uid: m.uid, resourceVersion: m.resourceVersion, index, image: current,
+  const result = { uid: m.uid, resourceVersion: m.resourceVersion, index, image: current,
     binding: hash({ template: t, strategy: s.strategy, replicas: s.replicas }),
     source: source ?? null, recordedSource: m.annotations?.[SOURCE] ?? null };
+  if (!allowUnknown) {
+    const compatible = vars.filter(v => v.name === 'AGENOVA_ALLOWED_WORKER_IMAGE');
+    requireValue(compatible.length <= 1, 'Ambiguous compatible Worker binding');
+    result.compatibleWorkerImage = compatible.length ? image(compatible[0].value, c.worker) : null;
+  }
+  return result;
 }
 export function ready(object) {
   const s = object.status ?? {};
@@ -89,6 +95,11 @@ export function workerSnapshot(object, c) {
     object.metadata.labels?.['app.kubernetes.io/managed-by'] === 'agenova', 'Expected managed Worker template slot');
   const template = JSON.parse(object.data?.['template.json'] ?? '{}');
   return { image: image(template.spec?.artifact?.image, c.worker), binding: hash(template) };
+}
+// A retained immutable reference slot need not be the new project template's
+// active runtime image. Report the actual installed compatibility binding.
+export function installedWorkerImage(s, c) {
+  return image(s.compatibleWorkerImage ?? s.worker.image, c.worker);
 }
 export function kube(c, run = command) {
   return (...args) => run('kubectl', ['--namespace', c.namespace, ...args]);
@@ -260,8 +271,8 @@ export function main(args = process.argv.slice(2)) {
     save('plan.json', releasePlan);
     const release = publish(releasePlan, c);
     release.previousControlPlaneImage = s.image;
-    release.previousWorkerImage = s.worker.image;
-    release.candidatePair = { controlPlane: release.images.controlPlane ?? s.image, worker: release.images.worker ?? s.worker.image };
+    release.previousWorkerImage = installedWorkerImage(s, c);
+    release.candidatePair = { controlPlane: release.images.controlPlane ?? s.image, worker: release.images.worker ?? installedWorkerImage(s, c) };
     save('release.json', release);
   } else if (action === 'deploy') {
     const release = load('release.json');

@@ -1,7 +1,8 @@
 # Application integration candidate: CI/CD handoff
 
-This is a local-tested application candidate for the shared-EKS delivery trial,
-not permission to deploy or approval of the upstream PRs. See the
+This application candidate was locally tested and then deployed through the
+Owner-authorized shared-EKS trial on 19 October. It is not a blanket production
+security sign-off. See the
 [task packet](../../work/0218-demo-cicd-integration/task.md) and
 [evidence](../../work/0218-demo-cicd-integration/evidence.md).
 
@@ -26,8 +27,9 @@ business-rule narrowing from the Tool catalog alone.
 
 ## Build contract
 
-- Control Plane: `deploy/reference/Dockerfile`, linux/amd64, entrypoint
-  `/agenova-control-plane`; includes pinned-checksum kubectl 1.36.1.
+- Shared member Control Plane: `deploy/production/release.Dockerfile`, linux/amd64,
+  entrypoint `/agenova-control-plane`; includes Portal assets and pinned-checksum
+  kubectl 1.36.1. `deploy/reference/Dockerfile` is the bare reference image only.
 - Worker: `harness/integration/agentsandbox/testworker/Dockerfile`, linux/amd64;
   entrypoint `/agenova-workerctl serve`, agent executable `/agenova-demo-worker`.
 - Both builders use Go 1.27.2, matching the member branch toolchain. Do not build
@@ -35,10 +37,10 @@ business-rule narrowing from the Tool catalog alone.
 - Build matching CLI (`go build ./cmd/agenova`) and Portal (`npm --prefix ui ci`,
   `npm --prefix ui run build`). New Tool evidence has additive `resultRef` and
   `truncated` fields; old strict clients must not be assumed compatible.
-- The reference Control Plane image does **not** contain Portal assets. Preserve
-  the member deployment's read-only Portal asset mount and update it from this
-  revision when validating UI parity. CP/Worker image delivery alone does not
-  automatically update a separately mounted Portal bundle.
+- The bare reference image does **not** contain Portal assets. The actual shared
+  member installation serves `/opt/agenova/portal` from its image, so release must
+  use the Portal-inclusive Dockerfile; there is no Portal asset mount to preserve
+  in this installation. A differently mounted Portal needs its own delivery plan.
 - Local `harness/integration/identity/build-candidate.py` builds the actual two
   Dockerfiles from allowlisted public contexts and runs no-network fail-closed
   executable smokes. It never pushes. Do not send a developer's whole worktree,

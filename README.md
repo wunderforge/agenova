@@ -23,6 +23,8 @@ commands. [Installation details](docs/cli-installation.md) and
 Ordinary members do not need AWS access; infrastructure operators follow the
 separate AWS SSO/EKS section. Hosting availability is environment-specific.
 
+For the tested 19 October shared deployment, use the [shared EKS trial](docs/development/shared-eks-trial.md): build the matching CLI, sign in, submit an allowed or denied Work and query its evidence. It names the new compatible template and the capabilities still awaiting external-service deployment.
+
 
 1. [Project design](docs/project-design.md) — the product model, flows, diagrams, and end-state vision.
 2. [MVP PRD](docs/product/prd.md) — the current shared delivery target and acceptance criteria.
@@ -68,7 +70,7 @@ The repository contains a working Go reference implementation for:
 - a declarative CLI path for Platform validate/plan/apply/status, narrow Policy and AgentTemplate registration, and Work submission against an installed reference service;
 - a real kind + Agent Sandbox worker and Ollama model path for the documented reference configuration.
 
-It does **not** yet contain durable Work/evidence, production identity or controllers, Helm packaging, a Memory Interface, or OpenTelemetry integration. The CLI can query current-session Work after submission; a separately started local React Portal can use an explicit loopback connection to the same installed private API. The UI is not installed by `platform apply`, and the local tunnel is not production authentication. See [Current status](docs/project-status.md) for the exact boundary.
+The shared member service additionally has personal Google login, approved project membership, project-scoped registration and SQL-backed Work/evidence. Its paired Control Plane/Worker CI/CD rollout and real Bedrock allowed/denied CLI path were verified on 19 October. This is not general production certification: latest schema-009 changes, real external MCP/Memory/OTEL services and hostile-agent isolation acceptance remain separate. The local reference path still uses current-session evidence and an explicit loopback tunnel; that tunnel is not production authentication. UI installation is not part of `platform apply`. See [Current status](docs/project-status.md) for evidence and limits.
 
 ## Validate
 

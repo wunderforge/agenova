@@ -82,3 +82,8 @@ Acceptance: real GitHub Actions OIDC/ECR publication and rollout; AWS CLI image
 digests and Kubernetes ready/source/configuration confirmation; matching Agenova
 CLI registration, allowed real-model Work, query and zero-allocation admission
 denial. Existing external Tool credentials and OTEL restrictions remain explicit.
+
+Completed: [real AWS/CLI acceptance](aws-acceptance-20261019.md), including paired
+rollout, real Bedrock success, zero-allocation denial, retained history and
+idempotent query. Temporary branch permissions were revoked. Newer #216 schema
+changes remain explicitly excluded; no external MCP/OTEL service was deployed.

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SOURCE, config, writeGate, snapshot as deploymentSnapshot, workerSnapshot, ready, changedComponents, plan, publish, existingDigest, deploy } from './release.mjs';
+import { SOURCE, config, writeGate, snapshot as deploymentSnapshot, workerSnapshot, installedWorkerImage, ready, changedComponents, plan, publish, existingDigest, deploy } from './release.mjs';
 
 const A = 'a'.repeat(40), B = 'b'.repeat(40);
 const OLD = `sha256:${'1'.repeat(64)}`, NEW = `sha256:${'2'.repeat(64)}`;
@@ -211,6 +211,16 @@ test('Worker registration must be managed and digest-pinned to the expected repo
   assert.throws(() => workerSnapshot(w, c), /repository-bound/);
   delete w.metadata.labels['app.kubernetes.io/managed-by'];
   assert.throws(() => workerSnapshot(w, c), /managed Worker/);
+});
+test('ordinary release reports the active compatible Worker, not a retained old immutable slot', () => {
+  const f=fixture();
+  f.spec.template.spec.containers[1].env.push({name:'AGENOVA_ALLOWED_WORKER_IMAGE',value:`${c.worker}@${NEW}`});
+  const s=snapshot(f,c);
+  assert.equal(s.worker.image,`${c.worker}@${OLD}`);
+  assert.equal(installedWorkerImage(s,c),`${c.worker}@${NEW}`);
+  assert.equal(installedWorkerImage(snapshot(fixture(),c),c),`${c.worker}@${OLD}`);
+  f.spec.template.spec.containers[1].env.at(-1).value='foreign:latest';
+  assert.throws(()=>snapshot(f,c),/repository-bound/);
 });
 test('wrong artifact base or foreign image rejected before cluster access', () => {
   const f = fixture(), cluster = fakeCluster(f);

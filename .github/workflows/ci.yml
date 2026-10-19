@@ -62,7 +62,7 @@ jobs:
 
       - name: Validate release logic without cloud credentials
         run: |
-          node --test scripts/release/release.test.mjs
+          node --test scripts/release/release.test.mjs scripts/release/candidate.test.mjs
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/shared-eks-release.yml .github/workflows/ci.yml
 
       - name: Run shared repository quality gate

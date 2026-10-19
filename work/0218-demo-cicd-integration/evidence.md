@@ -1,5 +1,9 @@
 # CI/CD application integration evidence
 
+The local-only entries below are historical. Owner subsequently authorized real
+delivery: see [19 October AWS/CLI acceptance](aws-acceptance-20261019.md) for the
+successful paired rollout, real allowed/denied Work and revoked temporary access.
+
 19 October 2026; local candidate only. No cloud resources, image publication,
 shared deployment, GitHub merge, issue closure or outbound comments.
 
