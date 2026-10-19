@@ -21,7 +21,7 @@ Package the current member-service acceptance path, a canonical Work fixture and
 - [ ] Reproduce the integrated installed path with two real Google members, equivalent Work and CLI/API/Portal parity.
 - [x] Re-run live installed worker cross-claim/post-terminal checks on this integrated branch: two model and one tool call; zero additional adapter calls on cross-claim/terminal denial, confirmed cleanup on kind.
 - [ ] Obtain a second teammate's independent clean-environment run.
-- [ ] Run focused and full gates on the final branch; review diff and record exact evidence.
+- [x] Run focused and full gates on the candidate branch; review diff and record exact evidence. Installed real-user acceptance remains open.
 
 ## Gates and Evidence
 

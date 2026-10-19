@@ -12,6 +12,6 @@ Status: **draft; not accepted or mergeable as a release**. This is a review reco
 | Two real Google members | Same service, byte-equivalent Work spec, distinct Policy-bounded authority | Pending |
 | CLI/API/Portal parity | Redacted installed evidence for both members | Pending |
 | Independent clean run | Second teammate's versioned install, reapply and cleanup | Pending |
-| M5 repository gate | `./scripts/check.ps1 -All` on this exact branch | Pending |
+| M5 repository gate | `./scripts/check.ps1 -All` on this branch | Passed locally on 20 October 2026, including 56/56 browser smoke |
 
 The former direct-JWT/JWKS fixture and token-file procedure are excluded because the Owner selected main's member service. Do not promote synthetic results to real-user acceptance. Generated outputs and secrets stay outside Git.
