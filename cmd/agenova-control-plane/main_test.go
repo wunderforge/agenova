@@ -29,6 +29,30 @@ func TestReferenceEndpointsExposeOnlySafeStatus(t *testing.T) {
 	}
 }
 
+func TestStatusProbesAreNeverCacheable(t *testing.T) {
+	for _, mode := range []struct {
+		name       string
+		newHandler func() http.Handler
+	}{
+		{"reference", handler},
+		{"member", memberStatusHandler},
+	} {
+		for _, path := range []string{"/readyz", "/v1/status"} {
+			for _, method := range []string{http.MethodGet, http.MethodHead} {
+				t.Run(mode.name+"/"+method+path, func(t *testing.T) {
+					r := httptest.NewRequest(method, path, nil)
+					r.RemoteAddr = "127.0.0.1:3456"
+					w := httptest.NewRecorder()
+					mode.newHandler().ServeHTTP(w, r)
+					if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+						t.Fatalf("status=%d cache-control=%q", w.Code, w.Header().Get("Cache-Control"))
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestCompatibleWorkerImageMustMatchInstalledRuntime(t *testing.T) {
 	for _, test := range []struct {
 		image, allowed string

@@ -510,11 +510,13 @@ func localCommand(args []string) error {
 func handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /readyz", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte("ready\n"))
 	})
 	mux.HandleFunc("GET /v1/status", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
