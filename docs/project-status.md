@@ -1,8 +1,16 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-09-17
+Updated: 2026-10-19
 
 This records what the repository currently proves, not the target architecture or mutable ticket priority. It does not track ticket owners, readiness or sequence. Product requirements live in the [PRD](product/prd.md); ticket status and dependencies live in GitHub. See the [AIDLC source-of-truth map](development/AIDLC.md).
+
+## Verified Shared Member Trial
+
+The existing shared EKS member service now runs the integrated member/Tool/diagnosis candidate, delivered by real GitHub Actions OIDC/ECR paired rollout. Released source is `44dc383c9d8cb1ed5679677d78ed6a289a1944bc`; subsequent documentation and release-provenance fixes do not change those application images. Personal Google application identity, approved project membership, role checks, project-scoped immutable registration and SQL-backed Work/evidence are present in this mode.
+
+Real Agenova CLI registration, one allowed Agent Sandbox Work with three successful Bedrock calls, one admission denial with no Claim/provider allocation, post-run query, retained history and identical-request non-replay were verified. AWS CLI independently matched both immutable ECR image digests; the executed Worker was absent after cleanup. See the [trial commands](development/shared-eks-trial.md) and [exact acceptance evidence](../work/0218-demo-cicd-integration/aws-acceptance-20261019.md).
+
+This does not certify production security or all adapters. Installed Tool remains labelled mock; real external MCP/Collector/Memory services, the private Tool credential finding, general HA/recovery and hostile-agent/network isolation require separate acceptance. Login source is pinned to reviewed #216 `88888a2`; newer migration 009/proxy changes are not deployed. Temporary candidate branch access was revoked and ordinary automatic main cloud deployment remains disabled.
 
 ## Verified Reference Path
 
@@ -21,11 +29,11 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 ## Limits and Unverified Claims
 
 - The installed-service CLI submits and queries (`work list/show`) through the same private HTTP API used by local `npm dev` through `agenova api connect`. The reference API is bound through a loopback-only Kubernetes port-forward, not published as a public Service. CLI and UI evidence parity for allowed and denied Work was checked with real kind/Ollama plus the opt-in installed Playwright test (see [`evidence/167/`](evidence/167/)).
-- Active Work and evidence are in one Control Plane process. Restart or Platform rollout during a run can interrupt it and lose historical evidence; no draining, durable handoff, HA or production upgrade guarantee exists.
-- The reference principal is fixed by service configuration. Kubernetes RBAC protects operator registration, but loopback/port access alone is not production authentication or tenancy. There is no external identity-provider integration.
-- The verified real-provider path is one compatible Agent Sandbox worker plus local Ollama. Arbitrary agent images, production-grade adapter/plugin lifecycle, public-provider credential handling, real Tool/Memory/Observability backends and network-enforced gateway isolation are not proven.
-- Backend-neutral runtime semantics beyond the supported kind path, complete cross-claim gateway correlation, filesystem/isolation proof, persistent history and production-authorized Work listing remain separate work. The reference list is limited to the current service session and fixed local Team A identity.
+- In reference mode, active Work and evidence are in one Control Plane process. The member mode has SQL-backed history, but general draining, durable execution handoff, HA and production upgrade acceptance are not established by this single rollout.
+- The reference principal is fixed by service configuration. Kubernetes RBAC protects reference operator registration, but loopback/port access alone is not production authentication or tenancy. The separate member mode uses Google login and approved project membership.
+- Verified real-provider paths include the documented kind/Ollama reference and the shared EKS/Bedrock member trial above. Arbitrary agent images, production-grade adapter/plugin lifecycle, complete credential security, real Tool/Memory/Observability backends and network-enforced gateway isolation are not proven by these runs.
+- Complete cross-claim gateway correlation and filesystem/isolation proof remain separate work. The reference list is limited to the current service session and fixed local Team A identity; member-mode listing uses current membership and stored Work history. Backend-specific acceptance must not be inferred for untested runtime implementations.
 
 ## Next Delivery Slice
 
-Harden the reference API with production identity and tenancy, durable Work/evidence across rollout, and backend-independent deployment/access packaging. Those remain separate follow-up tickets; `platform apply` intentionally does not install the local React UI.
+Finish the separately reviewed schema-009/proxy release campaign and recovery/revocation acceptance, then connect teammate-owned external Tool/Observability services with real-provider and security evidence. Do not recreate the already demonstrated shared CLI/model path or treat Tool application integration as external-service deployment. `platform apply` intentionally does not install the local React UI.

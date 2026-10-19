@@ -117,11 +117,11 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	req.Parameters = cloneStringMap(req.Parameters)
 
 	if outcome, rejected := validate(req); rejected {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	snapshot, outcome, unresolved := g.resolveClaim(req.ClaimID)
 	if unresolved {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	if outcome, denied := g.claimBaseline(req.ClaimID, snapshot.Claim); denied {
 		return g.record(req, id, outcome)
@@ -168,12 +168,26 @@ func decision(id string, outcome gateway.Outcome) gateway.Decision {
 	}
 }
 
-func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+// notify reports a decision to the trusted sink without writing the
+// claim-attributed fact store. An untrusted or absent claim ID must never
+// acquire a fabricated claim-attributed fact, but the run that issued the
+// request must still leave evidence of the denial: the observer attributes the
+// decision to that run, not to req.ClaimID. A recording failure keeps failing
+// closed.
+func (g *Gateway) notify(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
 	d := decision(id, outcome)
 	if g.observer != nil {
 		if err := g.observer(req, d); err != nil {
-			return d, fmt.Errorf("tool decision recording failed")
+			return d, fmt.Errorf("tool decision recording failed: %w", err)
 		}
+	}
+	return d, nil
+}
+
+func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+	d, err := g.notify(req, id, outcome)
+	if err != nil {
+		return d, err
 	}
 	g.store.RecordToolInvocation(req.ClaimID, toolName(req), id, outcome.Result)
 	return d, nil

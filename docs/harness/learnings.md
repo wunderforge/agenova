@@ -1,5 +1,9 @@
 # Harness Learnings
 
+## 2026-10-19 - Windows integration formatter limit
+
+Combining member access and Tool sources produced 266 Go paths with over 36,000 argument characters in a deep worktree. A single native gofmt invocation exceeded Windows process limits (PowerShell surfaced a misleading StandardOutputEncoding error). The formatter gate now checks all files in batches of 32, with a regression proving complete traversal, later-batch findings and error propagation. No files or quality stages are skipped.
+
 Add an entry only when a failure or repeated steering should change future work.
 
 ## 2026-08-12 — Shared-repo cleanup

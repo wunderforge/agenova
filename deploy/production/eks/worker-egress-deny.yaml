@@ -1,0 +1,23 @@
+# EKS operator policy. Admin Deny overrides the upstream Sandbox controller's
+# additive internet-allow NetworkPolicy. Apply only after the VPC CNI CRD exists.
+apiVersion: networking.k8s.aws/v1alpha1
+kind: ClusterNetworkPolicy
+metadata:
+  name: agenova-demo-worker-egress-deny
+spec:
+  tier: Admin
+  priority: 10
+  subject:
+    pods:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: agenova-system
+      podSelector:
+        matchExpressions:
+          - key: agents.x-k8s.io/sandbox-name-hash
+            operator: Exists
+  egress:
+    - name: no-direct-network-egress
+      action: Deny
+      to:
+        - networks: ["0.0.0.0/0"]

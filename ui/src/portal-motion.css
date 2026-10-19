@@ -8,11 +8,11 @@ body:has(.portal-shell){background:#050914}
 .portal-shell a:hover{color:#d3e4ff}.portal-shell :focus-visible{outline:2px solid var(--portal-cyan);outline-offset:4px}
 .portal-sidebar{background:linear-gradient(165deg,#0e1830,#060b18);border-right:1px solid #283854;position:sticky;top:0;height:100vh}
 .portal-brand span{border-color:#689fff;color:#b5d4ff;box-shadow:0 0 18px #5288ff28}
-.portal-sidebar nav a{position:relative;isolation:isolate;overflow:hidden;transition:color .18s}
-.portal-sidebar nav a.active{background:linear-gradient(90deg,#192e55,#101d36);border:1px solid #395989;box-shadow:inset 3px 0 #75b0ff,0 0 22px #2769ff12;color:#e1edff}
-.portal-sidebar nav a:after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:0;background:linear-gradient(90deg,#3160a53b,transparent);transition:opacity .18s ease-out}
-.portal-sidebar nav a:hover:after,.portal-sidebar nav a:focus-visible:after{opacity:1}
-.portal-sidebar nav a.active:before{content:'';position:absolute;left:0;top:calc(50% - 12px);height:24px;width:3px;background:#b6dbff;box-shadow:0 0 12px #629dff99;pointer-events:none}
+.portal-sidebar nav :is(a,.portal-nav-action){position:relative;isolation:isolate;overflow:hidden;transition:color .18s}
+.portal-sidebar nav :is(a,.portal-nav-action).active{background:linear-gradient(90deg,#192e55,#101d36);border:1px solid #395989;box-shadow:inset 3px 0 #75b0ff,0 0 22px #2769ff12;color:#e1edff}
+.portal-sidebar nav :is(a,.portal-nav-action):after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:0;background:linear-gradient(90deg,#3160a53b,transparent);transition:opacity .18s ease-out}
+.portal-sidebar nav :is(a,.portal-nav-action):hover:after,.portal-sidebar nav :is(a,.portal-nav-action):focus-visible:after{opacity:1}
+.portal-sidebar nav :is(a,.portal-nav-action).active:before{content:'';position:absolute;left:0;top:calc(50% - 12px);height:24px;width:3px;background:#b6dbff;box-shadow:0 0 12px #629dff99;pointer-events:none}
 .portal-sidebar-foot{color:var(--portal-muted);border-color:var(--portal-line)}
 .portal-topbar{position:sticky;top:0;z-index:20;height:69px;background:#080f20;color:var(--portal-muted)}
 .portal-scroll-progress{position:absolute;bottom:0;left:0;width:100%;height:2px;transform:scaleX(var(--scroll-progress,0));transform-origin:left;background:linear-gradient(90deg,#4b7fff,#76d9f4);box-shadow:0 0 8px #629dff55;pointer-events:none}

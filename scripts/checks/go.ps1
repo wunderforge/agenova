@@ -33,6 +33,18 @@ function Get-GoCheckFiles {
   }
 }
 
+function Get-GoFormatFailures {
+  param([string[]]$Files)
+  # Absolute paths in a deep Windows worktree can exceed CreateProcess limits.
+  # Check every file, but keep each native invocation comfortably bounded.
+  for ($offset = 0; $offset -lt $Files.Count; $offset += 32) {
+    $last = [Math]::Min($offset + 31, $Files.Count - 1)
+    $batch = @($Files[$offset..$last])
+    gofmt -l @batch
+    if ($LASTEXITCODE -ne 0) { throw 'gofmt check failed' }
+  }
+}
+
 function Test-Fast {
   param([switch]$ChangedOnly)
 
@@ -60,7 +72,7 @@ function Test-Fast {
     return
   }
 
-  $unformatted = gofmt -l $goFiles
+  $unformatted = @(Get-GoFormatFailures -Files $goFiles)
   if ($LASTEXITCODE -ne 0) { Fail "gofmt check failed" }
   if ($unformatted) { Fail "gofmt required: $($unformatted -join ', ')" }
   Pass "selected Go files are formatted"
@@ -81,12 +93,13 @@ function Test-Go {
 
   if (-not (Get-Command go -ErrorAction SilentlyContinue)) { Fail "go executable not found" }
   Initialize-GoCache
+  & (Join-Path $Root 'scripts/tests/check-go-format.ps1')
 
   Push-Location $Root
   try {
     $goFiles = @(Get-GoCheckFiles)
     if ($goFiles) {
-      $unformatted = gofmt -l $goFiles
+      $unformatted = @(Get-GoFormatFailures -Files $goFiles)
       if ($LASTEXITCODE -ne 0) { Fail "gofmt check failed" }
       if ($unformatted) { Fail "gofmt required: $($unformatted -join ', ')" }
     }
@@ -119,6 +132,18 @@ function Test-Go {
     go test -run '^$' -tags 'integration controlled' ./harness/integration/agentsandbox/
     if ($LASTEXITCODE -ne 0) { Fail "opt-in controlled Agent Sandbox integration package does not compile" }
     Pass "opt-in controlled Agent Sandbox integration package compiles"
+
+    go test -run '^$' -tags 'integration controlled live' ./harness/integration/agentsandbox/
+    if ($LASTEXITCODE -ne 0) { Fail "opt-in live model checkpoint package does not compile" }
+    Pass "opt-in live model checkpoint package compiles"
+
+    go test -count=1 -tags agenovaprobe ./internal/console/
+    if ($LASTEXITCODE -ne 0) { Fail "go test -tags agenovaprobe ./internal/console failed" }
+    Pass "go test -tags agenovaprobe ./internal/console"
+
+    go test -run '^$' -tags agenovaprobe ./cmd/agenova-control-plane/
+    if ($LASTEXITCODE -ne 0) { Fail "E16 acceptance probe build does not compile" }
+    Pass "E16 acceptance probe build compiles"
   }
   finally {
     Pop-Location

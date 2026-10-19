@@ -37,6 +37,7 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
 		bedrockModelRegistration(),
+		mcpHTTPToolRegistration(),
 	)
 }
 
@@ -48,6 +49,10 @@ func kubernetesDeploymentRegistration() adapterregistry.Registration {
 			{Path: "context", Kind: adapterregistry.ValueString, Required: true, Description: "Existing Kubernetes context selected by the operator", Default: "kind-agenova"},
 			{Path: "namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace for Agenova control-plane resources", Default: "agenova-system"},
 			{Path: "control-plane-image", Kind: adapterregistry.ValueString, Description: "Operator-built control plane, registry reference pinned by sha256 digest"},
+			{Path: "mode", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "deployment-name", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "deployment-uid", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "pod-template-sha256", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
 			{Path: "image-pull-policy", Kind: adapterregistry.ValueString, Description: "Control-plane image pull policy: Always or IfNotPresent"},
 		}},
 	}
@@ -115,7 +120,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy", "mode", "deployment-name", "deployment-uid", "pod-template-sha256"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -141,6 +146,31 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 			return nil, platform.NewAdapterConfigError("unsupported-pull-policy", "image-pull-policy")
 		}
 		result["image-pull-policy"] = policy
+	}
+	if _, exists := input["mode"]; exists {
+		if input["mode"] != "member-upgrade" {
+			return nil, platform.NewAdapterConfigError("unsupported-deployment-mode", "mode")
+		}
+		result["mode"] = "member-upgrade"
+		for _, key := range []string{"deployment-name", "deployment-uid", "pod-template-sha256"} {
+			value, err := requiredString(input, key)
+			if err != nil {
+				return nil, err
+			}
+			if !memberBindingValue(key, value) {
+				return nil, platform.NewAdapterConfigError("invalid-upgrade-binding", key)
+			}
+			result[key] = value
+		}
+		if result["control-plane-image"] == nil || input["image-pull-policy"] != nil {
+			return nil, platform.NewAdapterConfigError("image-only-upgrade-required", "control-plane-image")
+		}
+	} else {
+		for _, key := range []string{"deployment-name", "deployment-uid", "pod-template-sha256"} {
+			if _, exists := input[key]; exists {
+				return nil, platform.NewAdapterConfigError("member-upgrade-mode-required", key)
+			}
+		}
 	}
 	return result, nil
 }
@@ -258,6 +288,8 @@ func DescribeImplementation(value any) string {
 		return fmt.Sprintf("%s@%s", AgentSandboxRuntimeID, ReferenceVersion)
 	case *BedrockModel:
 		return fmt.Sprintf("%s@%s", BedrockModelID, ReferenceVersion)
+	case *MCPHTTPTool:
+		return fmt.Sprintf("%s@%s", MCPHTTPToolID, ReferenceVersion)
 	case *OpenAICompatibleModel:
 		return fmt.Sprintf("%s@%s", OpenAICompatibleModelID, ReferenceVersion)
 	default:

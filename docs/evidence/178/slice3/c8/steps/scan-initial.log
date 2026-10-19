@@ -1,0 +1,2 @@
+[info] plan: check the token Secrets are unchanged, snapshot the control-plane and fixture logs, then search <repo>/.tmp/e16-c8 <repo>/.tmp/e16-c8-state <repo>/docs/evidence/178/slice3/c8 <repo>/.tmp/e16-c8-steps for the three tokens
+[fail] the token scan exited 2 (1: a token was found, 2: the scan could not finish); see <repo>/.tmp/e16-c8/scan/scan.txt

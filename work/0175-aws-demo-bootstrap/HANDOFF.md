@@ -1,3 +1,5 @@
+> Historical bootstrap handoff. Superseded by [production lifecycle boundaries](../../infra/production/README.md). Do not execute the old whole-stack destroy instructions below: the VPC now supports production RDS. Follow the latest cleanup deadline and preserve persistent resources.
+
 # E13 AWS / Bedrock 交接
 
 ## 最新覆盖记录：2026-10-05
@@ -9,7 +11,7 @@
 - 入口 https://demo.agenova.app/ 已恢复，HTML 共享演示登录 → ALB → EKS；不依赖本机端口转发或 Cloudflare。根路径自动跳转登录页。
 - Nova Micro 真实 Work 成功；拒绝前后 provider 计数 4→4；21 项 HTTPS 检查通过。新证据：[恢复记录](../0175-shared-eks-bedrock/evidence/restore-20261005/summary.md)。
 - 清理不早于 UTC 2026-10-05T17:35:32Z，即悉尼 2026-10-06 04:35 AEDT；保留至少十小时。最新用户期限优先。
-- 清理顺序：先审查并 destroy `infra/demo/edge`，删除 Kubernetes 公网入口，再按更新后的精确镜像清单清理 ECR，最后审查并 destroy `infra/demo/aws`。保留 `infra/domain`、注册域名、hosted zone、证书与验证记录、IAM 用户/admin 组和默认 VPC。
+- 清理顺序：先审查并 destroy `infra/production/edge`，删除 Kubernetes 公网入口，再按更新后的精确镜像清单清理 ECR，最后审查并 destroy `infra/production/eks`。保留 `infra/domain`、注册域名、hosted zone、证书与验证记录、IAM 用户/admin 组和默认 VPC。
 - 自动化 `agenova-eks` 已恢复为每小时检查，使用 AK profile；仍依赖本机在线。域名和证书不能随演示清理。
 - PR #196 对应交付子任务 #200；E14 #197 仅有规划文档，无实现 PR 可用。不得宣称完整 E13 已完成。
 
@@ -19,7 +21,7 @@
 
 - 分支 `codex/e13-aws-demo-bootstrap`，本地目录 `/Users/neoliu/projects/agenova`。
 - AWS账户931228356546，Sydney ap-southeast-2，集群agenova-demo：ACTIVE，单个t3.medium节点Ready。
-- Terraform最初23资源，保留期限更新成功，随后Pod Identity/Bedrock服务角色4资源成功创建。State在infra/demo/aws中，已忽略且必须保留至清理。
+- Terraform最初23资源，保留期限更新成功，随后Pod Identity/Bedrock服务角色4资源成功创建。State在infra/production/eks中，已忽略且必须保留至清理。
 - Agent Sandbox v0.4.6控制器、Pod Identity agent、Agenova控制面均运行。
 - 两个独立Work真实执行成功，经过Agenova Gateway调用Bedrock Nova Micro；未授权项目请求Deny、无claim，调用计数4→4。
 - 实际第二个Work的Worker快照：default SA、automount false、无环境变量和凭证挂载；控制面独有Pod Identity。
@@ -52,7 +54,7 @@ E15真实出网限制/直连绕过验证未完成；不要声称网络隔离已�
 
 CLI二进制`.tmp/e13/agenova`；隔离state `.tmp/e13/state`；实际Platform和模板 `.tmp/e13/platform.yaml`、`.tmp/e13/engineer.yaml`。无密钥副本已保存于证据目录。可执行wrapper `.tmp/e13/agenova-live`带上正确profile/kubeconfig/state供E2E使用。
 
-构建/配置：[EKS runbook](../../deploy/demo/eks/README.md)。ECR仓库agenova-demo/control-plane和agenova-demo/worker，镜像固定digest，清单[demo-image-inventory.json](demo-image-inventory.json)。
+构建/配置：[EKS runbook](../../deploy/production/member-service.md)。ECR仓库agenova-demo/control-plane和agenova-demo/worker，镜像固定digest，清单[demo-image-inventory.json](demo-image-inventory.json)。
 
 ## 清理：必须执行
 
@@ -137,7 +139,7 @@ not publish the website: CloudFront/traffic DNS is still outstanding.
 ## ALB direct ingress supersedes both CDNs
 
 Latest Owner instruction: Route 53 → Sydney ALB → EKS, without CloudFront or
-Cloudflare. `infra/demo/edge` owns disposable ALB, listener, target group, managed
+Cloudflare. `infra/production/edge` owns disposable ALB, listener, target group, managed
 node ASG attachment, restricted SG rules and demo traffic alias. Destroy edge
 BEFORE EKS. `infra/domain` additionally owns Sydney apex/wildcard ACM certificate
 05298630-af13-42c2-8ffa-4bed2401d2ea; preserve it and all permanent domain resources.

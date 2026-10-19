@@ -1,0 +1,6 @@
+start 2026-10-15T05:25:13.650466+00:00
+command go -C harness/integration/mcpfixture test -count=1 ./...
+ok  	github.com/wunderforge/agenova/harness/integration/mcpfixture	2.537s
+
+exit 0
+end 2026-10-15T05:25:18.405686+00:00

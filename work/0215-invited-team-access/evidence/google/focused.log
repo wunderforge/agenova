@@ -1,0 +1,5 @@
+ok  	github.com/wunderforge/agenova/internal/authentication	1.221s
+ok  	github.com/wunderforge/agenova/internal/authentication/cognito	2.115s
+ok  	github.com/wunderforge/agenova/internal/authentication/googleoidc	2.358s
+ok  	github.com/wunderforge/agenova/internal/authentication/postgres	3.164s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	2.102s

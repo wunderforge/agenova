@@ -1,0 +1,6 @@
+[info] plan: run Job e16-probe in agenova-e16-system with agenova-e16-probe:c50a6bc9af3c and check it against the fixture log
+configmap/e16-probe-inputs created
+job.batch/e16-probe created
+job.batch/e16-probe condition met
+[pass] every probe step matches the server log
+[pass] probe receipts match the fixture server log

@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-n6-timeout
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Read logs/slow.log and report what it says.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-faults]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

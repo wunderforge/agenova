@@ -1,0 +1,11 @@
+Connecting local Agenova API at http://127.0.0.1:8088. Wait for kubectl's Forwarding line, then run npm --prefix ui run dev in another terminal.
+Forwarding from 127.0.0.1:8088 -> 8081
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+Handling connection for 8088
+E1015 16:32:17.066318   37960 portforward.go:512] "Error copying from remote stream to local connection" err="readfrom tcp4 127.0.0.1:8088->127.0.0.1:54252: write tcp4 127.0.0.1:8088->127.0.0.1:54252: write: broken pipe" localPort=8088 remotePort=8081

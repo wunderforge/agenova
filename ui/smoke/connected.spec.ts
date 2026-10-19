@@ -241,12 +241,12 @@ test('cobalt light locates real pending calls and separates success from failure
  await info.attach('cobalt-wait-performance',{body:JSON.stringify(frameReport,null,2),contentType:'application/json'});
  await page.screenshot({path:info.outputPath('cobalt-model-wait.png'),fullPage:true});
  add('ProviderOutcome',{invocationId:'signal-model',operation:'model.invoke',providerStatus:'Succeeded'});
- add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',target:'Mock git.read'});
+ add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read'});
  await expect(row).toHaveAttribute('data-kind','tool');
  expect(await row.evaluate(el=>getComputedStyle(el).getPropertyValue('--call-light').trim())).toBe('#76d9f4');
  await expect(page.locator('.portal-worker-state.positive')).toHaveCSS('color','rgb(140, 213, 178)');
  await page.screenshot({path:info.outputPath('cobalt-tool-wait.png'),fullPage:true});
- add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',providerStatus:'Failed'});
+ add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-artifact-not-found',providerStatus:'Failed'});
  current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'The recorded mock tool call failed.'};
  await expect(page.locator('.portal-worker-state.negative')).toHaveCSS('color','rgb(255, 140, 164)');
  await expect(page.locator('.portal-turn[data-negative=true] > summary')).toContainText('1 failed');
@@ -281,10 +281,10 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  await expect(page.locator('.portal-worker-current')).toContainText('Turn 1 · Waiting for a model response');
  add('ProviderOutcome',{invocationId:'m1',operation:'model.invoke',providerStatus:'Succeeded'});
  add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
- add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',target:'Mock git.read · logs/timeout.log'});
+ add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read · logs/timeout.log'});
  await expect(page.locator('.portal-worker-current')).toContainText('Waiting for tool observation');
  await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call (mock)');
- add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',providerStatus:'Succeeded'});
+ add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',providerStatus:'Succeeded'});
  add('WorkerActivity',{operation:'ObservationReceived',target:'Turn 1'});
  add('WorkerActivity',{operation:'TurnStarted',target:'Turn 2'});
  add('ProviderAttempt',{invocationId:'m2',operation:'model.invoke'});
@@ -433,4 +433,58 @@ test('queued cancellation overrides pending claim and stops automatic refresh', 
   expect(evidenceReads).toBe(1);
   await page.clock.fastForward(5000);
   expect(evidenceReads).toBe(1);
+});
+
+test('recovered interrupted work shows unknown model outcome without fabricated success',async({page},info)=>{
+ const current=work();current.state!.claim!.phase='Failed';
+ const reason='The service was interrupted. Runtime release was verified; uncertain external operations were not replayed.';
+ current.outcome={status:'Failed',failure:reason};
+ const runtimeFact=(operation:string):Fact=>({id:`runtime-${operation}`,sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'Runtime',requestRef:current.requestRef,claimId:current.state!.claim!.id,backendIdentity:current.state!.claim!.backendIdentity,operation});
+ current.facts=[
+  {id:'received',sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'RequestReceived',requestRef:current.requestRef},
+  ...current.facts.filter(f=>f.kind!=='Runtime'),
+  ...['Bound','BackendReady','Running'].map(runtimeFact),
+  {id:'model-allow',sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'ModelDecision',requestRef:current.requestRef,claimId:current.state!.claim!.id,invocationId:'model-unknown',result:'Allow',operation:'model.invoke',target:'approved-coding-model'},
+ ];
+ current.facts.push(
+  {id:'attempt-unknown',sequence:4,timestamp:'2026-10-12T00:00:00Z',kind:'ProviderAttempt',requestRef:current.requestRef,operation:'model.invoke',invocationId:'model-unknown',target:'approved-coding-model',providerStatus:'Attempted'},
+  ...['Failed','TerminateSucceeded','CleanupSucceeded'].map(runtimeFact),
+  {id:'interrupted',sequence:5,timestamp:'2026-10-12T00:00:01Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed',reason,reasonCode:'run-recovered-interruption'},
+ );
+ current.facts=current.facts.map((f,i)=>({...f,sequence:i+1}));
+ current.state!.evidence.runtimeEvents=['Bound','BackendReady','Running','Failed','TerminateSucceeded','CleanupSucceeded'].map(kind=>({kind}));
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-worker-state')).toHaveText('Outcome unknown');
+ await expect(page.locator('.portal-agent-failure')).toContainText(reason);
+ await expect(page.locator('.portal-worker-state.positive')).toHaveCount(0);
+ await expect(page.getByText('Waiting for response',{exact:true})).toHaveCount(0);
+ await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
+});
+
+test('scoped configuration remains readable without global selectors',async({page},info)=>{
+ await api(page,()=>[]);
+ await page.route('**/api/setup*',route=>{
+  const query=new URL(route.request().url()).searchParams;
+  const project=query.get('project') || 'payments';
+  const name=query.get('template') || 'engineer';
+  return route.fulfill({json:{...setup,project,projects:['payments','analytics'],templates:['engineer','reviewer'],template:{...template,metadata:{name}},policy:{ID:project+'-policy',Version:'2',Rules:[{team:'team-a',action:'claim.create',project,templateRef:name}]}}});
+ });
+ await page.goto('/?mode=connected#/policy');
+ await expect(page.getByText('payments-policy',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('Configuration project')).toHaveCount(0);
+ await expect(page.getByLabel('Configuration template')).toHaveCount(0);
+ await page.goto('/?mode=connected&project=analytics&template=reviewer#/policy');
+ await expect(page.getByText('analytics-policy',{exact:true})).toBeVisible();
+ await expect(page.locator('tbody')).toContainText('reviewer');
+ await page.screenshot({path:info.outputPath('scoped-policy.png'),fullPage:true});
+});
+
+test('member without a template can still read permitted Work evidence',async({page})=>{
+ await api(page,()=>[work('Succeeded')],undefined,{...setup,template:null});
+ await page.goto('/?mode=connected#/work');
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ await page.goto('/?mode=connected#/work/new');
+ await expect(page.getByText('No approved template is available in this project.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Start work',exact:true})).toHaveCount(0);
 });

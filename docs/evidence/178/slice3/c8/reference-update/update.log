@@ -1,0 +1,5 @@
+deployment.apps/agenova-control-plane scaled
+sandboxwarmpool.extensions.agents.x-k8s.io/agenova-pool-pool-engineer patched
+sandboxwarmpool.extensions.agents.x-k8s.io/agenova-pool-pool-engineer patched
+deployment "agenova-control-plane" successfully rolled out
+Reference updated and image identities verified.
