@@ -95,6 +95,7 @@ test('installed E16 setup reports the configured MCP tool and E16 registrations 
   expect(setup.installation.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
   expect(setup.capabilities.tool).toBe('configured');
   expect(setup.policy.ID).toBe('e16-mcp-acceptance');
+  if (!setup.template) throw new Error('Installed MCP acceptance requires a visible registered template');
   expect(setup.template.metadata.name).toBe('e16-engineer');
   expect(setup.template.spec.capabilityCeiling?.tools).toEqual(['repo.read']);
 });

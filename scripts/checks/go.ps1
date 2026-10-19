@@ -33,6 +33,18 @@ function Get-GoCheckFiles {
   }
 }
 
+function Get-GoFormatFailures {
+  param([string[]]$Files)
+  # Absolute paths in a deep Windows worktree can exceed CreateProcess limits.
+  # Check every file, but keep each native invocation comfortably bounded.
+  for ($offset = 0; $offset -lt $Files.Count; $offset += 32) {
+    $last = [Math]::Min($offset + 31, $Files.Count - 1)
+    $batch = @($Files[$offset..$last])
+    gofmt -l @batch
+    if ($LASTEXITCODE -ne 0) { throw 'gofmt check failed' }
+  }
+}
+
 function Test-Fast {
   param([switch]$ChangedOnly)
 
@@ -60,7 +72,7 @@ function Test-Fast {
     return
   }
 
-  $unformatted = gofmt -l $goFiles
+  $unformatted = @(Get-GoFormatFailures -Files $goFiles)
   if ($LASTEXITCODE -ne 0) { Fail "gofmt check failed" }
   if ($unformatted) { Fail "gofmt required: $($unformatted -join ', ')" }
   Pass "selected Go files are formatted"
@@ -81,12 +93,13 @@ function Test-Go {
 
   if (-not (Get-Command go -ErrorAction SilentlyContinue)) { Fail "go executable not found" }
   Initialize-GoCache
+  & (Join-Path $Root 'scripts/tests/check-go-format.ps1')
 
   Push-Location $Root
   try {
     $goFiles = @(Get-GoCheckFiles)
     if ($goFiles) {
-      $unformatted = gofmt -l $goFiles
+      $unformatted = @(Get-GoFormatFailures -Files $goFiles)
       if ($LASTEXITCODE -ne 0) { Fail "gofmt check failed" }
       if ($unformatted) { Fail "gofmt required: $($unformatted -join ', ')" }
     }

@@ -32,10 +32,10 @@ Invalid/unavailable configured Tool routes fail explicitly without mock fallback
 ## Execution
 
 - [x] Read contracts, pin sources and self-review scope/negative gates.
-- [ ] Integrate Tool with member/durable paths, then diagnosis.
-- [ ] Add combined-path regressions and scoped portability fixes.
-- [ ] Run focused, disposable TLS SQL, UI/browser and full gates; build artifacts.
-- [ ] Record evidence, external-service contract and residual gates; commit locally without push/merge.
+- [x] Integrate Tool with member/durable paths, then diagnosis.
+- [x] Add combined-path regressions and scoped portability fixes.
+- [x] Run focused, disposable TLS SQL, UI/browser and full gates; build native/Linux artifacts and actual local Docker images.
+- [x] Record [evidence](evidence.md), [external-service contract](../../deploy/production/cicd-candidate.md) and residual gates; keep commits local without push/merge.
 
 ## Quality Gates / Evidence
 
