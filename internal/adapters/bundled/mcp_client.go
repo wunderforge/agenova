@@ -190,7 +190,7 @@ func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (st
 	if err := s.notify(ctx, "notifications/initialized"); err != nil {
 		return "", err
 	}
-	callResult, err := s.request(ctx, "tools/call", map[string]any{"name": tool, "arguments": map[string]string{parameter: value}})
+	callResult, err := s.request(ctx, "tools/call", toolCallParams(tool, parameter, value))
 	if err != nil {
 		return "", err
 	}
@@ -261,10 +261,20 @@ func (s *mcpSession) notify(ctx context.Context, method string) error {
 	return nil
 }
 
+// rpcRequest and toolCallParams build the exact messages the session posts;
+// profile validation sizes every allowed value with the same shapes.
+func rpcRequest(id int, method string, params map[string]any) map[string]any {
+	return map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}
+}
+
+func toolCallParams(tool, parameter, value string) map[string]any {
+	return map[string]any{"name": tool, "arguments": map[string]string{parameter: value}}
+}
+
 func (s *mcpSession) request(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
 	s.nextID++
 	id := s.nextID
-	resp, err := s.post(ctx, map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params})
+	resp, err := s.post(ctx, rpcRequest(id, method, params))
 	if err != nil {
 		return nil, err
 	}

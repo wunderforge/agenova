@@ -5,6 +5,8 @@ package bundled
 
 import (
 	"context"
+	"encoding/json"
+	"math"
 	"net/url"
 	"path"
 	"regexp"
@@ -168,6 +170,13 @@ func canonicalizeMCPProfile(_ platform.Capability, backend, input map[string]any
 		}
 		values[i] = value
 		seen[value] = true
+		// The request ceiling covers the whole serialized tools/call, so an
+		// advertised value must fit with the envelope and JSON escaping. The
+		// id is an upper bound on what a session sends.
+		body, err := json.Marshal(rpcRequest(math.MaxInt32, "tools/call", toolCallParams(out["mcp-tool"].(string), out["parameter-name"].(string), value)))
+		if err != nil || len(body) > requestLimit {
+			return nil, platform.NewAdapterConfigError("parameter-exceeds-request", "parameter-allowed-values")
+		}
 	}
 	sort.Strings(values)
 	out["parameter-allowed-values"] = strings.Join(values, "\n")

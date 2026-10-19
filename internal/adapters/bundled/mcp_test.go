@@ -176,6 +176,13 @@ func TestToolConfigAndRoutesFailClosed(t *testing.T) {
 			p.Spec.Services.ToolProfiles[0].Config["parameter-allowed-values"] = "README.md\n"
 		}},
 		{"credential parameter", func(p *v0.Platform) { p.Spec.Services.ToolProfiles[0].Config["parameter-name"] = "api_key" }},
+		// Within parameter-max-bytes, but over max-request-bytes once wrapped
+		// in the tools/call envelope.
+		{"value over request", func(p *v0.Platform) {
+			p.Spec.Services.ToolBackends[0].Config["max-request-bytes"] = "128"
+			p.Spec.Services.ToolProfiles[0].Config["parameter-max-bytes"] = "128"
+			p.Spec.Services.ToolProfiles[0].Config["parameter-allowed-values"] = strings.Repeat("a", 120)
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
