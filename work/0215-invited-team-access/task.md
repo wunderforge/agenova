@@ -39,11 +39,11 @@ Uninvited/disabled users, reused/expired invitation, forged/expired/wrong-issuer
 - [x] Assignee self-review: Owner explicitly reprioritized production/invite-only scope on 2026-10-12. Preserve architecture; do not change #203/#204 assignments or producer contracts.
 - [x] Define shared behavior, dependencies and production release gates in spec/design.
 - [x] Implement bounded Cognito access-token verification and a required current-membership/revocation source interface with negative fixtures.
-- [ ] Supply the durable membership/revocation source and integrate it with each API request.
+- [x] Supply the durable membership/revocation source and integrate it with each API request.
 - [x] Add authenticated HTTPS transport to the connected client without a Kubernetes target; reject token-bearing redirects and ambiguous transport configuration.
-- [ ] Integrate request-local principal, action/ownership checks and CLI login/profile selection.
-- [ ] Implement PKCE login, OS credential storage, refresh/revocation and Portal sessions.
-- [ ] Implement durable storage, migrations, restart reconciliation and data-preserving stop/start.
+- [x] Integrate request-local principal, action/ownership checks and CLI login/profile selection.
+- [x] Implement PKCE login, OS credential storage, refresh/revocation and Portal sessions.
+- [x] Implement durable storage, migrations, restart reconciliation and data-preserving stop/start.
 - [ ] Review and deploy bounded infrastructure after budget/SLO decisions.
 - [ ] Execute two-user real-backend, negative, recovery and rendered tests.
 - [ ] Run focused gates and ./scripts/check.ps1 -All; independent review and cutover.
@@ -520,3 +520,11 @@ activation remain authoritative. Show conflict/denial/invalid input explicitly,
 protect unsaved text during submission and clear stale selection on target change.
 Test positive saving, denial, conflict, malformed JSON, project switching and mobile
 rendering; run PostgreSQL tests/full gate and deploy with live idempotent save proof.
+
+## Merge-readiness audit, 19 October
+
+The original implementation checkboxes above are reconciled with later evidence;
+checked implementation does not imply the whole production acceptance campaign.
+See [current acceptance status](evidence/merge-readiness-20261019.md). Keep review,
+live interruption/revocation and long-term hosting decisions open. Historical
+Cognito and pre-persistence gaps in earlier evidence are not current blockers.
