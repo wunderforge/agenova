@@ -22,9 +22,11 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
@@ -44,13 +46,18 @@ type Executor interface {
 
 type record struct {
 	sessionCheck func(context.Context) error
+	ctx          context.Context
 	view         evidence.View
 	cancel       context.CancelFunc
 	owner        v0.Principal
 }
 
 type Service struct {
-	tools *toolbackend.Set
+	repository history.Repository
+	revision   string
+	telemetry  *telemetry.Telemetry
+	onClose    func()
+	tools      *toolbackend.Set
 	// appendTool uses the durable journal; tagged acceptance probes can replace it.
 	appendTool    func(facts.Fact) (facts.Fact, error)
 	durable       DurableWork
@@ -84,6 +91,10 @@ type AccessAuthorizer interface {
 }
 
 type Options struct {
+	Repository  history.Repository
+	Revision    string
+	Telemetry   *telemetry.Telemetry
+	OnClose     func()
 	ToolBackend *toolbackend.Set
 	Durable     DurableWork
 	Access      AccessAuthorizer
@@ -113,6 +124,9 @@ func NewService(backend runtime.RuntimeBackend, executor Executor, provider mode
 func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, provider modelprovider.Client, preset app.ReferencePrincipalPreset, options Options) (*Service, error) {
 	if backend == nil || executor == nil || provider == nil {
 		return nil, errors.New("runtime, executor and provider are required")
+	}
+	if options.Repository != nil && (options.Durable != nil || options.PrepareFor != nil) {
+		return nil, errors.New("SQLite reference storage cannot replace authenticated Work storage")
 	}
 	if options.PrepareFor != nil {
 		if options.Access == nil || options.Setup == nil || options.Configure == nil || options.Prepare != nil {
@@ -148,12 +162,16 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 		return nil, err
 	}
 	s.workload = workload
-	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
+	s.repository, s.revision, s.telemetry, s.onClose = options.Repository, options.Revision, options.Telemetry, options.OnClose
+	runner, err := app.NewRunService(&observedRuntime{RuntimeBackend: backend, s: s, claims: map[v0.SandboxClaimBackendIdentity]string{}}, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
 	}
 	s.runner = runner
 	if err := s.configureDurability(); err != nil {
+		return nil, err
+	}
+	if err := s.configureRepository(); err != nil {
 		return nil, err
 	}
 	s.appendTool = s.journal.Append
@@ -217,6 +235,16 @@ func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionC
 }
 
 func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (app.PreparedAssignment, error), sessionCheck func(context.Context) error, key submissionKey) (evidence.View, error) {
+	if s.storageFailed.Load() {
+		return evidence.View{}, history.ErrUnavailable
+	}
+	traceCtx, endWork := s.telemetry.Start(context.Background(), "work", "", "", "")
+	runOwned := false
+	defer func() {
+		if !runOwned {
+			endWork(false)
+		}
+	}()
 	request, validationErr := v0.ParseClaimRequestJSON(data)
 	if validationErr != nil {
 		return evidence.View{}, validationErr
@@ -243,7 +271,6 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	s.records[request.Metadata.Name] = reservation
 	s.wg.Add(1)
 	s.mu.Unlock()
-	runOwned := false
 	defer func() {
 		// Every return below either replaces this reservation with a queryable
 		// record or abandons the submission. A surviving reservation never
@@ -261,7 +288,9 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 			s.wg.Done()
 		}
 	}()
+	_, endAdmission := s.telemetry.Start(traceCtx, "admission", request.Metadata.Name, "", "")
 	prepared, err := prepare(data)
+	endAdmission(err == nil)
 	if err == nil {
 		err = s.checkWorkCatalog(prepared)
 	}
@@ -270,6 +299,13 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		return evidence.View{}, err
 	}
 	ref := request.Metadata.Name
+	if s.repository != nil {
+		if _, err := s.repository.Get(ref); err == nil {
+			return evidence.View{}, ErrConflict
+		} else if !errors.Is(err, history.ErrNotFound) {
+			return evidence.View{}, err
+		}
+	}
 	if err = s.journal.RegisterRequest(ref, prepared.Admission.Principal); err != nil {
 		return evidence.View{}, err
 	}
@@ -280,10 +316,11 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	if _, err = s.journal.Append(facts.Fact{Kind: "RequestResolution", RequestRef: ref, Decision: &d, Result: d.Result, ReasonCode: "assignment-" + strings.ToLower(string(d.Result)), PolicyRef: &d.PolicyRef}); err != nil {
 		return evidence.View{}, err
 	}
-	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
+	s.telemetry.Decision(traceCtx, "admission", string(d.Result))
+	view := evidence.View{TraceID: telemetry.TraceID(traceCtx), Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
-		if err := s.persistAdmission(owner, key, view); err != nil {
+		if err := s.persistInitial(prepared, owner, key, view); err != nil {
 			return evidence.View{}, err
 		}
 		s.mu.Lock()
@@ -292,7 +329,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		s.mu.Unlock()
 		return s.QueryRequest(ref)
 	}
-	if err := s.persistAdmission(owner, key, view); err != nil {
+	if err := s.persistInitial(prepared, owner, key, view); err != nil {
 		return evidence.View{}, err
 	}
 	if err = s.journal.BindClaim(ref, *prepared.Issued.Claim); err != nil {
@@ -341,9 +378,9 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: resolutionCode, Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
+	ctx, cancel := context.WithTimeout(traceCtx, time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
 	s.mu.Lock()
-	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, owner: owner, sessionCheck: sessionCheck}
+	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, ctx: ctx, owner: owner, sessionCheck: sessionCheck}
 	s.order = append(s.order, ref)
 	if s.closed {
 		cancel()
@@ -367,14 +404,28 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 		}()
 	}
 	runOwned = true
-	go func() { defer s.wg.Done(); defer cancel(); s.run(ctx, prepared, launch, objective) }()
+	go func() {
+		defer s.wg.Done()
+		defer cancel()
+		s.run(ctx, prepared, launch, objective)
+		v, err := s.QueryRequest(ref)
+		endWork(err == nil && v.Outcome != nil && v.Outcome.Status == "Succeeded")
+	}()
 	return s.QueryRequest(ref)
 }
 
 func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
 	fact := facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef}
 	var err error
-	if s.durable == nil {
+	if s.repository != nil {
+		_, err = s.journal.AppendWithCommit(fact, func(f facts.Fact) error {
+			e := s.repository.Append(f, state)
+			if e != nil {
+				s.failStorage()
+			}
+			return e
+		})
+	} else if s.durable == nil {
 		_, err = s.journal.Append(fact)
 	} else {
 		_, err = s.journal.AppendWithCommit(fact, func(f facts.Fact) error { return s.storageResult(s.durable.Append(context.Background(), f, state)) })
@@ -429,6 +480,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		}
 		adapter := &completionAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef}
 		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithWorkloadIdentity(s.workload), modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
+			s.telemetry.Decision(ctx, "model", string(d.Result))
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -442,10 +494,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		var selected toolgateway.Adapter = mock
 		results := mock.results
 		if s.tools != nil {
-			configured := &providerToolAdapter{ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
+			configured := &providerToolAdapter{telemetry: s.telemetry, ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
 			selected, results = configured, configured.results
 		}
 		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithWorkloadIdentity(s.workload), toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+			s.telemetry.Decision(ctx, "tool", string(d.Result))
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -468,7 +521,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
 		}
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		workerCtx, endWorker := s.telemetry.Start(ctx, "worker.execute", ref, claimID, "")
+
+		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -547,6 +602,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
 		})
+		endWorker(err == nil)
 		// A lost tool record fails the Work even if the worker carried on.
 		if toolEvidenceFailed {
 			return errToolEvidence
@@ -743,7 +799,9 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: "Attempted"}); err != nil {
 		return err
 	}
-	result, providerErr := a.service.provider.Complete(a.ctx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
+	providerCtx, endProvider := a.service.telemetry.Start(a.ctx, "model.invoke", a.ref, a.claimID, id)
+	result, providerErr := a.service.provider.Complete(providerCtx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
+	endProvider(providerErr == nil)
 	status := "Succeeded"
 	if providerErr != nil {
 		status = "Failed"
@@ -785,6 +843,13 @@ func (a *completionAdapter) result(id string) (modelprovider.Result, bool) {
 }
 
 func (s *Service) QueryRequest(ref string) (evidence.View, error) {
+	if s.storageFailed.Load() {
+		return evidence.View{}, history.ErrUnavailable
+	}
+	if s.repository != nil {
+		e, err := s.repository.Get(ref)
+		return e.View, err
+	}
 	s.mu.RLock()
 	r, ok := s.records[ref]
 	if !ok || r.view.Request == nil {
@@ -806,9 +871,13 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	} else {
 		view.Facts = s.journal.ForRequest(ref)
 	}
+	evidence.Decorate(&view)
 	return view, nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {
+	if s.repository != nil {
+		return s.QueryRequest(id)
+	}
 	s.mu.RLock()
 	ref := ""
 	for key, r := range s.records {
@@ -845,4 +914,28 @@ func (s *Service) Close() {
 	}
 	s.mu.Unlock()
 	s.wg.Wait()
+	if s.onClose != nil {
+		s.onClose()
+	}
+}
+
+func (s *Service) failStorage() { s.storageFailed.Store(true) }
+func (s *Service) Ready() bool {
+	if s.storageFailed.Load() {
+		return false
+	}
+	s.mu.RLock()
+	closed := s.closed
+	s.mu.RUnlock()
+	if closed {
+		return false
+	}
+	if s.repository != nil {
+		_, err := s.repository.LastSequence()
+		return err == nil
+	}
+	if s.durable != nil {
+		return s.durable.CheckWriter(context.Background()) == nil
+	}
+	return true
 }

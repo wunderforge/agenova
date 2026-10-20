@@ -206,3 +206,89 @@ func TestDurableAdmissionIsolationAndWriterFencing(t *testing.T) {
 		t.Fatal("fenced write persisted")
 	}
 }
+
+// Real PostgreSQL proves that permissions are applied before pagination, cursor
+// ordering survives new admissions, and role revocation applies to cursor reuse.
+func TestHistoryFiltersBeforePagingAndReauthorizes(t *testing.T) {
+	ctx := context.Background()
+	db := database(t)
+	identity := identitydb.Store{DB: db}
+	people := map[string]v0.Principal{}
+	for _, name := range []string{"alice", "bob", "viewer", "admin"} {
+		p := v0.Principal{Subject: name, Team: "team-a", AuthenticationContext: "oidc"}
+		people[name] = p
+		if err := identity.PutMember(ctx, "operator", identitydb.Member{Issuer: "synthetic", Subject: name, Principal: name, Team: p.Team, Active: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO agenova_projects VALUES('team-a','payments'); INSERT INTO agenova_project_grants VALUES('alice','team-a','payments','member'),('bob','team-a','payments','member'),('viewer','team-a','payments','viewer'); UPDATE agenova_members SET account_role='admin' WHERE principal='admin'`); err != nil {
+		t.Fatal(err)
+	}
+	store, err := workstore.Acquire(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for i, owner := range []string{"alice", "bob", "alice", "bob", "alice"} {
+		snap := snapshot(t, people[owner], fmt.Sprintf("page-%d", i), uint64(i+1))
+		if _, err := store.Reserve(ctx, snap); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := store.HistoryFor(ctx, people["alice"], 1, "")
+	if err != nil || len(first.Items) != 1 || first.NextCursor == "" {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	newWork := snapshot(t, people["alice"], "new-after-page", 6)
+	if _, err := store.Reserve(ctx, newWork); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{first.Items[0].RequestRef: true}
+	cursor := first.NextCursor
+	for cursor != "" {
+		page, err := store.HistoryFor(ctx, people["alice"], 1, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range page.Items {
+			if seen[item.RequestRef] || item.RequestRef == newWork.View.RequestRef {
+				t.Fatal("unstable traversal")
+			}
+			if _, err := store.GetFor(ctx, people["alice"], item.RequestRef); err != nil {
+				t.Fatal("foreign Work")
+			}
+			seen[item.RequestRef] = true
+		}
+		cursor = page.NextCursor
+	}
+	if len(seen) != 3 {
+		t.Fatalf("authorized rows lost: %d", len(seen))
+	}
+	other, err := store.HistoryFor(ctx, people["bob"], 100, first.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range other.Items {
+		if _, err := store.GetFor(ctx, people["bob"], item.RequestRef); err != nil {
+			t.Fatal("cursor granted authority")
+		}
+	}
+	admin, err := store.HistoryFor(ctx, people["admin"], 100, "")
+	if err != nil || len(admin.Items) != 0 {
+		t.Fatal("account admin gained project reads", err)
+	}
+	viewer, err := store.HistoryFor(ctx, people["viewer"], 100, "")
+	if err != nil || len(viewer.Items) != 6 {
+		t.Fatal("viewer missing records", err)
+	}
+	if _, err := store.HistoryFor(ctx, people["alice"], 1, first.NextCursor+"x"); err == nil {
+		t.Fatal("tampered cursor accepted")
+	}
+	if _, err := db.Exec(`DELETE FROM agenova_project_grants WHERE principal='alice'`); err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := store.HistoryFor(ctx, people["alice"], 1, first.NextCursor)
+	if err != nil || len(revoked.Items) != 0 {
+		t.Fatal("revocation did not apply", err)
+	}
+}

@@ -34,7 +34,7 @@ agenova run -f work.yaml
 agenova work show <request-ref> --json
 ```
 
-Its effective revision selects the installed application service, deployment/runtime adapter, model backend and logical profiles. A command may report an unsupported adapter; the product must not synthesize a successful capability or silently use the memory backend. The reference acceptance path uses an existing kind cluster, a compatible Agent Sandbox worker, and a local OpenAI-compatible Ollama provider. Tool observations in that path are labelled synthetic; Memory and Observability are not implied by this slice. General Policy CRUD, arbitrary agent-image compatibility and multi-file Platform includes remain future scope. This narrow operator journey was requested by the Owner on 17 September 2026 as [#165](https://github.com/wunderforge/agenova/issues/165); its reproducible procedure and reference-only limits are in the [kind + Ollama CLI guide](../reference-cli-kind-ollama.md). `work show` queries current-service-session evidence after the submitting process exits; durable history across service restart remains future scope. A local React client may connect through an explicit loopback tunnel to the same installed API, but UI installation is not part of `platform apply` ([#167](https://github.com/wunderforge/agenova/issues/167)).
+Its effective revision selects the installed application service, deployment/runtime adapter, model backend and logical profiles. A command may report an unsupported adapter; the product must not synthesize a successful capability or silently use the memory backend. The reference acceptance path uses an existing kind cluster, a compatible Agent Sandbox worker, and a local OpenAI-compatible Ollama provider. Tool observations in that path are labelled synthetic; Memory is not implied by this slice. The Owner-approved #180 extension adds durable evidence and optional OpenTelemetry observability through the same Platform lifecycle. General Policy CRUD, arbitrary agent-image compatibility and multi-file Platform includes remain future scope. This narrow operator journey was requested by the Owner on 17 September 2026 as [#165](https://github.com/wunderforge/agenova/issues/165); its reproducible procedure and reference-only limits are in the [kind + Ollama CLI guide](../reference-cli-kind-ollama.md). `work show` and paginated Work history must query durable evidence after service restart. The #180 reference scope is a single control-plane instance; recovered historical claims never regain invocation authority. A local React client may connect through an explicit loopback tunnel to the same installed API, but UI installation is not part of `platform apply` ([#167](https://github.com/wunderforge/agenova/issues/167)).
 
 ```text
 receive a trusted principal and one ClaimRequest
@@ -121,6 +121,9 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - Runtime, tool, and model facts are attributable to the correct claim.
 - Users can query a request or claim's lifecycle, invocations, outcome, and backend evidence through the CLI and a read-only console backed by the same evidence representation.
 - Denied requests produce inspectable evidence in the target MVP.
+- Requests, trusted identities, original policy/authority snapshots, facts and results survive control-plane restart. Required decision and attempt writes commit before their associated side effects; storage failure stops dispatch. Incomplete calls remain unknown and are never automatically replayed.
+- Authorized viewers can page through historical Work using the same CLI/API/Portal evidence view. E14 owns trusted viewer identity and read authorization; filtering precedes pagination and missing authorization denies access.
+- Optional OpenTelemetry traces, metrics and structured logs correlate safe diagnostic identifiers with governance evidence. Telemetry excludes credentials and full task/provider/tool/Memory payloads; export failure cannot change Work outcomes. Grafana remains diagnostic, not an evidence source.
 
 ### 6. Reference installation and initial policy bootstrap
 
@@ -128,6 +131,7 @@ The trusted principal comes from an upstream authentication boundary and is not 
 - The install validates the selected cluster context and relies on the cluster's existing authenticated identity and RBAC; the installation file does not grant its caller administrative authority.
 - The first install seeds one versioned default-deny Agenova PolicyBundle for later control-plane actions.
 - Repeating the same install is idempotent and does not duplicate named resources or silently change the desired configuration.
+- An explicit optional observability service is managed by Platform validate/plan/apply/status. The reference deployment provisions independent Collector, Grafana, Tempo, Loki and Prometheus components with persistent storage, internal access, Secret-referenced credentials and provisioned datasources/dashboards. Telemetry retention defaults to seven days; governance evidence is not automatically pruned and cleanup preserves volumes by default.
 - Cluster creation, production lifecycle management, and general policy administration remain outside the MVP.
 - The installed reference service, not a separately hardcoded demo process, owns subsequent Work admission, execution and evidence. `platform status` reports the effective revision and distinguishes installation readiness from capability availability and real execution health.
 - An authorized operator can register a versioned PolicyBundle and a compatible AgentTemplate from canonical YAML after installation. The first scope is create/identical reapply only; same-identity different content conflicts. Registration survives service restart and cannot be performed by a task submitter merely because they can reach a loopback port.
@@ -189,6 +193,9 @@ The MVP is accepted when a teammate can reproduce this behavior:
 10. End both worker claims and prove further governed access is denied.
 11. Query the same evidence representation through CLI JSON and the live read-only console.
 12. Run the reference path locally and demonstrate the supported runtime portion on the selected real backend.
+13. Restart the installed control plane and verify matching historical evidence through CLI/API/Portal, including success, denial and provider/runtime failure. Prove incomplete calls remain unknown and historical claims cannot invoke gateways.
+14. Query correlated traces, logs and metrics in the optional reference observability stack, render the Grafana/Portal diagnostic path, and prove Collector outage preserves Work execution and evidence. Repeat installation and verify data-preserving cleanup.
+15. Before #180 closes, verify real E14 viewer identity/read authorization with authorized and unauthorized users; injected fixtures alone do not satisfy this gate.
 
 ## Success Measures
 

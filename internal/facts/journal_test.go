@@ -264,3 +264,26 @@ func TestDurableJournalCommitFailureDoesNotPublishOrAuthorize(t *testing.T) {
 		t.Fatal("atomic override or sequence broken")
 	}
 }
+
+func TestDurableCommitCannotMutatePublishedFact(t *testing.T) {
+	j, err := NewDurableJournal(0, func(f Fact) error {
+		if f.PolicyRef != nil {
+			f.PolicyRef.ID = "mutated"
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.RegisterRequest("isolated", v0.Principal{Subject: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	ref := v0.PolicyReference{ID: "original", Version: "v1"}
+	f, err := j.Append(Fact{Kind: "RequestReceived", RequestRef: "isolated", PolicyRef: &ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.PolicyRef.ID != "original" || j.ForRequest("isolated")[0].PolicyRef.ID != "original" {
+		t.Fatal("committer rewrote evidence")
+	}
+}

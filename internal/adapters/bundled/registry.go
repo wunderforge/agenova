@@ -36,6 +36,7 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		kubernetesDeploymentRegistration(),
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
+		otlpRegistration(),
 		bedrockModelRegistration(),
 		mcpHTTPToolRegistration(),
 	)
@@ -120,7 +121,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy", "mode", "deployment-name", "deployment-uid", "pod-template-sha256"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "observability", "control-plane-image", "image-pull-policy", "mode", "deployment-name", "deployment-uid", "pod-template-sha256"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -132,6 +133,17 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 		return nil, err
 	}
 	result := map[string]any{"context": context, "namespace": namespace}
+	if value, ok := input["observability"]; ok {
+		config, ok := value.(map[string]any)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-object", "observability")
+		}
+		canonical, err := canonicalizeStack(config)
+		if err != nil {
+			return nil, err
+		}
+		result["observability"] = canonical
+	}
 
 	if value, exists := input["control-plane-image"]; exists {
 		image, ok := value.(string)

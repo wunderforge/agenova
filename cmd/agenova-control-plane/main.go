@@ -27,10 +27,13 @@ import (
 	"github.com/wunderforge/agenova/internal/app"
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/history"
+	sqlstore "github.com/wunderforge/agenova/internal/history/sqlite"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"github.com/wunderforge/agenova/internal/workstore"
@@ -88,7 +91,11 @@ func serve() error {
 	}
 	defer configured.Close()
 	var workHandler http.Handler = console.Handler(configured)
-	statusHandler := handler()
+	if members == nil && os.Getenv("AGENOVA_EVIDENCE_PATH") != "" {
+		source, _ := app.NewReferencePrincipalSource(app.ReferencePrincipalTeamA)
+		workHandler = console.HandlerWithReadBoundary(configured, console.ReadBoundary{Viewer: func(*http.Request) (v0.Principal, error) { return source.Principal(), nil }, Authorizer: history.AuthorizerFunc(func(_ context.Context, p v0.Principal, a history.Admission) bool { return p == a.Principal })})
+	}
+	var statusHandler http.Handler = handler()
 	if members != nil {
 		workHandler, err = members.handler(configured)
 		if err != nil {
@@ -96,6 +103,14 @@ func serve() error {
 		}
 		statusHandler = memberStatusHandler() // Kubelet readiness stays reachable; metadata is loopback-only.
 	}
+	baseStatus := statusHandler
+	statusHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" && !configured.Ready() {
+			http.Error(w, "evidence storage unavailable", 503)
+			return
+		}
+		baseStatus.ServeHTTP(w, r)
+	})
 	// The authenticated listener is behind a same-host TLS reverse proxy. Neither
 	// the reference API nor an unauthenticated private-command bypass is started.
 	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
@@ -250,7 +265,42 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	} else {
 		preset = "" // Authenticated mode cannot select a fixed reference identity.
 	}
+	var repository history.Repository
+	if path := os.Getenv("AGENOVA_EVIDENCE_PATH"); path != "" && durable == nil && access == nil {
+		repository, err = sqlstore.Open(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	endpoint := ""
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityTelemetry {
+			if adapterIDs[instance.AdapterRef] != bundled.OTLPAdapterID {
+				if repository != nil {
+					repository.Close()
+				}
+				return nil, errors.New("unsupported telemetry adapter")
+			}
+			endpoint, _ = instance.Config["endpoint"].(string)
+		}
+	}
+	diagnostic, err := telemetry.New(context.Background(), endpoint)
+	if err != nil {
+		if repository != nil {
+			repository.Close()
+		}
+		return nil, err
+	}
+	closeResources := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		diagnostic.Shutdown(ctx)
+		if repository != nil {
+			repository.Close()
+		}
+	}
 	options := console.Options{
+		Repository: repository, Revision: resolved.Revision, Telemetry: diagnostic, OnClose: closeResources,
 		ToolBackend: tools,
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
@@ -395,7 +445,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 		options.PrepareFor = nil
 		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return prepare(data, setupPrincipal) }
 	}
-	return console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
+	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
+	if err != nil {
+		closeResources()
+	}
+	return configured, err
 }
 
 type requestPrincipal struct{ value v0.Principal }

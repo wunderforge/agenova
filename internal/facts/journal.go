@@ -265,7 +265,11 @@ func (j *Journal) append(fact Fact, commit func(Fact) error) (Fact, error) {
 		commit = j.commit
 	}
 	if commit != nil {
-		if err := commit(copy); err != nil {
+		committed, err := cloneFact(copy)
+		if err != nil {
+			return Fact{}, err
+		}
+		if err := commit(committed); err != nil {
 			return Fact{}, err
 		}
 	}

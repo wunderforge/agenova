@@ -1,0 +1,16 @@
+{
+  "context": "kind-agenova-k8s-lab",
+  "namespace": "agenova-observability-180",
+  "success": "obs-success-mvg0ofx1",
+  "denied": "obs-denied-mvg0ofx1",
+  "collectorOutage": "obs-outage-mvg0ofx1",
+  "signals": [
+    "traces",
+    "metrics",
+    "logs"
+  ],
+  "restartParity": true,
+  "idempotent": true,
+  "e14": "blocked: upstream real identity not delivered",
+  "providerRuntimeFaultInjection": "separate verifier: see fault-result.json"
+}

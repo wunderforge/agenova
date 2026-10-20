@@ -9,6 +9,7 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/workstore"
 )
 
@@ -72,12 +73,12 @@ func (s *Service) storageResult(err error) error {
 	}
 	return nil
 }
-func (s *Service) persistAdmission(owner v0.Principal, key submissionKey, view evidence.View) error {
+func (s *Service) persistAdmission(owner v0.Principal, key submissionKey, view evidence.View, admission history.Admission) error {
 	if s.durable == nil {
 		return nil
 	}
 	view.Facts = s.journal.ForRequest(view.RequestRef)
-	existing, err := s.durable.Reserve(context.Background(), workstore.Snapshot{Owner: owner, InputName: key.name, InputDigest: key.digest, View: view})
+	existing, err := s.durable.Reserve(context.Background(), workstore.Snapshot{Admission: &admission, Owner: owner, InputName: key.name, InputDigest: key.digest, View: view})
 	if err != nil {
 		if errors.Is(err, workstore.ErrCapacity) {
 			return ErrCapacity
@@ -94,6 +95,23 @@ func (s *Service) persistAdmission(owner v0.Principal, key submissionKey, view e
 	return nil
 }
 func (s *Service) persistFinished(ref string) error {
+	if s.repository != nil {
+		if s.storageFailed.Load() {
+			return history.ErrUnavailable
+		}
+		s.mu.RLock()
+		r := s.records[ref]
+		var view evidence.View
+		if r != nil {
+			view = evidence.Clone(r.view)
+		}
+		s.mu.RUnlock()
+		err := s.repository.Finish(ref, view.State, view.Outcome)
+		if err != nil {
+			s.failStorage()
+		}
+		return err
+	}
 	if s.durable == nil {
 		return nil
 	}

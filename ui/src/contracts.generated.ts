@@ -81,6 +81,10 @@ export interface Decision {
   result: DecisionResult;
 }
 export type DecisionResult = "Allow" | "Deny" | "ApprovalRequired";
+export interface Diagnosis {
+  code: string;
+  stage: string;
+}
 export interface EffectiveAuthority {
   id: string;
   memoryScopes?: (Array<string> | null);
@@ -167,6 +171,10 @@ export interface Principal {
   subject: string;
   team: string;
 }
+export interface Recovery {
+  cleanup: string;
+  code: string;
+}
 export interface SandboxClaim {
   authorityRef: string;
   backendIdentity?: (SandboxClaimBackendIdentity | null);
@@ -180,11 +188,14 @@ export interface SandboxClaimBackendIdentity {
   workerId: string;
 }
 export interface View {
+  diagnosis?: (Diagnosis | null);
   facts: (Array<Fact> | null);
   outcome?: (Outcome | null);
+  recovery?: (Recovery | null);
   request: (ClaimRequest | null);
   requestRef: string;
   state?: (IssuedState | null);
+  traceId?: string;
   version: string;
 }
 
@@ -627,6 +638,21 @@ export const shapes = {
       "Deny",
       "ApprovalRequired"
     ]
+  },
+  "Diagnosis": {
+    "kind": "object",
+    "fields": {
+      "code": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "stage": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
   },
   "EffectiveAuthority": {
     "kind": "object",
@@ -1109,6 +1135,21 @@ export const shapes = {
       }
     }
   },
+  "Recovery": {
+    "kind": "object",
+    "fields": {
+      "cleanup": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "code": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "SandboxClaim": {
     "kind": "object",
     "fields": {
@@ -1168,6 +1209,16 @@ export const shapes = {
   "View": {
     "kind": "object",
     "fields": {
+      "diagnosis": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Diagnosis"
+          }
+        },
+        "optional": true
+      },
       "facts": {
         "shape": {
           "kind": "nullable",
@@ -1186,6 +1237,16 @@ export const shapes = {
           "item": {
             "kind": "ref",
             "ref": "Outcome"
+          }
+        },
+        "optional": true
+      },
+      "recovery": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Recovery"
           }
         },
         "optional": true
@@ -1211,6 +1272,12 @@ export const shapes = {
             "kind": "ref",
             "ref": "IssuedState"
           }
+        },
+        "optional": true
+      },
+      "traceId": {
+        "shape": {
+          "kind": "string"
         },
         "optional": true
       },

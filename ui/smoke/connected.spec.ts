@@ -379,7 +379,7 @@ first.state!.claim!.requestRef=first.requestRef;
 first.facts.forEach(f=>f.requestRef=body.metadata.name);
 });
  await page.goto('/?mode=connected#/work');
-await expect(page.getByText('No work started in this session.')).toBeVisible();
+await expect(page.getByText('No work recorded yet.')).toBeVisible();
  await page.getByRole('link',{name:'New work',exact:true}).click();
 await expect(page.getByLabel('Model profile')).toHaveValue('approved-coding-model');
 await page.getByLabel('What should it do?').fill('Explain a safe retry strategy');
@@ -539,4 +539,35 @@ test('member without a template can still read permitted Work evidence',async({p
  await page.goto('/?mode=connected#/work/new');
  await expect(page.getByText('No approved template is available in this project.',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Start work',exact:true})).toHaveCount(0);
+});
+
+test('durable history paginates server summaries and keeps the Work navigation active', async ({page}) => {
+ const current=work('Succeeded'); await api(page,()=>[current]);
+ await page.route('**/api/history?**',async route=>{
+  const next=new URL(route.request().url()).searchParams.get('cursor');
+  await route.fulfill({json:{items:[{requestRef:next?'historical-work':current.requestRef,taskType:'investigation',status:next?'Failed':'Succeeded',created:'2026-10-20T00:00:00Z',updated:'2026-10-20T00:01:00Z'}],...(next?{}:{nextCursor:'opaque-next-page'})}});
+ });
+ await page.goto('/?mode=connected#/history');
+ await expect(page.getByRole('heading',{name:'Work history',exact:true})).toBeVisible();
+ await expect(page.locator('.portal-sidebar').getByRole('link',{name:'Work',exact:true})).toHaveClass('active');
+ await expect(page.getByRole('link',{name:current.requestRef,exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Next page',exact:true}).click();
+ await expect(page.getByRole('link',{name:'historical-work',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:current.requestRef,exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Newest work',exact:true}).click();
+ await expect(page.getByRole('link',{name:current.requestRef,exact:true})).toBeVisible();
+});
+
+test('restart-interrupted evidence never renders historical Running authority as active', async ({page}) => {
+ const interrupted:View={...work(),recovery:{code:'service-restarted',cleanup:'Unknown'},diagnosis:{stage:'recovery',code:'provider-outcome-unknown'}};
+ await api(page,()=>[interrupted]);
+ await page.goto(`/?mode=connected#/work/${interrupted.requestRef}`);
+ await expect(page.getByText('Execution interrupted by service restart',{exact:true})).toBeVisible();
+ await expect(page.locator('.portal-head').getByText('Interrupted',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Active access',exact:true})).toHaveCount(0);
+ await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
+ await page.getByText('Access & limits',{exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Issued access',exact:true})).toBeVisible();
+ await expect(page.getByText('Authority is inactive after this claim ended.',{exact:true})).toBeVisible();
+ await expect(page.getByText('Trace unavailable',{exact:true})).toBeVisible();
 });

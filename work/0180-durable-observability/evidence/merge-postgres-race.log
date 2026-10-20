@@ -1,0 +1,7 @@
+ok  	github.com/wunderforge/agenova/internal/workstore	1.658s
+ok  	github.com/wunderforge/agenova/internal/console	10.111s
+ok  	github.com/wunderforge/agenova/internal/facts	1.900s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	1.946s
+ok  	github.com/wunderforge/agenova/internal/app	2.831s
+ok  	github.com/wunderforge/agenova/internal/history	2.600s
+ok  	github.com/wunderforge/agenova/internal/history/sqlite	3.373s

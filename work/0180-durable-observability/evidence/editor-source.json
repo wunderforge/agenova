@@ -1,0 +1,18 @@
+{
+  "parent": "ae6bf7d31a650d824aa939d254081ad1adaddb0f",
+  "files": {
+    "cmd/agenova-control-plane/governance.go": "5477692c9ac103e9f557c9e4f39259e8adc0dbf7b88a33f253c6b9b47680369a",
+    "cmd/agenova-control-plane/member_auth.go": "8b4f4138edb14c06635c317af5a215c7952f8cea8e03ffb35939c0cd8871ba00",
+    "cmd/agenova-control-plane/member_auth_test.go": "070b2fa93b9980d2668792b528897faa791d5f2fdadfa71c980cbdbffc41d377",
+    "cmd/agenova-grafana-proxy/main.go": "a537eb256f0d6d6c6419c87f776fbd3a9ed699ac032d0a15458a530c1b68da32",
+    "cmd/agenova-grafana-proxy/main_test.go": "b06f849c79cee30dc6496a6a8be2b87374712bd2b632291c604a3be3aa313279",
+    "deploy/production/grafana-google.md": "6574f02976b6557e711abef4f5a7dd75b368fe67b1daaa64f98eac2010402c77",
+    "internal/authentication/postgres/scoped_roles.go": "99074c20746d97817c6119f1f4a3669dae4582863d50c432cc6039df6f943030",
+    "internal/authentication/postgres/scoped_roles_test.go": "ddccb69a48ecc86f4c7e7c8692623f68c5311315cc2d2c69dc443a0bd1b8d53e",
+    "internal/console/grafana_proxy.go": "1c654ad37a640000d9afdc4fc1ecd61d393f0969002958a84211d74ef6c02ade",
+    "internal/console/grafana_proxy_test.go": "a48370e6b7b32f5338f52ac60488f75837b85d98e5863d418eed0c7e98e57aac",
+    "work/0180-durable-observability/evidence.md": "1b46b79ded6c4f907b84d99c81a5ae01da4b551ecf08abaca5df0172a6dad009",
+    "work/0180-durable-observability/spec.md": "ab323ee91af6361ad4ba0124b688dd74bf3729eb8efc1faee7da5737b21303eb",
+    "work/0180-durable-observability/task.md": "dc138418ffe6b00e8b5e78d1ddd069a5d89c98257d11a6acfca48ec88125cb10"
+  }
+}

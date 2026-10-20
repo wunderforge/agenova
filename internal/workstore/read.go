@@ -12,6 +12,7 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/history"
 )
 
 // The SQL read predicate mirrors the private application-role policy: current
@@ -30,6 +31,13 @@ func readSnapshot(ctx context.Context, tx *sql.Tx, query string, args ...any) (S
 		return s, ErrUnavailable
 	}
 	s.Owner.AuthenticationContext = "oidc"
+	var private struct {
+		Admission *history.Admission `json:"admissionSnapshot"`
+	}
+	if json.Unmarshal(raw, &private) != nil {
+		return s, ErrUnavailable
+	}
+	s.Admission = private.Admission
 	if len(raw) > 1<<20 || json.Unmarshal(raw, &s.View) != nil {
 		return s, ErrUnavailable
 	}

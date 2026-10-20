@@ -404,3 +404,6 @@ func singleAttribute(attributes []Attribute, name string) (string, bool) {
 	}
 	return "", false
 }
+
+// BundleSnapshot describes this reference evaluator without coupling other evaluator implementations to its bundle format.
+func (e *referenceEvaluator) BundleSnapshot() PolicyBundle { return clone(e.bundle) }
