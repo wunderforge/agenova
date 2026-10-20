@@ -85,14 +85,30 @@ func TestIncidentDemoInputs(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	if len(resolved.ToolRoutes) != 2 {
-		t.Fatal("expected two routes")
+	if len(resolved.ToolRoutes) != 3 {
+		t.Fatal("expected two incident routes and one explicit legacy compatibility route")
 	}
-	if _, e = buildInstalledTools(resolved, registry, nil); e != nil {
+	tools, e := buildInstalledTools(resolved, registry, nil)
+	if e != nil {
 		t.Fatal(e)
+	}
+	legacy := &v0.EffectiveAuthority{Tools: []string{"git.read"}, ResourceScopes: []string{"repo:acme/payments"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated"}}
+	if e := validateInstalledAuthority(legacy, map[string]string{"coding-standard": "local-model"}, map[string]bool{"standard-isolated": true}, tools); e != nil {
+		t.Fatalf("MCP installation removed the legacy engineer route: %v", e)
 	}
 	seen := map[string]bool{}
 	for _, route := range resolved.ToolRoutes {
+		if route.Tool.Operation == "git.read" {
+			if route.Tool.ResourceScope != "repo:acme/payments" || !reflect.DeepEqual(route.Tool.AllowedValues, []string{"README.md", "logs/timeout.log", "src/retry.txt"}) {
+				t.Fatal("legacy compatibility route changed scope or files")
+			}
+			for _, name := range route.Tool.AllowedValues {
+				if !strings.HasPrefix(string(incidentRead(t, filepath.Join("data", filepath.FromSlash(name)))), "SYNTHETIC MOCK:") {
+					t.Fatal("legacy compatibility content lost its synthetic label")
+				}
+			}
+			continue
+		}
 		if route.Tool.Operation != "repo.read" || len(route.Tool.AllowedValues) != 2 {
 			t.Fatal("unexpected tool catalog")
 		}

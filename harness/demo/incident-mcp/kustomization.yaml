@@ -12,3 +12,6 @@ configMapGenerator:
       - payment-retry=data/payments/INC-P1042/retry.txt
       - billing-logs=data/billing/INC-B2081/logs.txt
       - billing-job=data/billing/INC-B2081/job-config.txt
+      - legacy-readme=data/README.md
+      - legacy-timeout=data/logs/timeout.log
+      - legacy-retry=data/src/retry.txt

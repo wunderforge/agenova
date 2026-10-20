@@ -45,6 +45,15 @@ The test-only native observer was also tested/vetted separately, and its exact
 Worker-derived image retains the original control handshake; #242 records this
 local image evidence without claiming AWS enforcement.
 
+Final rollout compatibility review found that installing a nonempty Tool backend
+removes the old in-process synthetic `git.read` catalog. The MCP configuration
+therefore includes an explicit compatibility route for `repo:acme/payments` and
+the same three labelled sample files. No implicit fallback, template rewrite or
+new service was added. Exact sample-content and installed-authority regressions
+pass; the actual SDK/Worker incident integration was rerun successfully (19.366s)
+and the AWS overlay still renders five objects. The two incident task grants
+remain unchanged and cannot access the compatibility route.
+
 ## Approved deployment boundary
 
 The Owner approved existing-cluster deployment and repairs after joint local

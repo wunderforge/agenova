@@ -1,0 +1,1 @@
+SYNTHETIC MOCK: retry loop allows 3 attempts with fixed 2s backoff. Each attempt starts a fresh 5s deadline instead of using remaining time. A retry has no stable idempotency key.

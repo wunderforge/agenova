@@ -45,6 +45,9 @@ spec:
               - {key: payment-retry, path: payments/INC-P1042/retry.txt}
               - {key: billing-logs, path: billing/INC-B2081/logs.txt}
               - {key: billing-job, path: billing/INC-B2081/job-config.txt}
+              - {key: legacy-readme, path: README.md}
+              - {key: legacy-timeout, path: logs/timeout.log}
+              - {key: legacy-retry, path: src/retry.txt}
 ---
 apiVersion: v1
 kind: Service

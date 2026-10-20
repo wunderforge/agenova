@@ -50,16 +50,24 @@ least 9/10 successful business outcomes); deterministic safety probes must all p
 
 ## Prepared configuration — not deployment approval
 
-- `platform.yaml`: complete isolated local Platform, two tool profiles and an
+- `platform.yaml`: complete isolated local Platform, two incident tool profiles,
+  one explicitly synthetic legacy compatibility profile and an
   optional existing local Ollama endpoint. It creates no cluster. **Do not apply
   it to the shared install:** it is not a merge patch for existing login/model/config.
 - `template.yaml`, `policy.yaml`, `work-*.yaml`: canonical registration/submission
   documents. Local image tags must be replaced with reviewed compatible immutable
   digests before cloud use. Register a new template name when changing content.
 - `kustomization.yaml` / `deploy.yaml`: one internal MCP Deployment (one replica,
-  10m CPU/16Mi request, 100m CPU/64Mi limit), ClusterIP Service, four-file ConfigMap
+  10m CPU/16Mi request, 100m CPU/64Mi limit), ClusterIP Service, seven-file ConfigMap
   and ingress NetworkPolicy. No public ingress, volume, database or extra Gateway.
   The image reuses `harness/integration/mcpfixture/Dockerfile`; no new service code.
+
+The extra three files reproduce the existing labelled `git.read` sample content
+for `repo:acme/payments`. Installing a nonempty Tool backend replaces the old
+synthetic catalog, so this explicit compatibility route preserves existing
+engineer tasks without an implicit fallback or rewriting immutable templates.
+Its transport is real MCP; its repository content is still **synthetic**, not a
+live Git integration. Neither incident task is granted this legacy route.
 
 Render only; this contacts no Kubernetes API:
 

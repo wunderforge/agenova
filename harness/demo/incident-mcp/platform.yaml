@@ -67,4 +67,18 @@ spec:
           parameter-allowed-values: |-
             billing/INC-B2081/logs.txt
             billing/INC-B2081/job-config.txt
+      # Explicit compatibility route; real MCP transport, still synthetic data.
+      # Without it, installing MCP would remove the old mock git.read catalog.
+      - name: legacy-payment-evidence
+        backendRef: incident-evidence
+        config:
+          logical-operation: git.read
+          resource-scope: repo:acme/payments
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+            logs/timeout.log
+            src/retry.txt
   initialPolicyRef: {id: reference-default-deny, version: "1"}
