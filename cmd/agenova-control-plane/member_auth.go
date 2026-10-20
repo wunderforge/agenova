@@ -25,6 +25,7 @@ import (
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/invitations"
+	"github.com/wunderforge/agenova/internal/landing"
 	"github.com/wunderforge/agenova/internal/login"
 	"github.com/wunderforge/agenova/internal/websession"
 	"golang.org/x/oauth2"
@@ -329,11 +330,11 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		if c.RegistrationTeam != "" {
 			registrar = d.store
 		}
-		return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Registration: registrar, RegistrationTeam: c.RegistrationTeam, Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+		return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Registration: registrar, RegistrationTeam: c.RegistrationTeam, Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux, Landing: landing.New(c.PortalDirectory)})
 	}
 	scopes := []string{"openid", "email", c.Scope}
 	native := login.Config{Issuer: c.Issuer, ClientID: c.NativeClientID, AuthorizationEndpoint: c.OAuthOrigin + "/oauth2/authorize", TokenEndpoint: c.OAuthOrigin + "/oauth2/token", Scopes: scopes, RedirectURI: login.Callback}
-	return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Origin: c.Origin, Native: native, Web: oauth2.Config{ClientID: c.WebClientID, RedirectURL: c.Origin + "/auth/callback", Scopes: scopes, Endpoint: oauth2.Endpoint{AuthURL: native.AuthorizationEndpoint, TokenURL: native.TokenEndpoint, AuthStyle: oauth2.AuthStyleInParams}}, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+	return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Origin: c.Origin, Native: native, Web: oauth2.Config{ClientID: c.WebClientID, RedirectURL: c.Origin + "/auth/callback", Scopes: scopes, Endpoint: oauth2.Endpoint{AuthURL: native.AuthorizationEndpoint, TokenURL: native.TokenEndpoint, AuthStyle: oauth2.AuthStyleInParams}}, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux, Landing: landing.New(c.PortalDirectory)})
 }
 
 func bootstrapOwnerCommand(args []string) error {

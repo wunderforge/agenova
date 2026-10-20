@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, test } from '@playwright/test';
 
-test('lightweight dark portal keeps lifecycle static and preserves navigation', async ({page},info)=>{
+test('fixed-light June portal keeps lifecycle static and preserves navigation', async ({page},info)=>{
   const errors:string[]=[]; page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/#/work/fix-payment-timeout');
   await expect(page.locator('.portal-flow-node.active')).toContainText('Agent');
   await expect(page.locator('.portal-worker')).toContainText('No active call recorded');
   await expect(page.locator('.portal-flow-track')).not.toHaveClass(/in-flight/);
-  expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).colorScheme)).toBe('dark');
+  expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).colorScheme)).toBe('light only');
   expect(await page.locator('.portal-topbar').evaluate(el=>getComputedStyle(el).backdropFilter)).toBe('none');
   await page.locator('.portal-flow').hover();
   await expect(page.locator('.pointer-lit')).toHaveCount(0);

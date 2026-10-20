@@ -6,6 +6,7 @@ import { groupWorkerTurns, toolCallLabels, type WorkerAction } from './worker-ac
 export function WorkerActivity({ actions, status, activityHref, failure }: { actions: WorkerAction[]; status: string; activityHref: string; failure?: {reason: string; href: string} }) {
   const [chosen, setChosen] = useState<string>();
   const [followLatest, setFollowLatest] = useState(true);
+  const [selected, setSelected] = useState<string>();
   const pending = actions.filter(a => a.active);
   const groups = groupWorkerTurns(actions);
   const latest = groups.at(-1)?.id;
@@ -13,6 +14,8 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
   const turns = actions.filter(a => a.label === 'Agent turn' && a.state === 'Started').length;
   const observations = actions.filter(a => a.label === 'Agent turn' && a.state === 'Observation received').length;
   const toolsWaiting = pending.some(a => toolCallLabels.includes(a.label));
+  const inspectable = groups.flatMap(group => group.calls);
+  const inspected = inspectable.find(action => action.id === selected) || inspectable.at(-1);
   if (!actions.length && !['Running', 'Failed', 'Finishing'].includes(status)) return null;
   const summary = pending.length ? toolsWaiting ? 'Waiting for tool observation' : `Waiting for ${pending.length === 1 ? 'a model response' : `${pending.length} model responses`}`
     : status === 'Running' ? 'Worker running · No active call recorded'
@@ -22,7 +25,7 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
     <div className="portal-section-head"><div><h2>Agent activity</h2><p className="portal-activity-help">{turn ? 'Model calls and tool results, grouped by turn.' : actions.some(a => ['Model request', ...toolCallLabels].includes(a.label)) ? 'Recorded model and tool calls.' : 'Access checks only; no execution calls recorded.'}</p></div><a href={activityHref}>View records</a></div>
     <p className="portal-worker-current" data-negative={status === 'Failed'} role="status"><span>{turn && `${turn} · `}{summary}</span></p>
     {turns > 0 && <p className="portal-turn-count">{turns} model turns · {observations} tool observations</p>}
-    <div className="portal-turns">{groups.map(group => {
+    <div className="portal-trace-layout"><div className="portal-turns">{groups.map(group => {
       const open = followLatest ? group.id === latest : chosen === group.id;
       const failures = group.calls.filter(a => /failed/i.test(a.state)).length;
       const blocked = group.calls.filter(a => /deny|denied/i.test(a.state)).length;
@@ -35,16 +38,22 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
           setFollowLatest(!open && group.id === latest);
           setChosen(open ? undefined : group.id);
         }}>
-          <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${callCount} ${noun}${callCount === 1 ? '' : 's'}`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{retries > 0 && <span className="portal-turn-retry"> · Format retry</span>}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-failed"> · {blocked} blocked</span>}</span>
+          <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${callCount} ${noun}${callCount === 1 ? '' : 's'}`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{retries > 0 && <span className="portal-turn-retry"> · Format retry</span>}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-blocked"> · {blocked} blocked</span>}</span>
         </summary>
-        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-kind={toolCallLabels.includes(a.label) ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
+        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-denied={/deny|denied/i.test(a.state)} data-kind={toolCallLabels.includes(a.label) ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
           <span className="portal-worker-lamp" aria-hidden="true"/>
           <div><a href={a.href}>{a.label}</a><small>{a.target}</small></div>
           <span className={`portal-worker-state ${/deny|denied|failed|cancelled/i.test(a.state) ? 'negative' : /^(succeeded|allowed|allow)$/i.test(a.state) ? 'positive' : ''}`}>{a.state}</span>
+          <button type="button" className="portal-inspect-button" aria-label={`Inspect ${a.label}: ${a.target}`} aria-pressed={inspected?.id === a.id} onClick={() => setSelected(a.id)}>Inspect</button>
         </li>)}</ul>
         {!group.calls.length && <p className="portal-source-note">No execution call recorded for this turn yet.</p>}
       </details>;
-    })}</div>
+    })}</div>{inspected && <aside className="portal-call-inspector" aria-label="Selected activity">
+      <span className="portal-inspector-eyebrow">SELECTED RECORD</span><h3>{inspected.label}</h3>
+      <dl><dt>Target</dt><dd>{inspected.target}</dd><dt>Recorded status</dt><dd>{inspected.state}</dd><dt>Turn</dt><dd>{inspected.turn || 'Not recorded'}</dd></dl>
+      <a href={inspected.href}>Open evidence record →</a>
+      <p>Access decisions are not proof of execution. Only recorded calls and outcomes are shown.</p>
+    </aside>}</div>
     {failure && <div className="portal-agent-failure" role="alert">
       <strong>Work failed</strong><p>{failure.reason}</p><a href={failure.href}>View failure record</a>
     </div>}
