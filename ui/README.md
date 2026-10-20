@@ -36,6 +36,30 @@ inspector stacks below the activity and tables scroll within their own container
 The refresh is presentation-only: no new API, authentication or deployment steps.
 Visual regression: `npm --prefix ui run test:smoke -- june.spec.ts`.
 
+## Anonymous member-service entry
+
+The installed **member service** shows the public product landing at `/` when
+there is no active authenticated identity. Its Sign in links open the existing
+`/login` page and Google flow; authenticated root still opens Connected Work.
+Only the reviewed `landing/` HTML, styles, script and two illustrative product
+captures are public. Work, policy, templates, member identity and management APIs
+still require the existing authorization boundary. Login and pending-access pages
+use the same fixed-light June palette without changing form/CSRF behavior.
+
+Vite packages these static files from `public/landing/` into `dist/landing/`;
+the current member image already copies the entire build. No new service or
+OAuth configuration is required. Existing builds missing the landing files return
+an explicit unavailable page, not a private Portal or fixture fallback.
+
+For a frontend-only preview, open `/landing/` on Vite. Vite's default Demo and
+reference Connected paths are unchanged; Vite itself is not an authentication
+server, so test the `/login` handoff through the member HTTP service.
+
+Browser regression: `npm --prefix ui run test:smoke -- landing.spec.ts`.
+The two public product screenshots are unchanged captures of the actual June
+React UI using illustrative test fixtures (not live member evidence). See
+[scope, provenance and verification](../work/0215-invited-team-access/landing.md).
+
 After applying the reference Platform, open a **separate** PowerShell terminal
 at the repository root and keep this loopback-only connection running before
 opening Connected:

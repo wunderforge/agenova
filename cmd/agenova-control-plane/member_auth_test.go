@@ -71,6 +71,12 @@ func configFixture(t *testing.T) memberConfig {
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>Portal</html>"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(dir, "landing"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "landing", "index.html"), []byte(`<html>Public Agenova homepage <a href="/login">Sign in</a></html>`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	return memberConfig{Origin: "https://app.example", Issuer: "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_Test", OAuthOrigin: "https://team.auth.ap-southeast-2.amazoncognito.com", NativeClientID: "native", WebClientID: "web", Scope: "agenova/api", DatabaseURLFile: filepath.Join(dir, "db"), SessionKeyFile: filepath.Join(dir, "key"), PortalDirectory: dir}
 }
 func TestStrictMemberConfig(t *testing.T) {
@@ -180,8 +186,8 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w
 	}
-	if w := call("/", ""); w.Code != 303 || w.Header().Get("Location") != "/login" {
-		t.Fatal("root did not require login")
+	if w := call("/", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "Public Agenova homepage") || strings.Contains(w.Body.String(), "<html>Portal") {
+		t.Fatal("anonymous root did not show only the public landing")
 	}
 	if w := call("/api/requests", ""); w.Code != 401 {
 		t.Fatal("anonymous API exposed")

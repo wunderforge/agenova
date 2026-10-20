@@ -69,7 +69,10 @@ type Config struct {
 	Boundary            *authentication.Boundary
 	Revoker             Revoker
 	Next                http.Handler
-	HTTPClient          *http.Client
+	// Landing is explicitly public product material, not a second Portal/API.
+	// Only anonymous root and the /landing/ asset namespace may reach it.
+	Landing    http.Handler
+	HTTPClient *http.Client
 }
 type session struct {
 	Token    oauth2.Token
@@ -149,6 +152,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(requestContext, 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
+	if h.c.Landing != nil && strings.HasPrefix(r.URL.Path, "/landing/") {
+		h.c.Landing.ServeHTTP(w, r)
+		return
+	}
 	switch r.URL.Path {
 	case "/auth/cli-config":
 
@@ -374,6 +381,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.c.Next.ServeHTTP(w, authenticated.WithContext(requestContext))
 }
 func (h *Handler) unauthorized(w http.ResponseWriter, r *http.Request) {
+	if h.c.Landing != nil && (r.URL.Path == "/" || r.URL.Path == "/index.html") && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		h.c.Landing.ServeHTTP(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/auth/") {
 		failure(w, 401)
 		return

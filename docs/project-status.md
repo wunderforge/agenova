@@ -20,6 +20,11 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 
 ## Other Implemented Surfaces
 
+- Local member-service public landing: anonymous root serves finite public product
+  assets, Sign in uses the unchanged `/login` form/Google flow, and authenticated
+  root retains Connected entry. All private APIs remain gated. Login palette now
+  matches June. Owner-approved local source; not deployed in this acceptance.
+  [Acceptance scope](../work/0215-invited-team-access/landing.md).
 - Local June Portal visual refresh: fixed-light surfaces, loaded-list summary,
   separate admission/outcome columns, and a selected-record inspector backed by
   the existing activity projection. No API/authentication contract change and no
