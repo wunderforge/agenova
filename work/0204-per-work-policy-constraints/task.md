@@ -44,7 +44,7 @@ Out of scope:
 
 ## Execution Todo
 
-- [x] Scout current main implementation, tests, risks and dependencies; #203 remains unmerged.
+- [x] Scout current main implementation, tests, risks and dependencies; #203 remains a draft dependency.
 - [x] User explicitly waived packet approval on 2026-10-13 and authorized implementation.
 - [x] Reconcile prepared #197/#203 contracts with latest main and self-review scope, negative cases and gates.
 - [x] Add validated Policy caps and focused parsing/matching/identity tests.
@@ -70,8 +70,8 @@ Out of scope:
 
 ## Decisions and Blockers
 
-- 2026-10-13: #203 and #197/#207 have not merged on the base checkout. Implementation must use their final trusted-identity and admission interfaces.
+- 2026-10-20: #207 merged; M3 now builds on the member-service M2 draft #228 and its reconciled Ticket #203.
 - 2026-10-13: The user explicitly waived packet approval and authorized implementation; the prepared #203 branch was combined with latest `origin/main` in an isolated M3 branch.
 - 2026-10-13: Full check passed locally after installing locked UI dependencies and Chromium. Installed kind two-user smoke remains unproven; no AWS-specific IAM claim is made here.
 
-- 2026-10-20: Rebased the substantive M3 Policy/authority commits onto the new member-service M2 draft (#228), excluding the old standalone `internal/identity` and token-file tests. Focused Policy, authority, admission, registration, console, CLI and control-plane package tests passed on this port. The Ticket still needs real two-member installed evidence and M1/M2 review before M3 can merge.
+- 2026-10-20: Rebased the substantive M3 Policy/authority commits onto the new member-service M2 draft (#228), excluding the old standalone `internal/identity` and token-file tests. Focused Policy, authority, admission, registration, console, CLI and control-plane package tests passed on this port. The Ticket still needs real two-member installed evidence and M2 review before M3 can merge.
