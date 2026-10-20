@@ -1,0 +1,10 @@
+{
+  "baseCommit": "8891d603f3707600f08e6a0604876627765e665e",
+  "branch": "codex/0180-durable-observability",
+  "sourceManifestSHA256": "007c2d59294f52e3b89d2f308d743aafadff00a2b7a2abe4c0a29f93dd10c2d2",
+  "capturedAtUTC": "2026-10-20T01:47:05.785060+00:00",
+  "sourceState": "uncommitted implementation; not merged",
+  "context": "kind-agenova-k8s-lab",
+  "namespace": "agenova-observability-180",
+  "e14": "real identity/read-policy integration remains blocked upstream"
+}

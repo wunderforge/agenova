@@ -16,6 +16,7 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapterregistry"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"github.com/wunderforge/agenova/internal/registration"
@@ -49,16 +50,17 @@ type PlatformServiceFactory func(stateDirectory string) (platformapply.Service, 
 type RegistrationServiceFactory func(stateDirectory string) (registration.Service, error)
 
 type Services struct {
-	NewRuntime      RuntimeFactory
-	Run             RunHandler
-	RunConnected    ConnectedRunHandler
-	ShowConnected   ConnectedShowHandler
-	ListConnected   ConnectedListHandler
-	ConnectAPI      APIConnectHandler
-	NewAdapters     AdapterLifecycleFactory
-	NewPlatform     PlatformServiceFactory
-	NewRegistration RegistrationServiceFactory
-	Input           io.Reader
+	NewRuntime       RuntimeFactory
+	Run              RunHandler
+	RunConnected     ConnectedRunHandler
+	ShowConnected    ConnectedShowHandler
+	ListConnected    ConnectedListHandler
+	HistoryConnected func(string, string) (history.Page, error)
+	ConnectAPI       APIConnectHandler
+	NewAdapters      AdapterLifecycleFactory
+	NewPlatform      PlatformServiceFactory
+	NewRegistration  RegistrationServiceFactory
+	Input            io.Reader
 }
 
 // RunReport is the backend-neutral submission result shown by `agenova run -f`.
@@ -117,6 +119,7 @@ The CLI does not accept --repo, --tools, or --model authority shortcuts.
 
 const workHelpText = `Usage:
   agenova work list [--json]
+  agenova work history [cursor] [--json]
   agenova work show <request-ref> [--json]
   agenova work show [--json] -- <request-ref beginning with ->
 
@@ -282,6 +285,27 @@ func printConnectedRun(stdout, stderr io.Writer, parsed parsedArgs, run Connecte
 }
 
 func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) int {
+	if len(parsed.operands) >= 1 && parsed.operands[0] == "history" && len(parsed.operands) <= 2 && services.HistoryConnected != nil {
+		cursor := ""
+		if len(parsed.operands) == 2 {
+			cursor = parsed.operands[1]
+		}
+		page, err := services.HistoryConnected(parsed.stateDir, cursor)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if parsed.json {
+			return printJSON(stdout, stderr, page)
+		}
+		for _, item := range page.Items {
+			fmt.Fprintf(stdout, "%s\t%s\n", item.RequestRef, item.Status)
+		}
+		if page.NextCursor != "" {
+			fmt.Fprintf(stdout, "next cursor: %s\n", page.NextCursor)
+		}
+		return 0
+	}
 	if len(parsed.operands) == 1 && parsed.operands[0] == "list" && services.ListConnected != nil {
 		views, err := services.ListConnected(parsed.stateDir)
 		if err != nil {
@@ -331,6 +355,9 @@ func printWork(stdout, stderr io.Writer, parsed parsedArgs, services Services) i
 }
 
 func workPhase(view evidence.View) string {
+	if view.Recovery != nil {
+		return "Interrupted"
+	}
 	if view.State != nil && view.State.Decision.Result == "Deny" {
 		return "Denied"
 	}

@@ -15,7 +15,7 @@ const labels = ['Request', 'Access', 'Worker', 'Result', 'Cleanup'] as const;
 
 // Presence is evidence, not an assumption that all preceding stages completed.
 export function flowStages(e: FlowEvidence): FlowStage[] {
-  const terminal = ['Succeeded', 'Failed', 'Denied', 'Cancelled', 'Expired', 'Approval required'].includes(e.status);
+  const terminal = ['Succeeded', 'Failed', 'Denied', 'Cancelled', 'Expired', 'Approval required', 'Interrupted'].includes(e.status);
   const observed = [e.received, e.authorized, e.started, e.result, e.cleanup];
   const failureAt = e.status === 'Denied' ? 'Access' : e.failureAt === 'Model' ? 'Worker' : e.failureAt;
   const active = failureAt || terminal ? -1

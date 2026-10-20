@@ -32,6 +32,8 @@ func (a *mockReadAdapter) Invoke(id string, req toolgateway.Request) error {
 	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, Operation: "tool.invoke", Target: target, ReasonCode: "mock-tool", ProviderStatus: "Attempted"}); err != nil {
 		return err
 	}
+	_, endCall := a.service.telemetry.Start(a.ctx, "tool.invoke", a.ref, a.claimID, id)
+	defer func() { endCall(a.ctx.Err() == nil) }()
 	artifacts := map[string]string{
 		"README.md":        "SYNTHETIC MOCK: payment client retries transient errors. Total request deadline: 5 seconds. Retry budget must fit inside that deadline. Inspect logs/timeout.log or src/retry.txt for details.",
 		"logs/timeout.log": "SYNTHETIC MOCK: attempt 1 upstream latency=4s; retry backoff=2s; attempt 2 started after total deadline=5s; final timeout at 10s. No idempotency key was reused.",

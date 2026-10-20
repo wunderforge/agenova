@@ -13,21 +13,23 @@ import (
 	"github.com/wunderforge/agenova/internal/cli"
 	"github.com/wunderforge/agenova/internal/connectedclient"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 func main() {
 	os.Exit(cli.MainWithServices(os.Args, os.Stdout, os.Stderr, cli.Services{
-		NewRuntime:      app.NewRuntime,
-		Run:             submitClaimRequest,
-		RunConnected:    submitConnected,
-		ShowConnected:   showConnected,
-		ListConnected:   listConnected,
-		ConnectAPI:      connectAPI,
-		NewAdapters:     app.NewAdapterLifecycle,
-		NewPlatform:     app.NewPlatformService,
-		NewRegistration: app.NewRegistrationService,
-		Input:           os.Stdin,
+		NewRuntime:       app.NewRuntime,
+		Run:              submitClaimRequest,
+		RunConnected:     submitConnected,
+		ShowConnected:    showConnected,
+		ListConnected:    listConnected,
+		HistoryConnected: historyConnected,
+		ConnectAPI:       connectAPI,
+		NewAdapters:      app.NewAdapterLifecycle,
+		NewPlatform:      app.NewPlatformService,
+		NewRegistration:  app.NewRegistrationService,
+		Input:            os.Stdin,
 	}))
 }
 
@@ -126,4 +128,12 @@ func submitClaimRequest(path string, backend runtime.RuntimeBackend) (cli.RunRep
 		Phase:      string(result.Phase),
 		Evidence:   result.Evidence,
 	}, err
+}
+
+func historyConnected(stateDirectory, cursor string) (history.Page, error) {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
+		return history.Page{}, err
+	}
+	return client.History(20, cursor)
 }

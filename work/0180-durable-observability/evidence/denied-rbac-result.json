@@ -1,0 +1,6 @@
+{
+  "exit": 1,
+  "diagnostic": "plan deployment target kind-agenova-k8s-lab/agenova-observability-180: read Kubernetes namespace/agenova-observability-180: Kubernetes access denied for the current identity",
+  "identity": "system:serviceaccount:agenova-observability-180:default",
+  "usesRealClusterImpersonation": true
+}

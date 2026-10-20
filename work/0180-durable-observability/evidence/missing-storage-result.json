@@ -1,0 +1,5 @@
+{
+  "exit": 1,
+  "diagnostic": "preflight target kind-agenova-k8s-lab/agenova-observability-180: observability storage class unavailable",
+  "mutationAttempted": false
+}

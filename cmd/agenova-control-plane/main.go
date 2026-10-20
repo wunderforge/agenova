@@ -16,18 +16,23 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/history"
+	sqlhistory "github.com/wunderforge/agenova/internal/history/sqlite"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
@@ -62,7 +67,11 @@ func serve() error {
 	// Admission can perform three bounded registration reads (20s each) and
 	// two bounded runtime setup calls (30s each) before returning Accepted.
 	// Keep the server budget above their sum; clients wait longer still.
-	private := &http.Server{Addr: "127.0.0.1:8081", Handler: console.Handler(configured), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
+	workHandler := console.Handler(configured)
+	if os.Getenv("AGENOVA_EVIDENCE_PATH") != "" {
+		workHandler = console.HandlerWithReadBoundary(configured, referenceReadBoundary())
+	}
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
 	privateListener, err := net.Listen("tcp", private.Addr)
 	if err != nil {
 		return fmt.Errorf("start private Work service: %w", err)
@@ -72,9 +81,28 @@ func serve() error {
 			log.Printf("private work service stopped: %v", err)
 		}
 	}()
-	server := &http.Server{Addr: ":8080", Handler: handler(), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: ":8080", Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" && !configured.Ready() {
+			w.WriteHeader(503)
+			return
+		}
+		handler().ServeHTTP(w, r)
+	}), ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("agenova reference control plane listening on %s", server.Addr)
-	return server.ListenAndServe()
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-stopCtx.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		private.Shutdown(ctx)
+		server.Shutdown(ctx)
+	}()
+	err = server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 func configuredService(path string) (*console.Service, error) {
@@ -169,7 +197,42 @@ func configuredService(path string) (*console.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+	var repository history.Repository
+	if path := os.Getenv("AGENOVA_EVIDENCE_PATH"); path != "" {
+		repository, err = sqlhistory.Open(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	endpoint := ""
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityTelemetry {
+			if adapterIDs[instance.AdapterRef] != bundled.OTLPAdapterID {
+				if repository != nil {
+					repository.Close()
+				}
+				return nil, errors.New("unsupported telemetry adapter")
+			}
+			endpoint, _ = instance.Config["endpoint"].(string)
+		}
+	}
+	diagnostic, err := telemetry.New(context.Background(), endpoint)
+	if err != nil {
+		if repository != nil {
+			repository.Close()
+		}
+		return nil, err
+	}
+	closeResources := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		diagnostic.Shutdown(ctx)
+		if repository != nil {
+			repository.Close()
+		}
+	}
+	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+		Repository: repository, Revision: resolved.Revision, Telemetry: diagnostic, OnClose: closeResources,
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
@@ -232,6 +295,10 @@ func configuredService(path string) (*console.Service, error) {
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
 	})
+	if err != nil {
+		closeResources()
+	}
+	return configured, err
 }
 
 // This reference composition currently provides only a synthetic git.read
@@ -332,4 +399,13 @@ func handler() http.Handler {
 		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
+}
+
+// Explicit local-reference viewer, supplied by the trusted composition. This
+// loopback-only fixture is not OIDC authentication and cannot satisfy E14.
+func referenceReadBoundary() console.ReadBoundary {
+	source, _ := app.NewReferencePrincipalSource(app.ReferencePrincipalTeamA)
+	return console.ReadBoundary{Viewer: func(*http.Request) (v0.Principal, error) { return source.Principal(), nil }, Authorizer: history.AuthorizerFunc(func(_ context.Context, p v0.Principal, a history.Admission) bool {
+		return p.Subject != "" && p.Subject == a.Principal.Subject && p.Team == a.Principal.Team
+	})}
 }

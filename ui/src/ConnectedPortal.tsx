@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
-import { connectedSource, suggestedProjects, workStatus, workTitle, type Setup, type View } from './connected-source';
+import { connectedSource, suggestedProjects, workStatus, workTitle, traceURL, type HistoryPage, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions } from './worker-activity-model';
@@ -75,8 +75,9 @@ function WorkList({ works }: { works: View[] }) {
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
     `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
-    <Heading title="Work" subtitle="Current-session requests and results."
+    <Heading title="Work" subtitle="Recorded requests and results."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
+    <a href={link('history')}>Browse durable history</a>
     <div className="portal-toolbar">
       <Filters values={['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending']}
         selected={filter} choose={setFilter}/>
@@ -94,23 +95,41 @@ function WorkList({ works }: { works: View[] }) {
         </tr>
       )}</tbody>
     </table>{!shown.length && <p className="portal-empty">
-      {works.length ? 'No work matches this filter.' : 'No work started in this session.'}
+      {works.length ? 'No work matches this filter.' : 'No work recorded.'}
     </p>}</div>
   </>;
+}
+function History() {
+ const [cursor, setCursor] = useState('');
+ const [page, setPage] = useState<HistoryPage>();
+ const [error, setError] = useState('');
+ useEffect(() => {
+  const controller = new AbortController(); setPage(undefined); setError('');
+  connectedSource.history(cursor, controller.signal).then(setPage).catch(() => { if (!controller.signal.aborted) setError('History is unavailable.'); });
+  return () => controller.abort();
+ }, [cursor]);
+ return <><Heading title="Work history" subtitle="Stored governance evidence"/>
+  {error && <p role="alert">{error}</p>}
+  <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Status</th><th>Last update</th><th>Diagnosis</th></tr></thead>
+   <tbody>{page?.items.map(item => <tr key={item.requestRef}><td><a href={link(`work/${encodeURIComponent(item.requestRef)}`)}>{item.requestRef}</a></td><td>{item.status === 'Deny' ? 'Denied' : item.status}</td><td>{time(item.updated)}</td><td>{item.status === 'Succeeded' ? '—' : item.diagnosis?.code || '—'}</td></tr>)}</tbody></table></div>
+  {page?.nextCursor && <button className="portal-button" onClick={() => setCursor(page.nextCursor!)}>Next page</button>}
+  {cursor && <button className="portal-button" onClick={() => setCursor('')}>Newest work</button>}
+ </>;
 }
 function WorkDetail({ work }: { work: View }) {
   const state = work.state;
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
-  const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
+  const ended = !!work.recovery || (!!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase));
   const latestFacts = [...work.facts].reverse();
   const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
     !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
-  const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
+  const summary = status === 'Interrupted' ? 'Execution was interrupted. Missing provider outcomes and cleanup remain unknown.' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
+  const correlation = traceURL(work.traceId);
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
       <a href={link('work')}>Work</a> / Details
@@ -122,6 +141,9 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
+    {work.recovery && <section role="status" className="portal-state"><strong>Execution interrupted by service restart</strong><p>Historical authority is inactive. Incomplete calls have an unknown outcome and were not replayed. Cleanup: {work.recovery.cleanup}.</p></section>}
+    {work.diagnosis && <p>Diagnosis: {work.diagnosis.stage} · {work.diagnosis.code}</p>}
+    {correlation ? <a href={correlation} target="_blank" rel="noreferrer">Open trace in Grafana</a> : <p className="portal-muted">Trace unavailable</p>}
     <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
@@ -142,7 +164,7 @@ function WorkDetail({ work }: { work: View }) {
           href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
         } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
-          ? state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
+          ? !work.recovery && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
         <Access value={state?.effectiveAuthority}
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
@@ -471,6 +493,8 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
     content = <NewWork setup={setup} created={work => {
       window.location.hash = link(workLink(work)); retry();
     }}/>;
+  } else if (section === 'history') {
+    content = <History/>;
   } else if (section === 'work' && !parts[1]) {
     content = <WorkList works={data.works}/>;
   } else if (section === 'work' && data.current) {

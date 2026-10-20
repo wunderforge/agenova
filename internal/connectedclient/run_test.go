@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1374,5 +1375,25 @@ func TestInstalledAPIDoesNotFollowRedirects(t *testing.T) {
 	_, err := client.call(context.Background(), local.URL, []byte(`{"kind":"ClaimRequest"}`), "")
 	if err == nil || !strings.Contains(err.Error(), "307") || redirected {
 		t.Fatalf("unsafe redirect result: err=%v redirected=%t", err, redirected)
+	}
+}
+
+func TestRecoveredAdmissionIsReadableWithoutInventingResolvedFacts(t *testing.T) {
+	source := withEvidenceFacts(pendingEvidenceJSON("interrupted"), receivedFact("interrupted"), resolutionFact("interrupted", "Allow"))
+	var view evidence.View
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		t.Fatal(err)
+	}
+	view.State.Evidence.RuntimeEvents = nil
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted missing authority proof for active Work")
+	}
+	view.Recovery = &evidence.Recovery{Code: "service-restarted", Cleanup: "Unknown"}
+	if !validEvidenceView(view, "interrupted") {
+		t.Fatal("rejected conservative early crash recovery")
+	}
+	view.Recovery.Code = "caller-supplied"
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted unknown recovery marker")
 	}
 }

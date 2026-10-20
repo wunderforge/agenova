@@ -4,6 +4,7 @@
 package facts
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -151,5 +152,24 @@ func TestJournalPreClaimTypedDecisionAndOrdering(t *testing.T) {
 	}
 	if _, err := j.Append(Fact{RequestRef: "denied", Kind: "Decision", Decision: &v0.Decision{Result: "true"}}); err == nil {
 		t.Fatal("untyped decision accepted")
+	}
+}
+
+// A failed durable append cannot consume order or publish correlation state.
+func TestCommitFailureDoesNotPublishFact(t *testing.T) {
+	j := NewJournal()
+	if err := j.RegisterRequest("durable", v0.Principal{Subject: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	failed := func(Fact) error { return fmt.Errorf("storage unavailable") }
+	if _, err := j.AppendWithCommit(Fact{Kind: "RequestReceived", RequestRef: "durable"}, failed); err == nil {
+		t.Fatal("ignored commit failure")
+	}
+	if len(j.ForRequest("durable")) != 0 {
+		t.Fatal("published uncommitted fact")
+	}
+	f, err := j.Append(Fact{Kind: "RequestReceived", RequestRef: "durable"})
+	if err != nil || f.Sequence != 1 {
+		t.Fatalf("consumed failed sequence: %+v %v", f, err)
 	}
 }

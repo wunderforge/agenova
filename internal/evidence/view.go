@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/facts"
+	"strings"
 )
 
 type View struct {
@@ -16,6 +17,9 @@ type View struct {
 	Request    *v0.ClaimRequest `json:"request"`
 	State      *v0.IssuedState  `json:"state,omitempty"`
 	Facts      []facts.Fact     `json:"facts"`
+	TraceID    string           `json:"traceId,omitempty"`
+	Recovery   *Recovery        `json:"recovery,omitempty"`
+	Diagnosis  *Diagnosis       `json:"diagnosis,omitempty"`
 	Outcome    *Outcome         `json:"outcome,omitempty"`
 }
 
@@ -43,4 +47,52 @@ func Clone(view View) View {
 		copy.Facts = []facts.Fact{}
 	}
 	return copy
+}
+
+// Recovery records interruption without resurrecting authority or inventing outcome.
+type Recovery struct {
+	Code    string `json:"code"`
+	Cleanup string `json:"cleanup"`
+}
+type Diagnosis struct {
+	Stage string `json:"stage"`
+	Code  string `json:"code"`
+}
+
+// Decorate derives only diagnostic projections from committed observations.
+func Decorate(v *View) {
+	pending := map[string]bool{}
+	for _, f := range v.Facts {
+		if f.Kind == "ProviderAttempt" {
+			pending[f.InvocationID] = true
+		}
+		if f.Kind == "ProviderOutcome" {
+			delete(pending, f.InvocationID)
+		}
+		if f.Kind == "RunOutcome" && f.ReasonCode != "" {
+			stage := "execution"
+			if strings.HasPrefix(f.ReasonCode, "provider-") {
+				stage = "provider"
+			}
+			if strings.HasPrefix(f.ReasonCode, "runtime-") {
+				stage = "runtime"
+			}
+			v.Diagnosis = &Diagnosis{Stage: stage, Code: f.ReasonCode}
+		}
+		if f.Kind == "ProviderOutcome" && f.ProviderStatus == "Failed" {
+			v.Diagnosis = &Diagnosis{Stage: "provider", Code: "provider-failed"}
+		}
+		if f.Kind == "Runtime" && (f.Operation == "AllocationFailed" || f.Operation == "StartFailed") {
+			v.Diagnosis = &Diagnosis{Stage: "runtime", Code: "runtime-" + f.Operation}
+		}
+	}
+	if v.State != nil && v.State.Decision.Result == v0.DecisionResultDeny {
+		v.Diagnosis = &Diagnosis{Stage: "admission", Code: "policy-denied"}
+	}
+	if v.Recovery != nil {
+		v.Diagnosis = &Diagnosis{Stage: "recovery", Code: "service-restarted"}
+		if len(pending) > 0 {
+			v.Diagnosis.Code = "provider-outcome-unknown"
+		}
+	}
 }

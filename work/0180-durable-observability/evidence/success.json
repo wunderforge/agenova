@@ -1,0 +1,487 @@
+{
+  "version": "agenova.evidence/v0",
+  "requestRef": "obs-success-mvg0ofx1",
+  "request": {
+    "apiVersion": "agenova.io/v1alpha1",
+    "kind": "ClaimRequest",
+    "metadata": {
+      "name": "obs-success-mvg0ofx1"
+    },
+    "spec": {
+      "templateRef": "engineer",
+      "projectRef": "payments",
+      "task": {
+        "type": "investigation",
+        "input": {
+          "objective": "Return a brief final answer: explain why retry timeouts need a total deadline. Do not use tools."
+        }
+      },
+      "requestedAccess": {
+        "modelProfile": "coding-standard"
+      },
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "5m0s"
+      }
+    }
+  },
+  "state": {
+    "requestRef": "obs-success-mvg0ofx1",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "action": {
+      "name": "claim.create",
+      "project": "payments",
+      "templateRef": "engineer"
+    },
+    "policyRef": {
+      "id": "reference-default-deny",
+      "version": "1"
+    },
+    "effectiveAuthority": {
+      "id": "authority:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "5m0s"
+      }
+    },
+    "claim": {
+      "id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "requestRef": "obs-success-mvg0ofx1",
+      "templateRef": "engineer",
+      "authorityRef": "authority:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "phase": "Succeeded",
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      }
+    },
+    "decision": {
+      "id": "decision:obs-success-mvg0ofx1:authorization:c64693931c4fa9b88c5ad984eb716ffd",
+      "principalRef": "user:team-a-engineer",
+      "action": "claim.create",
+      "result": "Allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "reason": "exact policy rule matched the trusted principal and requested assignment"
+    },
+    "evidence": {
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "decisionIds": [
+        "decision:obs-success-mvg0ofx1:authorization:c64693931c4fa9b88c5ad984eb716ffd"
+      ],
+      "runtimeEvents": [
+        {
+          "kind": "Bound"
+        },
+        {
+          "kind": "BackendReady"
+        },
+        {
+          "kind": "Running"
+        },
+        {
+          "kind": "Succeeded"
+        },
+        {
+          "kind": "TerminateSucceeded"
+        },
+        {
+          "kind": "CleanupSucceeded"
+        }
+      ],
+      "toolInvocations": [],
+      "modelInvocations": []
+    }
+  },
+  "facts": [
+    {
+      "id": "fact:281",
+      "sequence": 281,
+      "timestamp": "2026-10-20T01:41:01.801227589Z",
+      "kind": "RequestReceived",
+      "requestRef": "obs-success-mvg0ofx1"
+    },
+    {
+      "id": "fact:282",
+      "sequence": 282,
+      "timestamp": "2026-10-20T01:41:01.801244172Z",
+      "kind": "RequestResolution",
+      "requestRef": "obs-success-mvg0ofx1",
+      "decision": {
+        "id": "decision:obs-success-mvg0ofx1:authorization:c64693931c4fa9b88c5ad984eb716ffd",
+        "principalRef": "user:team-a-engineer",
+        "action": "claim.create",
+        "result": "Allow",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "reason": "exact policy rule matched the trusted principal and requested assignment"
+      },
+      "result": "Allow",
+      "reasonCode": "assignment-allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      }
+    },
+    {
+      "id": "fact:283",
+      "sequence": 283,
+      "timestamp": "2026-10-20T01:41:01.956244464Z",
+      "kind": "AuthorityResolved",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "admitted-template-ceiling",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "effectiveAuthority": {
+        "id": "authority:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+        "modelProfile": "coding-standard",
+        "runtime": {
+          "profileRef": "standard-isolated",
+          "timeout": "5m0s"
+        }
+      }
+    },
+    {
+      "id": "fact:284",
+      "sequence": 284,
+      "timestamp": "2026-10-20T01:41:01.959159339Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-Pending",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "Pending"
+    },
+    {
+      "id": "fact:285",
+      "sequence": 285,
+      "timestamp": "2026-10-20T01:41:02.030998256Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-Bound",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "Bound"
+    },
+    {
+      "id": "fact:286",
+      "sequence": 286,
+      "timestamp": "2026-10-20T01:41:02.089165922Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-BackendReady",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "BackendReady"
+    },
+    {
+      "id": "fact:287",
+      "sequence": 287,
+      "timestamp": "2026-10-20T01:41:02.345435798Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-Running",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "Running"
+    },
+    {
+      "id": "fact:288",
+      "sequence": 288,
+      "timestamp": "2026-10-20T01:41:02.456045423Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "agent-action-observed",
+      "operation": "TurnStarted",
+      "target": "Turn 1"
+    },
+    {
+      "id": "fact:289",
+      "sequence": 289,
+      "timestamp": "2026-10-20T01:41:02.457371798Z",
+      "kind": "ModelDecision",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-0a0170bc00c44b5d1d141c718916e4f0",
+      "result": "Allow",
+      "reasonCode": "within-effective-authority",
+      "reason": "Allowed within the active claim's effective authority.",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard"
+    },
+    {
+      "id": "fact:290",
+      "sequence": 290,
+      "timestamp": "2026-10-20T01:41:02.458543048Z",
+      "kind": "ProviderAttempt",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-0a0170bc00c44b5d1d141c718916e4f0",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Attempted"
+    },
+    {
+      "id": "fact:291",
+      "sequence": 291,
+      "timestamp": "2026-10-20T01:41:15.659985596Z",
+      "kind": "ProviderOutcome",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-0a0170bc00c44b5d1d141c718916e4f0",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Succeeded"
+    },
+    {
+      "id": "fact:292",
+      "sequence": 292,
+      "timestamp": "2026-10-20T01:41:15.664272596Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "agent-action-observed",
+      "operation": "ActionReceived",
+      "target": "Turn 1"
+    },
+    {
+      "id": "fact:293",
+      "sequence": 293,
+      "timestamp": "2026-10-20T01:41:15.666541637Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-0a0170bc00c44b5d1d141c718916e4f0",
+      "reasonCode": "agent-action-valid",
+      "reason": "The model selected a valid final-answer action.",
+      "operation": "ActionValidated",
+      "target": "Turn 1"
+    },
+    {
+      "id": "fact:294",
+      "sequence": 294,
+      "timestamp": "2026-10-20T01:41:15.671357554Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "agent-action-observed",
+      "operation": "TurnStarted",
+      "target": "Turn 2"
+    },
+    {
+      "id": "fact:295",
+      "sequence": 295,
+      "timestamp": "2026-10-20T01:41:15.672994262Z",
+      "kind": "ModelDecision",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-12c20438ca1e555dc224b1818d951f01",
+      "result": "Allow",
+      "reasonCode": "within-effective-authority",
+      "reason": "Allowed within the active claim's effective authority.",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard"
+    },
+    {
+      "id": "fact:296",
+      "sequence": 296,
+      "timestamp": "2026-10-20T01:41:15.674706137Z",
+      "kind": "ProviderAttempt",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-12c20438ca1e555dc224b1818d951f01",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Attempted"
+    },
+    {
+      "id": "fact:297",
+      "sequence": 297,
+      "timestamp": "2026-10-20T01:41:22.586035751Z",
+      "kind": "ProviderOutcome",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-12c20438ca1e555dc224b1818d951f01",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Succeeded"
+    },
+    {
+      "id": "fact:298",
+      "sequence": 298,
+      "timestamp": "2026-10-20T01:41:22.588565293Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "agent-action-observed",
+      "operation": "ActionReceived",
+      "target": "Turn 2"
+    },
+    {
+      "id": "fact:299",
+      "sequence": 299,
+      "timestamp": "2026-10-20T01:41:22.590493251Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "invocationId": "inv-12c20438ca1e555dc224b1818d951f01",
+      "reasonCode": "agent-action-valid",
+      "reason": "The model selected a valid final-answer action.",
+      "operation": "ActionValidated",
+      "target": "Turn 2"
+    },
+    {
+      "id": "fact:300",
+      "sequence": 300,
+      "timestamp": "2026-10-20T01:41:22.607895001Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "agent-action-observed",
+      "operation": "FinalAnswer",
+      "target": "Turn 2"
+    },
+    {
+      "id": "fact:301",
+      "sequence": 301,
+      "timestamp": "2026-10-20T01:41:22.60955396Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-Succeeded",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "Succeeded"
+    },
+    {
+      "id": "fact:302",
+      "sequence": 302,
+      "timestamp": "2026-10-20T01:41:22.84474646Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-TerminateSucceeded",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "TerminateSucceeded"
+    },
+    {
+      "id": "fact:303",
+      "sequence": 303,
+      "timestamp": "2026-10-20T01:41:22.996881668Z",
+      "kind": "Runtime",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "runtime-CleanupSucceeded",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-wgdb4"
+      },
+      "operation": "CleanupSucceeded"
+    },
+    {
+      "id": "fact:304",
+      "sequence": 304,
+      "timestamp": "2026-10-20T01:41:22.99846546Z",
+      "kind": "RunOutcome",
+      "requestRef": "obs-success-mvg0ofx1",
+      "claimId": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+      "reasonCode": "run-Succeeded",
+      "operation": "Succeeded"
+    }
+  ],
+  "traceId": "30f3ebabe963717ea023b4f4efe037fb",
+  "diagnosis": {
+    "stage": "execution",
+    "code": "run-Succeeded"
+  },
+  "outcome": {
+    "status": "Succeeded",
+    "text": "Retry timeouts need a total deadline to prevent infinite retry loops, ensuring timely resolution of failures and avoiding resource exhaustion.",
+    "model": {
+      "invocationId": "inv-12c20438ca1e555dc224b1818d951f01",
+      "model": "qwen3:8b",
+      "responseId": "chatcmpl-265",
+      "inputTokens": 344,
+      "outputTokens": 35
+    }
+  }
+}

@@ -35,6 +35,7 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		kubernetesDeploymentRegistration(),
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
+		otlpRegistration(),
 	)
 }
 
@@ -110,7 +111,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "observability"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -121,7 +122,19 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"context": context, "namespace": namespace}, nil
+	result := map[string]any{"context": context, "namespace": namespace}
+	if value, ok := input["observability"]; ok {
+		config, ok := value.(map[string]any)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-object", "observability")
+		}
+		canonical, err := canonicalizeStack(config)
+		if err != nil {
+			return nil, err
+		}
+		result["observability"] = canonical
+	}
+	return result, nil
 }
 
 func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]any) (map[string]any, error) {

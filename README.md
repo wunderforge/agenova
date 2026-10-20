@@ -40,7 +40,7 @@ The repository contains a working Go reference implementation for:
 - a declarative CLI path for Platform validate/plan/apply/status, narrow Policy and AgentTemplate registration, and Work submission against an installed reference service;
 - a real kind + Agent Sandbox worker and Ollama model path for the documented reference configuration.
 
-It does **not** yet contain durable Work/evidence, production identity or controllers, Helm packaging, a Memory Interface, or OpenTelemetry integration. The CLI can query current-session Work after submission; a separately started local React Portal can use an explicit loopback connection to the same installed private API. The UI is not installed by `platform apply`, and the local tunnel is not production authentication. See [Current status](docs/project-status.md) for the exact boundary.
+The #180 implementation in this branch adds durable SQLite Work/evidence, paginated history, and optional OpenTelemetry export with a Platform-managed Grafana/Tempo/Loki/Prometheus stack. Real kind/Ollama verification and remaining E14 identity/read-authorization acceptance are recorded in the [#180 verification report](work/0180-durable-observability/evidence.md); #180 remains open. Production identity or controllers, Helm packaging and a Memory Interface remain outside this delivery. The CLI can query historical Work after service restart; a separately started local React Portal can use an explicit loopback connection to the same installed private API. The UI is not installed by `platform apply`, and the local tunnel is not production authentication. See [Current status](docs/project-status.md) for the exact boundary.
 
 ## Validate
 

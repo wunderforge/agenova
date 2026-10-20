@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/policy"
 )
 
@@ -145,6 +146,8 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service) {
 	if err != nil {
 		var submission *SubmissionError
 		switch {
+		case errors.Is(err, history.ErrUnavailable):
+			writeError(w, 503, "evidence_storage_unavailable", "Evidence storage is unavailable; execution stopped.")
 		case errors.Is(err, ErrConflict):
 			writeError(w, 409, "request_conflict", "This request reference already exists.")
 		case errors.Is(err, ErrCapacity):

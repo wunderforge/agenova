@@ -20,6 +20,7 @@ type PreparedAssignment struct {
 	Template  *v0.AgentTemplate
 	Admission ReferenceAdmissionResult
 	Issued    *v0.IssuedState
+	Policy    policy.PolicyBundle
 	Changes   []authority.Change
 }
 
@@ -56,11 +57,12 @@ func PrepareAssignment(data []byte, principals PrincipalSource, policies authori
 	if policies == nil || templates == nil {
 		return PreparedAssignment{}, fmt.Errorf("policy and template sources are required")
 	}
-	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: policies})
+	bundle, available := policies.Current()
+	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: immutablePolicy{bundle, available}})
 	if err != nil {
 		return PreparedAssignment{}, err
 	}
-	prepared := PreparedAssignment{Request: request}
+	prepared := PreparedAssignment{Request: request, Policy: bundle}
 	prepared.Admission, err = service.AdmitYAML(data, func(admission authorization.Admission) error {
 		template, err := templates.Lookup(request.Spec.TemplateRef)
 		if err != nil {
@@ -101,3 +103,10 @@ func ReferenceTemplate() *v0.AgentTemplate {
 }
 
 func ReferencePolicy() policy.PolicyBundle { return referencePolicyBundle() }
+
+type immutablePolicy struct {
+	bundle    policy.PolicyBundle
+	available bool
+}
+
+func (p immutablePolicy) Current() (policy.PolicyBundle, bool) { return p.bundle, p.available }

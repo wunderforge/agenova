@@ -130,6 +130,8 @@ func (l *Lifecycle) Init(reference, localName string) (PlatformFragment, error) 
 			return PlatformFragment{}, err
 		}
 		fragment.Spec.Infrastructure = &FragmentInfrastructure{RuntimeBackends: []v1alpha1.PlatformInstance{instance}, RuntimeProfiles: []v1alpha1.PlatformProfile{profile}}
+	case platform.CapabilityTelemetry:
+		fragment.Spec.Services = &FragmentServices{Observability: []v1alpha1.PlatformInstance{instance}}
 	case platform.CapabilityModel:
 		profile, err := initializedProfile(registration, capability, instance, localName+"-profile")
 		if err != nil {

@@ -19,9 +19,11 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/modelgateway"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/runtime"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
@@ -36,30 +38,40 @@ type Executor interface {
 type record struct {
 	view   evidence.View
 	cancel context.CancelFunc
+	ctx    context.Context
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	executeMu chan struct{}
-	preset    app.ReferencePrincipalPreset
-	setup     func() (Setup, error)
-	prepare   func([]byte) (app.PreparedAssignment, error)
-	configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner    *app.RunService
-	executor  Executor
-	provider  modelprovider.Client
-	journal   *facts.Journal
-	store     *facts.Store
-	records   map[string]*record
-	order     []string
-	closed    bool
-	wg        sync.WaitGroup
+	mu            sync.RWMutex
+	executeMu     chan struct{}
+	preset        app.ReferencePrincipalPreset
+	setup         func() (Setup, error)
+	prepare       func([]byte) (app.PreparedAssignment, error)
+	configure     func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner        *app.RunService
+	executor      Executor
+	provider      modelprovider.Client
+	journal       *facts.Journal
+	store         *facts.Store
+	records       map[string]*record
+	order         []string
+	closed        bool
+	wg            sync.WaitGroup
+	repository    history.Repository
+	revision      string
+	storageFailed bool
+	telemetry     *telemetry.Telemetry
+	onClose       func()
 }
 
 type Options struct {
-	Prepare   func([]byte) (app.PreparedAssignment, error)
-	Configure func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	Setup     func() (Setup, error)
+	Repository history.Repository
+	Revision   string
+	Telemetry  *telemetry.Telemetry
+	OnClose    func()
+	Prepare    func([]byte) (app.PreparedAssignment, error)
+	Configure  func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	Setup      func() (Setup, error)
 }
 
 // SubmissionError exposes an operator-actionable, bounded diagnosis without
@@ -102,11 +114,32 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 		}
 	}
 	s := &Service{preset: preset, setup: options.Setup, prepare: options.Prepare, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
-	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
+	runner, err := app.NewRunService(&observedRuntime{RuntimeBackend: backend, s: s, claims: map[v0.SandboxClaimBackendIdentity]string{}}, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
 	}
 	s.runner = runner
+	s.repository, s.revision, s.telemetry, s.onClose = options.Repository, options.Revision, options.Telemetry, options.OnClose
+	if s.repository != nil {
+		if err := s.repository.Recover(); err != nil {
+			return nil, err
+		}
+		sequence, err := s.repository.LastSequence()
+		if err != nil {
+			return nil, err
+		}
+		s.journal.StartSequence(sequence)
+		s.journal.Commit = func(f facts.Fact) error {
+			if f.Kind == "RequestReceived" || f.Kind == "RequestResolution" {
+				return nil
+			}
+			err := s.repository.Append(f, nil)
+			if err != nil {
+				s.failStorage()
+			}
+			return err
+		}
+	}
 	return s, nil
 }
 
@@ -122,6 +155,10 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		return evidence.View{}, errors.New("demo task requires a bounded objective string")
 	}
 	s.mu.Lock()
+	if s.storageFailed {
+		s.mu.Unlock()
+		return evidence.View{}, history.ErrUnavailable
+	}
 	if s.closed {
 		s.mu.Unlock()
 		return evidence.View{}, errors.New("local demo is stopping")
@@ -144,7 +181,18 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 			s.wg.Done()
 		}
 	}()
+	traceCtx, endWork := s.telemetry.Start(context.Background(), "work", request.Metadata.Name, "", "")
+	defer func() {
+		if !runOwned {
+			endWork(false)
+		}
+	}()
+	_, endAdmission := s.telemetry.Start(traceCtx, "admission", request.Metadata.Name, "", "")
 	prepared, err := s.prepare(data)
+	endAdmission(err == nil && prepared.Admission.Decision.Result == v0.DecisionResultAllow)
+	if err == nil {
+		s.telemetry.Decision(traceCtx, "admission", string(prepared.Admission.Decision.Result))
+	}
 	if err != nil {
 		s.mu.Lock()
 		delete(s.records, request.Metadata.Name)
@@ -152,6 +200,16 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		return evidence.View{}, err
 	}
 	ref := request.Metadata.Name
+	if s.repository != nil {
+		if _, err := s.repository.Get(ref); err == nil {
+			s.mu.Lock()
+			delete(s.records, ref)
+			s.mu.Unlock()
+			return evidence.View{}, ErrConflict
+		} else if !errors.Is(err, history.ErrNotFound) {
+			return evidence.View{}, err
+		}
+	}
 	if err = s.journal.RegisterRequest(ref, prepared.Admission.Principal); err != nil {
 		return evidence.View{}, err
 	}
@@ -162,7 +220,20 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if _, err = s.journal.Append(facts.Fact{Kind: "RequestResolution", RequestRef: ref, Decision: &d, Result: d.Result, ReasonCode: "assignment-" + strings.ToLower(string(d.Result)), PolicyRef: &d.PolicyRef}); err != nil {
 		return evidence.View{}, err
 	}
-	view := evidence.View{Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
+	if s.repository != nil {
+		initial := evidence.View{TraceID: telemetry.TraceID(traceCtx), Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: s.journal.ForRequest(ref)}
+		if d.Result != v0.DecisionResultAllow {
+			initial.Outcome = &evidence.Outcome{Status: string(d.Result)}
+		}
+		if err := s.repository.Create(initial, history.Admission{Principal: prepared.Admission.Principal, Policy: prepared.Policy, Template: prepared.Template, Revision: s.revision}); err != nil {
+			s.failStorage()
+			if errors.Is(err, history.ErrConflict) {
+				return evidence.View{}, ErrConflict
+			}
+			return evidence.View{}, err
+		}
+	}
+	view := evidence.View{TraceID: telemetry.TraceID(traceCtx), Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		s.mu.Lock()
@@ -184,7 +255,15 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 		reason := "runtime template configuration failed; check the installed runtime and operator logs"
 		view.State.Claim.Phase = v0.ClaimPhaseFailed
 		view.Outcome = &evidence.Outcome{Status: "Failed", Failure: reason}
-		_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason})
+		if _, err := s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: view.State.Claim.ID, Operation: "Failed", ReasonCode: "runtime-template-configuration-failed", Reason: reason}); err != nil {
+			return evidence.View{}, err
+		}
+		if s.repository != nil {
+			if err := s.repository.Finish(ref, view.State, view.Outcome); err != nil {
+				s.failStorage()
+				return evidence.View{}, err
+			}
+		}
 		s.mu.Lock()
 		s.records[ref] = &record{view: evidence.Clone(view)}
 		s.order = append(s.order, ref)
@@ -203,21 +282,37 @@ func (s *Service) Submit(data []byte) (evidence.View, error) {
 	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling", Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
+	ctx, cancel := context.WithTimeout(traceCtx, time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
 	s.mu.Lock()
-	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel}
+	s.records[ref] = &record{view: evidence.Clone(view), cancel: cancel, ctx: ctx}
 	s.order = append(s.order, ref)
 	if s.closed {
 		cancel()
 	}
 	s.mu.Unlock()
 	runOwned = true
-	go func() { defer s.wg.Done(); defer cancel(); s.run(ctx, prepared, launch, objective) }()
+	go func() {
+		defer s.wg.Done()
+		defer cancel()
+		s.run(ctx, prepared, launch, objective)
+		v, err := s.QueryRequest(ref)
+		endWork(err == nil && v.Outcome != nil && v.Outcome.Status == "Succeeded")
+	}()
 	return s.QueryRequest(ref)
 }
 
 func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
-	_, err := s.journal.Append(facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef})
+	commit := s.journal.Commit
+	if s.repository != nil {
+		commit = func(f facts.Fact) error {
+			err := s.repository.Append(f, state)
+			if err != nil {
+				s.failStorage()
+			}
+			return err
+		}
+	}
+	_, err := s.journal.AppendWithCommit(facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef}, commit)
 	if err != nil {
 		return err
 	}
@@ -254,6 +349,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		}
 		adapter := &completionAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef}
 		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
+			s.telemetry.Decision(ctx, "model", string(d.Result))
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -264,6 +360,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		}))
 		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
 		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(mock), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+			s.telemetry.Decision(ctx, "tool", string(d.Result))
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -284,7 +381,8 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
 		}
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		workerCtx, endWorker := s.telemetry.Start(ctx, "worker.execute", ref, claimID, "")
+		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, ResourceScope: scope}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -354,6 +452,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
 		})
+		endWorker(err == nil)
 		if err != nil {
 			return err
 		}
@@ -382,7 +481,14 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	if runErr != nil {
 		code, outcome.Failure = runFailure(runErr, s.journal.ForRequest(ref))
 	}
-	_, _ = s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: code, Reason: outcome.Failure})
+	_, recordErr := s.journal.Append(facts.Fact{Kind: "RunOutcome", RequestRef: ref, ClaimID: claimID, Operation: status, ReasonCode: code, Reason: outcome.Failure})
+	if recordErr == nil && s.repository != nil {
+		recordErr = s.repository.Finish(ref, final, outcome)
+	}
+	if recordErr != nil {
+		s.failStorage()
+		return
+	}
 	s.mu.Lock()
 	if final != nil {
 		s.records[ref].view.State = final
@@ -395,6 +501,8 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 // provider, model output or operating-system error text to the browser.
 func runFailure(err error, recorded []facts.Fact) (string, string) {
 	switch {
+	case errors.Is(err, history.ErrUnavailable):
+		return "evidence-storage-failed", "Governance evidence could not be committed; execution stopped."
 	case errors.Is(err, context.Canceled):
 		return "run-cancelled", "The work was cancelled before execution completed."
 	case errors.Is(err, app.ErrRunDeadline), errors.Is(err, context.DeadlineExceeded):
@@ -437,7 +545,10 @@ func runFailure(err error, recorded []facts.Fact) (string, string) {
 		}
 	}
 	for _, f := range recorded {
-		if f.Operation == "Failed" || f.Operation == "StartFailed" || f.Operation == "AllocateFailed" {
+		if f.Operation == "AllocationFailed" || f.Operation == "StartFailed" {
+			return "runtime-" + f.Operation, "The runtime could not allocate or start the worker."
+		}
+		if f.Operation == "Failed" {
 			return "execution-failed", "Execution failed; no more specific failure reason was recorded."
 		}
 	}
@@ -469,7 +580,9 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderAttempt", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: "Attempted"}); err != nil {
 		return err
 	}
-	result, providerErr := a.service.provider.Complete(a.ctx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
+	providerCtx, endCall := a.service.telemetry.Start(a.ctx, "model.invoke", a.ref, a.claimID, id)
+	result, providerErr := a.service.provider.Complete(providerCtx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
+	endCall(providerErr == nil)
 	status := "Succeeded"
 	if providerErr != nil {
 		status = "Failed"
@@ -512,6 +625,22 @@ func (a *completionAdapter) result(id string) (modelprovider.Result, bool) {
 
 func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	s.mu.RLock()
+	failed := s.storageFailed
+	s.mu.RUnlock()
+	if failed {
+		return evidence.View{}, history.ErrUnavailable
+	}
+	if s.repository != nil {
+		entry, err := s.repository.Get(ref)
+		if err != nil {
+			return evidence.View{}, err
+		}
+		if len(entry.View.Facts) < 2 {
+			return evidence.View{}, history.ErrUnavailable
+		}
+		return entry.View, nil
+	}
+	s.mu.RLock()
 	r, ok := s.records[ref]
 	if !ok || r.view.Request == nil {
 		s.mu.RUnlock()
@@ -532,9 +661,13 @@ func (s *Service) QueryRequest(ref string) (evidence.View, error) {
 	} else {
 		view.Facts = s.journal.ForRequest(ref)
 	}
+	evidence.Decorate(&view)
 	return view, nil
 }
 func (s *Service) QueryClaim(id string) (evidence.View, error) {
+	if s.repository != nil {
+		return s.QueryRequest(id)
+	}
 	s.mu.RLock()
 	ref := ""
 	for key, r := range s.records {
@@ -571,4 +704,24 @@ func (s *Service) Close() {
 	}
 	s.mu.Unlock()
 	s.wg.Wait()
+	if s.onClose != nil {
+		s.onClose()
+	}
+}
+
+func (s *Service) failStorage() { s.mu.Lock(); s.storageFailed = true; s.mu.Unlock() }
+
+// Ready reports evidence availability independently of optional export health.
+func (s *Service) Ready() bool {
+	s.mu.RLock()
+	failed := s.storageFailed || s.closed
+	s.mu.RUnlock()
+	if failed {
+		return false
+	}
+	if s.repository != nil {
+		_, err := s.repository.LastSequence()
+		return err == nil
+	}
+	return true
 }

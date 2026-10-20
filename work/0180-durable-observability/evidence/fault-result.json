@@ -1,0 +1,8 @@
+{
+  "context": "kind-agenova-k8s-lab",
+  "namespace": "agenova-observability-180",
+  "runtime": "obs-runtime-failed-mvg0rqb8",
+  "provider": "obs-provider-failed-mvg0rqb8",
+  "distinctFailures": true,
+  "restored": true
+}

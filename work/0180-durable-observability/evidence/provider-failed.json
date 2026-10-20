@@ -1,0 +1,363 @@
+{
+  "version": "agenova.evidence/v0",
+  "requestRef": "obs-provider-failed-mvg0rqb8",
+  "request": {
+    "apiVersion": "agenova.io/v1alpha1",
+    "kind": "ClaimRequest",
+    "metadata": {
+      "name": "obs-provider-failed-mvg0rqb8"
+    },
+    "spec": {
+      "templateRef": "engineer",
+      "projectRef": "payments",
+      "task": {
+        "type": "investigation",
+        "input": {
+          "objective": "Return a brief final answer explaining total retry deadlines."
+        }
+      },
+      "requestedAccess": {
+        "modelProfile": "coding-standard"
+      },
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    }
+  },
+  "state": {
+    "requestRef": "obs-provider-failed-mvg0rqb8",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "action": {
+      "name": "claim.create",
+      "project": "payments",
+      "templateRef": "engineer"
+    },
+    "policyRef": {
+      "id": "reference-default-deny",
+      "version": "1"
+    },
+    "effectiveAuthority": {
+      "id": "authority:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "claim": {
+      "id": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "templateRef": "engineer",
+      "authorityRef": "authority:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "phase": "Failed",
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      }
+    },
+    "decision": {
+      "id": "decision:obs-provider-failed-mvg0rqb8:authorization:65963994aad99ad32877824358a1c979",
+      "principalRef": "user:team-a-engineer",
+      "action": "claim.create",
+      "result": "Allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "reason": "exact policy rule matched the trusted principal and requested assignment"
+    },
+    "evidence": {
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "decisionIds": [
+        "decision:obs-provider-failed-mvg0rqb8:authorization:65963994aad99ad32877824358a1c979"
+      ],
+      "runtimeEvents": [
+        {
+          "kind": "Bound"
+        },
+        {
+          "kind": "BackendReady"
+        },
+        {
+          "kind": "Running"
+        },
+        {
+          "kind": "Failed"
+        },
+        {
+          "kind": "TerminateSucceeded"
+        },
+        {
+          "kind": "CleanupSucceeded"
+        }
+      ],
+      "toolInvocations": [],
+      "modelInvocations": []
+    }
+  },
+  "facts": [
+    {
+      "id": "fact:339",
+      "sequence": 339,
+      "timestamp": "2026-10-20T01:44:09.861426218Z",
+      "kind": "RequestReceived",
+      "requestRef": "obs-provider-failed-mvg0rqb8"
+    },
+    {
+      "id": "fact:340",
+      "sequence": 340,
+      "timestamp": "2026-10-20T01:44:09.861465759Z",
+      "kind": "RequestResolution",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "decision": {
+        "id": "decision:obs-provider-failed-mvg0rqb8:authorization:65963994aad99ad32877824358a1c979",
+        "principalRef": "user:team-a-engineer",
+        "action": "claim.create",
+        "result": "Allow",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "reason": "exact policy rule matched the trusted principal and requested assignment"
+      },
+      "result": "Allow",
+      "reasonCode": "assignment-allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      }
+    },
+    {
+      "id": "fact:341",
+      "sequence": 341,
+      "timestamp": "2026-10-20T01:44:10.06869376Z",
+      "kind": "AuthorityResolved",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "admitted-template-ceiling",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "effectiveAuthority": {
+        "id": "authority:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+        "modelProfile": "coding-standard",
+        "runtime": {
+          "profileRef": "standard-isolated",
+          "timeout": "3m0s"
+        }
+      }
+    },
+    {
+      "id": "fact:342",
+      "sequence": 342,
+      "timestamp": "2026-10-20T01:44:10.077588551Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-Pending",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "Pending"
+    },
+    {
+      "id": "fact:343",
+      "sequence": 343,
+      "timestamp": "2026-10-20T01:44:10.18507801Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-Bound",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "Bound"
+    },
+    {
+      "id": "fact:344",
+      "sequence": 344,
+      "timestamp": "2026-10-20T01:44:10.255020385Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-BackendReady",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "BackendReady"
+    },
+    {
+      "id": "fact:345",
+      "sequence": 345,
+      "timestamp": "2026-10-20T01:44:10.515260301Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-Running",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "Running"
+    },
+    {
+      "id": "fact:346",
+      "sequence": 346,
+      "timestamp": "2026-10-20T01:44:10.633474093Z",
+      "kind": "WorkerActivity",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "agent-action-observed",
+      "operation": "TurnStarted",
+      "target": "Turn 1"
+    },
+    {
+      "id": "fact:347",
+      "sequence": 347,
+      "timestamp": "2026-10-20T01:44:10.634714635Z",
+      "kind": "ModelDecision",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "invocationId": "inv-370d1b1291654f8341b674c7ba38eea7",
+      "result": "Allow",
+      "reasonCode": "within-effective-authority",
+      "reason": "Allowed within the active claim's effective authority.",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard"
+    },
+    {
+      "id": "fact:348",
+      "sequence": 348,
+      "timestamp": "2026-10-20T01:44:10.63558726Z",
+      "kind": "ProviderAttempt",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "invocationId": "inv-370d1b1291654f8341b674c7ba38eea7",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Attempted"
+    },
+    {
+      "id": "fact:349",
+      "sequence": 349,
+      "timestamp": "2026-10-20T01:44:10.659423676Z",
+      "kind": "ProviderOutcome",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "invocationId": "inv-370d1b1291654f8341b674c7ba38eea7",
+      "reasonCode": "model-provider-failed",
+      "reason": "The model provider call failed before a usable response was available.",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "model.invoke",
+      "target": "coding-standard",
+      "providerStatus": "Failed"
+    },
+    {
+      "id": "fact:350",
+      "sequence": 350,
+      "timestamp": "2026-10-20T01:44:10.662229718Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-Failed",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "Failed"
+    },
+    {
+      "id": "fact:351",
+      "sequence": 351,
+      "timestamp": "2026-10-20T01:44:10.868760552Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-TerminateSucceeded",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "TerminateSucceeded"
+    },
+    {
+      "id": "fact:352",
+      "sequence": 352,
+      "timestamp": "2026-10-20T01:44:11.008341302Z",
+      "kind": "Runtime",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "runtime-CleanupSucceeded",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "backendIdentity": {
+        "backend": "agent-sandbox",
+        "workerId": "agenova-pool-pool-engineer-rz5tw"
+      },
+      "operation": "CleanupSucceeded"
+    },
+    {
+      "id": "fact:353",
+      "sequence": 353,
+      "timestamp": "2026-10-20T01:44:11.010164343Z",
+      "kind": "RunOutcome",
+      "requestRef": "obs-provider-failed-mvg0rqb8",
+      "claimId": "claim:obs-provider-failed-mvg0rqb8:issuance:86fd371338e758476f545b643ddfdc47",
+      "reasonCode": "provider-failed",
+      "reason": "The last governed provider call failed. Open the failed call record for context.",
+      "operation": "Failed"
+    }
+  ],
+  "traceId": "c765e83418b13c76f37354d1a25e85fc",
+  "diagnosis": {
+    "stage": "provider",
+    "code": "provider-failed"
+  },
+  "outcome": {
+    "status": "Failed",
+    "failure": "The last governed provider call failed. Open the failed call record for context."
+  }
+}

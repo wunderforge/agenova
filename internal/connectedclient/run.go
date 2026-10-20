@@ -28,6 +28,7 @@ import (
 	"github.com/wunderforge/agenova/internal/authority"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/history"
 	"gopkg.in/yaml.v3"
 )
 
@@ -244,6 +245,12 @@ func decodeStrictJSON(data []byte, value any) bool {
 }
 
 func validEvidenceView(view evidence.View, ref string) bool {
+	if view.TraceID != "" && !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(view.TraceID) {
+		return false
+	}
+	if view.Recovery != nil && (view.Recovery.Code != "service-restarted" || (view.Recovery.Cleanup != "Unknown" && view.Recovery.Cleanup != "Succeeded" && view.Recovery.Cleanup != "Failed") || view.Outcome != nil) {
+		return false
+	}
 	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil || view.State == nil ||
 		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
 		return false
@@ -579,8 +586,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 	}
+	// A crash can occur immediately after the atomic admission commit, before
+	// AuthorityResolved is observed. This exception is read-only and permits no
+	// runtime/provider activity or restored authority without its normal proof.
+	earlyInterruption := view.Recovery != nil && authorityResolved == 0 && view.State.Claim != nil && view.State.Claim.Phase == v0.ClaimPhasePending && view.State.Claim.BackendIdentity == nil && len(runtimeEvents) == 0 && len(invocations) == 0
 	if view.State.Decision.Result == v0.DecisionResultAllow && view.State.EffectiveAuthority != nil &&
-		authorityResolved != 1 && runOutcomeReasonCode != "runtime-template-configuration-failed" {
+		authorityResolved != 1 && runOutcomeReasonCode != "runtime-template-configuration-failed" && !earlyInterruption {
 		return false
 	}
 	if view.Outcome != nil {
@@ -986,4 +997,50 @@ func (c Client) startPortForward(ctx context.Context) (string, func(), error) {
 
 func (c Client) portForwardArgs() []string {
 	return []string{"--context", c.Context, "--namespace", c.Namespace, "port-forward", "deployment/agenova-control-plane", ":8081", "--address", "127.0.0.1"}
+}
+
+// History reads one bounded authorized page. Cursor grants no authority.
+func (c Client) History(limit int, cursor string) (history.Page, error) {
+	if limit < 1 || limit > 100 || len(cursor) > 128 {
+		return history.Page{}, errors.New("invalid history page")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	endpoint, closeTunnel, err := c.openTunnel(ctx)
+	if err != nil {
+		return history.Page{}, err
+	}
+	defer closeTunnel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/api/history?limit="+strconv.Itoa(limit)+"&cursor="+url.QueryEscape(cursor), nil)
+	if err != nil {
+		return history.Page{}, err
+	}
+	client := c.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 15 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return history.Page{}, errors.New("installed history API unavailable")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		return history.Page{}, errors.New("installed history query rejected")
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxEvidenceBytes+1))
+	if err != nil || len(data) > maxEvidenceBytes {
+		return history.Page{}, errors.New("invalid history response")
+	}
+	var page history.Page
+	if !decodeStrictJSON(data, &page) || page.Items == nil || len(page.Items) > limit || len(page.NextCursor) > 128 {
+		return history.Page{}, errors.New("invalid history response")
+	}
+	seen := map[string]bool{}
+	for _, item := range page.Items {
+		if !validRequestRef(item.RequestRef) || seen[item.RequestRef] {
+			return history.Page{}, errors.New("invalid history response")
+		}
+		seen[item.RequestRef] = true
+	}
+	return page, nil
 }

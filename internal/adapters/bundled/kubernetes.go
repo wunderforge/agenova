@@ -32,7 +32,7 @@ const (
 	reloadPendingAnnotation = "agenova.io/reload-pending"
 	activePolicyRecord      = "agenova-active-policy"
 	controlPlaneRole        = "agenova-control-plane-runtime"
-	controlPlaneImage       = "agenova-control-plane:0.1.0"
+	controlPlaneImage       = "agenova-control-plane:0.1.180"
 )
 
 // The reference install writes the same immutable record name as the
@@ -114,7 +114,10 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 // ValidateComposition is target-specific but read-only: generic Platform
 // validation calls it before planning or applying cluster resources.
 func (*KubernetesDeployment) ValidateComposition(request platformapply.DeploymentRequest) error {
-	return validateReferenceRuntime(request)
+	if err := validateReferenceRuntime(request); err != nil {
+		return err
+	}
+	return validateStackComposition(request)
 }
 
 // A later policy registration may legitimately activate a different version.
@@ -333,6 +336,12 @@ func (k *KubernetesDeployment) Plan(ctx context.Context, request platformapply.D
 		{Name: controlPlaneRole, Category: "deployment", State: state(roleReady, "configured", "unavailable")},
 		{Name: controlPlaneRole + "-binding", Category: "deployment", State: state(bindingReady, "configured", "unavailable")},
 	}
+	extraChanges, extraStatuses, err := k.planStack(ctx, request, contextName, namespace)
+	if err != nil {
+		return target, nil, nil, err
+	}
+	changes = append(changes, extraChanges...)
+	statuses = append(statuses, extraStatuses...)
 	return target, changes, statuses, nil
 }
 
@@ -364,6 +373,9 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 	}
 	namespaceExists, err := k.resourceExists(ctx, contextName, "namespaces", namespace, "")
 	if err != nil {
+		return failedStatuses(request.Platform.Revision), false, err
+	}
+	if err := k.preflightStack(ctx, request, contextName, namespace); err != nil {
 		return failedStatuses(request.Platform.Revision), false, err
 	}
 	steps, err := referenceSteps(request, namespace, !namespaceExists)
@@ -428,6 +440,11 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		if _, err := k.run(ctx, manifest, "--context", contextName, "apply", "-f", "-"); err != nil {
 			return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
 		}
+		if step.category == "observability" {
+			if err := k.repairStack(ctx, contextName, namespace, step); err != nil {
+				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
+			}
+		}
 		if replaceSelector {
 			if err := k.replaceServiceSelector(ctx, contextName, namespace); err != nil {
 				return k.stepFailure(ctx, request, steps, index, mutationAttempted, err)
@@ -446,6 +463,13 @@ func (k *KubernetesDeployment) Apply(ctx context.Context, request platformapply.
 		if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "restart", "deployment/"+controlPlaneName); err != nil {
 			statuses := k.observedAfterFailure(ctx, request)
 			return statuses, mutationAttempted, fmt.Errorf("restart reference control plane after Platform repair: %w", err)
+		}
+	}
+	for _, step := range stackSteps(request, namespace) {
+		if stackKind(step) == "deployment" && plannedComponent(request.TargetChanges, step.name) {
+			if _, err := k.run(ctx, nil, "--context", contextName, "--namespace", namespace, "rollout", "status", "deployment/"+step.name, "--timeout=180s"); err != nil {
+				return k.observedAfterFailure(ctx, request), mutationAttempted, fmt.Errorf("observability component %s unavailable", step.name)
+			}
 		}
 	}
 	if plannedComponent(request.TargetChanges, controlPlaneName) {
@@ -574,6 +598,9 @@ func (k *KubernetesDeployment) Preflight(ctx context.Context, request platformap
 			{Component: controlPlaneName + "-service"},
 			{Component: controlPlaneName + "-account"}, {Component: controlPlaneRole}, {Component: controlPlaneRole + "-binding"},
 		}
+	}
+	if err := k.preflightStack(ctx, request, contextName, namespace); err != nil {
+		return err
 	}
 	return k.preflight(ctx, contextName, namespace, request.TargetChanges)
 }
@@ -818,6 +845,12 @@ func referenceSteps(request platformapply.DeploymentRequest, namespace string, c
 	if createNamespace {
 		steps = append([]manifestStep{{name: namespace, category: "deployment", object: map[string]any{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": namespace, "labels": managedLabels()}}}}, steps...)
 	}
+	extra := stackSteps(request, namespace)
+	if createNamespace {
+		steps = append(steps[:1], append(extra, steps[1:]...)...)
+	} else {
+		steps = append(extra, steps...)
+	}
 	return steps, nil
 }
 
@@ -845,11 +878,25 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 		map[string]any{"name": "platform", "configMap": map[string]any{"name": platformRecord}},
 		map[string]any{"name": "service-token", "projected": map[string]any{"sources": []any{map[string]any{"serviceAccountToken": map[string]any{"path": "token", "expirationSeconds": 3600}}, map[string]any{"configMap": map[string]any{"name": "kube-root-ca.crt", "items": []any{map[string]any{"key": "ca.crt", "path": "ca.crt"}}}}}}},
 	}
-	return map[string]any{
+	strategy := map[string]any{}
+	if _, enabled := stackConfig(request); enabled {
+		mounts := container["volumeMounts"].([]any)
+		container["volumeMounts"] = append(mounts, map[string]any{"name": "evidence", "mountPath": "/var/lib/agenova"})
+		pod := template["spec"].(map[string]any)
+		pod["securityContext"] = map[string]any{"fsGroup": 65532}
+		pod["volumes"] = append(pod["volumes"].([]any), map[string]any{"name": "evidence", "persistentVolumeClaim": map[string]any{"claimName": "agenova-evidence-data"}})
+		container["env"] = append(container["env"].([]any), map[string]any{"name": "AGENOVA_EVIDENCE_PATH", "value": "/var/lib/agenova/evidence.db"})
+		strategy = map[string]any{"type": "Recreate"}
+	}
+	result := map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment",
 		"metadata": map[string]any{"name": controlPlaneName, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}},
 		"spec":     map[string]any{"replicas": 1, "selector": map[string]any{"matchLabels": labels}, "template": template},
 	}
+	if len(strategy) > 0 {
+		result["spec"].(map[string]any)["strategy"] = strategy
+	}
+	return result
 }
 
 func serviceAccountObject(namespace string) map[string]any {

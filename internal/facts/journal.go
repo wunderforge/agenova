@@ -51,6 +51,8 @@ type Journal struct {
 	ids              map[string]struct{}
 	facts            []Fact
 	now              func() time.Time
+	sequence         uint64
+	Commit           func(Fact) error
 }
 
 type invocationState struct {
@@ -102,6 +104,12 @@ func (j *Journal) BindClaim(ref string, claim v0.SandboxClaim) error {
 // Append assigns identity/time/order and rejects attempts to rewrite or
 // cross-attribute facts. Unresolved operations never get a fabricated claim.
 func (j *Journal) Append(fact Fact) (Fact, error) {
+	return j.AppendWithCommit(fact, j.Commit)
+}
+
+// AppendWithCommit validates under the journal lock, commits before publication,
+// and leaves correlation/order unchanged when durable storage rejects the write.
+func (j *Journal) AppendWithCommit(fact Fact, commit func(Fact) error) (Fact, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	principal, ok := j.requests[fact.RequestRef]
@@ -174,7 +182,7 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 		}
 		stage.completed = true
 	}
-	sequence := uint64(len(j.facts) + 1)
+	sequence := j.sequence + 1
 	if fact.ID == "" {
 		fact.ID = fmt.Sprintf("fact:%d", sequence)
 	}
@@ -189,6 +197,16 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 	if err != nil {
 		return Fact{}, err
 	}
+	if commit != nil {
+		committedCopy, err := cloneFact(copy)
+		if err != nil {
+			return Fact{}, err
+		}
+		if err := commit(committedCopy); err != nil {
+			return Fact{}, err
+		}
+	}
+	j.sequence = sequence
 	j.ids[copy.ID] = struct{}{}
 	if copy.InvocationID != "" {
 		j.invocations[copy.InvocationID] = copy.ClaimID
@@ -241,4 +259,11 @@ func cloneFact(value Fact) (Fact, error) {
 		return Fact{}, fmt.Errorf("fact could not be copied")
 	}
 	return copy, nil
+}
+
+// StartSequence reserves the durable prefix before accepting new requests.
+func (j *Journal) StartSequence(sequence uint64) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.sequence = sequence
 }
