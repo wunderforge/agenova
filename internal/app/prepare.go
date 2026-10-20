@@ -49,7 +49,7 @@ func PrepareReferenceAssignment(data []byte, preset ReferencePrincipalPreset) (P
 // PrepareAssignment is shared by connected and reference compositions. The
 // caller supplies trusted identity, active policy and registered templates;
 // the request can supply none of those authorities.
-func PrepareAssignment(data []byte, principals PrincipalSource, policies authorization.BundleSource, templates TemplateSource) (PreparedAssignment, error) {
+func PrepareAssignment(data []byte, principals PrincipalSource, policies policy.SnapshotSource, templates TemplateSource) (PreparedAssignment, error) {
 	request, validationErr := v0.ParseClaimRequestYAML(data)
 	if validationErr != nil {
 		return PreparedAssignment{}, validationErr
@@ -57,8 +57,12 @@ func PrepareAssignment(data []byte, principals PrincipalSource, policies authori
 	if policies == nil || templates == nil {
 		return PreparedAssignment{}, fmt.Errorf("policy and template sources are required")
 	}
-	bundle, available := policies.Current()
-	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: immutablePolicy{bundle, available}})
+	snapshot, available := policies.Snapshot()
+	var bundle policy.PolicyBundle
+	if described, ok := snapshot.(interface{ BundleSnapshot() policy.PolicyBundle }); ok {
+		bundle = described.BundleSnapshot()
+	}
+	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: immutablePolicy{snapshot, available}})
 	if err != nil {
 		return PreparedAssignment{}, err
 	}
@@ -105,8 +109,8 @@ func ReferenceTemplate() *v0.AgentTemplate {
 func ReferencePolicy() policy.PolicyBundle { return referencePolicyBundle() }
 
 type immutablePolicy struct {
-	bundle    policy.PolicyBundle
+	evaluator policy.Evaluator
 	available bool
 }
 
-func (p immutablePolicy) Current() (policy.PolicyBundle, bool) { return p.bundle, p.available }
+func (p immutablePolicy) Snapshot() (policy.Evaluator, bool) { return p.evaluator, p.available }

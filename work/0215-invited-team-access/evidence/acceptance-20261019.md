@@ -1,0 +1,97 @@
+# Acceptance continuation — 19 October 2026
+
+## Verified
+
+- Main CI is unchanged. Head a9eeb26 baseline run 39234657466 passed; earlier native
+  Linux/Windows runs remain historical package evidence, not required workflow additions.
+- Actual EKS, namespace agenova-system, compatible worker digest
+  `sha256:ec74e41c6348b4e4d10d4da3ab1ee0561d44c1e05964487adb2cc4a9c7b4ca9e`:
+  `TestControlledRuntimeBackend_Recovery` passed in 40.24 seconds.
+  A unique test worker ran a real child task. A new adapter with empty in-memory
+  bookkeeping reattached solely for cleanup. Start was rejected, premature cleanup
+  was rejected, and the running worker's status/result remained unchanged. Terminate
+  acknowledged stopped; independent Kubernetes reads confirmed claim, Sandbox and
+  Pod absence. Unique test pool/template were removed. No production Pod was restarted.
+- Disposable PostgreSQL 16: uncached race-enabled tests passed for console,
+  workstore, authentication/postgres, invitations and control-plane packages.
+  Includes own-evidence isolation, concurrent admission, writer fencing, session
+  logout cancellation, grant/membership revocation, durable restart and uncertain
+  provider-outcome non-replay. No production database or member grants were modified.
+
+## Reproduce EKS adapter recovery
+
+Use an explicitly authorized cluster context and compatible immutable worker image:
+
+```sh
+go test -v -tags 'integration controlled' -run '^TestControlledRuntimeBackend_Recovery$' \
+  -timeout 6m ./harness/integration/agentsandbox -args \
+  -kube-context <context> -namespace <namespace> -controlled-worker-image <image-digest>
+```
+
+The test creates only uniquely named resources and stops/releases its own worker.
+It does not create clusters or modify existing member Work. Kubernetes access and
+Agent Sandbox v0.4.6-compatible CRDs/controller are prerequisites.
+
+## Explicit remaining gaps
+
+This proves real worker reattachment/stop/release, not abrupt control-plane process
+termination with PostgreSQL and Bedrock in flight. SQL crash boundaries use a
+synthetic provider; they cannot prove zero real Bedrock replay on their own.
+Owner declined the live Fisher revocation test. No teammate account was disabled,
+no session fabricated, and no fresh two-Google-user campaign is claimed.
+Schema-compatible live rollback, independent reviewer approval, real Windows/WSL
+Google login and budget/availability acceptance remain open. Ten-day continuous
+operation is now authorized until at least Sydney October 29 20:57 AEDT; this does
+not prove the AUD100/month long-term topology is feasible.
+
+Private transcripts: `.tmp/acceptance-20261019/eks-recovery.log` and `postgres.log`.
+
+## Portal cleanup validation
+
+Full repository gate passed: Go checks/tests, 125 frontend unit tests, build and
+56 browser smokes. The global Project/Template controls are removed; explicit
+scoped URLs still return the scoped configuration. Existing Work submission fields
+and server permissions are unchanged. The live member Deployment was updated only
+after confirming there were no active SandboxClaims, using an optimistic image patch.
+No schema or configuration migration. New immutable image: `931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/control-plane@sha256:282d9e32e73a87f562088c28a35490e7b4ddca2ae3a60192b3f3075091d6b10e`.
+Rollout reached ready.
+
+Live post-rollout Portal proof: `pr216-portal-acceptance-20261019`, request
+`work-c2abd63fedeaf89344d8b9f8e9ce3564a211f23b9e2286ae21f785b3c6f3623b`,
+Succeeded with Cleanup Released. The UI reports the final actual model
+`amazon.nova-micro-v1:0`, 749 input / 67 output tokens, two model turns and one tool
+observation. Existing four Work records remained visible after deployment.
+The reused authenticated browser is not a fresh Google registration test.
+During single-replica rollout the browser briefly reported unavailable/502; after
+readiness and retry the list and new task succeeded. This is not zero-downtime HA.
+Rendered proof is privately retained as `.tmp/acceptance-20261019/live-work.png`.
+Anonymous /api/requests and /api/setup both returned 401 after the rollout.
+
+## Independent agent review, 19 October
+
+An independent agent reviewed member/session authority, evidence SQL scoping,
+Google/native sessions, recovery and the image-only upgrade path. This is a scoped
+review, not approval of every changed file or a GitHub maintainer approval.
+
+Two P2 availability findings were confirmed:
+
+- Revoked sessions and sessions invalidated by member disable/re-enable still
+  counted toward the 32-active-session limit. Session issuance now removes only
+  expired/revoked/invalidated rows under its existing member lock. Revocation
+  tombstones and audit records remain intact. A disposable PostgreSQL regression
+  performs 40 login/logout cycles, preserves all tombstones, enforces the limit
+  for genuinely active sessions, and verifies re-enable cannot revive old tokens.
+  Uncached race tests for authentication/postgres and console passed.
+- Anonymous native authorization requests share a global 128-entry attempt pool
+  with browser attempts and verified callback codes. An anonymous caller can
+  exhaust it for up to five minutes. This remains open: a fix must distinguish
+  trustworthy source limits from caller-supplied forwarding headers and reserve
+  verified callback capacity. Do not load-test this against the production login
+  service or describe the PR as merge-ready while the finding is unresolved.
+
+The session-cap change has not yet been deployed to the live service. Private
+regression log: `.tmp/acceptance-20261019/review-session-fix.log`.
+
+Full `scripts/check.ps1 -All` passed after the session-cap fix, including 125
+frontend unit tests and 56 browser smokes. CI configuration remains identical to
+main. This local gate does not resolve the anonymous-attempt finding.

@@ -80,3 +80,7 @@ Extend preflight/plan/apply/status with storage/RBAC checks, stable owned resour
 - Database contains user task/results even though telemetry excludes them; protect volume and authorized read boundaries.
 - E14 is absent from the inspected baseline. Fixtures are not real identity evidence; keep #180 open while its integration gate is blocked.
 - Interrupted Work may leave runtime resources. Record known/unknown cleanup honestly and retain the existing operator process.
+
+## Reconciliation with current E14 implementation
+
+PR #235 now retains upstream authenticated PostgreSQL Work storage and live session/project authorization. SQLite is reference-only; the service rejects competing storage owners. Authenticated history is implemented by the PostgreSQL adapter using the same membership/project SQL predicate before keyset pagination. Its encrypted cursor key belongs to the exclusive writer lifetime, so a restart invalidates pagination hints without deleting Work; SQLite retains its persisted cursor key. Both paths preserve governance/telemetry separation and never restore stored claim authority. An admission's original reference-policy/template snapshots remain private storage metadata; generic Policy evaluators remain backend-neutral and may optionally describe their snapshot.

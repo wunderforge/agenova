@@ -1,0 +1,2 @@
+valid: reference-kind
+revision: sha256:9f11889f78dd5e0d2c5042804d53417c06997be8910bdf1fa2f78151cb5b847f

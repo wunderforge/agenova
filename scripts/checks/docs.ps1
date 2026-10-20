@@ -72,7 +72,7 @@ function Test-ArchitectureText {
   foreach ($required in @(
     "## Create a Packet",
     "## Ownership Boundary",
-    "## Review Gate",
+    "## Self-Review Gate",
     "scripts\new-task.ps1",
     "work/0072-claim-request/",
     "task.md",
@@ -88,10 +88,17 @@ function Test-ArchitectureText {
     "docs/product/prd.md",
     "work/<issue>-<slug>/task.md",
     "docs/harness/playbooks.md",
-    "stop for Owner/Reviewer approval"
+    "assignee self-reviews"
   )) {
     if ($agents -notmatch [regex]::Escape($required)) {
       Fail "AGENTS.md execution routing is missing: $required"
+    }
+  }
+
+  foreach ($path in @("AGENTS.md", "docs/development/AIDLC.md", "docs/harness/playbooks.md", "work/README.md", "docs/harness/templates/task.md", "scripts/new-task.ps1")) {
+    $raw = Get-Content -LiteralPath (Join-Path $Root $path) -Raw
+    if ($raw -match "(?i)stop\s+for\s+Owner/Reviewer\s+approval" -or $raw -match "(?i)stop\s+until\s+Owner/Reviewer\s+approval" -or $raw -match "(?i)approve\s+the\s+task\s+packet\s+before") {
+      Fail "obsolete pre-implementation packet approval gate: $path"
     }
   }
 

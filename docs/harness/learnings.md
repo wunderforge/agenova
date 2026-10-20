@@ -1,5 +1,9 @@
 # Harness Learnings
 
+## 2026-10-19 - Windows integration formatter limit
+
+Combining member access and Tool sources produced 266 Go paths with over 36,000 argument characters in a deep worktree. A single native gofmt invocation exceeded Windows process limits (PowerShell surfaced a misleading StandardOutputEncoding error). The formatter gate now checks all files in batches of 32, with a regression proving complete traversal, later-batch findings and error propagation. No files or quality stages are skipped.
+
 Add an entry only when a failure or repeated steering should change future work.
 
 ## 2026-08-12 — Shared-repo cleanup
@@ -61,6 +65,23 @@ Root cause:
 Harness amendment:
 
 - On the next harness-maintenance Ticket, either compare module files before and after `go mod tidy` without depending on Git staging state, or explicitly document the staging precondition.
+
+## 2026-09-22 — Packet approval blocked assignee autonomy
+
+What slowed work:
+
+- The assignee had to wait for Owner/Reviewer approval of task-packet Markdown before implementing an accepted Ticket.
+- Templates, scaffolding output, and the docs gate all reinforced that extra dependency.
+
+Root cause:
+
+- Planning self-check and independent PR review were conflated into a pre-implementation sign-off.
+
+Harness amendment:
+
+- Let the assignee self-review the packet against the Ticket and PRD, record material decisions, and proceed within the accepted scope.
+- Keep independent PR review and escalate only unresolved scope, product, security, or architecture conflicts.
+- Guard the docs gate against restoring the obsolete packet-approval language.
 
 ## Escalation Rule
 

@@ -42,6 +42,38 @@ func TestLoaderLoadsVersionedBundle(t *testing.T) {
 	}
 }
 
+func TestLoaderIdempotentlyReloadsExplicitEmptyCap(t *testing.T) {
+	loader := &Loader{}
+	bundle := validBundle()
+	bundle.Rules[0].Constraints = &AuthorityConstraints{Tools: &StringSetConstraint{Values: []string{}}}
+	if err := loader.Load(bundle); err != nil {
+		t.Fatal(err)
+	}
+	if err := loader.Load(bundle); err != nil {
+		t.Fatalf("identical empty cap conflicts: %v", err)
+	}
+	current, ok := loader.Current()
+	if !ok || current.Rules[0].Constraints.Tools.Values == nil {
+		t.Fatalf("explicit empty cap lost presence: %+v", current)
+	}
+	changed := clone(bundle)
+	changed.Rules[0].Constraints.Tools.Values = []string{"git.read"}
+	if err := loader.Load(changed); err == nil {
+		t.Fatal("changed cap under same Policy version accepted")
+	}
+}
+
+func TestLoaderIdempotentlyReloadsEmptyDefaultDenyRules(t *testing.T) {
+	loader := &Loader{}
+	bundle := PolicyBundle{ID: "empty", Version: "1", Rules: []Rule{}}
+	if err := loader.Load(bundle); err != nil {
+		t.Fatal(err)
+	}
+	if err := loader.Load(bundle); err != nil {
+		t.Fatalf("identical empty rules conflict: %v", err)
+	}
+}
+
 func TestPolicyIdentityIsBoundedForEvidence(t *testing.T) {
 	for _, mutate := range []func(*PolicyBundle){
 		func(bundle *PolicyBundle) { bundle.ID = strings.Repeat("a", 129) },

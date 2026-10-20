@@ -188,8 +188,11 @@ func TestConcurrentValidatedAppendsSurviveReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	journal := facts.NewJournal()
+	journal, err = facts.NewDurableJournal(0, func(f facts.Fact) error { return r.Append(f, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
 	journal.RegisterRequest("parallel", v0.Principal{Subject: "alice"})
-	journal.Commit = func(f facts.Fact) error { return r.Append(f, nil) }
 	var wg sync.WaitGroup
 	for i := 0; i < 32; i++ {
 		wg.Add(1)

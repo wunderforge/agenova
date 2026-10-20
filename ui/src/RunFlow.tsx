@@ -33,7 +33,7 @@ export function flowStages(e: FlowEvidence): FlowStage[] {
 }
 export function RunFlow({ evidence, activityHref, summary }: { evidence: FlowEvidence; activityHref: string; summary?: string }) {
   const stages = flowStages(evidence);
-  return <section className="portal-flow" aria-label="Work status">
+  return <section className="portal-flow" aria-label="Work status" data-status={evidence.status}>
     <div className="portal-flow-head"><h2>Work status</h2></div>
     {summary && <p className="portal-work-summary" role="status">{summary}</p>}
     <ol className="portal-flow-track">

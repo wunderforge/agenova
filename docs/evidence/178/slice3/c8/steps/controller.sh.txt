@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -u
+cd <repo>
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+mkfifo .tmp/e16-c8-steps/commands
+exec 3<>.tmp/e16-c8-steps/commands
+while IFS= read -r -u 3 instruction; do
+  if [ "$instruction" = finish ]; then break; fi
+  if [ -e .tmp/e16-c8-steps/blocked ]; then printf "Blocked after earlier failure: %s\n" "$instruction"; continue; fi
+  read -r -a args <<< "$instruction"
+  bash .tmp/e16-c8-steps/run-step.sh "${args[@]}"
+  rc=$?
+  printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rc" "$instruction" >> .tmp/e16-c8-steps/controller-results.tsv
+  if [ "$rc" -ne 0 ]; then printf "%s\n" "$instruction" > .tmp/e16-c8-steps/blocked; fi
+  printf 'CONTROLLER_STEP_EXIT=%s %s\n' "$rc" "$instruction"
+done

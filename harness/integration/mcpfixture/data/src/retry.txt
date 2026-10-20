@@ -1,0 +1,7 @@
+retry loop summary (payment-client v1.4.2)
+
+- Allows 3 attempts with a fixed 2 second backoff.
+- Each attempt starts a fresh 5 second deadline instead of using the time
+  remaining from the total request deadline.
+- Retries do not reuse a stable idempotency key, so a late success can
+  duplicate a charge.

@@ -45,7 +45,8 @@ try {
   ) | Set-Content -LiteralPath $summary -Encoding UTF8
 
   $wrapped = "`$ErrorActionPreference = 'Continue'; $Command; if (`$null -ne `$LASTEXITCODE) { exit `$LASTEXITCODE }"
-  powershell -NoProfile -ExecutionPolicy Bypass -Command $wrapped *>&1 |
+  $pwsh = (Get-Process -Id $PID).Path
+  & $pwsh -NoProfile -Command $wrapped *>&1 |
     Tee-Object -FilePath $output
 
   $commandExitCode = $LASTEXITCODE

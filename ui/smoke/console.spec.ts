@@ -91,10 +91,14 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   await page.keyboard.press('Enter');
   await expect(page.getByText('Requested, not granted: github.pull-request')).toBeVisible();
   const select = page.getByLabel('Fixture presentation scenario');
-  // Native select Home/ArrowDown semantics differ across host platforms.
-  // Keyboard focus/navigation is asserted above; select the source state
-  // through Playwright's native-control API for a deterministic announcement.
-  await select.selectOption('loading');
+  await select.focus();
+  await expect(select).toBeFocused();
+  // Native select Home/ArrowDown handling differs by OS. Exercise keyboard
+  // type-ahead for the named option instead of assuming a popup cursor index.
+  await page.keyboard.press('l');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\?scenario=loading$/);
+  await expect(select).toHaveValue('loading');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);
   await expect(page.getByText('Allow', { exact: true })).toHaveCount(0);

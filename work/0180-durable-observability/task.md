@@ -104,3 +104,14 @@ Out of scope:
 - Final clean-snapshot gate passed all 54 browser smoke cases, including explicit history pagination and inactive authority/progress after interruption. Final screenshots were visually inspected and selected synthetic artifacts copied under `evidence/`.
 
 - Publication verification: `-Profile PR` passed the exact staged source in a clean snapshot, including full Go race and 54 browser checks; see [PR gate log](evidence/pr-gate.log). Refreshing remote main found 135 newer commits, including E14 #207. This branch has not integrated that newer baseline; its E14-absent findings apply to the tested base. Publish as draft pending main reconciliation and real-user integration.
+
+## Main reconciliation for PR #235
+
+- Integrated `origin/main` at `3c3556321`; preserve E14 trusted sessions, live project authorization, workload identity, configured tool backends, PostgreSQL writer fencing and existing rollout behavior.
+- SQLite remains the optional single-instance reference adapter; authenticated mode continues using E14 PostgreSQL durability. Configuring both stores or using SQLite as an authenticated replacement fails closed.
+- Authenticated history uses the same SQL membership/project predicate as item reads before pagination. Cursors are authenticated/encrypted ordering hints, reauthorized on every page; PostgreSQL writer restart invalidates its cursors and clients restart from the first page. SQLite cursor keys retain their existing persisted lifetime.
+- Admission snapshots are stored privately with PostgreSQL Work and retained at finalization; raw policy/template snapshots are not added to the public evidence response. The immutable reference evaluator exposes an optional descriptive bundle snapshot without changing the generic Policy evaluator contract.
+- Focused actual PostgreSQL/race tests cover paging, new admissions during traversal, own/project visibility, cursor reuse under another principal, tampering and live role revocation. Browser regression now contains 63 cases. These are database and injected identity tests, not real external OIDC/two-user acceptance.
+- The pre-merge kind/Ollama images and screenshots remain historical evidence for the earlier source manifest. No deployment of the reconciled branch is implied by those artifacts.
+
+- Reconciled `-Profile PR` passed with lockfile-installed UI dependencies, full Go/race and 63 browser cases; real PostgreSQL tests were enabled. Evidence: [merge gate](evidence/merge-pr-gate.log), [focused database race](evidence/merge-postgres-race.log), [source hashes](evidence/merge-source.json).

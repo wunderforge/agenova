@@ -1,0 +1,7 @@
+harness/integration/e16/campaign.sh: line 1340: 33980 Terminated: 15          ( for _ in $(seq 1 600);
+do
+    pod_identity "$INSTALL_NAMESPACE" agents.x-k8s.io/sandbox-template-ref-hash >> "$out/worker-identity.txt" 2> /dev/null || true; capture_workers "$out" 2> /dev/null || true; sleep 1;
+done )
+[info] plan: agenova api connect on 8088, UI dev server on 5177, run the @setup and @positive tests for e16-positive-a1
+[pass] CLI, API and Portal agree for positive attempt 1
+[pass] Work positive attempt 1 accepted and its CLI, API and Portal evidence archived

@@ -5,12 +5,12 @@
 Use when a contributor is ready to turn an accepted GitHub Ticket into coding-agent execution context.
 
 1. Read the Ticket, `AGENTS.md`, and `docs/product/prd.md`.
-2. Confirm the Ticket has one bounded outcome, acceptance criteria, a negative case, evidence requirements, Owner, Reviewer, and dependencies.
+2. Confirm the Ticket has one bounded outcome, acceptance criteria, a negative case, evidence requirements, and known dependencies. Reviewer assignment is needed for PR review, not for packet preparation or implementation.
 3. Choose Task, Task + Spec, or Task + Spec + Design using `docs/development/AIDLC.md`.
 4. Run `./scripts/new-task.ps1` with the Issue number, slug, title, and required planning-depth switches.
 5. Replace every `TODO` marker, linking only task-relevant context.
-6. Check the packet against the Ticket and PRD, then stop until Owner/Reviewer approval is recorded in the Ticket.
-7. Begin implementation only after the task packet is approved.
+6. Remove every `TODO` marker. The assignee self-reviews scope, acceptance, constraints, negative case, and gates against the Ticket and PRD; record material task-local decisions in the packet.
+7. Begin implementation after that self-review. Packet approval is not a prerequisite; escalate only an unresolved conflict or scope expansion beyond the accepted Ticket or architecture contract. Independent review remains a PR gate.
 
 Do not ask the Agent to implement directly from a conversational prompt or create a packet that silently changes the Ticket.
 

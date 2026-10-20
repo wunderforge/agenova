@@ -1,6 +1,35 @@
 # Agenova
 
+**Reuse agents. Authorize each task.**
+
 Agenova gives each AI agent job a clear, temporary, and auditable operating boundary.
+
+[Open the team Portal](https://app.agenova.app/) ·
+[Team Quick Guide](docs/team-quick-guide.md) ·
+[Run locally](docs/reference-cli-kind-ollama.md) ·
+[UI development](ui/README.md)
+
+The hosted Portal is a shared team preview: sign in with Google, then request
+administrator approval and project access. Viewing the public homepage does not
+grant access to Work or evidence. Ordinary members do not need an AWS account.
+
+## See the Product
+
+![Agenova Work explorer with request activity, admission decisions, execution status, and account controls](docs/images/work-explorer.png)
+
+*Actual React UI with illustrative test data, not live member records.*
+
+- **Follow the Work:** see the loaded request list, activity chart and execution
+  status without confusing an admission decision with a successful result.
+- **Inspect its permissions:** open a Work to compare requested and granted
+  access, then inspect its recorded calls, lifecycle and result.
+- **Use one source of evidence:** the connected Portal and CLI use the same
+  Agenova API; the browser does not create its own authority.
+
+For the interface tour, keyboard shortcuts and local preview instructions, see
+the [Portal guide](ui/README.md#work-explorer-and-evidence-inspection).
+
+## How It Fits
 
 For example, a reusable `engineer` agent role may be asked to fix one bug in one repository. Agenova records which role and runnable artifact are being used, what this run is asked to do, what tools/models/memory it may access, when that authority ends, what actually happened, and where the worker ran.
 
@@ -16,6 +45,16 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 
 ## Start Here
 
+**Using the hosted team service:** start with the [Team Quick Guide](docs/team-quick-guide.md)
+for Google sign-in, approval, macOS Homebrew / Windows installation and common CLI
+commands. [Installation details](docs/cli-installation.md) and
+[team use cases](docs/team-use-cases.zh-CN.md) cover troubleshooting and permissions.
+Ordinary members do not need AWS access; infrastructure operators follow the
+separate AWS SSO/EKS section. Hosting availability is environment-specific.
+
+For the tested 19 October shared deployment, use the [shared EKS trial](docs/development/shared-eks-trial.md): build the matching CLI, sign in, submit an allowed or denied Work and query its evidence. It names the new compatible template and the capabilities still awaiting external-service deployment.
+
+
 1. [Project design](docs/project-design.md) — the product model, flows, diagrams, and end-state vision.
 2. [MVP PRD](docs/product/prd.md) — the current shared delivery target and acceptance criteria.
 3. [Current status](docs/project-status.md) — what is implemented, what is only a spike, and what comes next.
@@ -25,7 +64,27 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 
 To reproduce the current reference installation and a real kind + Ollama Work from the CLI, then inspect the same record in a local React Portal, follow the [kind + Ollama guide](docs/reference-cli-kind-ollama.md). It separates substrate preparation from Agenova configuration, registration, execution and optional UI connection, and states the reference-only limits.
 
+On macOS (Intel or Apple Silicon), install Docker Desktop, kind, kubectl, Go,
+PowerShell 7, and optionally Ollama, then run the repository-owned bootstrap:
+
+```bash
+bash harness/local/macos-bootstrap.sh doctor
+bash harness/local/macos-bootstrap.sh setup
+```
+
+`setup` prepares the owned kind cluster and pinned Agent Sandbox substrate,
+builds and loads the required images, applies the reviewed Platform manifest,
+and registers the reference Policy and AgentTemplate. It is safe to repeat.
+Run `bash harness/local/macos-bootstrap.sh verify` to additionally require
+Ollama plus `llama3.1:latest` and execute the sample Work. Use `dry-run` to
+inspect the stages without Docker/Kubernetes mutations and `down` for explicit,
+ownership-checked cluster cleanup. This is a local reference path, not a
+production installer.
+
 Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
+
+For maintainers of the existing shared AWS demo, see the [gated image-delivery runbook](docs/development/shared-eks-release.md).
+Publication and control-plane rollout require explicit enablement; Worker template migration and cluster lifecycle are not automated by that workflow.
 
 ## Current Baseline
 
@@ -40,7 +99,7 @@ The repository contains a working Go reference implementation for:
 - a declarative CLI path for Platform validate/plan/apply/status, narrow Policy and AgentTemplate registration, and Work submission against an installed reference service;
 - a real kind + Agent Sandbox worker and Ollama model path for the documented reference configuration.
 
-The #180 implementation in this branch adds durable SQLite Work/evidence, paginated history, and optional OpenTelemetry export with a Platform-managed Grafana/Tempo/Loki/Prometheus stack. Real kind/Ollama verification and remaining E14 identity/read-authorization acceptance are recorded in the [#180 verification report](work/0180-durable-observability/evidence.md); #180 remains open. Production identity or controllers, Helm packaging and a Memory Interface remain outside this delivery. The CLI can query historical Work after service restart; a separately started local React Portal can use an explicit loopback connection to the same installed private API. The UI is not installed by `platform apply`, and the local tunnel is not production authentication. See [Current status](docs/project-status.md) for the exact boundary.
+The shared member service additionally has personal Google login, approved project membership, project-scoped registration and SQL-backed Work/evidence. Its paired Control Plane/Worker CI/CD rollout and real Bedrock allowed/denied CLI path were verified on 19 October. The June Portal, public landing and coordinated schema-009/proxy update were deployed on 20 October; see [Current status](docs/project-status.md) for the exact release and verification boundaries. This is not general production certification: real external MCP/Memory/OTEL services and hostile-agent isolation acceptance remain separate. The #180 branch adds optional durable SQLite reference history and a Platform-managed OTEL/Grafana stack; the authenticated E14 path retains PostgreSQL storage and live project authorization. See the [#180 verification report](work/0180-durable-observability/evidence.md) for evidence and remaining integration limits. The local reference tunnel is not production authentication. UI installation is not part of `platform apply`.
 
 ## Validate
 
@@ -82,6 +141,7 @@ Unknown commands, authority flags, and invalid ClaimRequest documents exit non-z
 - `internal/toolgateway/`, `internal/modelgateway/`: in-process governance reference paths.
 - `internal/facts/`, `internal/governance/`: fact storage and experimental claim-lineage behavior.
 - `harness/`: executable reference and integration scenarios.
+- `ui/`: React Work explorer, evidence inspector and public landing assets.
 - `docs/`: product authorities, implementation evidence, backend notes, and delivery rules.
 - `work/`: Ticket-derived Agent task packets; GitHub remains the team tracker.
 

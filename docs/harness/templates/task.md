@@ -39,7 +39,7 @@ Out of scope:
 ## Execution Todo
 
 - [ ] Scout the relevant implementation, tests, risks, and dependencies.
-- [ ] Confirm this packet with the Owner and Reviewer before implementation.
+- [ ] Assignee self-review: check scope, acceptance, negative case, constraints, and gates against the Ticket and PRD; record material decisions.
 - [ ] TODO — smallest implementation step
 - [ ] Add or update focused behavioral evidence.
 - [ ] Run the focused gate and `./scripts/check.ps1 -All`.

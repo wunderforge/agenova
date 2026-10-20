@@ -25,6 +25,8 @@ function Test-RequiredDocs {
     "docs/harness/templates/spec.md",
     "docs/harness/templates/design.md",
     "harness/README.md",
+    "harness/local/macos-bootstrap.sh",
+    "harness/local/test-macos-bootstrap.sh",
     "work/README.md",
     "scripts/install-hooks.ps1",
     "scripts/checks/repository.ps1",

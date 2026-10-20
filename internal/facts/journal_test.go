@@ -70,6 +70,68 @@ func TestJournalInvocationAttemptOutcomeOrdering(t *testing.T) {
 	}
 }
 
+// Scope kinds such as "repo:" stay valid; URI forms a client could fetch do
+// not, with or without a double slash.
+func TestValidResultRefRejectsFetchableURIs(t *testing.T) {
+	for ref, want := range map[string]bool{
+		"repo:agenova/e16-fixture/logs/timeout.log": true,
+		"artifact:readme":            true,
+		"notes/incident-timeline.md": true,
+		"file:/etc/passwd":           false,
+		"FILE:etc/passwd":            false,
+		"data:/text/plain,secret":    false,
+		"data:text/plain,secret":     false,
+		"javascript:alert(1)":        false,
+		"https:example.invalid/a":    false,
+		"ws:example.invalid/a":       false,
+		"ftp:example.invalid/a":      false,
+		"//example.invalid:80/a":     false,
+		"repo:/etc/passwd":           false,
+		"https://example.invalid/a":  false,
+		"repo:acme/payments/a?b":     false,
+	} {
+		if got := ValidResultRef(ref); got != want {
+			t.Errorf("ValidResultRef(%q) = %t, want %t", ref, got, want)
+		}
+	}
+}
+
+func TestJournalTruncationOnlyOnSuccessfulToolOutcome(t *testing.T) {
+	p := &v0.PolicyReference{ID: "policy", Version: "1"}
+	for _, tc := range []struct {
+		name   string
+		mutate func(attempt, outcome *Fact)
+		ok     bool
+	}{
+		{name: "successful tool outcome", mutate: func(_, outcome *Fact) { outcome.Truncated = true }, ok: true},
+		{name: "attempt", mutate: func(attempt, _ *Fact) { attempt.Truncated = true }},
+		{name: "failed outcome", mutate: func(_, outcome *Fact) { outcome.Truncated, outcome.ProviderStatus = true, "Failed" }},
+		{name: "model outcome", mutate: func(_, outcome *Fact) { outcome.Truncated, outcome.Operation = true, "model.invoke" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			j := newRegisteredJournal(t)
+			base := Fact{RequestRef: "a", ClaimID: "claim:a", InvocationID: "inv:tool", PolicyRef: p, Operation: "tool.invoke", Target: "repo.read"}
+			d := base
+			d.Kind, d.Result, d.ReasonCode = "ToolDecision", v0.DecisionResultAllow, "allowed"
+			attempt, outcome := base, base
+			attempt.Kind, attempt.ProviderStatus = "ProviderAttempt", "Attempted"
+			outcome.Kind, outcome.ProviderStatus = "ProviderOutcome", "Succeeded"
+			tc.mutate(&attempt, &outcome)
+			if _, err := j.Append(d); err != nil {
+				t.Fatal(err)
+			}
+			_, attemptErr := j.Append(attempt)
+			var outcomeErr error
+			if attemptErr == nil {
+				_, outcomeErr = j.Append(outcome)
+			}
+			if got := attemptErr == nil && outcomeErr == nil; got != tc.ok {
+				t.Fatalf("accepted=%t want %t (attempt=%v outcome=%v)", got, tc.ok, attemptErr, outcomeErr)
+			}
+		})
+	}
+}
+
 func TestJournalAuthorityAndBackendCannotBeReassigned(t *testing.T) {
 	j := newRegisteredJournal(t)
 	if _, err := j.Append(Fact{Kind: "AuthorityResolved", RequestRef: "a", ClaimID: "claim:a", Authority: &v0.EffectiveAuthority{ID: "authority:b"}}); err == nil {
@@ -155,21 +217,73 @@ func TestJournalPreClaimTypedDecisionAndOrdering(t *testing.T) {
 	}
 }
 
-// A failed durable append cannot consume order or publish correlation state.
-func TestCommitFailureDoesNotPublishFact(t *testing.T) {
-	j := NewJournal()
-	if err := j.RegisterRequest("durable", v0.Principal{Subject: "alice"}); err != nil {
+func TestDurableJournalCommitFailureDoesNotPublishOrAuthorize(t *testing.T) {
+	failing := true
+	commits := 0
+	j, err := NewDurableJournal(90, func(f Fact) error {
+		commits++
+		if failing {
+			return fmt.Errorf("storage unavailable")
+		}
+		if f.Sequence != 91 {
+			t.Fatal("sequence advanced after failed commit")
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	failed := func(Fact) error { return fmt.Errorf("storage unavailable") }
-	if _, err := j.AppendWithCommit(Fact{Kind: "RequestReceived", RequestRef: "durable"}, failed); err == nil {
-		t.Fatal("ignored commit failure")
+	if err := j.RegisterRequest("request", v0.Principal{Subject: "user"}); err != nil {
+		t.Fatal(err)
 	}
-	if len(j.ForRequest("durable")) != 0 {
-		t.Fatal("published uncommitted fact")
+	if err := j.BindClaim("request", v0.SandboxClaim{ID: "claim", RequestRef: "request", AuthorityRef: "authority"}); err != nil {
+		t.Fatal(err)
 	}
-	f, err := j.Append(Fact{Kind: "RequestReceived", RequestRef: "durable"})
-	if err != nil || f.Sequence != 1 {
-		t.Fatalf("consumed failed sequence: %+v %v", f, err)
+	decision := Fact{Kind: "ModelDecision", RequestRef: "request", ClaimID: "claim", InvocationID: "inv", Result: v0.DecisionResultAllow, ReasonCode: "allowed", PolicyRef: &v0.PolicyReference{ID: "policy", Version: "1"}}
+	if _, err := j.Append(decision); err == nil {
+		t.Fatal("failed commit reported success")
+	}
+	if len(j.ForRequest("request")) != 0 {
+		t.Fatal("uncommitted fact published")
+	}
+	if _, err := j.Append(Fact{Kind: "ProviderAttempt", RequestRef: "request", ClaimID: "claim", InvocationID: "inv"}); err == nil {
+		t.Fatal("uncommitted decision authorized provider")
+	}
+	if commits != 1 {
+		t.Fatal("invalid attempt reached storage")
+	}
+	failing = false
+	if _, err := j.Append(decision); err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	if _, err := j.AppendWithCommit(Fact{Kind: "ProviderAttempt", RequestRef: "request", ClaimID: "claim", InvocationID: "inv"}, func(f Fact) error { seen = f.Sequence == 92; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !seen || commits != 2 || len(j.ForRequest("request")) != 2 {
+		t.Fatal("atomic override or sequence broken")
+	}
+}
+
+func TestDurableCommitCannotMutatePublishedFact(t *testing.T) {
+	j, err := NewDurableJournal(0, func(f Fact) error {
+		if f.PolicyRef != nil {
+			f.PolicyRef.ID = "mutated"
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.RegisterRequest("isolated", v0.Principal{Subject: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	ref := v0.PolicyReference{ID: "original", Version: "v1"}
+	f, err := j.Append(Fact{Kind: "RequestReceived", RequestRef: "isolated", PolicyRef: &ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.PolicyRef.ID != "original" || j.ForRequest("isolated")[0].PolicyRef.ID != "original" {
+		t.Fatal("committer rewrote evidence")
 	}
 }

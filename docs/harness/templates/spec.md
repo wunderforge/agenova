@@ -29,4 +29,4 @@ TODO — describe the observable behavior and why consumers need a shared contra
 
 ## Open Decisions
 
-- None, or link the decision that must be accepted before implementation.
+- None, or name an unresolved product/architecture decision that exceeds the accepted Ticket and needs a human decision.

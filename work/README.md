@@ -35,9 +35,9 @@ GitHub owns Owner, Reviewer, priority, sequence, dependencies, readiness, status
 
 The packet owns the Agent's context, scope, implementation Todo, constraints, task-local decisions, commands, and required evidence. Do not copy Project fields into it.
 
-## Review Gate
+## Self-Review Gate
 
-The Agent drafts the packet and then stops. The human Owner and Reviewer must remove unresolved template markers and record approval of the execution context in the GitHub Ticket before implementation begins.
+The assignee drafts the packet, removes unresolved template markers, and self-reviews it against the accepted Ticket and PRD before implementation. No separate Owner/Reviewer packet approval is required. An independent Reviewer evaluates the PR; conflicts with product scope or the architecture contract still require a human decision.
 
 Use `spec.md` for shared behavior and `design.md` for a technical decision that dependent contributors need to rely on. Do not add them for routine local work.
 

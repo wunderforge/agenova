@@ -1,0 +1,18 @@
+platform: demo-eks-bedrock
+revision: sha256:dd6b937e475e5036551ebb5b55af14c3ff7d4c1b194f5a4b588899966acaee32
+target: agenova-demo/agenova-system
+changed: true
+ready: true
+readiness scope: installation-components
+- adapter/agent-sandbox-runtime: configured
+- adapter/bedrock-backend: configured
+- adapter/kubernetes-deployment: used
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-platform: configured
+- deployment/agenova-system: available
+- policy/agenova-active-policy: configured
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured

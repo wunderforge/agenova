@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -24,16 +25,18 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
+	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/history"
-	sqlhistory "github.com/wunderforge/agenova/internal/history/sqlite"
-	"github.com/wunderforge/agenova/internal/modelprovider"
+	sqlstore "github.com/wunderforge/agenova/internal/history/sqlite"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 	"github.com/wunderforge/agenova/internal/telemetry"
+	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
+	"github.com/wunderforge/agenova/internal/workstore"
 )
 
 type status struct {
@@ -59,53 +62,117 @@ func main() {
 }
 
 func serve() error {
-	configured, err := configuredService("/etc/agenova/effective-platform.json")
+	configPath, err := memberConfigPath()
+	if err != nil {
+		return err
+	}
+	var members *memberDependencies
+	if configPath != "" {
+		members, err = openMemberDependencies(context.Background(), configPath)
+		if err != nil {
+			return err
+		}
+		defer members.db.Close()
+	}
+	var access console.AccessAuthorizer
+	var durable console.DurableWork
+	if members != nil {
+		access = members.store
+		writer, err := workstore.Acquire(context.Background(), members.db)
+		if err != nil {
+			return fmt.Errorf("acquire durable Work writer: %w", err)
+		}
+		defer writer.Close()
+		durable = writer
+	}
+	configured, err := configuredServiceWithDurable("/etc/agenova/effective-platform.json", access, durable)
 	if err != nil {
 		return err
 	}
 	defer configured.Close()
-	// Admission can perform three bounded registration reads (20s each) and
-	// two bounded runtime setup calls (30s each) before returning Accepted.
-	// Keep the server budget above their sum; clients wait longer still.
-	workHandler := console.Handler(configured)
-	if os.Getenv("AGENOVA_EVIDENCE_PATH") != "" {
-		workHandler = console.HandlerWithReadBoundary(configured, referenceReadBoundary())
+	var workHandler http.Handler = console.Handler(configured)
+	if members == nil && os.Getenv("AGENOVA_EVIDENCE_PATH") != "" {
+		source, _ := app.NewReferencePrincipalSource(app.ReferencePrincipalTeamA)
+		workHandler = console.HandlerWithReadBoundary(configured, console.ReadBoundary{Viewer: func(*http.Request) (v0.Principal, error) { return source.Principal(), nil }, Authorizer: history.AuthorizerFunc(func(_ context.Context, p v0.Principal, a history.Admission) bool { return p == a.Principal })})
 	}
-	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute}
-	privateListener, err := net.Listen("tcp", private.Addr)
+	var statusHandler http.Handler = handler()
+	if members != nil {
+		workHandler, err = members.handler(configured)
+		if err != nil {
+			return err
+		}
+		statusHandler = memberStatusHandler() // Kubelet readiness stays reachable; metadata is loopback-only.
+	}
+	baseStatus := statusHandler
+	statusHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" && !configured.Ready() {
+			http.Error(w, "evidence storage unavailable", 503)
+			return
+		}
+		baseStatus.ServeHTTP(w, r)
+	})
+	// The authenticated listener is behind a same-host TLS reverse proxy. Neither
+	// the reference API nor an unauthenticated private-command bypass is started.
+	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
+	listener, err := net.Listen("tcp", private.Addr)
 	if err != nil {
 		return fmt.Errorf("start private Work service: %w", err)
 	}
-	go func() {
-		if err := private.Serve(privateListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("private work service stopped: %v", err)
-		}
-	}()
-	server := &http.Server{Addr: ":8080", Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/readyz" && !configured.Ready() {
-			w.WriteHeader(503)
-			return
-		}
-		handler().ServeHTTP(w, r)
-	}), ReadHeaderTimeout: 5 * time.Second}
-	log.Printf("agenova reference control plane listening on %s", server.Addr)
-	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer listener.Close()
+	server := &http.Server{Addr: ":8080", Handler: statusHandler, ReadHeaderTimeout: 5 * time.Second}
+	statusListener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return fmt.Errorf("start private status service: %w", err)
+	}
+	defer statusListener.Close()
+	failures := make(chan error, 2)
+	go func() { failures <- private.Serve(listener) }()
+	go func() { failures <- server.Serve(statusListener) }()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-stopCtx.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		private.Shutdown(ctx)
-		server.Shutdown(ctx)
-	}()
-	err = server.ListenAndServe()
+	log.Printf("agenova control plane listening; member authentication enabled=%t", members != nil)
+	select {
+	case err = <-failures:
+	case <-ctx.Done():
+	}
+	shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_ = private.Shutdown(shutdown)
+	_ = server.Shutdown(shutdown)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
 }
 
+func memberConfigPath() (string, error) {
+	path, present := os.LookupEnv("AGENOVA_MEMBER_CONFIG")
+	mode := os.Getenv("AGENOVA_AUTH_MODE")
+	switch mode {
+	case "", "reference", "member":
+	default:
+		return "", errors.New("unknown authentication mode")
+	}
+	if present && strings.TrimSpace(path) == "" {
+		return "", errors.New("member configuration path is empty")
+	}
+	if mode == "member" && !present {
+		return "", errors.New("member configuration is required")
+	}
+	if mode == "reference" && present {
+		return "", errors.New("reference and member authentication cannot be combined")
+	}
+	return path, nil
+}
+
 func configuredService(path string) (*console.Service, error) {
+	return configuredServiceWithAccess(path, nil)
+}
+
+func configuredServiceWithAccess(path string, access console.AccessAuthorizer) (*console.Service, error) {
+	return configuredServiceWithDurable(path, access, nil)
+}
+func configuredServiceWithDurable(path string, access console.AccessAuthorizer, durable console.DurableWork) (*console.Service, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read installed Platform: %w", err)
@@ -117,15 +184,29 @@ func configuredService(path string) (*console.Service, error) {
 	if resolved.Revision == "" {
 		return nil, fmt.Errorf("installed Platform revision is missing")
 	}
+	registry, err := bundled.NewRegistry()
+	if err != nil {
+		return nil, err
+	}
+	_, namespace, err := app.DeploymentCoordinates(&resolved)
+	if err != nil {
+		return nil, err
+	}
+	// Token references resolve in the install namespace only, on each call.
+	tools, err := buildInstalledTools(&resolved, registry, kubectlSecretReader{namespace: namespace})
+	if err != nil {
+		return nil, err
+	}
+	// "configured" reports installed configuration, not a successful call.
+	toolStatus := "mock"
+	if tools != nil {
+		toolStatus = "configured"
+	}
 	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
 	if compatibleWorkerImage == "" {
 		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
 	}
 	if err := setInClusterKubeconfig(); err != nil {
-		return nil, err
-	}
-	_, namespace, err := app.DeploymentCoordinates(&resolved)
-	if err != nil {
 		return nil, err
 	}
 	store := registration.KubernetesStore{Namespace: namespace}
@@ -156,30 +237,11 @@ func configuredService(path string) (*console.Service, error) {
 		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 	}
 	adapter := agentsandbox.NewControlled("", runtimeNamespace)
-	modelConfig := modelprovider.Config{Models: map[string]string{}, MaxTokens: 512, OutputSchema: []byte(workerprotocol.ActionSchema), Timeout: 2 * time.Minute}
-	backends := map[string]string{}
-	for _, instance := range resolved.Instances {
-		if instance.Category != platform.CapabilityModel {
-			continue
-		}
-		if adapterIDs[instance.AdapterRef] != bundled.OpenAICompatibleModelID {
-			return nil, fmt.Errorf("reference Control Plane does not support the selected model adapter")
-		}
-		endpoint, _ := instance.Config["endpoint"].(string)
-		backends[instance.Name] = endpoint
-	}
+	modelProfiles := map[string]string{}
 	for _, profile := range resolved.Profiles {
-		if profile.Capability != platform.CapabilityModel {
-			continue
+		if profile.Capability == platform.CapabilityModel {
+			modelProfiles[profile.Name], _ = profile.Config["model"].(string)
 		}
-		model, _ := profile.Config["model"].(string)
-		if modelConfig.Endpoint == "" {
-			modelConfig.Endpoint = backends[profile.BackendRef]
-		}
-		if modelConfig.Endpoint != backends[profile.BackendRef] {
-			return nil, fmt.Errorf("reference model composition supports one endpoint")
-		}
-		modelConfig.Models[profile.Name] = model
 	}
 	runtimeProfiles := map[string]bool{}
 	for _, profile := range resolved.Profiles {
@@ -187,19 +249,25 @@ func configuredService(path string) (*console.Service, error) {
 			runtimeProfiles[profile.Name] = true
 		}
 	}
-	modelConfig.AllowDockerHostHTTP = strings.HasPrefix(modelConfig.Endpoint, "http://host.docker.internal:")
-	provider, err := modelprovider.New(modelConfig)
+	// The service sends each Work's schema with every model request; this one is only the fallback.
+	provider, err := bundled.NewInstalledModelClient(context.Background(), &resolved, []byte(workerprotocol.FinishSchema))
 	if err != nil {
 		return nil, err
 	}
-	preset := app.ReferencePrincipalTeamA // Fixed local reference identity, never request/CLI supplied.
-	principal, err := app.NewReferencePrincipalSource(preset)
-	if err != nil {
-		return nil, err
+	preset := app.ReferencePrincipalTeamA
+	var setupPrincipal v0.Principal
+	if access == nil {
+		principal, err := app.NewReferencePrincipalSource(preset)
+		if err != nil {
+			return nil, err
+		}
+		setupPrincipal = principal.Principal()
+	} else {
+		preset = "" // Authenticated mode cannot select a fixed reference identity.
 	}
 	var repository history.Repository
-	if path := os.Getenv("AGENOVA_EVIDENCE_PATH"); path != "" {
-		repository, err = sqlhistory.Open(path)
+	if path := os.Getenv("AGENOVA_EVIDENCE_PATH"); path != "" && durable == nil && access == nil {
+		repository, err = sqlstore.Open(path)
 		if err != nil {
 			return nil, err
 		}
@@ -231,8 +299,9 @@ func configuredService(path string) (*console.Service, error) {
 			repository.Close()
 		}
 	}
-	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, console.Options{
+	options := console.Options{
 		Repository: repository, Revision: resolved.Revision, Telemetry: diagnostic, OnClose: closeResources,
+		ToolBackend: tools,
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
 			if err != nil {
@@ -245,12 +314,24 @@ func configuredService(path string) (*console.Service, error) {
 			if len(templates) != 1 {
 				return console.Setup{}, fmt.Errorf("reference Portal requires exactly one registered AgentTemplate")
 			}
-			return console.Setup{Principal: principal.Principal(), Template: templates[0], Policy: bundle,
-				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": "mock", "memory": "notConnected"},
+			return console.Setup{Principal: setupPrincipal, Template: templates[0], Policy: bundle,
+				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": toolStatus, "memory": "notConnected"},
 				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
-		Prepare: func(data []byte) (app.PreparedAssignment, error) {
-			bundle, err := store.ActivePolicy()
+		PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
+			var source interface {
+				ActivePolicy() (policy.PolicyBundle, error)
+				Template(string) (*v0.AgentTemplate, error)
+				Lookup(string) (*v0.AgentTemplate, error)
+			} = store
+			if memberStore, ok := access.(identitydb.Store); ok {
+				request, err := v0.ParseClaimRequestJSON(data)
+				if err != nil {
+					return app.PreparedAssignment{}, err
+				}
+				source = identitydb.ProjectRegistry{Store: memberStore, Team: p.Team, Project: request.Spec.ProjectRef, Fallback: store}
+			}
+			bundle, err := source.ActivePolicy()
 			if err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_unavailable", Message: "Active PolicyBundle is unavailable; register or repair the active policy.", Cause: err}
 			}
@@ -258,18 +339,18 @@ func configuredService(path string) (*console.Service, error) {
 			if err := loader.Load(bundle); err != nil {
 				return app.PreparedAssignment{}, &console.SubmissionError{Code: "active_policy_invalid", Message: "Active PolicyBundle is invalid; register a valid policy version.", Cause: err}
 			}
-			prepared, err := app.PrepareAssignment(data, principal, loader, store)
+			prepared, err := app.PrepareAssignment(data, requestPrincipal{p}, loader, source)
 			if err != nil {
 				request, parseErr := v0.ParseClaimRequestJSON(data)
 				if parseErr == nil {
-					if _, lookupErr := store.Template(request.Spec.TemplateRef); lookupErr != nil {
+					if _, lookupErr := source.Template(request.Spec.TemplateRef); lookupErr != nil {
 						return prepared, &console.SubmissionError{Code: "agent_template_unavailable", Message: "AgentTemplate is unavailable; register the requested template.", Cause: err}
 					}
 				}
 				return prepared, &console.SubmissionError{Code: "assignment_unavailable", Message: "Assignment could not be resolved; check the registered template and active policy.", Cause: err}
 			}
 			if prepared.Issued != nil && prepared.Issued.Claim != nil {
-				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelConfig.Models, runtimeProfiles); err != nil {
+				if err := validateInstalledAuthority(prepared.Issued.EffectiveAuthority, modelProfiles, runtimeProfiles, tools); err != nil {
 					return app.PreparedAssignment{}, err
 				}
 			}
@@ -294,18 +375,92 @@ func configuredService(path string) (*console.Service, error) {
 			}
 			return app.ResolvedLaunch{TemplateRef: name}, nil
 		},
-	})
+	}
+	if memberStore, ok := access.(identitydb.Store); ok {
+		options.SetupFor = func(ctx context.Context, p v0.Principal, project, template string) (console.Setup, error) {
+			view, err := options.Setup()
+			if err != nil {
+				return view, err
+			}
+			projects, err := memberStore.ConfigurationProjects(ctx, p)
+			if err != nil {
+				return console.Setup{}, err
+			}
+			view.Principal = p
+			view.Projects = projects
+			if project == "" && len(projects) > 0 {
+				project = projects[0]
+			}
+			if project == "" {
+				view.Template = nil
+				view.Policy = policy.PolicyBundle{ID: "no-project-access", Version: "1", Rules: []policy.Rule{}}
+				return view, nil
+			}
+			if !slices.Contains(projects, project) {
+				return console.Setup{}, fmt.Errorf("project configuration access denied")
+			}
+			registry := identitydb.ProjectRegistry{Store: memberStore, Team: p.Team, Project: project, Fallback: store}
+			view.Project = project
+			view.Policy, err = registry.ActivePolicy()
+			if err != nil {
+				return console.Setup{}, err
+			}
+			visible := []policy.Rule{}
+			for _, rule := range view.Policy.Rules {
+				if rule.Team == p.Team && rule.Project == project {
+					visible = append(visible, rule)
+				}
+			}
+			view.Policy.Rules = visible
+			defaults := []string{}
+			if view.Template != nil {
+				defaults = append(defaults, view.Template.Metadata.Name)
+			}
+			view.Templates, err = registry.TemplateNames(defaults)
+			if err != nil {
+				return console.Setup{}, err
+			}
+			if template == "" && len(view.Templates) > 0 {
+				template = view.Templates[0]
+			}
+			if !slices.Contains(view.Templates, template) {
+				return console.Setup{}, fmt.Errorf("template unavailable")
+			}
+			view.Template, err = registry.Template(template)
+			return view, err
+		}
+	}
+	options.Access = access
+	options.Durable = durable
+	if durable != nil {
+		recoveryCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		_, recoveryErr := console.RecoverDurableWork(recoveryCtx, durable, adapter)
+		cancel()
+		if recoveryErr != nil {
+			return nil, fmt.Errorf("durable Work recovery incomplete; reconcile the recorded allocation before admitting new Work: %w", recoveryErr)
+		}
+	}
+	if access == nil {
+		prepare := options.PrepareFor
+		options.PrepareFor = nil
+		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return prepare(data, setupPrincipal) }
+	}
+	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
 	if err != nil {
 		closeResources()
 	}
 	return configured, err
 }
 
+type requestPrincipal struct{ value v0.Principal }
+
+func (p requestPrincipal) Principal() v0.Principal { return p.value }
+
 // This reference composition currently provides only a synthetic git.read
 // adapter and no Memory Interface. Check the issued effective grant before
 // the console journals a claim or configures a worker: a broader template
 // ceiling must never be mistaken for an implemented gateway capability.
-func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[string]string, runtimeProfiles map[string]bool) error {
+func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[string]string, runtimeProfiles map[string]bool, tools *toolbackend.Set) error {
 	if authority == nil {
 		return &console.SubmissionError{Code: "authority_missing", Message: "Issued effective authority is missing; inspect policy and template configuration."}
 	}
@@ -316,8 +471,13 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 		return &console.SubmissionError{Code: "runtime_profile_unavailable", Message: "Granted runtime profile is not installed; update the Platform runtime configuration."}
 	}
 	for _, tool := range authority.Tools {
-		if tool != "git.read" {
+		if (tools == nil && tool != "git.read") || (tools != nil && !tools.Catalog().Supports(tool)) {
 			return &console.SubmissionError{Code: "tool_unsupported", Message: "Granted tool is not supported by the installed Tool Gateway; narrow the template or install a compatible gateway."}
+		}
+		// An installed operation with no route for any granted scope would leave
+		// the Work's catalog empty, and the Work would run without the tool.
+		if tools != nil && len(tools.Catalog().Intersect([]string{tool}, authority.ResourceScopes).Entries()) == 0 {
+			return &console.SubmissionError{Code: "tool_route_unavailable", Message: "Granted tool has no installed route for the granted resource scopes; narrow the template or configure a tool profile for those scopes."}
 		}
 	}
 	if len(authority.MemoryScopes) != 0 {
@@ -342,6 +502,20 @@ func requireCompatibleWorkerImage(image, allowed string) error {
 func localCommand(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("missing private command")
+	}
+	if args[0] == "identity-bootstrap" {
+		return bootstrapOwnerCommand(args)
+	}
+	if args[0] == "identity-migrate" {
+		if len(args) != 3 || args[1] != "--database-url-file" {
+			return errors.New("identity-migrate requires --database-url-file <operator credential file>")
+		}
+		db, err := openMemberDatabase(context.Background(), args[2])
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return identitydb.Migrate(context.Background(), db)
 	}
 	client := &http.Client{Timeout: 4 * time.Minute}
 	var method, path string
@@ -390,22 +564,31 @@ func localCommand(args []string) error {
 func handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /readyz", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte("ready\n"))
 	})
 	mux.HandleFunc("GET /v1/status", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(status{Platform: os.Getenv("AGENOVA_PLATFORM_NAME"), Revision: os.Getenv("AGENOVA_PLATFORM_REVISION"), InitialPolicyRef: os.Getenv("AGENOVA_POLICY_REF"), State: "installation-ready", ReadinessScope: "installation-components", ProviderHealth: "not-checked"})
 	})
 	return mux
 }
 
-// Explicit local-reference viewer, supplied by the trusted composition. This
-// loopback-only fixture is not OIDC authentication and cannot satisfy E14.
-func referenceReadBoundary() console.ReadBoundary {
-	source, _ := app.NewReferencePrincipalSource(app.ReferencePrincipalTeamA)
-	return console.ReadBoundary{Viewer: func(*http.Request) (v0.Principal, error) { return source.Principal(), nil }, Authorizer: history.AuthorizerFunc(func(_ context.Context, p v0.Principal, a history.Admission) bool {
-		return p.Subject != "" && p.Subject == a.Principal.Subject && p.Team == a.Principal.Team
-	})}
+// Existing Kubernetes probes use the Pod IP. Expose only the bounded readiness
+// response there; detailed installation metadata still requires local access.
+func memberStatusHandler() http.Handler {
+	next := handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/readyz" {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil || !net.ParseIP(host).IsLoopback() {
+				http.NotFound(w, r)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

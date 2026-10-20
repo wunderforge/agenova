@@ -211,3 +211,16 @@ The MVP is accepted when a teammate can reproduce this behavior:
 - Whether the first demo gateway uses HTTP, gRPC, or an in-process boundary behind a stable interface.
 - Which real backend behaviors are committed for the final demo versus recorded as gaps.
 - Exact minimum components and packaging used by the reference installation path.
+
+## Owner-approved invite-only production extension
+
+On 12 October 2026 the Owner explicitly reprioritized invite-only production team access in [#215](https://github.com/wunderforge/agenova/issues/215). This extends the committed delivery scope beyond the reference MVP; it does not declare the existing implementation production-ready. Ordinary members must use personal application identity over HTTPS without AWS/EKS credentials. Required release outcomes include invitation-controlled membership, browser/native CLI login, per-operation authorization and evidence isolation, durable Work/session/audit data, revocation, recovery/rollback evidence and operational limits. The Owner explicitly excluded database backups on 12 October 2026; persistent data and restart/crash recovery remain required. The Owner subsequently approved Google sign-in registration into an administrator-reviewed pending-access queue. Registration grants no membership or credentials; only explicit administrator approval grants project access. Public tenant creation and public SaaS billing remain excluded.
+
+The [task packet](../../work/0215-invited-team-access/task.md) elaborates implementation and open deployment decisions. Existing claim-scoped governance, backend neutrality, immutable registration rules and trusted credential boundaries remain unchanged. E14 shared identity/policy contracts remain authoritative for their owning surfaces. Production deployment waits for an explicit recurring budget and tested release gates; the disposable E13 demo has a separate lifecycle.
+
+Owner-approved presentation extension (20 October 2026): the member service may
+show an anonymous product landing with a finite public static asset allowlist.
+Sign in uses the existing authentication flow; authenticated entry opens Connected
+Work. Public screenshots are explicitly illustrative, not current member evidence.
+No Work, policy, template, identity or management API becomes public, and viewing
+the homepage confers no membership or execution authority.

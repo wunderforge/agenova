@@ -28,6 +28,28 @@ const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
+
+test('connected chart and profile use only current API records, and clear on connection failure', async ({ page }, info) => {
+ const current=work('Succeeded');
+ // A later provider call must not become another request or move its start hour.
+ current.facts.push({id:'late-model',sequence:4,timestamp:'2026-10-20T23:00:00Z',kind:'ProviderOutcome',requestRef:current.requestRef,providerStatus:'Succeeded'});
+ await api(page,()=>[current]);
+ await page.goto('/?mode=connected#/work');
+ await expect(page.getByRole('img')).toHaveAttribute('aria-label',/1 loaded requests on 2026-09-15/);
+ await page.getByLabel('Open profile menu',{exact:true}).click();
+ const account=page.locator('.portal-topbar .portal-profile-popover');
+ await expect(account).toContainText(setup.principal.subject);
+ await expect(account).toContainText(setup.principal.team);
+ await expect(account).not.toContainText('Team A engineer');
+ await page.keyboard.press('Escape');
+ await page.screenshot({path:info.outputPath('june-complete-connected.png'),fullPage:true});
+ await page.route('**/api/**',route=>route.fulfill({status:503,json:{code:'unavailable'}}));
+ await expect(page.getByRole('alert')).toContainText('unavailable');
+ await page.getByLabel('Open profile menu',{exact:true}).click();
+ await expect(account).toContainText('Not connected');
+ await expect(account).not.toContainText(setup.principal.subject);
+ await expect(page.getByRole('img')).toHaveCount(0);
+});
 test('work name is separate from full instructions and identity', async({page},info)=>{
  let current=work();
  const objective='Investigate payment retries. Read the artifacts, identify the cause, and recommend a specific fix.';
@@ -129,7 +151,7 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
  await expect(page.locator('.portal-agent-failure')).toContainText(reason);
- await expect(page.locator('.portal-agent-failure strong')).toHaveCSS('color','rgb(255, 140, 164)');
+ await expect(page.locator('.portal-agent-failure strong')).toHaveCSS('color','rgb(177, 65, 83)');
  await expect(page.locator('.portal-worker-state.positive')).toHaveText('Succeeded');
  await expect(page.locator('.portal-worker-state.negative')).toHaveCount(0);
  await page.screenshot({path:info.outputPath('work-outcome-failed.png'),fullPage:true});
@@ -140,6 +162,36 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  await page.getByRole('link',{name:'Activity',exact:true}).click();
  await expect(page.locator('.portal-record-row').filter({hasText:'Work failed'}).locator('.portal-badge.failed')).toHaveCount(2);
 });
+test('connected June explorer and inspector use only loaded API evidence', async ({page},info) => {
+ const current=work();
+ current.facts.push(
+  {id:'attempt',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'m',operation:'model.invoke',target:'approved-coding-model'},
+ );
+ await api(page,()=>[current]);
+ await page.setViewportSize({width:1440,height:1000});
+ await page.goto('/?mode=connected#/work');
+ await expect(page.getByLabel('Loaded work summary').locator('strong')).toHaveText(['1','0','0','0']);
+ const row=page.locator('.portal-table tbody tr');
+ await expect(row).toHaveCount(1);
+ await expect(row).toContainText(state.principal.subject);
+ await expect(row).toContainText('Allow');
+ await page.screenshot({path:info.outputPath('june-connected-list.png'),fullPage:true});
+ await page.locator('.portal-work-title').click();
+ const inspect=page.getByRole('button',{name:'Inspect Model request: approved-coding-model'});
+ await inspect.click();
+ const inspector=page.getByRole('complementary',{name:'Selected activity'});
+ await expect(inspector).toContainText('Waiting for response');
+ await expect(inspector).not.toContainText('Succeeded');
+ await expect(inspector.getByRole('link')).toHaveAttribute('href',new RegExp(`/activity/attempt$`));
+ await page.screenshot({path:info.outputPath('june-connected-detail.png'),fullPage:true});
+ current.facts.push({id:'completion',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'ProviderOutcome',requestRef:current.requestRef,invocationId:'m',operation:'model.invoke',providerStatus:'Succeeded'});
+ await expect(inspector).toContainText('Succeeded');
+ await expect(inspector.getByRole('link')).toHaveAttribute('href',new RegExp(`/activity/completion$`));
+ await expect(inspect).toHaveAttribute('aria-pressed','true');
+ await inspector.getByRole('link').click();
+ await expect(page.locator('.portal-head')).toContainText('Model request finished');
+});
+
 test('format retry explains the failing turn without counting checks as calls',async({page},info)=>{
  const current=work();current.state!.claim!.phase='Failed';
  const reason='The agent exhausted its model-turn limit while retrying an invalid tool/finish response format.';
@@ -208,7 +260,7 @@ test('connected motion follows provider and cleanup evidence without resetting D
  await page.screenshot({path:info.outputPath('connected-motion-result.png'),fullPage:true});
 });
 
-test('cobalt light locates real pending calls and separates success from failure',async({page},info)=>{
+test('June feedback locates real pending calls and separates success from failure',async({page},info)=>{
  const current=work();
  const add=(kind:string,extra:Partial<Fact>={})=>current.facts.push({id:`signal-${current.facts.length}`,sequence:current.facts.length+1,timestamp:'2026-09-15T02:00:03Z',kind,requestRef:current.requestRef,...extra});
  add('WorkerActivity',{operation:'TurnStarted',target:'Turn 1'});
@@ -218,16 +270,16 @@ test('cobalt light locates real pending calls and separates success from failure
  await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
  await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
- expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).getPropertyValue('--portal-paper').trim())).toBe('#050914');
- await expect(page.locator('.portal-head .portal-badge')).toHaveCSS('color','rgb(168, 206, 255)');
+ expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).getPropertyValue('--portal-paper').trim())).toBe('#faf9fc');
+ await expect(page.locator('.portal-head .portal-badge')).toHaveCSS('color','rgb(99, 66, 199)');
  const row=page.locator('.portal-worker-actions li[data-active=true]');
  await expect(row).toHaveAttribute('data-kind','model');
  await expect(row.locator('.portal-worker-lamp')).toHaveCount(1);
  await expect(page.locator('.portal-worker-current .portal-worker-lamp')).toHaveCount(0);
  await expect(row.locator('a')).toHaveCSS('text-decoration-line','none');
- expect(await row.evaluate(el=>getComputedStyle(el,'::before').boxShadow)).not.toBe('none');
+ await expect(row.locator('.portal-worker-lamp')).toHaveCSS('animation-name','portal-worker-wait');
  await page.locator('.portal-turn > summary').hover();
- await expect.poll(()=>page.locator('.portal-turn > summary').evaluate(el=>getComputedStyle(el,'::after').opacity)).toBe('1');
+ await expect(page.locator('.portal-turn > summary')).toHaveCSS('color','rgb(99, 66, 199)');
  const frameReport=await page.evaluate(async()=>{
    const deltas:number[]=[];let last=0;
    await new Promise<void>(resolve=>{let start=0;const frame=(now:number)=>{if(!start)start=now;if(last)deltas.push(now-last);last=now;if(now-start<1000)requestAnimationFrame(frame);else resolve();};requestAnimationFrame(frame);});
@@ -238,21 +290,21 @@ test('cobalt light locates real pending calls and separates success from failure
  });
  expect(frameReport.ongoing).toBe(1);
  expect(frameReport.properties).toEqual(['opacity']);
- await info.attach('cobalt-wait-performance',{body:JSON.stringify(frameReport,null,2),contentType:'application/json'});
- await page.screenshot({path:info.outputPath('cobalt-model-wait.png'),fullPage:true});
+ await info.attach('june-wait-performance',{body:JSON.stringify(frameReport,null,2),contentType:'application/json'});
+ await page.screenshot({path:info.outputPath('june-model-wait.png'),fullPage:true});
  add('ProviderOutcome',{invocationId:'signal-model',operation:'model.invoke',providerStatus:'Succeeded'});
- add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',target:'Mock git.read'});
+ add('ProviderAttempt',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read'});
  await expect(row).toHaveAttribute('data-kind','tool');
- expect(await row.evaluate(el=>getComputedStyle(el).getPropertyValue('--call-light').trim())).toBe('#76d9f4');
- await expect(page.locator('.portal-worker-state.positive')).toHaveCSS('color','rgb(140, 213, 178)');
- await page.screenshot({path:info.outputPath('cobalt-tool-wait.png'),fullPage:true});
- add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',providerStatus:'Failed'});
+ expect(await row.evaluate(el=>getComputedStyle(el).getPropertyValue('--call-light').trim())).toBe('#36827e');
+ await expect(page.locator('.portal-worker-state.positive')).toHaveCSS('color','rgb(33, 124, 96)');
+ await page.screenshot({path:info.outputPath('june-tool-wait.png'),fullPage:true});
+ add('ProviderOutcome',{invocationId:'signal-tool',operation:'tool.invoke',reasonCode:'mock-artifact-not-found',providerStatus:'Failed'});
  current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'The recorded mock tool call failed.'};
- await expect(page.locator('.portal-worker-state.negative')).toHaveCSS('color','rgb(255, 140, 164)');
+ await expect(page.locator('.portal-worker-state.negative')).toHaveCSS('color','rgb(177, 65, 83)');
  await expect(page.locator('.portal-turn[data-negative=true] > summary')).toContainText('1 failed');
  await expect(page.locator('.portal-worker')).not.toHaveClass(/has-active-call/);
  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(0);
- await page.screenshot({path:info.outputPath('cobalt-failure.png'),fullPage:true});
+ await page.screenshot({path:info.outputPath('june-failure.png'),fullPage:true});
  await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
 });
 
@@ -281,10 +333,10 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  await expect(page.locator('.portal-worker-current')).toContainText('Turn 1 · Waiting for a model response');
  add('ProviderOutcome',{invocationId:'m1',operation:'model.invoke',providerStatus:'Succeeded'});
  add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
- add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',target:'Mock git.read · logs/timeout.log'});
+ add('ProviderAttempt',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',target:'Mock git.read · logs/timeout.log'});
  await expect(page.locator('.portal-worker-current')).toContainText('Waiting for tool observation');
  await expect(page.locator('.portal-worker-actions li[data-active=true]')).toContainText('Tool call (mock)');
- add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',providerStatus:'Succeeded'});
+ add('ProviderOutcome',{invocationId:'t1',operation:'tool.invoke',reasonCode:'mock-tool',providerStatus:'Succeeded'});
  add('WorkerActivity',{operation:'ObservationReceived',target:'Turn 1'});
  add('WorkerActivity',{operation:'TurnStarted',target:'Turn 2'});
  add('ProviderAttempt',{invocationId:'m2',operation:'model.invoke'});
@@ -327,7 +379,7 @@ first.state!.claim!.requestRef=first.requestRef;
 first.facts.forEach(f=>f.requestRef=body.metadata.name);
 });
  await page.goto('/?mode=connected#/work');
-await expect(page.getByText('No work recorded.')).toBeVisible();
+await expect(page.getByText('No work recorded yet.')).toBeVisible();
  await page.getByRole('link',{name:'New work',exact:true}).click();
 await expect(page.getByLabel('Model profile')).toHaveValue('approved-coding-model');
 await page.getByLabel('What should it do?').fill('Explain a safe retry strategy');
@@ -433,6 +485,60 @@ test('queued cancellation overrides pending claim and stops automatic refresh', 
   expect(evidenceReads).toBe(1);
   await page.clock.fastForward(5000);
   expect(evidenceReads).toBe(1);
+});
+
+test('recovered interrupted work shows unknown model outcome without fabricated success',async({page},info)=>{
+ const current=work();current.state!.claim!.phase='Failed';
+ const reason='The service was interrupted. Runtime release was verified; uncertain external operations were not replayed.';
+ current.outcome={status:'Failed',failure:reason};
+ const runtimeFact=(operation:string):Fact=>({id:`runtime-${operation}`,sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'Runtime',requestRef:current.requestRef,claimId:current.state!.claim!.id,backendIdentity:current.state!.claim!.backendIdentity,operation});
+ current.facts=[
+  {id:'received',sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'RequestReceived',requestRef:current.requestRef},
+  ...current.facts.filter(f=>f.kind!=='Runtime'),
+  ...['Bound','BackendReady','Running'].map(runtimeFact),
+  {id:'model-allow',sequence:0,timestamp:'2026-10-12T00:00:00Z',kind:'ModelDecision',requestRef:current.requestRef,claimId:current.state!.claim!.id,invocationId:'model-unknown',result:'Allow',operation:'model.invoke',target:'approved-coding-model'},
+ ];
+ current.facts.push(
+  {id:'attempt-unknown',sequence:4,timestamp:'2026-10-12T00:00:00Z',kind:'ProviderAttempt',requestRef:current.requestRef,operation:'model.invoke',invocationId:'model-unknown',target:'approved-coding-model',providerStatus:'Attempted'},
+  ...['Failed','TerminateSucceeded','CleanupSucceeded'].map(runtimeFact),
+  {id:'interrupted',sequence:5,timestamp:'2026-10-12T00:00:01Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed',reason,reasonCode:'run-recovered-interruption'},
+ );
+ current.facts=current.facts.map((f,i)=>({...f,sequence:i+1}));
+ current.state!.evidence.runtimeEvents=['Bound','BackendReady','Running','Failed','TerminateSucceeded','CleanupSucceeded'].map(kind=>({kind}));
+ await api(page,()=>[current]);
+ await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-worker-state')).toHaveText('Outcome unknown');
+ await expect(page.locator('.portal-agent-failure')).toContainText(reason);
+ await expect(page.locator('.portal-worker-state.positive')).toHaveCount(0);
+ await expect(page.getByText('Waiting for response',{exact:true})).toHaveCount(0);
+ await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
+});
+
+test('scoped configuration remains readable without global selectors',async({page},info)=>{
+ await api(page,()=>[]);
+ await page.route('**/api/setup*',route=>{
+  const query=new URL(route.request().url()).searchParams;
+  const project=query.get('project') || 'payments';
+  const name=query.get('template') || 'engineer';
+  return route.fulfill({json:{...setup,project,projects:['payments','analytics'],templates:['engineer','reviewer'],template:{...template,metadata:{name}},policy:{ID:project+'-policy',Version:'2',Rules:[{team:'team-a',action:'claim.create',project,templateRef:name}]}}});
+ });
+ await page.goto('/?mode=connected#/policy');
+ await expect(page.getByText('payments-policy',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('Configuration project')).toHaveCount(0);
+ await expect(page.getByLabel('Configuration template')).toHaveCount(0);
+ await page.goto('/?mode=connected&project=analytics&template=reviewer#/policy');
+ await expect(page.getByText('analytics-policy',{exact:true})).toBeVisible();
+ await expect(page.locator('tbody')).toContainText('reviewer');
+ await page.screenshot({path:info.outputPath('scoped-policy.png'),fullPage:true});
+});
+
+test('member without a template can still read permitted Work evidence',async({page})=>{
+ await api(page,()=>[work('Succeeded')],undefined,{...setup,template:null});
+ await page.goto('/?mode=connected#/work');
+ await expect(page.locator('.portal-work-title')).toHaveCount(1);
+ await page.goto('/?mode=connected#/work/new');
+ await expect(page.getByText('No approved template is available in this project.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Start work',exact:true})).toHaveCount(0);
 });
 
 test('durable history paginates server summaries and keeps the Work navigation active', async ({page}) => {

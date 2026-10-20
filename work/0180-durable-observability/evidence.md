@@ -62,3 +62,15 @@ kubectl --context kind-agenova-k8s-lab -n agenova-observability-180 port-forward
 暂存源码的干净快照通过 `pwsh -NoProfile -File ./scripts/check.ps1 -Profile PR`，包含完整 Go race 和 54 项浏览器测试：[日志](evidence/pr-gate.log)。原沙箱禁止测试监听本地端口，使用测试所需权限重跑后通过。
 
 刷新后的远端 main 比本分支基线多 135 个提交，已包含 E14 #207。本报告中 E14 未就绪的描述针对原测试基线；尚未整合和验证最新主分支，因此发布为草稿 PR，保留真实身份联验及主分支整合要求。
+
+## PR #235 冲突整合验证
+
+已整合主分支 `3c3556321`，保留 E14 的身份、会话撤销、项目权限、工作负载身份、PostgreSQL 持久化及真实工具后端。SQLite 仅用于参考模式；成员模式沿用 PostgreSQL，不以固定身份覆盖成员身份。
+
+成员历史分页在数据库权限过滤后执行，复用单条证据的权限规则；每页重新授权。PostgreSQL 分页游标在 writer 重启后失效，需从首页重新查询，历史证据不会删除。私有 admission 快照不进入公开 evidence JSON。
+
+本次新增实际 PostgreSQL 的分页/撤权/篡改负例及 HTTPS 历史查询凭据和重定向隔离测试。此前 kind/Ollama 镜像和截图对应原源码记录，不作为整合后镜像的部署证明；真实外部身份联验仍未宣称通过。
+
+整合后的完整 `-Profile PR` 在锁文件依赖安装后的干净源码快照上通过：[完整日志](evidence/merge-pr-gate.log)。包含全量 Go 测试、全量 race、63 项浏览器测试、契约/文档/生产构建；数据库测试使用真实临时 PostgreSQL 16.6：[focused race 日志](evidence/merge-postgres-race.log)。[整合源码校验记录](evidence/merge-source.json)记录主分支基线及实际验证的 61 个实现/测试文件哈希。
+
+整合后 UI 的注入证据用例已补充截图并目视检查：[历史分页](evidence/merge-fixture-history.png)、[中断 Work 与失效权限](evidence/merge-fixture-interrupted.png)。它们仅证明 UI 对受控证据的渲染，不充当真实身份或后端部署证明。

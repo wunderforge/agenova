@@ -1,0 +1,51 @@
+# Operator-owned EKS policy (legacy object names retained), not a shared Agenova authority contract.
+# Apply after namespaces exist and BEFORE enabling strict CNI enforcement.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-system-connectivity
+  namespace: kube-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{}]
+  egress: [{}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-controller-connectivity
+  namespace: agent-sandbox-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{}]
+  egress: [{}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-trusted-service-connectivity
+  namespace: agenova-system
+spec:
+  podSelector:
+    matchExpressions:
+      - key: agents.x-k8s.io/sandbox-name-hash
+        operator: DoesNotExist
+  policyTypes: [Ingress, Egress]
+  ingress: [{}]
+  egress: [{}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-sandbox-deny-network
+  namespace: agenova-system
+spec:
+  podSelector:
+    matchExpressions:
+      - key: agents.x-k8s.io/sandbox-name-hash
+        operator: Exists
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []

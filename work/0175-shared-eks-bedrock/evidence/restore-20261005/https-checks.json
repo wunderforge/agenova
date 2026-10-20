@@ -1,0 +1,89 @@
+{
+  "url": "https://demo.agenova.app",
+  "checks": [
+    {
+      "check": "anonymous entry redirects to form",
+      "status": 303
+    },
+    {
+      "check": "external link redirects to form",
+      "status": 303
+    },
+    {
+      "check": "login form is public",
+      "status": 200
+    },
+    {
+      "check": "anonymous API denied without Basic challenge",
+      "status": 401
+    },
+    {
+      "check": "login CSRF denied",
+      "status": 403
+    },
+    {
+      "check": "missing login Origin denied",
+      "status": 403
+    },
+    {
+      "check": "wrong password rejected",
+      "status": 401
+    },
+    {
+      "check": "opaque-origin login with CSRF token creates session",
+      "status": 303
+    },
+    {
+      "check": "authenticated Portal",
+      "status": 200
+    },
+    {
+      "check": "authenticated external navigation",
+      "status": 200
+    },
+    {
+      "check": "authenticated setup",
+      "status": 200
+    },
+    {
+      "check": "real Work evidence",
+      "status": 200
+    },
+    {
+      "check": "anonymous response isolation",
+      "status": 401
+    },
+    {
+      "check": "tampered session denied",
+      "status": 401
+    },
+    {
+      "check": "cross-site API denied",
+      "status": 403
+    },
+    {
+      "check": "cross-origin write denied",
+      "status": 403
+    },
+    {
+      "check": "cross-site iframe denied",
+      "status": 403
+    },
+    {
+      "check": "logout CSRF denied",
+      "status": 403
+    },
+    {
+      "check": "logout revokes session",
+      "status": 303
+    },
+    {
+      "check": "revoked cookie denied",
+      "status": 401
+    },
+    {
+      "check": "logged-out API denied",
+      "status": 401
+    }
+  ]
+}

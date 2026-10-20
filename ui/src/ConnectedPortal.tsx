@@ -1,7 +1,7 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
+import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
 import { connectedSource, suggestedProjects, workStatus, workTitle, traceURL, type HistoryPage, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
@@ -11,6 +11,8 @@ import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { maxWorkName } from './work-name';
+import { WorkOverview } from './WorkOverview';
+import { WorkActivityChart } from './WorkActivityChart';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -75,9 +77,11 @@ function WorkList({ works }: { works: View[] }) {
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
     `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
-    <Heading title="Work" subtitle="Recorded requests and results."
+    <Heading title="Work" subtitle="Requests, outcomes, and the evidence behind them."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
     <a href={link('history')}>Browse durable history</a>
+    <WorkOverview statuses={works.map(workStatus)}/>
+    <WorkActivityChart entries={works.map(work => ({ timestamp: work.facts.find(fact => ['RequestReceived', 'RequestResolution'].includes(fact.kind))?.timestamp, status: workStatus(work) }))}/>
     <div className="portal-toolbar">
       <Filters values={['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending']}
         selected={filter} choose={setFilter}/>
@@ -85,17 +89,18 @@ function WorkList({ works }: { works: View[] }) {
         onChange={event => setSearch(event.target.value)}/>
     </div>
     <div className="portal-table-wrap"><table className="portal-table">
-      <thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
+      <thead><tr><th>Work</th><th>Agent</th><th>Requested by</th><th>Decision</th><th>Last update</th><th>Status</th></tr></thead>
       <tbody>{shown.map(work =>
         <tr key={work.requestRef}>
           <td><a className="portal-work-title" href={link(workLink(work))}>{workTitle(work)}</a>
             <small>{work.state?.principal.team || 'Identity not recorded'}</small></td>
-          <td>{work.request.spec.templateRef}</td><td>{time(work.facts.at(-1)?.timestamp)}</td>
+          <td>{work.request.spec.templateRef}</td><td>{work.state?.principal.subject || 'Not recorded'}</td>
+          <td><Badge value={work.state?.decision.result || 'Pending'}/></td><td>{time(work.facts.at(-1)?.timestamp)}</td>
           <td><Badge value={workStatus(work)}/></td>
         </tr>
       )}</tbody>
     </table>{!shown.length && <p className="portal-empty">
-      {works.length ? 'No work matches this filter.' : 'No work recorded.'}
+      {works.length ? 'No work matches this filter.' : 'No work recorded yet.'}
     </p>}</div>
   </>;
 }
@@ -121,15 +126,15 @@ function WorkDetail({ work }: { work: View }) {
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
   const ended = !!work.recovery || (!!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase));
+ const correlation = traceURL(work.traceId);
   const latestFacts = [...work.facts].reverse();
   const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
     !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
-  const summary = status === 'Interrupted' ? 'Execution was interrupted. Missing provider outcomes and cleanup remain unknown.' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
+  const summary = work.recovery ? 'Execution interrupted by service restart' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
-  const correlation = traceURL(work.traceId);
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
       <a href={link('work')}>Work</a> / Details
@@ -141,10 +146,7 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
-    {work.recovery && <section role="status" className="portal-state"><strong>Execution interrupted by service restart</strong><p>Historical authority is inactive. Incomplete calls have an unknown outcome and were not replayed. Cleanup: {work.recovery.cleanup}.</p></section>}
-    {work.diagnosis && <p>Diagnosis: {work.diagnosis.stage} · {work.diagnosis.code}</p>}
-    {correlation ? <a href={correlation} target="_blank" rel="noreferrer">Open trace in Grafana</a> : <p className="portal-muted">Trace unavailable</p>}
-    <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
+    {work.diagnosis && <p role="status">{work.diagnosis.stage}: {work.diagnosis.code}</p>}{correlation ? <a href={correlation} target="_blank" rel="noreferrer">Open trace in Grafana</a> : <p className="portal-source-note">Trace unavailable</p>}<WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
       authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
@@ -164,7 +166,7 @@ function WorkDetail({ work }: { work: View }) {
           href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
         } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
-          ? !work.recovery && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
+          ? !ended && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
         <Access value={state?.effectiveAuthority}
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
@@ -239,6 +241,8 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
           <Field label="Kind" value={category(fact)}/><Field label="Target" value={fact.target}/>
           <Field label="Permission" value={fact.result || fact.decision?.result}/>
           <Field label="Provider outcome" value={fact.providerStatus}/>
+          {fact.resultRef && <Field label="Result reference" value={fact.resultRef}/>}
+          {fact.truncated && <Field label="Observation" value="Truncated to the configured observation limit"/>}
           <Field label="Claim" value={fact.claimId}/><Field label="Invocation" value={fact.invocationId}/>
           <Field label="Policy" value={policy ? `${policy.id} / ${policy.version}` : undefined}/>
         </div>
@@ -318,8 +322,13 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
   </>;
 }
 function NewWork({ setup, created }: { setup: Setup; created: (work: View) => void }) {
-  const ceiling = setup.template.spec.capabilityCeiling;
-  const defaults = setup.template.spec.defaults;
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
+  return <ConfiguredWork setup={{...setup,template:setup.template}} created={created}/>;
+}
+function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Setup['template']>};created:(work:View)=>void}) {
+  const template = setup.template;
+  const ceiling = template.spec.capabilityCeiling;
+  const defaults = template.spec.defaults;
   const projects = suggestedProjects(setup);
   const defaultScope = ceiling?.resourceScopes?.find(scope => scope.startsWith('repo:'));
   const defaultRepository = defaultScope?.slice('repo:'.length) || '';
@@ -341,7 +350,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       apiVersion: 'agenova.io/v1alpha1', kind: 'ClaimRequest',
       metadata: { name: `work-${crypto.randomUUID()}` },
       spec: {
-        templateRef: setup.template.metadata.name,
+        templateRef: template.metadata.name,
         projectRef: project,
         task: {
           type: 'repository-change',
@@ -373,8 +382,8 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
       <div>
         <section>
           <h2>Task</h2>
-          <label>Agent<select name="agent" defaultValue={setup.template.metadata.name}>
-            <option>{setup.template.metadata.name}</option>
+          <label>Agent<select name="agent" defaultValue={template.metadata.name}>
+            <option>{template.metadata.name}</option>
           </select></label>
           <label>Project<input name="project" list="policy-projects" defaultValue={projects[0] || ''} required/>
             <datalist id="policy-projects">{projects.map(project => <option key={project} value={project}/>)}</datalist>
@@ -426,6 +435,7 @@ function NewWork({ setup, created }: { setup: Setup; created: (work: View) => vo
   </>;
 }
 function Templates({ setup }: { setup: Setup }) {
+  if (!setup.template) return <p>No approved template is available in this project.</p>;
   return <><Heading title="Agents"/>
     <section className="portal-panel">
       <h2>{setup.template.metadata.name}</h2>
@@ -467,9 +477,10 @@ function Identity({ setup }: { setup: Setup }) {
     </div>
   </section></>;
 }
-export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: () => void }) {
+export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[]; onDemo: () => void; onPrincipal?: (principal: Principal | undefined) => void }) {
   const [revision, setRevision] = useState(0);
   const data = useConnection(parts, revision);
+  useEffect(() => { onPrincipal?.(data.error ? undefined : data.setup?.principal); }, [data.error, data.setup, onPrincipal]);
   const retry = () => setRevision(value => value + 1);
   const section = parts[0] || 'work';
   if (data.loading) {
@@ -493,15 +504,15 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
     content = <NewWork setup={setup} created={work => {
       window.location.hash = link(workLink(work)); retry();
     }}/>;
-  } else if (section === 'history') {
-    content = <History/>;
   } else if (section === 'work' && !parts[1]) {
     content = <WorkList works={data.works}/>;
   } else if (section === 'work' && data.current) {
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
       : <WorkDetail key={data.current.requestRef} work={data.current}/>;
-  } else if (section === 'platform') {
+  } else if (section === 'history') {
+ content=<History/>;
+ } else if (section === 'platform') {
     content = <Platform setup={setup} works={data.works} activity={parts[1] === 'activity'}/>;
   } else if (section === 'agents') content = <Templates setup={setup}/>;
   else if (section === 'policy') content = <Policy setup={setup}/>;

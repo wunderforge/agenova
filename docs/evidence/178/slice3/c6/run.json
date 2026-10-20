@@ -1,0 +1,277 @@
+{
+ "campaign": "c6",
+ "source": "fd08ac06eed3e702109c4b55276f2ad110272ff0",
+ "branch": "codex/e16-slice1",
+ "context": "kind-agenova-k8s-lab",
+ "installNamespace": "agenova-e16-system",
+ "fixtureNamespace": "agenova-e16",
+ "modelProfile": "coding-standard",
+ "model": {
+  "name": "qwen2.5:7b",
+  "digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+  "ollama": "0.34.4"
+ },
+ "platformRevision": "sha256:d244b22e035ce339d1b72f0abafb2990eb0d3cab014e373dd5538413482afe94",
+ "images": {
+  "control-plane": {
+   "tag": "agenova-control-plane:0.1.0",
+   "platform": "linux/arm64",
+   "buildTags": "none",
+   "config": "sha256:efa81bcc1afe22136e0ee92c00c3aaf71adf97cd3a868d121d7b5c20f220ea56",
+   "archiveSha256": "6b7b31ab64be5f182fdc0cdcbf85effdc6b2182b5c4916e7bd41382aaaf84b81"
+  },
+  "worker": {
+   "tag": "agenova-testworker:kind",
+   "platform": "linux/arm64",
+   "buildTags": "none",
+   "config": "sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91",
+   "archiveSha256": "b99f9be911e084b0f9564aaf98f15b083d891e91603dba8ec807a101e5af29be"
+  },
+  "fixture": {
+   "tag": "agenova-e16-mcp:fd08ac06eed3",
+   "platform": "linux/arm64",
+   "buildTags": "none",
+   "config": "sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc",
+   "archiveSha256": "b1b44b190b2c17b379e4f39a3ba5d2456cdf2740f1536acf48ee25a274d46604"
+  },
+  "probe": {
+   "tag": "agenova-e16-probe:fd08ac06eed3",
+   "platform": "linux/arm64",
+   "buildTags": "agenovaprobe",
+   "config": "sha256:6dc0725f20a4070cf2d8d2fcc6ae622f2faec97488b4c88537e9c3588193ac4f",
+   "archiveSha256": "149914203a51d191a2f840460ea5ed3c78e0b31a4d3f7a18442a9844698ec6b0"
+  }
+ },
+ "toolchains": {
+  "agenova-control-plane": "go1.22.12",
+  "agenova-workerctl": "go1.22.12",
+  "mcpfixture": "go1.27.1",
+  "e16-probe.test": "go1.22.12",
+  "cli": "go1.22.12",
+  "node": "v24.21.0"
+ },
+ "datasetSha256": {
+  "README.md": "09bcd02beb4dc2bbd5837a31fb75a1d2eb23aa91ff7aa54441d4feef03f28276",
+  "logs/full-trace.log": "ee4d420452dbe1563548813a10fb66349ab2cda7ab25cd72956d40ad86e83469",
+  "logs/slow.log": "4070a323154dab86e5215f45698f1967c78aed94765d60011238ebad577e7716",
+  "logs/timeout.log": "b15569f3e3b6e181b00934d7893452852e775daa8c9b78bff304bfe6869bd6d5",
+  "notes/incident-timeline.md": "2e8b98cf7997a40ab7fadd0fddc6cf48b56aabb8ceb757bd8b1b41872777f497",
+  "src/retry.txt": "c96bd2de4c4cc1aa173f5d75e7879ec2c6f3cdeb653d57c71ea81e417e7d4567"
+ },
+ "steps": [
+  {
+   "step": "preflight",
+   "command": "preflight",
+   "start": "2026-10-04T19:51:20Z",
+   "end": "2026-10-04T19:51:21Z",
+   "seconds": 1,
+   "exit": 0
+  },
+  {
+   "step": "build",
+   "command": "build",
+   "start": "2026-10-04T19:51:29Z",
+   "end": "2026-10-04T19:52:02Z",
+   "seconds": 33,
+   "exit": 0
+  },
+  {
+   "step": "protect",
+   "command": "--yes protect",
+   "start": "2026-10-05T01:40:18Z",
+   "end": "2026-10-05T01:40:22Z",
+   "seconds": 4,
+   "exit": 0
+  },
+  {
+   "step": "load",
+   "command": "--yes load",
+   "start": "2026-10-05T01:40:26Z",
+   "end": "2026-10-05T01:40:29Z",
+   "seconds": 3,
+   "exit": 0
+  },
+  {
+   "step": "fixture",
+   "command": "fixture",
+   "start": "2026-10-05T01:40:32Z",
+   "end": "2026-10-05T01:40:37Z",
+   "seconds": 5,
+   "exit": 0
+  },
+  {
+   "step": "controlled-read",
+   "command": "controlled-read",
+   "start": "2026-10-05T01:40:41Z",
+   "end": "2026-10-05T01:40:44Z",
+   "seconds": 3,
+   "exit": 0
+  },
+  {
+   "step": "install",
+   "command": "install",
+   "start": "2026-10-05T01:40:49Z",
+   "end": "2026-10-05T01:41:00Z",
+   "seconds": 11,
+   "exit": 0
+  },
+  {
+   "step": "work-positive-a1",
+   "command": "work positive",
+   "start": "2026-10-05T01:41:22Z",
+   "end": "2026-10-05T01:41:57Z",
+   "seconds": 35,
+   "exit": 0
+  },
+  {
+   "step": "work-admission-deny-a1",
+   "command": "work admission-deny",
+   "start": "2026-10-05T01:42:11Z",
+   "end": "2026-10-05T01:42:20Z",
+   "seconds": 9,
+   "exit": 0
+  },
+  {
+   "step": "work-n6-timeout-a1",
+   "command": "work n6-timeout",
+   "start": "2026-10-05T01:42:24Z",
+   "end": "2026-10-05T01:43:15Z",
+   "seconds": 51,
+   "exit": 0
+  },
+  {
+   "step": "work-n7-oversize-a1",
+   "command": "work n7-oversize",
+   "start": "2026-10-05T01:43:19Z",
+   "end": "2026-10-05T01:43:32Z",
+   "seconds": 13,
+   "exit": 0
+  },
+  {
+   "step": "work-n8-truncation-a1",
+   "command": "work n8-truncation",
+   "start": "2026-10-05T01:43:36Z",
+   "end": "2026-10-05T01:44:02Z",
+   "seconds": 26,
+   "exit": 0
+  },
+  {
+   "step": "work-token-valid-a1",
+   "command": "work token-valid",
+   "start": "2026-10-05T01:44:17Z",
+   "end": "2026-10-05T01:44:36Z",
+   "seconds": 19,
+   "exit": 0
+  },
+  {
+   "step": "work-token-missing-a1",
+   "command": "work token-missing",
+   "start": "2026-10-05T01:44:43Z",
+   "end": "2026-10-05T01:44:56Z",
+   "seconds": 13,
+   "exit": 0
+  },
+  {
+   "step": "work-token-wrong-a1",
+   "command": "work token-wrong",
+   "start": "2026-10-05T01:45:00Z",
+   "end": "2026-10-05T01:45:14Z",
+   "seconds": 14,
+   "exit": 0
+  },
+  {
+   "step": "probe",
+   "command": "probe",
+   "start": "2026-10-05T01:45:23Z",
+   "end": "2026-10-05T01:45:31Z",
+   "seconds": 8,
+   "exit": 0
+  }
+ ],
+ "cases": [
+  {
+   "case": "positive",
+   "tier": "Required",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/positive/attempt-1/"
+  },
+  {
+   "case": "admission-deny",
+   "tier": "Required",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/admission-deny/attempt-1/"
+  },
+  {
+   "case": "n6-timeout",
+   "tier": "Required",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/n6-timeout/attempt-1/"
+  },
+  {
+   "case": "n7-oversize",
+   "tier": "Required",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/n7-oversize/attempt-1/"
+  },
+  {
+   "case": "n8-truncation",
+   "tier": "Required (criterion 6)",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/n8-truncation/attempt-1/"
+  },
+  {
+   "case": "token-valid",
+   "tier": "Required (criterion 8)",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/token-valid/attempt-1/"
+  },
+  {
+   "case": "token-missing",
+   "tier": "Required (criterion 8)",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/token-missing/attempt-1/"
+  },
+  {
+   "case": "token-wrong",
+   "tier": "Required (criterion 8)",
+   "layer": "kind, production",
+   "attempts": 1,
+   "result": "pass",
+   "evidence": "campaign/work/token-wrong/attempt-1/"
+  },
+  {
+   "case": "controlled-read",
+   "tier": "Required (Phase 2 exit)",
+   "layer": "kind, real client over port-forward",
+   "result": "pass",
+   "evidence": "campaign/controlled-read/"
+  },
+  {
+   "case": "probe: N1, N2a, N2b, N3, N4a/b/c, N5a/b, N11 server-backed",
+   "tier": "Required",
+   "layer": "kind, probe composition",
+   "result": "pass",
+   "evidence": "campaign/probe/"
+  }
+ ],
+ "notRun": [
+  "N10 unreachable endpoint on kind (Additional tier)"
+ ],
+ "scanAndRestore": "scan and restore ran after this export; their results are in work/0178-governed-mcp-tools/slice3-kind-acceptance-plan.md section 10",
+ "stepTimes": "steps/timings.txt (wall-clock times from the step wrapper; campaign/campaign.log records only successful ends)",
+ "gates": "gates/ ran on the clean tree at the source commit after the campaign (gates/gates-source.txt)"
+}

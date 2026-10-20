@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.22-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+# Optional trusted corporate CA for build-time downloads; never copied to runtime.
+RUN --mount=type=secret,id=build_ca_bundle \
+    if [ -f /run/secrets/build_ca_bundle ]; then cat /run/secrets/build_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; fi && \
+    go mod download
 COPY api ./api
 COPY internal ./internal
 COPY cmd/agenova-control-plane ./cmd/agenova-control-plane

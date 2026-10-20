@@ -1,0 +1,8 @@
+ok  	github.com/wunderforge/agenova/internal/authentication	1.720s
+ok  	github.com/wunderforge/agenova/internal/authentication/cognito	3.195s
+ok  	github.com/wunderforge/agenova/internal/authentication/postgres	2.802s
+ok  	github.com/wunderforge/agenova/internal/login	2.783s
+ok  	github.com/wunderforge/agenova/internal/websession	3.217s
+ok  	github.com/wunderforge/agenova/internal/console	5.137s
+ok  	github.com/wunderforge/agenova/internal/cli	2.151s
+ok  	github.com/wunderforge/agenova/cmd/agenova	11.119s

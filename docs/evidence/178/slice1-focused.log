@@ -1,0 +1,16 @@
+ok  	github.com/wunderforge/agenova/api/v1alpha1	(cached)
+ok  	github.com/wunderforge/agenova/internal/platform	0.279s
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	0.288s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	0.293s
+ok  	github.com/wunderforge/agenova/internal/cli	0.278s
+ok  	github.com/wunderforge/agenova/internal/toolbackend	0.642s
+ok  	github.com/wunderforge/agenova/cmd/agenova	6.238s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	0.269s
+ok  	github.com/wunderforge/agenova/internal/toolgateway	0.257s
+ok  	github.com/wunderforge/agenova/internal/console	0.353s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	(cached)
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	(cached)
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	(cached)
+ok  	github.com/wunderforge/agenova/internal/modelprovider	(cached)
+ok  	github.com/wunderforge/agenova/internal/facts	(cached)
+ok  	github.com/wunderforge/agenova/internal/connectedclient	(cached)
