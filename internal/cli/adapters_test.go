@@ -65,7 +65,6 @@ func TestAdapterInitYAMLIsReviewablePlatformFragment(t *testing.T) {
             - name: primary-runtime
               adapterRef: primary-runtime
               config:
-                compatible-worker-image: agenova-testworker:kind
                 connection:
                     mode: in-cluster
                     namespace: agenova-system

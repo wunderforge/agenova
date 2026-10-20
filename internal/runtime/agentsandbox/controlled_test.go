@@ -283,7 +283,7 @@ func TestControlledAdapter_requiresStableStartResult(t *testing.T) {
 	a, k, f, alloc := controlledFixture(t)
 	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
 	a.control = &mismatchedStartResultControl{fakeWorkerControl: f}
-	if err := a.Start(alloc.Identity); err == nil || !strings.Contains(err.Error(), "worker result changed") {
+	if err := a.Start(alloc.Identity); !errors.Is(err, runtime.ErrWorkerProtocol) {
 		t.Fatalf("mismatched result was accepted: %v", err)
 	}
 }
@@ -304,6 +304,31 @@ func TestKubectlWorkerControl_usesExactContextNamespaceAndPod(t *testing.T) {
 	}
 	if _, err := r.execWorker("../other", "start", "run-1"); err == nil {
 		t.Fatal("unsafe worker name accepted")
+	}
+}
+
+type incompatibleControl struct{ calls int }
+
+func (c *incompatibleControl) execWorker(_ string, _ ...string) (string, error) {
+	c.calls++
+	return "private-worker-output-do-not-record", nil
+}
+
+func TestIncompatibleImageFailsBeforeStartWithoutLeakingOutput(t *testing.T) {
+	a, k, f, alloc := controlledFixture(t)
+	k.claims[resourceName("claim", f.claim)].Status.Conditions = []upstreamCondition{{Type: conditionTypeReady, Status: conditionStatusTrue}}
+	c := &incompatibleControl{}
+	a.control = c
+	err := a.Start(alloc.Identity)
+	if !errors.Is(err, runtime.ErrWorkerProtocol) || strings.Contains(err.Error(), "private-worker") || c.calls != 1 {
+		t.Fatalf("unsafe or unbounded protocol rejection: %v calls=%d", err, c.calls)
+	}
+	if err := a.Terminate(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	result, err := a.Cleanup(alloc.Identity)
+	if err != nil || !result.Released {
+		t.Fatalf("pre-start cleanup = %+v, %v", result, err)
 	}
 }
 

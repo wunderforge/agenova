@@ -5,6 +5,7 @@ package agentsandbox
 
 import (
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -83,6 +84,31 @@ func newSpikeAdapter(kube kubeClient, namespace string) *SpikeAdapter {
 		cleanupTimeout: defaultCleanupTimeout,
 		pollInterval:   pollInterval,
 	}
+}
+
+// ConfigureAgentTemplate gives the immutable resolved content its own runtime
+// resources. Project-local display names are not globally unique: using only
+// Metadata.Name could repoint another project's template or reuse its warm Pod.
+// Equal content may share a warm pool, never claim identity or standing authority.
+func (a *SpikeAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) (string, error) {
+	if err := v1alpha1.ValidateAgentTemplate(template); err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(template)
+	if err != nil {
+		return "", fmt.Errorf("encode immutable AgentTemplate: %w", err)
+	}
+	digest := sha256.Sum256(data)
+	// A 160-bit base32 content key leaves room for upstream prefixes and the
+	// generated worker suffix. It is a cache key, not an authorization credential.
+	ref := "at-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest[:20]))
+	if err := a.AddTemplate(v1alpha1.AgentSandboxTemplate{Metadata: v1alpha1.ObjectMeta{Name: ref}, Spec: v1alpha1.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
+		return "", err
+	}
+	if err := a.AddWarmPool(v1alpha1.SandboxWarmPool{Metadata: v1alpha1.ObjectMeta{Name: "pool-" + ref}, Spec: v1alpha1.SandboxWarmPoolSpec{TemplateRef: ref, Replicas: 1}}); err != nil {
+		return "", err
+	}
+	return ref, nil
 }
 
 // AddTemplate creates an upstream SandboxTemplate CRD from an Agenova template.

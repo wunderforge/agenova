@@ -259,6 +259,13 @@ func (a *SpikeAdapter) Observe(id v1alpha1.SandboxClaimBackendIdentity) (runtime
 		return runtime.Observation{}, fmt.Errorf("observe %s: %w: upstream claim %s carries worker %s, recorded %s", entry.claimID, errIdentityMismatch, claimName, sc.Status.Sandbox.Name, workerID)
 	}
 	obs.Ready = hasCondition(sc.Status.Conditions, conditionTypeReady, conditionStatusTrue)
+	if !obs.Ready {
+		if inspector, ok := a.kube.(interface{ workerReadiness(string) error }); ok {
+			if err := inspector.workerReadiness(workerID); err != nil {
+				return runtime.Observation{}, err
+			}
+		}
+	}
 	obs.Detail = "readiness is upstream Ready condition for the recorded worker; warm-pool replacement is not observable"
 	return obs, nil
 }

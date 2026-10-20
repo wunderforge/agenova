@@ -138,7 +138,7 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		var ok bool
 		startResult, ok = workerAckResult(out, "started", claimToken)
 		if !ok {
-			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+			err = runtime.ErrWorkerProtocol
 		}
 	}
 	if err == nil {
@@ -146,9 +146,9 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		if err == nil {
 			runningResult, ok := workerAckResult(out, "running", claimToken)
 			if !ok {
-				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+				err = runtime.ErrWorkerProtocol
 			} else if runningResult != startResult {
-				err = fmt.Errorf("worker result changed from %q to %q", startResult, runningResult)
+				err = runtime.ErrWorkerProtocol
 			}
 		}
 	}
@@ -168,7 +168,6 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 
 func (a *ControlledAdapter) waitWorkerControl(workerID, claimToken string) error {
 	deadline := time.Now().Add(10 * time.Second)
-	var lastErr error
 	for {
 		out, err := a.control.execWorker(workerID, "status", claimToken)
 		if err == nil {
@@ -176,11 +175,10 @@ func (a *ControlledAdapter) waitWorkerControl(workerID, claimToken string) error
 			if ok && result == "none" {
 				return nil
 			}
-			return fmt.Errorf("unexpected pre-start status %q", strings.TrimSpace(out))
+			return runtime.ErrWorkerProtocol
 		}
-		lastErr = err
 		if !time.Now().Before(deadline) {
-			return lastErr
+			return runtime.ErrWorkerControlUnavailable
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -279,7 +277,7 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		var ok bool
 		stopResult, ok = workerAckResult(out, "stopped", claimToken)
 		if !ok {
-			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+			err = runtime.ErrWorkerProtocol
 		}
 	}
 	if err == nil {
@@ -287,9 +285,9 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		if err == nil {
 			statusResult, ok := workerAckResult(out, "stopped", claimToken)
 			if !ok {
-				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+				err = runtime.ErrWorkerProtocol
 			} else if statusResult != stopResult {
-				err = fmt.Errorf("worker result changed from %q to %q", stopResult, statusResult)
+				err = runtime.ErrWorkerProtocol
 			}
 		}
 	}

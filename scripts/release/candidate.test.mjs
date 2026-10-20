@@ -49,6 +49,12 @@ test('candidate requires explicit manual exact branch, SHA and UID; never PR/mai
  const env={GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_REF:'refs/heads/codex/demo-cicd-integration-20261019',GITHUB_SHA:B,
  SHARED_EKS_CANDIDATE_ENABLED:'true',SHARED_EKS_CANDIDATE_REF:'refs/heads/codex/demo-cicd-integration-20261019',SHARED_EKS_CANDIDATE_SHA:B,SHARED_EKS_CANDIDATE_UID:fixture().metadata.uid};
  candidateGate(env);
+ for(const value of ['true','invalid']) {
+  assert.throws(()=>candidateGate({...env,SHARED_EKS_RELEASE_DISABLED:value}),/Publication is disabled/);
+  assert.throws(()=>candidateGate({...env,SHARED_EKS_DEPLOY_DISABLED:value},true),/Deployment is disabled/);
+ }
+ candidateGate({...env,SHARED_EKS_DEPLOY_DISABLED:'true'}); // publishing may continue, deployment cannot
+ candidateGate({...env,SHARED_EKS_RELEASE_DISABLED:'false',SHARED_EKS_DEPLOY_DISABLED:'false'},true);
  for(const change of [{GITHUB_EVENT_NAME:'pull_request'},{GITHUB_EVENT_NAME:'push'},{GITHUB_REF:'refs/heads/main'},{GITHUB_SHA:A},{SHARED_EKS_CANDIDATE_ENABLED:'false'},{SHARED_EKS_CANDIDATE_REF:'refs/heads/*'},{SHARED_EKS_CANDIDATE_UID:''}])assert.throws(()=>candidateGate({...env,...change}));
 });
 test('first pair preserves unknown source as null; binds all but two explicit image fields',()=>{

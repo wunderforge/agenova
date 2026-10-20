@@ -15,6 +15,13 @@ import (
 	"github.com/wunderforge/agenova/api/v1alpha1"
 )
 
+// Safe diagnostic categories; concrete backend/worker output is not evidence.
+var (
+	ErrWorkerControlUnavailable = errors.New("worker control unavailable")
+	ErrWorkerProtocol           = errors.New("worker execution contract not confirmed")
+	ErrWorkerImageUnavailable   = errors.New("worker image unavailable")
+)
+
 // RuntimeBackend is the reduced, backend-neutral operation boundary one
 // governed run needs from a sandbox substrate. It covers allocation/binding,
 // observation, an explicit work-start boundary, termination and cleanup.

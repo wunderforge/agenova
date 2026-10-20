@@ -16,6 +16,7 @@ func TestReferenceTemplateCompatibilityBeforeRegistration(t *testing.T) {
 	installed := &platform.ResolvedPlatform{Instances: []platform.ResolvedInstance{{Category: platform.CapabilityRuntime, Config: map[string]any{"compatible-worker-image": "trusted-worker:v1"}}}}
 	allowed := v0.Duration(5 * time.Minute)
 	template := &v0.AgentTemplate{Metadata: v0.ObjectMeta{Name: "engineer"}, Spec: v0.AgentTemplateSpec{Artifact: &v0.AgentTemplateArtifact{Image: "trusted-worker:v1"}, Entrypoint: &v0.AgentTemplateEntrypoint{Command: []string{"/agenova-workerctl", "serve"}}, CapabilityCeiling: &v0.AgentTemplateCapabilityCeiling{MaxTimeout: &allowed}}}
+	template.APIVersion, template.Kind = v0.AgentTemplateAPIVersion, v0.AgentTemplateKind
 	if err := validateReferenceTemplate(template, installed); err != nil {
 		t.Fatal(err)
 	}
@@ -31,17 +32,20 @@ func TestReferenceTemplateCompatibilityBeforeRegistration(t *testing.T) {
 	}
 	template.Metadata.Name = "engineer"
 	template.Spec.Artifact.Image = "unverified-worker:v1"
-	if err := validateReferenceTemplate(template, installed); err == nil {
-		t.Fatal("unverified worker image accepted")
+	if err := validateReferenceTemplate(template, installed); err != nil {
+		t.Fatalf("independent worker image rejected: %v", err)
 	}
 	template.Spec.Artifact.Image = "trusted-worker:v1"
 	template.Spec.Entrypoint.Command = []string{"/bin/sh"}
-	if err := validateReferenceTemplate(template, installed); err == nil {
-		t.Fatal("incompatible worker entrypoint accepted")
+	if err := validateReferenceTemplate(template, installed); err != nil {
+		t.Fatalf("custom entrypoint rejected before runtime verification: %v", err)
 	}
 	template.Spec.Entrypoint.Command = []string{"/agenova-workerctl", "serve"}
 	tooLong := v0.Duration(6 * time.Minute)
 	template.Spec.CapabilityCeiling.MaxTimeout = &tooLong
+	if err := ValidateControlledTemplate(template); err != nil {
+		t.Fatalf("legacy member ceiling rejected by new image logic: %v", err)
+	}
 	if err := validateReferenceTemplate(template, installed); err == nil {
 		t.Fatal("timeout above the controlled worker execution limit accepted")
 	}

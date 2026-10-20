@@ -5,7 +5,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/registration"
 	"io"
@@ -41,19 +41,7 @@ func (d *memberDependencies) governanceHandler() http.Handler {
 			http.Error(w, "Invalid request", 400)
 			return
 		}
-		result, err := d.store.ApplyGovernance(r.Context(), p, request.Project, request.Kind, []byte(request.Document), func(t *v0.AgentTemplate) error {
-			if t.Spec.Artifact == nil || t.Spec.Entrypoint == nil {
-				return errors.New("controlled worker required")
-			}
-			if err := requireCompatibleWorkerImage(t.Spec.Artifact.Image, os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE")); err != nil {
-				return err
-			}
-			c := t.Spec.Entrypoint.Command
-			if len(c) != 2 || c[0] != "/agenova-workerctl" || c[1] != "serve" {
-				return errors.New("controlled worker required")
-			}
-			return nil
-		})
+		result, err := d.store.ApplyGovernance(r.Context(), p, request.Project, request.Kind, []byte(request.Document), app.ValidateControlledTemplate)
 		if err != nil {
 			status := 400
 			if errors.Is(err, authentication.ErrForbidden) {

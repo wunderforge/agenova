@@ -122,12 +122,12 @@ func TestKubernetesPlanRejectsUnsupportedRuntimeCardinalityBeforeAccess(t *testi
 	}
 }
 
-func TestKubernetesPlanRejectsUnverifiedWorkerImageBeforeAccess(t *testing.T) {
+func TestKubernetesPlanRejectsUnknownWorkerProtocolBeforeAccess(t *testing.T) {
 	request := deploymentRequest()
-	request.Platform.Instances[0].Config["compatible-worker-image"] = "busybox:latest"
+	request.Platform.Instances[0].Config["compatible-worker-protocol"] = "unknown"
 	runner := &fakeKubectl{}
 	_, _, _, err := newKubernetesDeployment(runner).Plan(context.Background(), request)
-	if err == nil || !strings.Contains(err.Error(), "bundled controlled worker image") || len(runner.calls) != 0 {
+	if err == nil || !strings.Contains(err.Error(), "controlled-v1 worker protocol") || len(runner.calls) != 0 {
 		t.Fatalf("unsupported worker image = %v, target calls %#v", err, runner.calls)
 	}
 }
@@ -291,8 +291,8 @@ func TestKubernetesApplyUsesSecretFreeResourceStepsAndWaitsReady(t *testing.T) {
 	if !strings.Contains(manifestText, "team-a") || !strings.Contains(manifestText, "claim.create") {
 		t.Fatalf("initial policy omitted the actual reference allow rule: %s", manifestText)
 	}
-	if !strings.Contains(manifestText, "AGENOVA_ALLOWED_WORKER_IMAGE") || !strings.Contains(manifestText, "agenova-testworker:kind") {
-		t.Fatalf("control plane is missing the configured worker image boundary: %s", manifestText)
+	if strings.Contains(manifestText, "AGENOVA_ALLOWED_WORKER_IMAGE") {
+		t.Fatal("installation must not impose a global Agent image binding")
 	}
 }
 
@@ -1175,7 +1175,7 @@ func TestKubernetesPreflightChecksTokenSecretGrantByName(t *testing.T) {
 	}
 }
 
-func TestRemoteImagesReachInstalledManifestAndExactWorkerBinding(t *testing.T) {
+func TestRemoteControlPlaneImageDoesNotBindAgentImages(t *testing.T) {
 	request := deploymentRequest()
 	image := "registry.example/agenova/control-plane@sha256:" + strings.Repeat("b", 64)
 	worker := "registry.example/agenova/worker@sha256:" + strings.Repeat("c", 64)
@@ -1191,9 +1191,12 @@ func TestRemoteImagesReachInstalledManifestAndExactWorkerBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{image, worker, `"imagePullPolicy":"Always"`} {
+	for _, want := range []string{image, `"imagePullPolicy":"Always"`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("manifest does not contain %s", want)
 		}
+	}
+	if strings.Contains(string(data), worker) || strings.Contains(string(data), "AGENOVA_ALLOWED_WORKER_IMAGE") {
+		t.Fatal("legacy image hint became an installation allowlist")
 	}
 }

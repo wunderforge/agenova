@@ -224,3 +224,12 @@ Sign in uses the existing authentication flow; authenticated entry opens Connect
 Work. Public screenshots are explicitly illustrative, not current member evidence.
 No Work, policy, template, identity or management API becomes public, and viewing
 the homepage confers no membership or execution authority.
+
+Owner-approved image-delivery extension (20 October 2026, [#240](https://github.com/wunderforge/agenova/issues/240)):
+authorized publishers may select Agent images and entrypoints without republishing
+the platform. Registration is structural, not an attestation of compatibility.
+The controlled-v1 execution contract, per-Work authority, credential boundary and
+immutable registration remain unchanged. Automatic adaptation of arbitrary
+programs remains future scope. main delivery defaults to automatic control-plane
+rollout after checks, with emergency off switches. Reference Worker publication
+never rewrites user templates. Acceptance is in the [#240 task packet](../../work/0240-worker-image-decoupling/task.md).
