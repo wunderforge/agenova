@@ -159,3 +159,26 @@ merge bypass only for #234 after all CI passes. This supersedes the earlier loca
 preview/PR-only restrictions, not authentication, release compatibility or source
 boundaries. Verify the exact online schema/proxy/image prerequisites before any
 rollout; never bypass release guards or expose credentials to achieve a UI update.
+
+## Human-facing product entry follow-up — 20 October
+
+The Owner requested a clearer repository introduction after the UI release.
+Scope: expose the hosted Portal and guides near the top of README, show an
+unchanged actual-UI capture with explicit illustrative-data provenance, explain
+the existing sign-in/Work inspection path, and correct stale UI deployment status.
+Update GitHub About/Website to match. This changes documentation and repository
+presentation only, not application behavior, permissions or deployment.
+
+Acceptance: a new visitor can find the Portal, understand the approval boundary,
+see the interface and locate local/frontend instructions without private guidance.
+Keep live release evidence separate from fixture screenshots; do not imply public
+workspace access, an authenticated live acceptance run, or deployment of #231.
+Verify Markdown links, the screenshot, docs gate and the final diff before PR.
+
+Verification: `scripts/check.ps1 -Docs` passed; a separate check resolved every
+relative link and image in the five changed Markdown files. The unedited 81 KB
+Playwright capture was visually inspected and retains its illustrative-data labels.
+`git diff --check` passed. The complete `scripts/check.ps1 -All` passed docs,
+module tidy and vet, then failed only the already recorded Windows
+`TestOwnerBootstrapDeliveryGuards`; all other Go packages passed. Frontend gates
+were not reached in that full run; no application source changed in this follow-up.

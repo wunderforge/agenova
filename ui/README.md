@@ -1,6 +1,21 @@
 # Agenova React console
 
-The default **Demo** mode is an illustrative Work/Platform story, not live
+## Use the hosted Portal
+
+Open [app.agenova.app](https://app.agenova.app/), choose **Sign in**, then
+**Continue with Google**. New accounts require administrator approval and
+project access; ordinary members need no AWS or Kubernetes credentials.
+After signing in, open **Work**, select a request, and inspect its result,
+requested/granted access and recorded activity.
+
+The public landing is available without login; private Work and evidence are not.
+See the [Team Quick Guide](../docs/team-quick-guide.md) for account approval and
+CLI use. The screenshot in the [repository overview](../README.md#see-the-product)
+shows this React UI with labelled illustrative data, not hosted member records.
+
+## Run the frontend locally
+
+The local development server's default **Demo** mode is an illustrative Work/Platform story, not live
 evidence. **Connected** mode (`/?mode=connected#/work`) reads and submits through
 the Agenova `/api` contract. Its source is selected by the Vite development
 server, not by a browser-held credential or a Kubernetes-specific UI adapter.

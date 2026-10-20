@@ -6,11 +6,23 @@ This records what the repository currently proves, not the target architecture o
 
 ## Verified Shared Member Trial
 
-The existing shared EKS member service now runs the integrated member/Tool/diagnosis candidate, delivered by real GitHub Actions OIDC/ECR paired rollout. Released source is `44dc383c9d8cb1ed5679677d78ed6a289a1944bc`; subsequent documentation and release-provenance fixes do not change those application images. Personal Google application identity, approved project membership, role checks, project-scoped immutable registration and SQL-backed Work/evidence are present in this mode.
+The 19 October shared EKS trial ran the integrated member/Tool/diagnosis candidate, delivered by real GitHub Actions OIDC/ECR paired rollout, at source `44dc383c9d8cb1ed5679677d78ed6a289a1944bc`. Personal Google application identity, approved project membership, role checks, project-scoped immutable registration and SQL-backed Work/evidence are present in this mode.
 
 Real Agenova CLI registration, one allowed Agent Sandbox Work with three successful Bedrock calls, one admission denial with no Claim/provider allocation, post-run query, retained history and identical-request non-replay were verified. AWS CLI independently matched both immutable ECR image digests; the executed Worker was absent after cleanup. See the [trial commands](development/shared-eks-trial.md) and [exact acceptance evidence](../work/0218-demo-cicd-integration/aws-acceptance-20261019.md).
 
-This does not certify production security or all adapters. Installed Tool remains labelled mock; real external MCP/Collector/Memory services, the private Tool credential finding, general HA/recovery and hostile-agent/network isolation require separate acceptance. Login source is pinned to reviewed #216 `88888a2`; newer migration 009/proxy changes are not deployed. Temporary candidate branch access was revoked and ordinary automatic main cloud deployment remains disabled.
+On 20 October, the control plane was updated to the exact #234 merge,
+`53f584235e2ff43c629e6170630a1b99da710727`, with the June Portal, public landing,
+schema 009 and the reviewed proxy configuration. The Worker and Platform registry
+were unchanged; later main/#231 Worker changes were not part of this release.
+The deployment and both containers were healthy. Live HTTPS checks passed for
+the landing, existing Google login entry, anonymous private-API 401 responses,
+desktop/mobile rendering and absence of page errors. The frontend passed 132 unit
+tests and 61 Playwright tests; PR CI and the exact merged-source Linux gate passed.
+A fresh real Google login and authenticated live Work submission were not
+performed in this UI acceptance. See the
+[release evidence and schema-compatible recovery image](https://github.com/wunderforge/agenova/pull/234#issuecomment-6282259695).
+
+This does not certify production security or all adapters. Installed Tool remains labelled mock; real external MCP/Collector/Memory services, the private Tool credential finding, general HA/recovery and hostile-agent/network isolation require separate acceptance. Temporary migration Jobs and Secrets were removed. Temporary candidate branch access was revoked and ordinary automatic main cloud deployment remains disabled.
 
 ## Verified Reference Path
 
@@ -20,15 +32,16 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 
 ## Other Implemented Surfaces
 
-- Local member-service public landing: anonymous root serves finite public product
+- Deployed member-service public landing: anonymous root serves finite public product
   assets, Sign in uses the unchanged `/login` form/Google flow, and authenticated
   root retains Connected entry. All private APIs remain gated. Login palette now
-  matches June. Owner-approved local source; not deployed in this acceptance.
+  matches June. Deployed and publicly checked in the UI release above.
   [Acceptance scope](../work/0215-invited-team-access/landing.md).
-- Local June Portal visual refresh: fixed-light surfaces, loaded-list summary,
+- June Portal visual refresh: fixed-light surfaces, loaded-list summary/activity chart,
   separate admission/outcome columns, and a selected-record inspector backed by
-  the existing activity projection. No API/authentication contract change and no
-  cloud deployment. [Scope and local evidence](../work/0143-midterm-vertical/june-portal.md).
+  the existing activity projection, account menus, quick guide and view settings.
+  No API/authentication contract change. Deployed in the UI release above;
+  [scope and local evidence](../work/0143-midterm-vertical/june-portal.md).
 - Backend-neutral ClaimRequest, AgentTemplate, SandboxClaim lifecycle, RuntimeBackend contract, trusted-principal reference authorization and system-issued effective authority.
 - In-memory runtime and governance reference path, isolated behind explicit `--backend memory` for CLI Work.
 - Claim-scoped Tool and Model authorization/facts, evidence projection, and a controlled-worker ReAct demonstration. Example tool content in the kind/Ollama path is labelled synthetic.
@@ -45,4 +58,4 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 
 ## Next Delivery Slice
 
-Finish the separately reviewed schema-009/proxy release campaign and recovery/revocation acceptance, then connect teammate-owned external Tool/Observability services with real-provider and security evidence. Do not recreate the already demonstrated shared CLI/model path or treat Tool application integration as external-service deployment. `platform apply` intentionally does not install the local React UI.
+Complete the remaining recovery/revocation acceptance, then connect teammate-owned external Tool/Observability services with real-provider and security evidence. Schema 009/proxy and the June UI are deployed; their release does not establish the remaining operational/security acceptance. Do not recreate the already demonstrated shared CLI/model path or treat Tool application integration as external-service deployment. `platform apply` intentionally does not install the local React UI.
