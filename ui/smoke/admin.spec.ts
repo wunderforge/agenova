@@ -15,6 +15,18 @@ const csp = `default-src 'none'; connect-src 'self'; style-src 'sha256-${hash(cs
 const owner = { principal: 'owner', email: 'owner@example.test', accountRole: 'owner', active: true, projects: [{ project: 'payments', role: 'admin' }], roles: [] };
 const member = { principal: 'member', email: 'member@example.test', accountRole: 'member', active: true, projects: [{ project: 'payments', role: 'member' }], roles: [] };
 
+function contrast(foreground: string, background: string) {
+  const luminance = (color: string) => {
+    const values = color.match(/[\d.]+/g)!.slice(0, 3).map(value => {
+      const channel = Number(value) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+  };
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 async function admin(page: Page, state: 'populated' | 'empty' | 'error' = 'populated') {
   const posts: { path: string; body: unknown }[] = [];
   await page.route('**/admin', route => route.fulfill({ contentType: 'text/html', body: html, headers: { 'Content-Security-Policy': csp } }));
@@ -114,4 +126,21 @@ test('all Portal route families retain June styling including missing records', 
     await expect(page.locator('.portal-sidebar')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+});
+
+test('administration placeholders and denied evidence labels meet normal-text contrast', async ({ page }) => {
+  await admin(page);
+  const field = await page.locator('#governance-project').evaluate(element => ({
+    foreground: getComputedStyle(element, '::placeholder').color,
+    background: getComputedStyle(element).backgroundColor,
+  }));
+  expect(contrast(field.foreground, field.background)).toBeGreaterThanOrEqual(4.5);
+  await page.unrouteAll({ behavior: 'wait' });
+  await page.goto('/console/requests/fix-payment-timeout-team-b');
+  await expect(page.locator('.decision-deny')).toBeVisible();
+  const badge = await page.locator('.decision-deny').evaluate(element => ({
+    foreground: getComputedStyle(element).color,
+    background: getComputedStyle(element).backgroundColor,
+  }));
+  expect(contrast(badge.foreground, badge.background)).toBeGreaterThanOrEqual(4.5);
 });

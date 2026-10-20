@@ -11,7 +11,7 @@
 .console-source select { max-width: 360px; }
 .console-notice { border-left: 3px solid #a16d22; padding: 8px 12px; background: #fff6e6; overflow-wrap: anywhere; }
 .decision-badge { display: inline-block; background: #edf8f3; color: #217c60; padding: 6px 14px; font-weight: 700; border-radius: 4px; margin: 0; }
-.decision-deny { background: #fff0f2; color: #bd5161; }
+.decision-deny { background: #fff0f2; color: #b14153; }
 .console table { width: 100%; border-collapse: collapse; font-size: .9rem; table-layout: fixed; }
 .console caption { text-align: left; font-weight: 600; padding: 12px 0; }
 .console th, .console td { text-align: left; vertical-align: top; border-bottom: 1px solid #e9e7f0; padding: 12px 8px; overflow-wrap: anywhere; }

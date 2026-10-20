@@ -21,7 +21,8 @@ These are local renders of the actual embedded Administration HTML/CSS/JS with *
 
 - `go test ./internal/invitations ./internal/websession`: passed. Includes anonymous rejection, existing member-denied page case, CSP hashes and pending/declined theme metadata with no new cookies.
 - `npm --prefix ui run build`: passed.
-- `npm --prefix ui run test:smoke -- admin.spec.ts --workers=2`: 5 passed. All management sections, POST shapes, invalid JSON, empty/unavailable state, fixture/evidence and Portal route families covered.
+- `npm --prefix ui run test:smoke -- admin.spec.ts --workers=2`: final focused run 6 passed. All management sections, POST shapes, invalid JSON, empty/unavailable state, fixture/evidence and Portal route families covered; placeholder and denied-label contrast must be at least 4.5:1.
+- Initial full frontend check: 132 component tests and 66 browser tests passed. Automated review subsequently identified two small-text contrast issues; both colors were darkened and a sixth focused regression added. Final CI reruns the full suite for the corrected head.
 - Existing two June browser tests passed alongside the initial focused run. An initially invalid raw-percent URL hit the preview server rather than the app; the regression now uses the application's malformed-route path.
 - `./scripts/check.ps1 -All`: docs/contracts/format/tidy/vet passed; `go test ./...` failed only `TestOwnerBootstrapDeliveryGuards` in the unchanged Windows directory-sync path. All other listed packages passed. Frontend full checks run separately; Linux CI remains a merge gate. No bootstrap code/test workaround is included.
 - CI and deployed-source verification are recorded in the PR/release evidence after completion; local browser fixtures do not establish live membership or AWS safety behavior.
