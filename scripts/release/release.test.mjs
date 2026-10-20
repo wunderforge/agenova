@@ -306,6 +306,10 @@ test('workflow guards and credential separation remain explicit', () => {
   assert.match(yaml, /needs.validate.outputs.eligible == 'true'/);
   assert.ok(yaml.indexOf('release.mjs preflight') < yaml.indexOf('configure-aws-credentials'));
   assert.ok(!yaml.includes('blocked-worker-migration'));
+  const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
+  assert.ok(readme.includes('SHARED_EKS_RELEASE_DISABLED=true'));
+  assert.ok(readme.includes('SHARED_EKS_DEPLOY_DISABLED=true'));
+  assert.ok(!readme.includes('Publication and control-plane rollout require explicit enablement'));
   const publishing = yaml.split('\n  publish:')[1].split('\n  deploy:')[0];
   assert.ok(!/^    environment:/m.test(publishing));
   assert.match(publishing, /AWS_PUBLISH_ROLE_ARN/);

@@ -86,4 +86,5 @@ Out of scope:
 
 - [x] P1: prevent same-named templates in different project registries from repointing runtime resources. Configure the immutable resolved content through one adapter-owned content-addressed resource path; do not change project authorization or public template references.
 - [x] P2: apply release/deploy emergency stops to candidate paths as well as main, before cloud-role admission and again at the script gate.
-- [ ] Run concurrent/real-backend isolation, full regression and Linux/race CI; request another independent review of the fixes. No merge or deployment.
+- [x] Run concurrent/real-backend isolation, full regression and Linux/race CI; request another independent review of the fixes. No merge or deployment.
+- [x] Follow-up P2: correct the top-level README's obsolete opt-in statement and guard its emergency-stop guidance in release tests. CI/review results remain authoritative on the PR.

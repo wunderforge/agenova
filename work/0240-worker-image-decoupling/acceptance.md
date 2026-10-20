@@ -101,3 +101,11 @@ Focused proof:
 Identity/model responses in this local test remain explicit fixtures. It is not
 AWS, Google/OIDC or a claim of hostile-container isolation. No live release
 switches, AWS resources, shared-cluster configuration, merge or deployment change.
+
+The complete Linux/race/browser CI on fix commit `40bc0a2` passed in
+[run 39381373324](https://github.com/wunderforge/agenova/actions/runs/39381373324).
+The second independent review raised only one additional P2: the README still
+described opt-in publication. Its summary now states automatic main delivery,
+both emergency opt-outs and independent Worker publication; release tests guard
+the updated guidance against that known contradictory sentence. No runtime or
+deployment behavior changed in this documentation follow-up.

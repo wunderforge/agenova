@@ -88,8 +88,12 @@ production installer.
 
 Feature planning is adaptive: every Ticket gets a compact Agent task packet under [`work/`](work/README.md); spec and design files are added only when ambiguity or shared contracts justify them.
 
-For maintainers of the existing shared AWS demo, see the [gated image-delivery runbook](docs/development/shared-eks-release.md).
-Publication and control-plane rollout require explicit enablement; Worker template migration and cluster lifecycle are not automated by that workflow.
+For maintainers of the existing shared AWS demo, see the [automatic image-delivery runbook](docs/development/shared-eks-release.md).
+After checks pass, artifact changes on `main` automatically publish images and
+roll out the control plane. Emergency opt-outs are `SHARED_EKS_RELEASE_DISABLED=true`
+(stop publication/deployment) and `SHARED_EKS_DEPLOY_DISABLED=true` (stop deployment
+only), including candidate runs. Reference Worker images publish independently;
+user template updates and cluster lifecycle are not automated by this workflow.
 
 ## Current Baseline
 
