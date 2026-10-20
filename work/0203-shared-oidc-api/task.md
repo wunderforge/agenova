@@ -13,22 +13,22 @@ Read `AGENTS.md`, `docs/product/prd.md`, this packet, [#203](https://github.com/
 
 The current main service already verifies Google identity during login, issues revocable application sessions, resolves current membership on each operation, protects connected CLI/Portal transport, and filters evidence by owner. E14 M2 must prove that this existing boundary supplies the principal to M1 Policy and never accepts a caller-authored team or subject. Invalid identity and cross-owner references must stop before worker/provider effects. Keep Policy and AgentTemplate management behind operator authorization.
 
-The original #203 text requires direct company JWT/JWKS bearer verification, a token file, and explicit fixed-principal mode. The current Google/member implementation uses application sessions and OS credential storage. Those transport details are **not yet reconciled in the Ticket**; this packet does not silently declare them equivalent or remove the original acceptance criteria.
+The Owner-approved #215 Google/member path replaces #203's original direct company JWT/JWKS bearer and CLI token-file transport requirements. Google identity is verified at login; the service uses revocable application sessions and native OS credential storage. The named authentication, identity-forgery, isolation, and zero-side-effect outcomes remain required. The explicitly selected fixed-principal local mode remains separate and cannot be a fallback from authenticated mode.
 
 ## Acceptance and Evidence
 
 - [x] One service accepts two distinct verified members and attributes Work/evidence to the correct subject/team in a focused integration test.
 - [x] Caller-authored team header does not override membership; cross-owner evidence is hidden; invalid identity has zero worker/provider side effects.
-- [ ] Reconcile #203 transport requirements with the Owner-approved Google/member design in the Ticket and PR review.
+- [x] Reconcile #203 transport requirements with the Owner-approved Google/member design in the Ticket and PR review.
 - [ ] Record a real installed two-member Google login and Work/evidence transcript, including CLI/API/Portal parity and named failure cases. Synthetic test identities do not satisfy this.
-- [ ] Run focused and full gates on the final rebased branch; review diff and report residual risks.
+- [x] Run focused and full gates on the reconciled branch; review diff and report residual risks. Focused `go test -count=1 ./internal/console -run TestE14TwoMembersShareOnePolicyService` passed; `./scripts/check.ps1 -All` passed, including 56/56 browser smoke.
 
 ## Gates and Dependencies
 
-`go test -count=1 ./internal/console -run TestE14TwoMembersShareOnePolicyService` and `./scripts/check.ps1 -All`. M1 PR #207 must merge before M2 can be merged. This branch is a draft until the Ticket contract and installed two-member acceptance are resolved.
+`go test -count=1 ./internal/console -run TestE14TwoMembersShareOnePolicyService` and `./scripts/check.ps1 -All`. M1 PR #207 merged as `1b3cd68`. This branch remains a draft until installed two-member acceptance is complete.
 
 ## Decisions and Blockers
 
 - 20 October 2026: User selected the existing main member service over the older standalone E14 OIDC stack. No duplicate verifier is brought into main.
-- M1 #207 passed local and CI gates but branch protection currently requires a fresh independent approval.
-- Real installed two-member Google acceptance and direct-JWT versus application-session Ticket reconciliation remain open. Do not mark M2 accepted based on the focused synthetic test.
+- M1 #207 merged on 20 October 2026. #203 now records the Google/member session transport decision.
+- Real installed two-member Google acceptance remains open. Do not mark M2 accepted based on the focused synthetic test.
