@@ -79,7 +79,7 @@ func run(input io.Reader, output io.Writer, sleep func(time.Duration)) error {
 		lastText = reply.Text
 	}
 	if strings.Contains(task.Objective, "e15-scenario=control") {
-		a, err := workerprotocol.ParseAction(lastText)
+		a, err := workerprotocol.ParseAction(lastText, task.Tools)
 		if err != nil || a.Action != "finish" {
 			return errors.New("control requires model-selected finish")
 		}
@@ -97,8 +97,10 @@ func scenario(task workerprotocol.Task) ([]step, error) {
 			args[key] = value
 		}
 	}
+	// Every operation carries the host-issued token for its Gateway, so each
+	// scenario changes only the field it names.
 	allowed := func() step {
-		return step{op: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}}
+		return step{op: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}}
 	}
 	with := func(edit func(*workerprotocol.Operation)) step {
 		s := allowed()
@@ -106,7 +108,11 @@ func scenario(task workerprotocol.Task) ([]step, error) {
 		return s
 	}
 	tool := func(name, scope string) step {
-		return step{op: &workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: name, ResourceScope: scope, Input: "README.md"}}
+		return step{op: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: name, ResourceScope: scope, Input: "README.md"}}
+	}
+	grantedScope := ""
+	if len(task.Tools) > 0 {
+		grantedScope = task.Tools[0].ResourceScope
 	}
 	switch name := args["e15-scenario"]; name {
 	case "control":
@@ -119,7 +125,7 @@ func scenario(task workerprotocol.Task) ([]step, error) {
 	case "profile":
 		return []step{allowed(), with(func(op *workerprotocol.Operation) { op.Profile = "e15-ungranted-profile" })}, nil
 	case "tool":
-		return []step{allowed(), tool("git.write", task.ResourceScope)}, nil
+		return []step{allowed(), tool("git.write", grantedScope)}, nil
 	case "scope":
 		return []step{allowed(), tool("git.read", "repo:e15/ungranted")}, nil
 	case "malformed":

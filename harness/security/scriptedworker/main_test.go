@@ -13,13 +13,23 @@ import (
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
-const claimID = "claim-a"
+const (
+	claimID    = "claim-a"
+	modelToken = "synthetic-model-token"
+	toolToken  = "synthetic-tool-token"
+)
+
+// testTask mirrors the host Task shape: one granted catalog entry and one
+// token per Gateway audience.
+func testTask(objective string) workerprotocol.Task {
+	return workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: "coding-standard", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "git.read", Description: "Read one repository file.", ResourceScope: "repo:acme/payments", Parameter: "file", AllowedValues: []string{"README.md"}}}}
+}
 
 // drive runs a scenario with a host that answers every operation, and
 // returns the worker records in order.
 func drive(t *testing.T, objective string, replies int) ([]string, []time.Duration, error) {
 	t.Helper()
-	task, _ := json.Marshal(workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: "coding-standard", Mode: workerprotocol.ReAct, ResourceScope: "repo:acme/payments"})
+	task, _ := json.Marshal(testTask(objective))
 	input := string(task) + "\n" + strings.Repeat(`{"allowed":true,"text":"{\"action\":\"finish\",\"answer\":\"ok\"}"}`+"\n", replies)
 	var output strings.Builder
 	var waits []time.Duration
@@ -47,8 +57,8 @@ func TestAllowedOperationMatchesReferenceShape(t *testing.T) {
 		t.Fatalf("control: lines=%d err=%v", len(lines), err)
 	}
 	op := operation(t, lines[0])
-	task := workerprotocol.Task{ClaimID: claimID, Objective: "e15-scenario=control", ModelProfile: "coding-standard", Mode: workerprotocol.ReAct, ResourceScope: "repo:acme/payments"}
-	if op.ClaimID != claimID || op.Kind != "model" || op.Profile != "coding-standard" || !strings.HasPrefix(op.Prompt, workerprotocol.PromptPrefix(task)) {
+	task := testTask("e15-scenario=control")
+	if op.ClaimID != claimID || op.WorkloadToken != modelToken || op.Kind != "model" || op.Profile != "coding-standard" || !strings.HasPrefix(op.Prompt, workerprotocol.PromptPrefix(task)) {
 		t.Fatalf("allowed operation does not match the reference shape: %+v", op)
 	}
 }
@@ -59,16 +69,16 @@ func TestNegativeScenariosChangeOnlyTheNamedField(t *testing.T) {
 		check     func(workerprotocol.Operation) bool
 	}{
 		{"e15-scenario=cross-claim target=claim-b", func(op workerprotocol.Operation) bool {
-			return op.ClaimID == "claim-b" && op.Profile == "coding-standard"
+			return op.ClaimID == "claim-b" && op.WorkloadToken == modelToken && op.Profile == "coding-standard"
 		}},
 		{"e15-scenario=profile", func(op workerprotocol.Operation) bool {
 			return op.ClaimID == claimID && op.Profile == "e15-ungranted-profile"
 		}},
 		{"e15-scenario=tool", func(op workerprotocol.Operation) bool {
-			return op.Kind == "tool" && op.Tool == "git.write" && op.ResourceScope == "repo:acme/payments"
+			return op.Kind == "tool" && op.WorkloadToken == toolToken && op.Tool == "git.write" && op.ResourceScope == "repo:acme/payments"
 		}},
 		{"e15-scenario=scope", func(op workerprotocol.Operation) bool {
-			return op.Kind == "tool" && op.Tool == "git.read" && op.ResourceScope == "repo:e15/ungranted"
+			return op.Kind == "tool" && op.WorkloadToken == toolToken && op.Tool == "git.read" && op.ResourceScope == "repo:e15/ungranted"
 		}},
 		{"e15-scenario=unsupported", func(op workerprotocol.Operation) bool { return op.Kind == "memory" && op.ClaimID == claimID }},
 	}

@@ -87,12 +87,13 @@ func terminal(t *testing.T, s *console.Service, ref string) evidence.View {
 	return evidence.View{}
 }
 func model(task workerprotocol.Task) workerprotocol.Operation {
-	return workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
+	return workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
 }
 
 type retained struct {
-	h  workerprotocol.Handler
-	op workerprotocol.Operation
+	h    workerprotocol.Handler
+	op   workerprotocol.Operation
+	task workerprotocol.Task
 }
 
 func TestRetainedHandlerRefusesAllTerminalPhases(t *testing.T) {
@@ -105,7 +106,7 @@ func TestRetainedHandlerRefusesAllTerminalPhases(t *testing.T) {
 				if err != nil {
 					return "", err
 				}
-				captured <- retained{h, op}
+				captured <- retained{h, op, task}
 				switch phase {
 				case v0.ClaimPhaseFailed:
 					return "", errors.New("synthetic worker failure")
@@ -141,7 +142,7 @@ func TestRetainedHandlerRefusesAllTerminalPhases(t *testing.T) {
 			for _, kind := range []string{"model", "tool"} {
 				op := saved.op
 				if kind == "tool" {
-					op = workerprotocol.Operation{ClaimID: op.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "README.md"}
+					op = workerprotocol.Operation{ClaimID: op.ClaimID, WorkloadToken: saved.task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "README.md"}
 				}
 				reply, err := saved.h(context.Background(), op)
 				if err == nil || reply.Allowed {
@@ -217,7 +218,7 @@ func TestGatewayDenyAvailableThroughExecutorSeamOnly(t *testing.T) {
 				if kind == "profile" {
 					op.Profile = "ungranted-profile"
 				} else {
-					op = workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "README.md"}
+					op = workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "README.md"}
 				}
 				reply, err := h(ctx, op)
 				if err != nil {
