@@ -4,9 +4,12 @@
 package console
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +45,11 @@ func (e14Memberships) Resolve(_ context.Context, id authentication.Identity) (v0
 // principal or accept a caller-authored team when two members use one service.
 func TestE14TwoMembersShareOnePolicyService(t *testing.T) {
 	loader := &policy.Loader{}
-	if err := loader.Load(app.ReferencePolicy()); err != nil {
+	aliceTimeout, bobTimeout := 10*time.Minute, 20*time.Minute
+	if err := loader.Load(policy.PolicyBundle{ID: "e14-two-member-caps", Version: "1", Rules: []policy.Rule{
+		{Subject: "alice", Team: "team-a", Action: "claim.create", Project: "payments", TemplateRef: "engineer", Constraints: &policy.AuthorityConstraints{Tools: &policy.StringSetConstraint{Values: []string{"git.read"}}, MaxTimeout: &aliceTimeout}},
+		{Subject: "bob", Team: "team-a", Action: "claim.create", Project: "payments", TemplateRef: "engineer", Constraints: &policy.AuthorityConstraints{Tools: &policy.StringSetConstraint{Values: []string{"git.read", "shell.exec"}}, MaxTimeout: &bobTimeout}},
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	backend, provider := &verticalBackend{}, &httpProvider{}
@@ -65,15 +72,35 @@ func TestE14TwoMembersShareOnePolicyService(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var firstSpec json.RawMessage
 	for _, user := range []string{"alice", "bob"} {
 		headers := map[string]string{"Authorization": "Bearer " + user + "-token", "X-Team": "other-team"}
-		response := httpCall(handler, http.MethodPost, "/api/requests", httpInput(user), headers)
+		request := httpInput(user)
+		var document struct {
+			Spec json.RawMessage `json:"spec"`
+		}
+		if err := json.Unmarshal(request, &document); err != nil {
+			t.Fatal(err)
+		}
+		if firstSpec == nil {
+			firstSpec = document.Spec
+		} else if !bytes.Equal(firstSpec, document.Spec) {
+			t.Fatal("members submitted different Work specs")
+		}
+		response := httpCall(handler, http.MethodPost, "/api/requests", request, headers)
 		if response.Code != http.StatusAccepted {
 			t.Fatalf("%s submit: %d %s", user, response.Code, response.Body)
 		}
 		view := awaitVertical(t, service, user)
 		if view.State.Principal.Subject != user || view.State.Principal.Team != "team-a" {
 			t.Fatalf("%s trusted principal changed: %+v", user, view.State.Principal)
+		}
+		wantTimeout := aliceTimeout
+		if user == "bob" {
+			wantTimeout = bobTimeout
+		}
+		if view.State.PolicyRef.ID != "e14-two-member-caps" || view.State.PolicyRef.Version != "1" || view.State.EffectiveAuthority == nil || !slices.Equal(view.State.EffectiveAuthority.Tools, []string{"git.read"}) || time.Duration(view.State.EffectiveAuthority.Runtime.Timeout) != wantTimeout {
+			t.Fatalf("%s did not receive its Policy-bounded authority: policy=%+v authority=%+v", user, view.State.PolicyRef, view.State.EffectiveAuthority)
 		}
 		other := "alice"
 		if user == "alice" {
