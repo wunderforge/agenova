@@ -1,0 +1,13 @@
+{
+  "implementationParent": "28ace8ff023e1c9141dc4c8c7c01314eca1e1b65",
+  "files": {
+    "cmd/agenova-control-plane/member_auth.go": "7a4ac47f8e6d5068e46dfe64d79f3d415742e7a18638e0500d9cb1dcd23e011d",
+    "cmd/agenova-grafana-proxy/main.go": "9e55196ab6b285080109815299d1b9ce6982bffe20dadb62094c694553c67996",
+    "cmd/agenova-grafana-proxy/main_test.go": "4293e40c7a0cc1b1c6a553f32495b007af3e3d323111797684b7e8416e0f96c4",
+    "internal/adapters/bundled/observability.go": "278252f1263153511c4b98c855b3994b6e0d80de081d47b54c064df4408d3e6d",
+    "internal/adapters/bundled/observability_manifests.go": "8cc7425e6c7a1c47797da0508f685a6a9548afaeac7376f1a73db4dd8afcd806",
+    "internal/adapters/bundled/observability_test.go": "1057bc7313f1302232a0fdd6a09ffe72595603b2b3fdf25ca95e68754c63f6e3",
+    "internal/console/grafana_proxy.go": "633c9cceb8c2a7c261224643956e793714e0a3abc87f72aa04c2ef7371a53c37",
+    "internal/console/grafana_proxy_test.go": "d023054cd6d292c6ba7d0509873ac08c2a1a9a016fa5c705e5520fc532fde1fe"
+  }
+}

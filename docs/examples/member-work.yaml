@@ -1,0 +1,18 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: newcomer-payment-analysis-20261013
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Explain why resetting a five-second timeout on every payment retry can exceed an overall deadline, and suggest a fix. Use only this description; do not access repositories or tools.
+  requestedAccess:
+    tools: []
+    resourceScopes: []
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

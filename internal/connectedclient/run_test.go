@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 )
+
+func TestClientAcceptsOnlyBoundedPolicyNarrowingReasons(t *testing.T) {
+	request, err := v0.ParseClaimRequestYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata: {name: policy-narrowed}
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task: {type: investigation, input: {objective: Inspect payment retries}}
+  requestedAccess: {tools: [git.read, git.write], modelProfile: coding-standard}
+  runtime: {profileRef: standard-isolated, timeout: 5m}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	granted := v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated", Timeout: v0.Duration(2 * time.Minute)}}
+	changes := []authority.Change{{Field: "tools", Requested: "git.write", ReasonCode: "outside-policy-constraint"}, {Field: "runtime.timeout", Requested: "5m0s", Effective: "2m0s", ReasonCode: "policy-timeout-cap"}}
+	if !validAuthorityChanges(request, granted, changes) {
+		t.Fatal("valid Policy-bounded authority provenance was rejected")
+	}
+	for _, mutate := range []func([]authority.Change){
+		func(c []authority.Change) { c[0].ReasonCode = "grant-by-request" },
+		func(c []authority.Change) { c[1].Effective = "5m0s" },
+		func(c []authority.Change) { c[1].ReasonCode = "outside-policy-constraint" },
+	} {
+		bad := append([]authority.Change(nil), changes...)
+		mutate(bad)
+		if validAuthorityChanges(request, granted, bad) {
+			t.Fatalf("invalid authority provenance accepted: %+v", bad)
+		}
+	}
+}
 
 func workFile(t *testing.T, ref string) string {
 	t.Helper()
@@ -431,6 +467,16 @@ func TestInstalledAPIErrorUsesOnlyStableDiagnostics(t *testing.T) {
 	_, err := client.call(context.Background(), server.URL, []byte(`{}`), "")
 	if err == nil || !strings.Contains(err.Error(), "register the requested template") || strings.Contains(err.Error(), "raw internal detail") {
 		t.Fatalf("unsafe or missing diagnostic: %v", err)
+	}
+	response = `{"code":"tool_route_unavailable","message":"raw internal detail must not leak"}`
+	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
+	if err == nil || !strings.Contains(err.Error(), "configure a tool profile for those scopes") || strings.Contains(err.Error(), "raw internal detail") {
+		t.Fatalf("unsafe or missing route diagnostic: %v", err)
+	}
+	response = `{"code":"tool_catalog_unsupported","message":"raw internal detail must not leak"}`
+	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
+	if err == nil || !strings.Contains(err.Error(), "exceed the worker tool catalog limits") || strings.Contains(err.Error(), "raw internal detail") {
+		t.Fatalf("unsafe or missing catalog diagnostic: %v", err)
 	}
 	response = `{"code":"unexpected","message":"provider token=secret"}`
 	_, err = client.call(context.Background(), server.URL, []byte(`{}`), "")
@@ -1374,5 +1420,97 @@ func TestInstalledAPIDoesNotFollowRedirects(t *testing.T) {
 	_, err := client.call(context.Background(), local.URL, []byte(`{"kind":"ClaimRequest"}`), "")
 	if err == nil || !strings.Contains(err.Error(), "307") || redirected {
 		t.Fatalf("unsafe redirect result: err=%v redirected=%t", err, redirected)
+	}
+}
+
+func TestRecoveredAdmissionIsReadableWithoutInventingResolvedFacts(t *testing.T) {
+	source := withEvidenceFacts(pendingEvidenceJSON("interrupted"), receivedFact("interrupted"), resolutionFact("interrupted", "Allow"))
+	var view evidence.View
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		t.Fatal(err)
+	}
+	view.State.Evidence.RuntimeEvents = nil
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted missing authority proof for active Work")
+	}
+	view.Recovery = &evidence.Recovery{Code: "service-restarted", Cleanup: "Unknown"}
+	if !validEvidenceView(view, "interrupted") {
+		t.Fatal("rejected conservative early crash recovery")
+	}
+	view.Recovery.Code = "caller-supplied"
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted unknown recovery marker")
+	}
+}
+
+func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.T) {
+	base := installedEvidenceJSON("demo", "Succeeded")
+	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
+	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]`)
+	fact := func(id string, sequence int, kind, result, providerStatus, target, extra string) string {
+		return fmt.Sprintf(`{"id":%q,"sequence":%d,"timestamp":"2026-09-18T00:00:00Z","kind":%q,"requestRef":"demo","claimId":"claim:demo","invocationId":"inv:tool","policyRef":{"id":"policy:demo","version":"1"},"operation":"tool.invoke","target":%q,"result":%q,"providerStatus":%q%s}`, id, sequence, kind, target, result, providerStatus, extra)
+	}
+	toolAuthority := strings.Replace(authorityFact("demo"), `"id":"authority:demo"`, `"id":"authority:demo","tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]`, 1)
+	withFacts := func(items ...string) string {
+		items = append([]string{receivedFact("demo"), resolutionFact("demo", "Allow"), toolAuthority, boundFact("demo"), backendReadyFact("demo"), runningFact("demo")}, items...)
+		items = append(items, `{"id":"fact:terminal","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`, `{"id":"fact:outcome","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`)
+		return withTeardown(withEvidenceFacts(base, items...))
+	}
+	decision := fact("fact:decision", 7, "ToolDecision", "Allow", "", "repo.read", "")
+	attempt := fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", "")
+	ref := `,"resultRef":"repo:agenova/e16-fixture/README.md"`
+	succeeded := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", ref)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, succeeded)), "demo"); err != nil {
+		t.Fatalf("a differing external resultRef must be accepted: %v", err)
+	}
+	truncated := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", ref+`,"truncated":true`)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, truncated)), "demo"); err != nil {
+		t.Fatalf("a truncated successful observation must be accepted: %v", err)
+	}
+	// S2: a post-Allow rejection completes the invocation with a Failed outcome.
+	rejected := fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", `,"reasonCode":"tool-arguments-rejected"`)
+	if _, err := decodeView([]byte(withFacts(decision, attempt, rejected)), "demo"); err != nil {
+		t.Fatalf("completed post-Allow rejection rejected: %v", err)
+	}
+	for name, invalid := range map[string]string{
+		"allowed invocation left open": withFacts(decision),
+		"attempt without outcome":      withFacts(decision, attempt),
+		"differing outcome target":     withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo:agenova/e16-fixture/README.md", "")),
+		"resultRef on attempt":         withFacts(decision, fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", ref), succeeded),
+		"resultRef on failure":         withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", ref)),
+		"resultRef is a URL":           withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Succeeded", "repo.read", `,"resultRef":"http://e16-mcp/mcp"`)),
+		"truncated on attempt":         withFacts(decision, fact("fact:attempt", 8, "ProviderAttempt", "", "Attempted", "repo.read", `,"truncated":true`), succeeded),
+		"truncated on failure":         withFacts(decision, attempt, fact("fact:provider-outcome", 9, "ProviderOutcome", "", "Failed", "repo.read", `,"truncated":true`)),
+	} {
+		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestAuthenticatedHistoryUsesTokenAndNeverFollowsRedirect(t *testing.T) {
+	calls := 0
+	redirected := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("history token followed redirect") }))
+	defer redirected.Close()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer history-test-token" || r.URL.Path != "/api/history" || r.URL.Query().Get("limit") != "20" {
+			t.Error("history bypassed authenticated API")
+		}
+		if calls == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"items":[],"nextCursor":"%s"}`, strings.Repeat("a", 300))
+			return
+		}
+		http.Redirect(w, r, redirected.URL, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	client := Client{Server: server.URL, HTTPClient: server.Client(), AccessToken: func(context.Context) (string, error) { return "history-test-token", nil }}
+	page, err := client.History(20, "")
+	if err != nil || len(page.NextCursor) != 300 {
+		t.Fatal("authenticated cursor rejected", err)
+	}
+	if _, err := client.History(20, page.NextCursor); err == nil {
+		t.Fatal("history redirect accepted")
 	}
 }

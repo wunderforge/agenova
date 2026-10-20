@@ -1,0 +1,331 @@
+{
+  "images": [
+    {
+      "id": "sha256:9b23c989cdb641988d7a866b742f5085d8ea331cad9fbbb978988de5436e68be",
+      "repoTags": [
+        "docker.io/curlimages/curl:8.11.1"
+      ],
+      "repoDigests": [
+        "docker.io/curlimages/curl@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69"
+      ],
+      "size": "9850389",
+      "username": "curl_user",
+      "pinned": false
+    },
+    {
+      "id": "sha256:8e13ccc0aaa682502a49e5f98b88acf75fbf5f724875058b3e7a78b1f38a11e7",
+      "repoTags": [
+        "docker.io/kindest/kindnetd:v20260820-69b56db7"
+      ],
+      "repoDigests": [],
+      "size": "35652389",
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:8f375e9f935137d1f92bd9bbfb860bbb6862a90c54e086f2696ce2385d0a5b78",
+      "repoTags": [
+        "docker.io/kindest/local-path-helper:v20260131-7181c60a"
+      ],
+      "repoDigests": [],
+      "size": "2740462",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:0771a8a05619f4bb6f4c8484f942f509b21a04ebe56ee26d17a3006e250bfd46",
+      "repoTags": [
+        "docker.io/kindest/local-path-provisioner:v20260820-69b56db7"
+      ],
+      "repoDigests": [],
+      "size": "14217939",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:384eabc4fe526377d6dc985f482a20bb1b00f40948361bbac1eb163424996121",
+      "repoTags": [
+        "registry.k8s.io/kube-scheduler-arm64:v1.37.0",
+        "registry.k8s.io/kube-scheduler:v1.37.0"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-08-26@sha256:2aa78b45454b3df79d15bf6a57b4f9871f11ce16c8b645109ba2310076d228dd"
+      ],
+      "size": "59129565",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": true
+    },
+    {
+      "id": "sha256:0e33be77e0a7385f15c12c7fc6005e78c06413697a7c0d1420aa2d5a3575c8c8",
+      "repoTags": [],
+      "repoDigests": [
+        "docker.io/library/import-2026-09-20@sha256:53dd390870176c8d30e7696076e6034de08c5b95e749aeab66f5f7e7f83390b9",
+        "docker.io/library/import-2026-10-04@sha256:53dd390870176c8d30e7696076e6034de08c5b95e749aeab66f5f7e7f83390b9"
+      ],
+      "size": "7577703",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:8d1738b72c85946c98cedc34ab0dfc2c80e4e3ad6cab1636eb4588df6c4806b3",
+      "repoTags": [],
+      "repoDigests": [
+        "docker.io/library/import-2026-09-20@sha256:89689874c5b31a2702230721e68c5dcde171cf895cc4106648f40d41145c7c7e",
+        "docker.io/library/import-2026-10-04@sha256:89689874c5b31a2702230721e68c5dcde171cf895cc4106648f40d41145c7c7e"
+      ],
+      "size": "19519454",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:4e2fe51cfd7a7a47756e412e51967897ae2fca5280a224cc36432a2b4738fce2",
+      "repoTags": [],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:0e5b803dc4de2cf0224e063e1f153eb1eeddf464ab1f7ef789f3a773624b578d",
+        "docker.io/library/import-2026-10-04@sha256:0ef478d11efb5ab97cd81a77f7d99c1f9d2752db73f2cbc2b4d6e4cf0c5ee8f3",
+        "docker.io/library/import-2026-10-04@sha256:e832b07f27171a14b3bfad40916b5d29a2889c9ba023e53486b871e931ec4a34"
+      ],
+      "size": "7584962",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:b7000ce231ba3795f605d01e338844c98e959b41866e2c4c0f6e6bf7ed577570",
+      "repoTags": [
+        "docker.io/library/agenova-e16-mcp:1f9646760043",
+        "docker.io/library/agenova-e16-mcp:7ecb1a189da8"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:5b06c798dd95f8e5fe74b5c7ee1a9ff3909a0b7c0133c72b677fffa825463ac6",
+        "docker.io/library/import-2026-10-04@sha256:d2c46bf1a9f050e0cd21d16c38efc5fadeb6aeb2590891b4ba9ec96e0633e96b"
+      ],
+      "size": "4015657",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:391101cfb59095bcb940d43e502f5211fb07db55a4aaf4b2577c4eaf5686a5f9",
+      "repoTags": [
+        "docker.io/library/agenova-e16-probe:442da01655a6"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:67660f338014c0cd1e43f210a8d1975d374198cdb282d78db8e8e33f4abedb6d"
+      ],
+      "size": "5992379",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:6003d52023b9d748f6ec86cbb10510432b2b73245bfc88b2e481739017f52ac9",
+      "repoTags": [
+        "registry.k8s.io/kube-apiserver-arm64:v1.37.0",
+        "registry.k8s.io/kube-apiserver:v1.37.0"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-08-26@sha256:4fbbef5581e6ed60b96426e3786371b57da07f66e350b4ff2b0077413c2b0444"
+      ],
+      "size": "97074036",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": true
+    },
+    {
+      "id": "sha256:b1ad0e33c901244c9636e4bff3a6a22a18a7a2a12012a38e4c91930b673b0a01",
+      "repoTags": [
+        "registry.k8s.io/kube-controller-manager-arm64:v1.37.0",
+        "registry.k8s.io/kube-controller-manager:v1.37.0"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-08-26@sha256:dda35f6553455c1dde75aebfbb20759d24b7de776b884eb06415f242f276200c"
+      ],
+      "size": "85082212",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": true
+    },
+    {
+      "id": "sha256:550b682d81d4146e574fda7df56840e8deb14fab18cf1b96734259888944e1a0",
+      "repoTags": [
+        "registry.k8s.io/kube-proxy-arm64:v1.37.0",
+        "registry.k8s.io/kube-proxy:v1.37.0"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-08-26@sha256:d5e740cce95911da5590b633aae2f7f7e3370ec9d212d4dbbbf3bf19fa07551f"
+      ],
+      "size": "84532964",
+      "username": "",
+      "pinned": true
+    },
+    {
+      "id": "sha256:9fa854f314a5edbf8d97760d8ffff4d130a309cff00100e6397ada5ceb244a03",
+      "repoTags": [],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:700da91c49e9ad6ec4e6ba1ae5d85c7d006413b225a3b2d592eef0e39002e745",
+        "docker.io/library/import-2026-10-04@sha256:7e84d889ae88090bf95dbde3d845cdc7da4ecbee24300479334b7a157e201391",
+        "docker.io/library/import-2026-10-04@sha256:c63292003f198fcd8be600925eb3f6ec854335114235b567320d3712665c9372"
+      ],
+      "size": "19580176",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:efa81bcc1afe22136e0ee92c00c3aaf71adf97cd3a868d121d7b5c20f220ea56",
+      "repoTags": [
+        "docker.io/library/agenova-control-plane:0.1.0"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-05@sha256:91d889a160fa9c842f182ebeb8d8b96e50d425b4b276f3738b4ee48c73fdd0e1"
+      ],
+      "size": "19585019",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:c2233a26ed9c46f97a43d44313399cfc7a718cca1985e6d99745fd0a07f34fbe",
+      "repoTags": [
+        "docker.io/library/agenova-e16-mcp:442da01655a6"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:9ffce40ec43bd0f9e76b8cae3cbde718abf0e2477805cac05cf5b7f70c6a78a5"
+      ],
+      "size": "4015665",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:46b0ec27979dd3c29b9d977d31e55968fd85de8d3dd0a34c940dd18e98bcc8bc",
+      "repoTags": [
+        "docker.io/library/agenova-e16-mcp:fd08ac06eed3"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-05@sha256:c2442b83fac78aeebbdefe0196a2a14eb7c9553205ce29fbc3285047ee731330"
+      ],
+      "size": "4018159",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:28fb99c8af83e67217940499e5df888e5303e473849488451c71036a4475249d",
+      "repoTags": [
+        "docker.io/library/agenova-e16-probe:1f9646760043",
+        "docker.io/library/agenova-e16-probe:7ecb1a189da8"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-04@sha256:74043312c23b1b4699224b182e93f73bed1dda2cc6e3438fedcc9953f946c438",
+        "docker.io/library/import-2026-10-04@sha256:8c4624942d1e95416f2e3457f933bb8b5a3cf93a9ead71ac827c490329bd3e92"
+      ],
+      "size": "5992371",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:6dc0725f20a4070cf2d8d2fcc6ae622f2faec97488b4c88537e9c3588193ac4f",
+      "repoTags": [
+        "docker.io/library/agenova-e16-probe:fd08ac06eed3"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-05@sha256:6e72e641599f9723db3a398f808a654a342b0d4e9d45f4ce4cd75db2080c7d6c"
+      ],
+      "size": "6086505",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:b52493b37e69ba9eafbf237c2183e2df5af5fa7fecd82fbf422322ba9b005f91",
+      "repoTags": [
+        "docker.io/library/agenova-testworker:kind"
+      ],
+      "repoDigests": [
+        "docker.io/library/import-2026-10-05@sha256:caffe96f33e27a7654829d75e90f2b6fa1ac075a08c7df4703e8677b85f623cc"
+      ],
+      "size": "7585128",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:46be6d8bdfd0aca4d8d905482fa3dd38c4088f036cf9e2362024d6c7cb299634",
+      "repoTags": [
+        "registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6"
+      ],
+      "repoDigests": [
+        "registry.k8s.io/agent-sandbox/agent-sandbox-controller@sha256:93c28f724f34845fcfbd58818959958fd877f9953698c920add3081f61a54429"
+      ],
+      "size": "13936634",
+      "uid": {
+        "value": "65532"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:fbccbf70a429fb9ce1cdb13a40ed96b16272ef763dafe050b2c0d121dd29811b",
+      "repoTags": [
+        "registry.k8s.io/coredns/coredns:v1.14.6"
+      ],
+      "repoDigests": [],
+      "size": "21239459",
+      "username": "nonroot",
+      "pinned": false
+    },
+    {
+      "id": "sha256:c2e426bbd1cd63b4d1cbdca2eba371a0a2e64b6934dcc48c51a62d488fe64fe8",
+      "repoTags": [
+        "registry.k8s.io/etcd:3.7.0-0"
+      ],
+      "repoDigests": [],
+      "size": "20455189",
+      "uid": {
+        "value": "0"
+      },
+      "username": "",
+      "pinned": false
+    },
+    {
+      "id": "sha256:afb61768ce381961ca0beff95337601f29dc70ff3ed14e5e4b3e5699057e6aa8",
+      "repoTags": [
+        "registry.k8s.io/pause:3.10"
+      ],
+      "repoDigests": [],
+      "size": "267933",
+      "uid": {
+        "value": "65535"
+      },
+      "username": "",
+      "pinned": true
+    }
+  ]
+}

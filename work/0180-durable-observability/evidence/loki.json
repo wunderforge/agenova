@@ -1,0 +1,1711 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "streams",
+    "result": [
+      {
+        "stream": {
+          "component": "model",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792460475672982429",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "c1a5f9309f374101",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460475672980054",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "model",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792460462457365964",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "c1a5f9309f374101",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460462457364964",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "model",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459871672490635",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a76030763d711526",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459871672488635",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "model",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459858092349462",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a76030763d711526",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459858092347837",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Deny",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792460509279312375",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "af41fdca66e68e9f",
+          "trace_id": "87b096fc8b2e3b54abe49b214ff1afbf"
+        },
+        "values": [
+          [
+            "1792460509279311125",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Deny",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792460483183822585",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e0b26e743370c82d",
+          "trace_id": "20837ebb78257bc96ad1deb2e5b180b3"
+        },
+        "values": [
+          [
+            "1792460483183822377",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Deny",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459902628376344",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "959e95ecd8937bc4",
+          "trace_id": "c55d28c8b1f21bcd2cb1dc706a39fb40"
+        },
+        "values": [
+          [
+            "1792459902628376178",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Deny",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459879781805750",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "4e4447985c5b5128",
+          "trace_id": "66de797e5766b0d07f361c7b45ebad9a"
+        },
+        "values": [
+          [
+            "1792459879781805292",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792460461801069881",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "c1a5f9309f374101",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460461801069756",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459912225608251",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e935f4eb223d3ae2",
+          "trace_id": "f40cdce12ea444c04d1b606012d3bd73"
+        },
+        "values": [
+          [
+            "1792459912225607751",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459857370024379",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a76030763d711526",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459857370024129",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "component": "admission",
+          "decision": "Allow",
+          "detected_level": "info",
+          "flags": "1",
+          "observed_timestamp": "1792459760483071084",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8d487872679dc30f",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459760483070875",
+            "governance decision"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-12c20438ca1e555dc224b1818d951f01",
+          "observed_timestamp": "1792460482585994668",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "0e7cd6adf5e8c07b",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460482585990668",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-0a0170bc00c44b5d1d141c718916e4f0",
+          "observed_timestamp": "1792460475659826596",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "68b58a85a0033ce9",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460475659801846",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460482996821251",
+          "operation": "runtime.cleanup",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "b1de1c18a55a1285",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460482996816668",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460482844721335",
+          "operation": "runtime.terminate",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "6c504e589d22d84d",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460482844718960",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460482607876335",
+          "operation": "worker.execute",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "1c966a7dff91ea9d",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460482607874293",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460462345417214",
+          "operation": "runtime.start",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e4300b89fffd06c1",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460462345415214",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460462089141422",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8c242cee19a9196b",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460462089139756",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460462030980881",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "b8da3e5550700315",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460462030978839",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-d54abf66083baa7f54e37f18eeac9933",
+          "observed_timestamp": "1792459878812593889",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "ef7753e90ff31336",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459878812589889",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-28c5cf2c3d4862be95389e2ea944de48",
+          "observed_timestamp": "1792459871656691469",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "06051f55b0778663",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459871656675677",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459879225859750",
+          "operation": "runtime.cleanup",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "0a0656e39162a7ff",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459879225855041",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459879058307500",
+          "operation": "runtime.terminate",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8694575dd17711c1",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459879058303916",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459878835338097",
+          "operation": "worker.execute",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "3dd072561d56075e",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459878835335930",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459857967209712",
+          "operation": "runtime.start",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "96dc8a2440a449ee",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459857967207837",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459857694774629",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "d0d5740f1fcdc31f",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459857694768170",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg0bhj5:issuance:3f8de821d79a5d013cd024198ee2aed5",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459857631008712",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "c4e85e434acbb01b",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459857630998045",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg09eru:issuance:8dbda8e5499aafe88e05b05d39b2bf8f",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459775268241591",
+          "operation": "runtime.cleanup",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8c356f207baf4664",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459775268238591",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg09eru:issuance:8dbda8e5499aafe88e05b05d39b2bf8f",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459761107954376",
+          "operation": "runtime.start",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "cedd8de0b1025db6",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459761107951292",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg09eru:issuance:8dbda8e5499aafe88e05b05d39b2bf8f",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459760783686709",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "256c246ae415ac77",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459760783684209",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvg09eru:issuance:8dbda8e5499aafe88e05b05d39b2bf8f",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459760716468834",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "93f23b5faadf3e04",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459760716467292",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-d52270838c864a12c553f41f50611b0c",
+          "observed_timestamp": "1792458994896640757",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "6b1a940ec48c3bd9",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458994896628924",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "inv-d326794b8b2acfa819b194fdd3e7f9e4",
+          "observed_timestamp": "1792459001067441969",
+          "operation": "model.invoke",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a4efa4eb3652492d",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792459001067438760",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001486287052",
+          "operation": "runtime.cleanup",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "7a9932dece69b468",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792459001486281135",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001331749344",
+          "operation": "runtime.terminate",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "84579f8b6f84d503",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792459001331747385",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001097769052",
+          "operation": "worker.execute",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "5000f4ac621edaa4",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792459001097766677",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458981042147209",
+          "operation": "runtime.start",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "1b7cb7e0a5f13c55",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458981042145209",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980779989084",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e331e8546bf1d98a",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980779986709",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980711891667",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "77556b0c1365994d",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980711889750",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980645204125",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a0a9df2b247f43a7",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980645202250",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980565077375",
+          "operation": "runtime.observe",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "b0b5626c1f844c4d",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980565075542",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-success-mvfzsosz:issuance:773f07680b0a585d1f3d623156c75be2",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980501108834",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "53c031310690253b",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980501099375",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-runtime-failed-mvg0cnas:issuance:fc17b8db7dd4bbae5d08ed4ad6e3b002",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459912547248418",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-runtime-failed-mvg0cnas",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "394d261e94f03e4f",
+          "trace_id": "f40cdce12ea444c04d1b606012d3bd73"
+        },
+        "values": [
+          [
+            "1792459912547243960",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-runtime-failed-mvg03dh6:issuance:97bdffd7330f0ea3eaf8f57fe647ba10",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459481693822552",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-runtime-failed-mvg03dh6",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e830ddf334017b88",
+          "trace_id": "d4556e39e9272fac0f25591b936db14b"
+        },
+        "values": [
+          [
+            "1792459481693820010",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "claim:obs-runtime-failed-mvfzv1x2:issuance:23e449b4e2d35663db6ea3f08310ff7e",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459092639425053",
+          "operation": "runtime.allocate",
+          "request_ref": "obs-runtime-failed-mvfzv1x2",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8aa4773b267465f6",
+          "trace_id": "df4068272d7e6a07aa11f23ecac7724d"
+        },
+        "values": [
+          [
+            "1792459092639423344",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460509283826541",
+          "operation": "work",
+          "request_ref": "obs-restored-deny-mvg0ofx1",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "af41fdca66e68e9f",
+          "trace_id": "87b096fc8b2e3b54abe49b214ff1afbf"
+        },
+        "values": [
+          [
+            "1792460509283825583",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460509279280875",
+          "operation": "admission",
+          "request_ref": "obs-restored-deny-mvg0ofx1",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "252442a5bb3d30e9",
+          "trace_id": "87b096fc8b2e3b54abe49b214ff1afbf"
+        },
+        "values": [
+          [
+            "1792460509279279708",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460483185431127",
+          "operation": "work",
+          "request_ref": "obs-denied-mvg0ofx1",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e0b26e743370c82d",
+          "trace_id": "20837ebb78257bc96ad1deb2e5b180b3"
+        },
+        "values": [
+          [
+            "1792460483185430460",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460483183804585",
+          "operation": "admission",
+          "request_ref": "obs-denied-mvg0ofx1",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8f6d5f98738266bb",
+          "trace_id": "20837ebb78257bc96ad1deb2e5b180b3"
+        },
+        "values": [
+          [
+            "1792460483183803418",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460483001425918",
+          "operation": "work",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "c1a5f9309f374101",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460483001425085",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792460461801045839",
+          "operation": "admission",
+          "request_ref": "obs-success-mvg0ofx1",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "0196e48babc8318b",
+          "trace_id": "30f3ebabe963717ea023b4f4efe037fb"
+        },
+        "values": [
+          [
+            "1792460461801038631",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459912551405251",
+          "operation": "work",
+          "request_ref": "obs-runtime-failed-mvg0cnas",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e935f4eb223d3ae2",
+          "trace_id": "f40cdce12ea444c04d1b606012d3bd73"
+        },
+        "values": [
+          [
+            "1792459912551403710",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459912225583959",
+          "operation": "admission",
+          "request_ref": "obs-runtime-failed-mvg0cnas",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e8b92fa528332ca5",
+          "trace_id": "f40cdce12ea444c04d1b606012d3bd73"
+        },
+        "values": [
+          [
+            "1792459912225582418",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459902630414094",
+          "operation": "work",
+          "request_ref": "obs-restored-deny-mvg0bhj5",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "959e95ecd8937bc4",
+          "trace_id": "c55d28c8b1f21bcd2cb1dc706a39fb40"
+        },
+        "values": [
+          [
+            "1792459902630412928",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459902628348469",
+          "operation": "admission",
+          "request_ref": "obs-restored-deny-mvg0bhj5",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "2aaf025a9330f613",
+          "trace_id": "c55d28c8b1f21bcd2cb1dc706a39fb40"
+        },
+        "values": [
+          [
+            "1792459902628347053",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459879784738458",
+          "operation": "work",
+          "request_ref": "obs-denied-mvg0bhj5",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "4e4447985c5b5128",
+          "trace_id": "66de797e5766b0d07f361c7b45ebad9a"
+        },
+        "values": [
+          [
+            "1792459879784737958",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459879781767667",
+          "operation": "admission",
+          "request_ref": "obs-denied-mvg0bhj5",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "b1d435bd44f7647a",
+          "trace_id": "66de797e5766b0d07f361c7b45ebad9a"
+        },
+        "values": [
+          [
+            "1792459879781766583",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459879230767375",
+          "operation": "work",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a76030763d711526",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459879230761666",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459857370003795",
+          "operation": "admission",
+          "request_ref": "obs-success-mvg0bhj5",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "117719a1fa245b99",
+          "trace_id": "d26f154caac0651ac5f43065e2ad7bfb"
+        },
+        "values": [
+          [
+            "1792459857370000212",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459775274639841",
+          "operation": "work",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "8d487872679dc30f",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459775274638716",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459760483047167",
+          "operation": "admission",
+          "request_ref": "obs-success-mvg09eru",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "5a37a0d73113120a",
+          "trace_id": "8485aa3896b2d4587032cb8aa963521c"
+        },
+        "values": [
+          [
+            "1792459760483033000",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459481704857844",
+          "operation": "work",
+          "request_ref": "obs-runtime-failed-mvg03dh6",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "cb737eaa47d8788a",
+          "trace_id": "d4556e39e9272fac0f25591b936db14b"
+        },
+        "values": [
+          [
+            "1792459481704855260",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459092643036803",
+          "operation": "work",
+          "request_ref": "obs-runtime-failed-mvfzv1x2",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a04be35b5545be97",
+          "trace_id": "df4068272d7e6a07aa11f23ecac7724d"
+        },
+        "values": [
+          [
+            "1792459092643019594",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459092391489511",
+          "operation": "admission",
+          "request_ref": "obs-runtime-failed-mvfzv1x2",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a2655dd31677dc64",
+          "trace_id": "df4068272d7e6a07aa11f23ecac7724d"
+        },
+        "values": [
+          [
+            "1792459092391482886",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001665772219",
+          "operation": "work",
+          "request_ref": "obs-denied-mvfzsosz",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e03ac7b8c6e8a849",
+          "trace_id": "56f2e88161479c6bf2d4edb33d8ea10e"
+        },
+        "values": [
+          [
+            "1792459001665771885",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001664368510",
+          "operation": "admission",
+          "request_ref": "obs-denied-mvfzsosz",
+          "result": "failed",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "701dc88a960ea869",
+          "trace_id": "56f2e88161479c6bf2d4edb33d8ea10e"
+        },
+        "values": [
+          [
+            "1792459001664366760",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792459001490608635",
+          "operation": "work",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "a5c62b6cdd8b8c81",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792459001490607552",
+            "operation completed"
+          ]
+        ]
+      },
+      {
+        "stream": {
+          "claim_id": "",
+          "detected_level": "info",
+          "flags": "1",
+          "invocation_id": "",
+          "observed_timestamp": "1792458980337163500",
+          "operation": "admission",
+          "request_ref": "obs-success-mvfzsosz",
+          "result": "succeeded",
+          "scope_name": "agenova",
+          "service_name": "agenova-control-plane",
+          "severity_number": "9",
+          "span_id": "e16326b8330d66ec",
+          "trace_id": "7f09551fb5cae400df47a8104f1cd19c"
+        },
+        "values": [
+          [
+            "1792458980337160750",
+            "operation completed"
+          ]
+        ]
+      }
+    ],
+    "stats": {
+      "summary": {
+        "bytesProcessedPerSecond": 403704,
+        "linesProcessedPerSecond": 3642,
+        "totalBytesProcessed": 7647,
+        "totalLinesProcessed": 69,
+        "execTime": 0.018942,
+        "queueTime": 0.00046,
+        "subqueries": 0,
+        "totalEntriesReturned": 69,
+        "splits": 2,
+        "shards": 2,
+        "totalPostFilterLines": 69,
+        "totalStructuredMetadataBytesProcessed": 6336
+      },
+      "querier": {
+        "store": {
+          "totalChunksRef": 0,
+          "totalChunksDownloaded": 0,
+          "chunksDownloadTime": 0,
+          "queryReferencedStructuredMetadata": false,
+          "chunk": {
+            "headChunkBytes": 0,
+            "headChunkLines": 0,
+            "decompressedBytes": 0,
+            "decompressedLines": 0,
+            "compressedBytes": 0,
+            "totalDuplicates": 0,
+            "postFilterLines": 0,
+            "headChunkStructuredMetadataBytes": 0,
+            "decompressedStructuredMetadataBytes": 0
+          },
+          "chunkRefsFetchTime": 0,
+          "congestionControlLatency": 0,
+          "pipelineWrapperFilteredLines": 0
+        }
+      },
+      "ingester": {
+        "totalReached": 2,
+        "totalChunksMatched": 1,
+        "totalBatches": 3,
+        "totalLinesSent": 69,
+        "store": {
+          "totalChunksRef": 0,
+          "totalChunksDownloaded": 0,
+          "chunksDownloadTime": 0,
+          "queryReferencedStructuredMetadata": false,
+          "chunk": {
+            "headChunkBytes": 7647,
+            "headChunkLines": 69,
+            "decompressedBytes": 0,
+            "decompressedLines": 0,
+            "compressedBytes": 0,
+            "totalDuplicates": 0,
+            "postFilterLines": 69,
+            "headChunkStructuredMetadataBytes": 6336,
+            "decompressedStructuredMetadataBytes": 0
+          },
+          "chunkRefsFetchTime": 196125,
+          "congestionControlLatency": 0,
+          "pipelineWrapperFilteredLines": 0
+        }
+      },
+      "cache": {
+        "chunk": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "index": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "result": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "statsResult": {
+          "entriesFound": 0,
+          "entriesRequested": 1,
+          "entriesStored": 1,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 2,
+          "downloadTime": 4500,
+          "queryLengthServed": 0
+        },
+        "volumeResult": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "seriesResult": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "labelResult": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        },
+        "instantMetricResult": {
+          "entriesFound": 0,
+          "entriesRequested": 0,
+          "entriesStored": 0,
+          "bytesReceived": 0,
+          "bytesSent": 0,
+          "requests": 0,
+          "downloadTime": 0,
+          "queryLengthServed": 0
+        }
+      },
+      "index": {
+        "totalChunks": 0,
+        "postFilterChunks": 0,
+        "shardsDuration": 0,
+        "usedBloomFilters": false
+      }
+    }
+  }
+}

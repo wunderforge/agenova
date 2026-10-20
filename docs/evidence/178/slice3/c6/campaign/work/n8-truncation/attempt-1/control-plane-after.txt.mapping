@@ -1,0 +1,4 @@
+tag agenova-control-plane:0.1.0 recorded-config sha256:efa81bcc1afe22136e0ee92c00c3aaf71adf97cd3a868d121d7b5c20f220ea56
+node-images control-plane-after.txt.node-images.json sha256 facf2ef52f867a2e972d8e86a3bc18ae762c7fd50fc25fdfb458ba7e241160da
+pod agenova-control-plane-76b57989f7-jkwvx uid=1330855e-751b-49de-a582-6d5ac3efd60f restarts=0 container=containerd://69fe618a251ae125bc8483853f8ee3d0083b70d83af72aed52a99488957baac2 imageID=docker.io/library/import-2026-10-05@sha256:91d889a160fa9c842f182ebeb8d8b96e50d425b4b276f3738b4ee48c73fdd0e1
+  resolves to sha256:efa81bcc1afe22136e0ee92c00c3aaf71adf97cd3a868d121d7b5c20f220ea56

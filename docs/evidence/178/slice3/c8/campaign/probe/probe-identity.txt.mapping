@@ -1,0 +1,4 @@
+tag agenova-e16-probe:c50a6bc9af3c recorded-config sha256:f03e51f655df74b373ba7f12c14122054d285e136d7d588b0d9afaa4938b7d5a
+node-images probe-identity.txt.node-images.json sha256 2f0a8abd5940e288210565ce2d919f4a85fa28cc3c3a57ea55ce86e82988e476
+pod e16-probe-4czw8 uid=5844dff9-61e2-4514-863d-a32e2690af34 restarts=0 container=containerd://4f1c2c18732c97424765212f73f918ec86b9e1771ab8abb377b17fe2ce7da8c4 imageID=docker.io/library/import-2026-10-15@sha256:bc4f69929b81bdbb85bfded02035795bd5894fd8957e53046cb4a299c9f62b51
+  resolves to sha256:f03e51f655df74b373ba7f12c14122054d285e136d7d588b0d9afaa4938b7d5a

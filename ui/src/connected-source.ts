@@ -12,7 +12,10 @@ export type View = Omit<CanonicalView, 'request' | 'facts'> & {
 export interface Setup {
   installation: { kind: 'installed'; platform: string; revision: string };
   principal: Principal;
-  template: AgentTemplate;
+  template: AgentTemplate | null;
+  project?: string;
+  projects?: string[];
+  templates?: string[];
   policy: {
     ID: string;
     Version: string;
@@ -24,7 +27,7 @@ export interface Setup {
 export function suggestedProjects(setup: Setup): string[] {
   return [...new Set(setup.policy.Rules
     .filter(rule => rule.team === setup.principal.team && rule.action === 'claim.create' &&
-      rule.templateRef === setup.template.metadata.name)
+      rule.templateRef === setup.template?.metadata.name)
     .map(rule => rule.project))];
 }
 export class SourceError extends Error {
@@ -64,15 +67,31 @@ function view(data: unknown): View {
   return data as View;
 }
 
+export interface HistoryPage {
+ items: { requestRef: string; claimId?: string; taskType: string; status: string; created: string; updated: string; traceId?: string; diagnosis?: { stage: string; code: string } }[];
+ nextCursor?: string;
+}
 export const connectedSource = {
+ async history(cursor = '', signal?: AbortSignal): Promise<HistoryPage> {
+  const data = await json(`/api/history?limit=20&cursor=${encodeURIComponent(cursor)}`, signal) as HistoryPage;
+  if (!data || !Array.isArray(data.items) || data.items.length > 20 ||
+   !data.items.every(item => item && typeof item.requestRef === 'string' && typeof item.status === 'string' && typeof item.updated === 'string') ||
+   (data.nextCursor !== undefined && (typeof data.nextCursor !== 'string' || data.nextCursor.length > 512))) {
+   throw new SourceError(502, 'The connection returned an incomplete history page.');
+  }
+  return data;
+ },
   async setup(signal?: AbortSignal): Promise<Setup> {
-    const data = await json('/api/setup', signal);
+    const params = new URLSearchParams();
+    for (const key of ['project','template']) { const value = new URLSearchParams(window.location.search).get(key); if (value) params.set(key,value); }
+    const data = await json('/api/setup' + (params.size ? '?' + params.toString() : ''), signal);
     if (!data || typeof data !== 'object') throw new SourceError(502, 'Platform setup is unavailable.');
     const setup = data as Setup;
     if (shapeDiagnostics('Principal', setup.principal).length ||
         setup.installation?.kind !== 'installed' || !setup.installation.platform ||
         !/^sha256:[a-f0-9]{64}$/.test(setup.installation.revision) ||
-        shapeDiagnostics('AgentTemplate', setup.template).length ||
+        (setup.template !== null && shapeDiagnostics('AgentTemplate', setup.template).length > 0) ||
+        [setup.projects, setup.templates].some(list => list !== undefined && (!Array.isArray(list) || list.length > 100 || !list.every(value => typeof value === 'string'))) ||
         !setup.policy || typeof setup.policy.ID !== 'string' ||
         typeof setup.policy.Version !== 'string' || !Array.isArray(setup.policy.Rules) ||
         !setup.policy.Rules.every(rule => rule &&
@@ -101,6 +120,7 @@ export function workTitle(work: View): string {
   return displayWorkName(input?.workName, input?.objective, work.requestRef);
 }
 export function workStatus(work: View): string {
+ if (work.recovery) return 'Interrupted';
   if (work.state?.decision.result === 'Deny') return 'Denied';
   if (work.state?.decision.result === 'ApprovalRequired') return 'Approval required';
   // Queued work can be cancelled before allocation, leaving the canonical
@@ -113,5 +133,12 @@ export function workStatus(work: View): string {
   return phase || 'Pending';
 }
 export function isTerminal(work: View): boolean {
-  return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled'].includes(workStatus(work));
+  return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled', 'Interrupted'].includes(workStatus(work));
+}
+
+export function traceURL(traceId?: string): string | undefined {
+ if (!traceId || !/^[a-f0-9]{32}$/.test(traceId)) return undefined;
+ let base: URL; try { base = new URL(import.meta.env.VITE_GRAFANA_URL || 'http://127.0.0.1:3000'); } catch { return undefined; }
+ if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname) || base.username || base.password || !['http:', 'https:'].includes(base.protocol)) return undefined;
+ return new URL('/explore?schemaVersion=1&panes=' + encodeURIComponent(JSON.stringify({ work: { datasource: 'tempo', queries: [{ datasource: { type: 'tempo', uid: 'tempo' }, query: traceId, queryType: 'traceql', refId: 'A' }], range: { from: 'now-7d', to: 'now' } } })), base).href;
 }

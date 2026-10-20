@@ -36,7 +36,9 @@ func NewRegistry() (*adapterregistry.Registry, error) {
 		kubernetesDeploymentRegistration(),
 		agentSandboxRuntimeRegistration(),
 		openAICompatibleModelRegistration(),
+		otlpRegistration(),
 		bedrockModelRegistration(),
+		mcpHTTPToolRegistration(),
 	)
 }
 
@@ -48,6 +50,10 @@ func kubernetesDeploymentRegistration() adapterregistry.Registration {
 			{Path: "context", Kind: adapterregistry.ValueString, Required: true, Description: "Existing Kubernetes context selected by the operator", Default: "kind-agenova"},
 			{Path: "namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace for Agenova control-plane resources", Default: "agenova-system"},
 			{Path: "control-plane-image", Kind: adapterregistry.ValueString, Description: "Operator-built control plane, registry reference pinned by sha256 digest"},
+			{Path: "mode", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "deployment-name", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "deployment-uid", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
+			{Path: "pod-template-sha256", Kind: adapterregistry.ValueString, Description: "Existing member Deployment image upgrade binding"},
 			{Path: "image-pull-policy", Kind: adapterregistry.ValueString, Description: "Control-plane image pull policy: Always or IfNotPresent"},
 		}},
 	}
@@ -70,8 +76,8 @@ func agentSandboxRuntimeRegistration() adapterregistry.Registration {
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "connection.mode", Kind: adapterregistry.ValueString, Required: true, Description: "Control-plane-to-runtime connection mode", Default: "in-cluster"},
 			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-system"},
-			{Path: "compatible-worker-protocol", Kind: adapterregistry.ValueString, Description: "For a remote build of the bundled worker, explicitly attest controlled-v1 compatibility"},
-			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Required: true, Description: "Reference worker image allowed for this runtime", Default: referenceControlledWorkerImage},
+			{Path: "compatible-worker-protocol", Kind: adapterregistry.ValueString, Description: "Optional explicit selection of the supported controlled-v1 protocol; not image attestation"},
+			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Description: "Deprecated bootstrap hint; template images are selected independently"},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "isolation", Kind: adapterregistry.ValueString, Required: true, Description: "Requested supported isolation shape", Default: "dedicated"},
@@ -115,7 +121,7 @@ func openAICompatibleModelRegistration() adapterregistry.Registration {
 }
 
 func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "context", "namespace", "control-plane-image", "image-pull-policy"); err != nil {
+	if err := onlyKeys(input, "context", "namespace", "observability", "control-plane-image", "image-pull-policy", "mode", "deployment-name", "deployment-uid", "pod-template-sha256"); err != nil {
 		return nil, err
 	}
 	context, err := requiredString(input, "context")
@@ -127,6 +133,17 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 		return nil, err
 	}
 	result := map[string]any{"context": context, "namespace": namespace}
+	if value, ok := input["observability"]; ok {
+		config, ok := value.(map[string]any)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-object", "observability")
+		}
+		canonical, err := canonicalizeStack(config)
+		if err != nil {
+			return nil, err
+		}
+		result["observability"] = canonical
+	}
 
 	if value, exists := input["control-plane-image"]; exists {
 		image, ok := value.(string)
@@ -141,6 +158,31 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 			return nil, platform.NewAdapterConfigError("unsupported-pull-policy", "image-pull-policy")
 		}
 		result["image-pull-policy"] = policy
+	}
+	if _, exists := input["mode"]; exists {
+		if input["mode"] != "member-upgrade" {
+			return nil, platform.NewAdapterConfigError("unsupported-deployment-mode", "mode")
+		}
+		result["mode"] = "member-upgrade"
+		for _, key := range []string{"deployment-name", "deployment-uid", "pod-template-sha256"} {
+			value, err := requiredString(input, key)
+			if err != nil {
+				return nil, err
+			}
+			if !memberBindingValue(key, value) {
+				return nil, platform.NewAdapterConfigError("invalid-upgrade-binding", key)
+			}
+			result[key] = value
+		}
+		if result["control-plane-image"] == nil || input["image-pull-policy"] != nil {
+			return nil, platform.NewAdapterConfigError("image-only-upgrade-required", "control-plane-image")
+		}
+	} else {
+		for _, key := range []string{"deployment-name", "deployment-uid", "pod-template-sha256"} {
+			if _, exists := input[key]; exists {
+				return nil, platform.NewAdapterConfigError("member-upgrade-mode-required", key)
+			}
+		}
 	}
 	return result, nil
 }
@@ -167,11 +209,17 @@ func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]an
 	if err != nil {
 		return nil, err
 	}
-	image, err := requiredString(input, "compatible-worker-image")
-	if err != nil || !compatibleWorkerConfig(input) {
-		return nil, platform.NewAdapterConfigError("unsupported-worker-image", "compatible-worker-image")
+	if !compatibleWorkerConfig(input) {
+		return nil, platform.NewAdapterConfigError("unsupported-worker-protocol", "compatible-worker-protocol")
 	}
-	result := map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}, "compatible-worker-image": image}
+	result := map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}}
+	if _, exists := input["compatible-worker-image"]; exists {
+		image, err := requiredString(input, "compatible-worker-image")
+		if err != nil {
+			return nil, err
+		}
+		result["compatible-worker-image"] = image
+	}
 	if protocol, exists := input["compatible-worker-protocol"]; exists {
 		result["compatible-worker-protocol"] = protocol
 	}
@@ -258,6 +306,8 @@ func DescribeImplementation(value any) string {
 		return fmt.Sprintf("%s@%s", AgentSandboxRuntimeID, ReferenceVersion)
 	case *BedrockModel:
 		return fmt.Sprintf("%s@%s", BedrockModelID, ReferenceVersion)
+	case *MCPHTTPTool:
+		return fmt.Sprintf("%s@%s", MCPHTTPToolID, ReferenceVersion)
 	case *OpenAICompatibleModel:
 		return fmt.Sprintf("%s@%s", OpenAICompatibleModelID, ReferenceVersion)
 	default:
@@ -272,10 +322,6 @@ var remoteImagePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?/[a
 func remoteDigestImage(image string) bool { return remoteImagePattern.MatchString(image) }
 
 func compatibleWorkerConfig(config map[string]any) bool {
-	image, _ := config["compatible-worker-image"].(string)
 	protocol, present := config["compatible-worker-protocol"]
-	if present && protocol != "controlled-v1" {
-		return false
-	}
-	return image == referenceControlledWorkerImage || (remoteDigestImage(image) && protocol == "controlled-v1")
+	return !present || protocol == "controlled-v1"
 }

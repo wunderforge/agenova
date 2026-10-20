@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Build with the repository root as context, not this directory.
-FROM golang:1.22-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker

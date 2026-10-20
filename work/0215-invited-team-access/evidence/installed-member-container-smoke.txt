@@ -1,0 +1,2 @@
+member: rejected before startup (exit 1)
+invalid: rejected before startup (exit 1)

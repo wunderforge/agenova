@@ -1,0 +1,4 @@
+command control-plane docker build --progress=plain -f deploy/reference/Dockerfile -t agenova-control-plane:0.1.0 .
+command worker docker build --progress=plain -f harness/integration/agentsandbox/testworker/Dockerfile -t agenova-testworker:kind .
+command fixture docker build --progress=plain -f harness/integration/mcpfixture/Dockerfile -t agenova-e16-mcp:fd08ac06eed3 harness/integration/mcpfixture
+command probe docker build --progress=plain -f harness/integration/e16/probe.Dockerfile -t agenova-e16-probe:fd08ac06eed3 .

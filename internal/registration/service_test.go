@@ -9,7 +9,29 @@ import (
 	"testing"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/policy"
 )
+
+func TestMemoryPolicyStoreDefensivelyCopiesNestedConstraints(t *testing.T) {
+	store := NewMemoryStore()
+	bundle := policy.PolicyBundle{ID: "caps", Version: "1", Rules: []policy.Rule{{Team: "team-a", Action: "claim.create", Project: "payments", TemplateRef: "engineer", Constraints: &policy.AuthorityConstraints{Tools: &policy.StringSetConstraint{Values: []string{"git.read"}}}}}}
+	if _, err := store.PutPolicy(bundle); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ActivatePolicy(PolicyReference{ID: "caps", Version: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	bundle.Rules[0].Constraints.Tools.Values[0] = "git.write"
+	first, err := store.ActivePolicy()
+	if err != nil || first.Rules[0].Constraints.Tools.Values[0] != "git.read" {
+		t.Fatalf("input mutated store: %+v, %v", first, err)
+	}
+	first.Rules[0].Constraints.Tools.Values[0] = "shell.exec"
+	second, err := store.ActivePolicy()
+	if err != nil || second.Rules[0].Constraints.Tools.Values[0] != "git.read" {
+		t.Fatalf("output mutated store: %+v, %v", second, err)
+	}
+}
 
 func TestRegistrationCreateIdempotentConflictAndSnapshot(t *testing.T) {
 	store := NewMemoryStore()

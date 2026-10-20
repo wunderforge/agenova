@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: Agenova
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

@@ -6,8 +6,10 @@ package facts
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authority"
@@ -34,11 +36,46 @@ type Fact struct {
 	Operation        string                          `json:"operation,omitempty"`
 	Target           string                          `json:"target,omitempty"`
 	ProviderStatus   string                          `json:"providerStatus,omitempty"`
+	// ResultRef names the external result of a successful tool call. It is
+	// separate from Target, which stays equal across attempt and outcome.
+	ResultRef string `json:"resultRef,omitempty"`
+	// Truncated marks a successful tool outcome whose observation was cut to
+	// the configured budget. Absence is not proof that an observation was
+	// complete: facts recorded before this field existed never carry it.
+	Truncated bool `json:"truncated,omitempty"`
+}
+
+// ValidResultRef accepts a bounded logical reference, never a fetchable URL.
+// A reference may start with a scope kind such as "repo:", but not with "//",
+// a URI scheme followed by "/" (file:/etc/passwd) or a scheme that clients
+// dereference without a slash (data:text/plain,..., ws:host/x).
+func ValidResultRef(ref string) bool {
+	if ref == "" || len(ref) > 256 || !utf8.ValidString(ref) || strings.ContainsAny(ref, " \t\r\n\x00?#@") || strings.Contains(ref, "://") || strings.HasPrefix(ref, "//") {
+		return false
+	}
+	scheme, rest, found := strings.Cut(ref, ":")
+	return !found || !uriScheme(scheme) || (!strings.HasPrefix(rest, "/") && !fetchableSchemes[strings.ToLower(scheme)])
+}
+
+// The WHATWG special schemes plus data and javascript.
+var fetchableSchemes = map[string]bool{"data": true, "file": true, "ftp": true, "http": true, "https": true, "javascript": true, "ws": true, "wss": true}
+
+// uriScheme matches RFC 3986 scheme syntax: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+func uriScheme(s string) bool {
+	for i, c := range s {
+		letter := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+		if !letter && (i == 0 || !(c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.')) {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Journal supplies the strict correlation spine for the application path.
 // Legacy Store remains compatible; it is not an alternate authority owner.
 type Journal struct {
+	startSequence    uint64
+	commit           func(Fact) error
 	mu               sync.RWMutex
 	requests         map[string]v0.Principal
 	claims           map[string]string
@@ -60,6 +97,19 @@ type invocationState struct {
 
 func NewJournal() *Journal {
 	return &Journal{requests: map[string]v0.Principal{}, claims: map[string]string{}, requestClaims: map[string]string{}, invocations: map[string]string{}, invocationStates: map[string]invocationState{}, authorities: map[string]string{}, backends: map[string]v0.SandboxClaimBackendIdentity{}, backendOwners: map[v0.SandboxClaimBackendIdentity]string{}, ids: map[string]struct{}{}, facts: []Fact{}, now: time.Now}
+}
+
+// NewDurableJournal starts after the persisted global sequence. The commit
+// callback runs under the journal lock, after validation and before publication;
+// failure prevents the fact from authorizing a later external side effect.
+func NewDurableJournal(lastSequence uint64, commit func(Fact) error) (*Journal, error) {
+	if commit == nil {
+		return nil, fmt.Errorf("durable fact commit is required")
+	}
+	j := NewJournal()
+	j.startSequence = lastSequence
+	j.commit = commit
+	return j, nil
 }
 
 func (j *Journal) RegisterRequest(ref string, principal v0.Principal) error {
@@ -102,6 +152,19 @@ func (j *Journal) BindClaim(ref string, claim v0.SandboxClaim) error {
 // Append assigns identity/time/order and rejects attempts to rewrite or
 // cross-attribute facts. Unresolved operations never get a fabricated claim.
 func (j *Journal) Append(fact Fact) (Fact, error) {
+	return j.append(fact, nil)
+}
+
+// AppendWithCommit lets the lifecycle owner commit a snapshot together with its
+// fact. The override has the same validation/failure boundary as the default sink.
+// Neither commit callback may call back into this journal.
+func (j *Journal) AppendWithCommit(fact Fact, commit func(Fact) error) (Fact, error) {
+	if commit == nil {
+		return Fact{}, fmt.Errorf("atomic fact commit is required")
+	}
+	return j.append(fact, commit)
+}
+func (j *Journal) append(fact Fact, commit func(Fact) error) (Fact, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	principal, ok := j.requests[fact.RequestRef]
@@ -168,13 +231,22 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 		}
 		stage.attempted = true
 	}
+	if fact.ResultRef != "" && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded" || !ValidResultRef(fact.ResultRef)) {
+		return Fact{}, fmt.Errorf("result reference is only valid on a successful tool outcome")
+	}
+	if fact.Truncated && (fact.Kind != "ProviderOutcome" || fact.Operation != "tool.invoke" || fact.ProviderStatus != "Succeeded") {
+		return Fact{}, fmt.Errorf("truncation is only valid on a successful tool outcome")
+	}
 	if fact.Kind == "ProviderOutcome" {
 		if fact.InvocationID == "" || !stage.attempted || stage.completed || (fact.ProviderStatus != "Succeeded" && fact.ProviderStatus != "Failed" && fact.ProviderStatus != "Cancelled") {
 			return Fact{}, fmt.Errorf("provider outcome requires one correlated attempt")
 		}
 		stage.completed = true
 	}
-	sequence := uint64(len(j.facts) + 1)
+	sequence := j.startSequence + uint64(len(j.facts)) + 1
+	if sequence <= j.startSequence {
+		return Fact{}, fmt.Errorf("fact sequence exhausted")
+	}
 	if fact.ID == "" {
 		fact.ID = fmt.Sprintf("fact:%d", sequence)
 	}
@@ -188,6 +260,18 @@ func (j *Journal) Append(fact Fact) (Fact, error) {
 	copy, err := cloneFact(fact)
 	if err != nil {
 		return Fact{}, err
+	}
+	if commit == nil {
+		commit = j.commit
+	}
+	if commit != nil {
+		committed, err := cloneFact(copy)
+		if err != nil {
+			return Fact{}, err
+		}
+		if err := commit(committed); err != nil {
+			return Fact{}, err
+		}
 	}
 	j.ids[copy.ID] = struct{}{}
 	if copy.InvocationID != "" {

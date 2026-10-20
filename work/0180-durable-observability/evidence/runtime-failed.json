@@ -1,0 +1,187 @@
+{
+  "version": "agenova.evidence/v0",
+  "requestRef": "obs-runtime-failed-mvg0rqb8",
+  "request": {
+    "apiVersion": "agenova.io/v1alpha1",
+    "kind": "ClaimRequest",
+    "metadata": {
+      "name": "obs-runtime-failed-mvg0rqb8"
+    },
+    "spec": {
+      "templateRef": "engineer",
+      "projectRef": "payments",
+      "task": {
+        "type": "investigation",
+        "input": {
+          "objective": "Return a brief final answer explaining total retry deadlines."
+        }
+      },
+      "requestedAccess": {
+        "modelProfile": "coding-standard"
+      },
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    }
+  },
+  "state": {
+    "requestRef": "obs-runtime-failed-mvg0rqb8",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "action": {
+      "name": "claim.create",
+      "project": "payments",
+      "templateRef": "engineer"
+    },
+    "policyRef": {
+      "id": "reference-default-deny",
+      "version": "1"
+    },
+    "effectiveAuthority": {
+      "id": "authority:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "claim": {
+      "id": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "templateRef": "engineer",
+      "authorityRef": "authority:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "phase": "Failed"
+    },
+    "decision": {
+      "id": "decision:obs-runtime-failed-mvg0rqb8:authorization:1f9454ca559e809af260e9a1e1cc9b01",
+      "principalRef": "user:team-a-engineer",
+      "action": "claim.create",
+      "result": "Allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "reason": "exact policy rule matched the trusted principal and requested assignment"
+    },
+    "evidence": {
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "claimId": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "decisionIds": [
+        "decision:obs-runtime-failed-mvg0rqb8:authorization:1f9454ca559e809af260e9a1e1cc9b01"
+      ],
+      "runtimeEvents": [
+        {
+          "kind": "AllocationFailed"
+        }
+      ],
+      "toolInvocations": [],
+      "modelInvocations": []
+    }
+  },
+  "facts": [
+    {
+      "id": "fact:333",
+      "sequence": 333,
+      "timestamp": "2026-10-20T01:43:36.99110255Z",
+      "kind": "RequestReceived",
+      "requestRef": "obs-runtime-failed-mvg0rqb8"
+    },
+    {
+      "id": "fact:334",
+      "sequence": 334,
+      "timestamp": "2026-10-20T01:43:36.991121383Z",
+      "kind": "RequestResolution",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "decision": {
+        "id": "decision:obs-runtime-failed-mvg0rqb8:authorization:1f9454ca559e809af260e9a1e1cc9b01",
+        "principalRef": "user:team-a-engineer",
+        "action": "claim.create",
+        "result": "Allow",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "reason": "exact policy rule matched the trusted principal and requested assignment"
+      },
+      "result": "Allow",
+      "reasonCode": "assignment-allow",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      }
+    },
+    {
+      "id": "fact:335",
+      "sequence": 335,
+      "timestamp": "2026-10-20T01:43:37.148122258Z",
+      "kind": "AuthorityResolved",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "claimId": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "reasonCode": "admitted-template-ceiling",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "effectiveAuthority": {
+        "id": "authority:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+        "modelProfile": "coding-standard",
+        "runtime": {
+          "profileRef": "standard-isolated",
+          "timeout": "3m0s"
+        }
+      }
+    },
+    {
+      "id": "fact:336",
+      "sequence": 336,
+      "timestamp": "2026-10-20T01:43:37.1637968Z",
+      "kind": "Runtime",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "claimId": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "reasonCode": "runtime-Pending",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "Pending"
+    },
+    {
+      "id": "fact:337",
+      "sequence": 337,
+      "timestamp": "2026-10-20T01:43:37.223108175Z",
+      "kind": "Runtime",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "claimId": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "reasonCode": "runtime-AllocationFailed",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "operation": "AllocationFailed"
+    },
+    {
+      "id": "fact:338",
+      "sequence": 338,
+      "timestamp": "2026-10-20T01:43:37.22448355Z",
+      "kind": "RunOutcome",
+      "requestRef": "obs-runtime-failed-mvg0rqb8",
+      "claimId": "claim:obs-runtime-failed-mvg0rqb8:issuance:702853451f9359f61593dcf925d32737",
+      "reasonCode": "runtime-AllocationFailed",
+      "reason": "The runtime could not allocate or start the worker.",
+      "operation": "Failed"
+    }
+  ],
+  "traceId": "c2aca0bfb04090e5ffd59336c65333ce",
+  "diagnosis": {
+    "stage": "runtime",
+    "code": "runtime-AllocationFailed"
+  },
+  "outcome": {
+    "status": "Failed",
+    "failure": "The runtime could not allocate or start the worker."
+  }
+}

@@ -4,7 +4,7 @@ This independent Terraform root manages the ACM certificate for
 `agenova.app` and `*.agenova.app` in `us-east-1` (CloudFront's required certificate region) and
 its DNS-validation CNAME. It reads the owner's existing public hosted zone
 `Z00685831HNHNRLEZ9VYK` as a data source. It does not create/manage the zone or
-register the domain, and must not be included in `infra/demo/aws` teardown.
+register the domain, and must not be included in `infra/production/eks` teardown.
 Certificate and validation record have `prevent_destroy` protection.
 
 Use `AWS_PROFILE=agenova-demo` and an authenticated non-root operator:
@@ -39,4 +39,4 @@ managed as `aws_route53_record.legacy_validation`. The current certificate is IS
 The direct-ALB deployment additionally uses `aws_acm_certificate.sydney` in
 ap-southeast-2 with the same apex/wildcard names. Its validation uses the shared
 account/domain DNS CNAME; issuance was verified. Keep both regional certificates
-when destroying the disposable `infra/demo/edge` ALB stack.
+when destroying the disposable `infra/production/edge` ALB stack.

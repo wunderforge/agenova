@@ -1,0 +1,18 @@
+server:
+  http_listen_port: 3200
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /data/wal
+    local:
+      path: /data/blocks
+compactor:
+  compaction:
+    block_retention: 168h

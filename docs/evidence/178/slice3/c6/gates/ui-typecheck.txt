@@ -1,0 +1,3 @@
+
+> @agenova/fixture-storyboard@0.0.0 typecheck
+> tsc --noEmit

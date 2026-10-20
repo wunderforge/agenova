@@ -1,0 +1,15 @@
+[info] plan: create Secret agenova-e16/e16-mcp-token if absent, apply the MCP fixture with agenova-e16-mcp:c50a6bc9af3c, restart it and capture its log
+namespace/agenova-e16 created
+secret/e16-mcp-token created
+Warning: resource namespaces/agenova-e16 is missing the kubectl.kubernetes.io/last-applied-configuration annotation which is required by kubectl apply. kubectl apply should only be used on resources created declaratively by either kubectl create --save-config or kubectl apply. The missing annotation will be patched automatically.
+namespace/agenova-e16 configured
+configmap/e16-mcp-data-977bmmcbfc created
+service/e16-mcp created
+deployment.apps/e16-mcp created
+deployment.apps/e16-mcp restarted
+Waiting for deployment "e16-mcp" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "e16-mcp" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "e16-mcp" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "e16-mcp" rollout to finish: 0 of 1 updated replicas are available...
+deployment "e16-mcp" successfully rolled out
+[pass] fixture running on the recorded image; log capture pid 33279

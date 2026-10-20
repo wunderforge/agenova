@@ -1,0 +1,162 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "admission",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "runtime.allocate",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "runtime.observe",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "runtime.start",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "model.invoke",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "2"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "admission",
+          "result": "failed"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "runtime.cleanup",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "runtime.terminate",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "work",
+          "result": "failed"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "work",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "agenova_operations_total",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova",
+          "operation": "worker.execute",
+          "result": "succeeded"
+        },
+        "value": [
+          1792460516.331,
+          "1"
+        ]
+      }
+    ]
+  }
+}

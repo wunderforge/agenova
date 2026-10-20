@@ -20,6 +20,7 @@ type PreparedAssignment struct {
 	Template  *v0.AgentTemplate
 	Admission ReferenceAdmissionResult
 	Issued    *v0.IssuedState
+	Policy    policy.PolicyBundle
 	Changes   []authority.Change
 }
 
@@ -48,7 +49,7 @@ func PrepareReferenceAssignment(data []byte, preset ReferencePrincipalPreset) (P
 // PrepareAssignment is shared by connected and reference compositions. The
 // caller supplies trusted identity, active policy and registered templates;
 // the request can supply none of those authorities.
-func PrepareAssignment(data []byte, principals PrincipalSource, policies authorization.BundleSource, templates TemplateSource) (PreparedAssignment, error) {
+func PrepareAssignment(data []byte, principals PrincipalSource, policies policy.SnapshotSource, templates TemplateSource) (PreparedAssignment, error) {
 	request, validationErr := v0.ParseClaimRequestYAML(data)
 	if validationErr != nil {
 		return PreparedAssignment{}, validationErr
@@ -56,11 +57,16 @@ func PrepareAssignment(data []byte, principals PrincipalSource, policies authori
 	if policies == nil || templates == nil {
 		return PreparedAssignment{}, fmt.Errorf("policy and template sources are required")
 	}
-	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: policies})
+	snapshot, available := policies.Snapshot()
+	var bundle policy.PolicyBundle
+	if described, ok := snapshot.(interface{ BundleSnapshot() policy.PolicyBundle }); ok {
+		bundle = described.BundleSnapshot()
+	}
+	service, err := NewAssignmentService(principals, authorization.Authorizer{Policies: immutablePolicy{snapshot, available}})
 	if err != nil {
 		return PreparedAssignment{}, err
 	}
-	prepared := PreparedAssignment{Request: request}
+	prepared := PreparedAssignment{Request: request, Policy: bundle}
 	prepared.Admission, err = service.AdmitYAML(data, func(admission authorization.Admission) error {
 		template, err := templates.Lookup(request.Spec.TemplateRef)
 		if err != nil {
@@ -101,3 +107,10 @@ func ReferenceTemplate() *v0.AgentTemplate {
 }
 
 func ReferencePolicy() policy.PolicyBundle { return referencePolicyBundle() }
+
+type immutablePolicy struct {
+	evaluator policy.Evaluator
+	available bool
+}
+
+func (p immutablePolicy) Snapshot() (policy.Evaluator, bool) { return p.evaluator, p.available }

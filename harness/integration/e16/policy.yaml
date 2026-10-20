@@ -1,0 +1,14 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: e16-mcp-acceptance
+  version: "1"
+spec:
+  rules:
+    - team: team-a
+      action: claim.create
+      project: payments
+      templateRef: e16-engineer

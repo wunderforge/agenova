@@ -29,19 +29,26 @@ func TestReferenceEndpointsExposeOnlySafeStatus(t *testing.T) {
 	}
 }
 
-func TestCompatibleWorkerImageMustMatchInstalledRuntime(t *testing.T) {
-	for _, test := range []struct {
-		image, allowed string
-		wantErr        bool
+func TestStatusProbesAreNeverCacheable(t *testing.T) {
+	for _, mode := range []struct {
+		name       string
+		newHandler func() http.Handler
 	}{
-		{"agenova-testworker:kind", "agenova-testworker:kind", false},
-		{"other/worker:latest", "agenova-testworker:kind", true},
-		{"agenova-testworker:kind ", "agenova-testworker:kind", true},
-		{"agenova-testworker:kind", "", true},
+		{"reference", handler},
+		{"member", memberStatusHandler},
 	} {
-		err := requireCompatibleWorkerImage(test.image, test.allowed)
-		if (err != nil) != test.wantErr {
-			t.Fatalf("image=%q allowed=%q: err=%v, wantErr=%t", test.image, test.allowed, err, test.wantErr)
+		for _, path := range []string{"/readyz", "/v1/status"} {
+			for _, method := range []string{http.MethodGet, http.MethodHead} {
+				t.Run(mode.name+"/"+method+path, func(t *testing.T) {
+					r := httptest.NewRequest(method, path, nil)
+					r.RemoteAddr = "127.0.0.1:3456"
+					w := httptest.NewRecorder()
+					mode.newHandler().ServeHTTP(w, r)
+					if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+						t.Fatalf("status=%d cache-control=%q", w.Code, w.Header().Get("Cache-Control"))
+					}
+				})
+			}
 		}
 	}
 }
@@ -64,13 +71,13 @@ func TestInstalledGatewayAuthorityRejectsUnimplementedGrantsBeforeWorkerSetup(t 
 		t.Run(test.name, func(t *testing.T) {
 			authority := &v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated"}}
 			test.modify(authority)
-			err := validateInstalledAuthority(authority, models, runtimes)
+			err := validateInstalledAuthority(authority, models, runtimes, nil)
 			if test.wantError == "" && err != nil || test.wantError != "" && (err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantError)) {
 				t.Fatalf("validateInstalledAuthority() = %v, want %q", err, test.wantError)
 			}
 		})
 	}
-	if err := validateInstalledAuthority(nil, models, runtimes); err == nil {
+	if err := validateInstalledAuthority(nil, models, runtimes, nil); err == nil {
 		t.Fatal("missing issued authority was accepted")
 	}
 }

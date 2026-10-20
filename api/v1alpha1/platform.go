@@ -52,6 +52,9 @@ type PlatformInfrastructure struct {
 }
 
 type PlatformServices struct {
+	Observability []PlatformInstance `json:"observability,omitempty" yaml:"observability,omitempty"`
+	ToolBackends  []PlatformInstance `json:"toolBackends,omitempty" yaml:"toolBackends,omitempty"`
+	ToolProfiles  []PlatformProfile  `json:"toolProfiles,omitempty" yaml:"toolProfiles,omitempty"`
 	ModelBackends []PlatformInstance `json:"modelBackends,omitempty" yaml:"modelBackends,omitempty"`
 	ModelProfiles []PlatformProfile  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
 }
@@ -184,6 +187,19 @@ func ValidatePlatform(platform *Platform) *ValidationError {
 		return err
 	}
 	if err := validatePlatformProfiles("spec.services.modelProfiles", platform.Spec.Services.ModelProfiles, modelNames); err != nil {
+		return err
+	}
+	if len(platform.Spec.Services.Observability) > 1 {
+		return validationError(ValidationCategoryInvalidValue, "spec.services.observability", "reference supports one observability instance")
+	}
+	if _, err := validatePlatformInstances("spec.services.observability", platform.Spec.Services.Observability, adapterNames); err != nil {
+		return err
+	}
+	toolNames, err := validatePlatformInstances("spec.services.toolBackends", platform.Spec.Services.ToolBackends, adapterNames)
+	if err != nil {
+		return err
+	}
+	if err := validatePlatformProfiles("spec.services.toolProfiles", platform.Spec.Services.ToolProfiles, toolNames); err != nil {
 		return err
 	}
 	if platform.Spec.InitialPolicyRef == nil {
@@ -358,7 +374,9 @@ func validatePlatformInfrastructureShape(node *yaml.Node, path string) *Validati
 
 func validatePlatformServicesShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
+		"observability": nullable(validatePlatformInstancesShape),
 		"modelBackends": nullable(validatePlatformInstancesShape), "modelProfiles": nullable(validatePlatformProfilesShape),
+		"toolBackends": nullable(validatePlatformInstancesShape), "toolProfiles": nullable(validatePlatformProfilesShape),
 	}, nil)
 }
 
