@@ -123,3 +123,39 @@ Out of scope:
   passed source validation; snapshot, publish and deploy jobs were all skipped.
 - Linux PR CI remains the complete unskipped gate for the new UI candidate.
   Independent approval and all deployment prerequisites remain separate.
+
+## Owner preview correction — 20 October
+
+The Owner compared the actual local console with the approved mock and requested
+the missing activity chart, lower-sidebar utilities/account and top-right profile.
+Restore those locally before any further merge/deploy; this correction does not
+authorize commit, PR update, live authentication or deployment.
+
+- Chart: group only loaded requests by recorded request time in UTC and current
+  status; selectable recorded dates, explicit missing-time and no-data states.
+  It is not global monitoring, execution spans, durations or provider volume.
+- Profile: use the existing setup principal, clear it on unavailable setup, retain
+  identity/admin navigation and POST logout. Never infer the viewer from a Work.
+- Utilities: working quick guide, keyboard help and per-tab table-density settings,
+  not unsupported account/platform mutations or nonfunctional decorative controls.
+- Reuse existing frontend tests and Playwright, inspect desktop/mobile renderings;
+  preserve Connected/fixture separation and all existing authentication boundaries.
+
+Local correction verification: typecheck/build and all 132 frontend unit tests
+passed; all 61 Playwright tests passed. Rendered desktop/mobile explorer and
+API-fixture Connected screenshots were inspected. The new Connected regression
+checks the viewer comes from setup, provider calls do not inflate request counts,
+and unavailable setup clears identity instead of displaying demo data. Full
+`scripts/check.ps1 -All` again stops only at the unchanged upstream Windows
+`TestOwnerBootstrapDeliveryGuards` directory-sync failure. No backend changes,
+commit, push, merge or deployment were made for this local correction.
+
+## Owner release authorization — 20 October
+
+After inspecting the complete local preview, the Owner authorized committing the
+chart/account/help/settings correction, updating #234, merging after green tests
+and deploying for online inspection. The Owner separately authorized administrator
+merge bypass only for #234 after all CI passes. This supersedes the earlier local
+preview/PR-only restrictions, not authentication, release compatibility or source
+boundaries. Verify the exact online schema/proxy/image prerequisites before any
+rollout; never bypass release guards or expose credentials to achieve a UI update.

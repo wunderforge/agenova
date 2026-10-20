@@ -37,6 +37,7 @@ export interface WorkItem {
   context?: { label: string; value: string };
   branch?: string;
   submitted: string;
+  submittedAt?: string;
   updated: string;
   requestRef: string;
   claimId?: string;
@@ -85,7 +86,7 @@ const billingAccess: AccessSet = { resourceScopes: ['repo:acme/billing'], tools:
 export const exampleWorks: WorkItem[] = [
   {
     id: 'fix-payment-timeout', title: 'Fix the payment timeout bug', status: 'Running', agent: 'engineer', team: 'Team A', principal: demoIdentity.subject,
-    context: { label: 'Repository', value: 'acme/payments' }, branch: 'main', submitted: '14 Sep 2026, 09:42', updated: '09:47', requestRef: 'fix-payment-timeout',
+    context: { label: 'Repository', value: 'acme/payments' }, branch: 'main', submitted: '14 Sep 2026, 09:42', submittedAt: '2026-09-14T09:42:16Z', updated: '09:47', requestRef: 'fix-payment-timeout',
     claimId: 'claim:fix-payment-timeout:1', backend: 'reference', worker: 'worker:fix-payment-timeout:1', policy: 'reference-default-deny / v1', decision: 'Allowed',
     decisionReason: 'Team A may create engineer work for the payments project.', requestedRuntime: 'general-purpose · 20 min', requested: paymentAccess, granted: paymentAccess,
     events: [
@@ -100,7 +101,7 @@ export const exampleWorks: WorkItem[] = [
   },
   {
     id: 'invoice-retry-tests', title: 'Update invoice retry tests', status: 'Succeeded', agent: 'engineer', team: 'Team A', principal: demoIdentity.subject,
-    context: { label: 'Repository', value: 'acme/billing' }, branch: 'main', submitted: '13 Sep 2026, 15:10', updated: '15:29', requestRef: 'invoice-retry-tests',
+    context: { label: 'Repository', value: 'acme/billing' }, branch: 'main', submitted: '13 Sep 2026, 15:10', submittedAt: '2026-09-13T15:10:04Z', updated: '15:29', requestRef: 'invoice-retry-tests',
     claimId: 'claim:invoice-retry-tests:1', backend: 'reference', worker: 'worker:invoice-retry-tests:1', policy: 'reference-default-deny / v1', decision: 'Allowed',
     decisionReason: 'Team A may create engineer work for the billing project.', outcome: 'Tests updated; pull request #482 prepared.',
     requestedRuntime: 'cpu-intensive · 45 min', effectiveRuntime: 'cpu-intensive · 30 min',
@@ -121,7 +122,7 @@ export const exampleWorks: WorkItem[] = [
   },
   {
     id: 'review-checkout-change', title: 'Review checkout change', status: 'Denied', agent: 'reviewer', team: 'Team B', principal: 'user:team-b-reviewer',
-    context: { label: 'Repository', value: 'acme/payments' }, branch: 'feature/checkout', submitted: '13 Sep 2026, 11:33', updated: '11:33', requestRef: 'review-checkout-change',
+    context: { label: 'Repository', value: 'acme/payments' }, branch: 'feature/checkout', submitted: '13 Sep 2026, 11:33', submittedAt: '2026-09-13T11:33:02Z', updated: '11:33', requestRef: 'review-checkout-change',
     policy: 'reference-default-deny / v1', decision: 'Denied', decisionReason: 'Team B cannot create reviewer work for payments.', requestedRuntime: 'general-purpose · 15 min',
     requested: { resourceScopes: ['repo:acme/payments'], tools: ['git.read', 'github.review'], model: 'coding-standard', memory: ['team-docs'] },
     events: [
@@ -131,7 +132,7 @@ export const exampleWorks: WorkItem[] = [
   },
   {
     id: 'auth-failure-investigation', title: 'Investigate login failures', status: 'Failed', agent: 'researcher', team: 'Team A', principal: 'user:team-a-analyst',
-    context: { label: 'Topic', value: 'Customer authentication' }, submitted: '12 Sep 2026, 10:06', updated: '10:11', requestRef: 'auth-failure-investigation',
+    context: { label: 'Topic', value: 'Customer authentication' }, submitted: '12 Sep 2026, 10:06', submittedAt: '2026-09-12T10:06:10Z', updated: '10:11', requestRef: 'auth-failure-investigation',
     claimId: 'claim:auth-failure-investigation:1', backend: 'reference', worker: 'worker:auth-failure-investigation:1', policy: 'reference-default-deny / v1', decision: 'Allowed',
     decisionReason: 'Team A may create researcher work for identity.', outcome: 'The worker stopped before it produced a result.', requestedRuntime: 'general-purpose · 20 min',
     requested: { resourceScopes: [], tools: ['web.search', 'web.read'], model: 'research-standard', memory: ['team-docs'] },

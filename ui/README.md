@@ -26,6 +26,15 @@ light/dark preference. Browser extensions or force-dark settings may still
 override it. Work summary cards count only the loaded list, not global traffic.
 Admission **Decision** and execution **Status** are separate columns.
 
+The Work activity chart groups loaded requests by recorded request/admission time
+in UTC; choose a recorded date to inspect hourly counts. Colors show current Work
+status, not execution volume or global telemetry. Missing timestamps are disclosed.
+The profile avatar and sidebar account open the existing identity/connection links
+and retain member-service POST logout. Connected identity comes from `/api/setup`,
+not a Work record. Quick guide and Help explain the interface; `/` focuses list
+search, `?` opens help and Escape closes overlays. View settings changes table
+density in this tab only, never platform permissions or server configuration.
+
 Open a Work, expand its recorded activity, and select **Inspect** to read the
 recorded target, status and turn beside the call list. **Open evidence record**
 opens the existing full record. No duration or provider completion is inferred

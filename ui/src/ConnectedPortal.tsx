@@ -1,7 +1,7 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
+import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
 import { connectedSource, suggestedProjects, workStatus, workTitle, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
@@ -12,6 +12,7 @@ import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { maxWorkName } from './work-name';
 import { WorkOverview } from './WorkOverview';
+import { WorkActivityChart } from './WorkActivityChart';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -79,6 +80,7 @@ function WorkList({ works }: { works: View[] }) {
     <Heading title="Work" subtitle="Requests, outcomes, and the evidence behind them."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
     <WorkOverview statuses={works.map(workStatus)}/>
+    <WorkActivityChart entries={works.map(work => ({ timestamp: work.facts.find(fact => ['RequestReceived', 'RequestResolution'].includes(fact.kind))?.timestamp, status: workStatus(work) }))}/>
     <div className="portal-toolbar">
       <Filters values={['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending']}
         selected={filter} choose={setFilter}/>
@@ -456,9 +458,10 @@ function Identity({ setup }: { setup: Setup }) {
     </div>
   </section></>;
 }
-export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: () => void }) {
+export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[]; onDemo: () => void; onPrincipal?: (principal: Principal | undefined) => void }) {
   const [revision, setRevision] = useState(0);
   const data = useConnection(parts, revision);
+  useEffect(() => { onPrincipal?.(data.error ? undefined : data.setup?.principal); }, [data.error, data.setup, onPrincipal]);
   const retry = () => setRevision(value => value + 1);
   const section = parts[0] || 'work';
   if (data.loading) {

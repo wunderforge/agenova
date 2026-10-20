@@ -28,6 +28,28 @@ const found=current().find(w=>w.requestRef===ref);
 return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
+
+test('connected chart and profile use only current API records, and clear on connection failure', async ({ page }, info) => {
+ const current=work('Succeeded');
+ // A later provider call must not become another request or move its start hour.
+ current.facts.push({id:'late-model',sequence:4,timestamp:'2026-10-20T23:00:00Z',kind:'ProviderOutcome',requestRef:current.requestRef,providerStatus:'Succeeded'});
+ await api(page,()=>[current]);
+ await page.goto('/?mode=connected#/work');
+ await expect(page.getByRole('img')).toHaveAttribute('aria-label',/1 loaded requests on 2026-09-15/);
+ await page.getByLabel('Open profile menu',{exact:true}).click();
+ const account=page.locator('.portal-topbar .portal-profile-popover');
+ await expect(account).toContainText(setup.principal.subject);
+ await expect(account).toContainText(setup.principal.team);
+ await expect(account).not.toContainText('Team A engineer');
+ await page.keyboard.press('Escape');
+ await page.screenshot({path:info.outputPath('june-complete-connected.png'),fullPage:true});
+ await page.route('**/api/**',route=>route.fulfill({status:503,json:{code:'unavailable'}}));
+ await expect(page.getByRole('alert')).toContainText('unavailable');
+ await page.getByLabel('Open profile menu',{exact:true}).click();
+ await expect(account).toContainText('Not connected');
+ await expect(account).not.toContainText(setup.principal.subject);
+ await expect(page.getByRole('img')).toHaveCount(0);
+});
 test('work name is separate from full instructions and identity', async({page},info)=>{
  let current=work();
  const objective='Investigate payment retries. Read the artifacts, identify the cause, and recommend a specific fix.';
