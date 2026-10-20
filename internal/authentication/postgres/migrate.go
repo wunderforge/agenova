@@ -32,7 +32,10 @@ var projectGovernanceSchema string
 //go:embed 008-access-requests.sql
 var accessRequestSchema string
 
-var migrations = []string{Schema, invitationSchema, applicationSessionSchema, googleInvitationSchema, workstore.Schema, scopedRoleSchema, projectGovernanceSchema, accessRequestSchema}
+//go:embed 009-login-attempt-capacity.sql
+var loginAttemptCapacitySchema string
+
+var migrations = []string{Schema, invitationSchema, applicationSessionSchema, googleInvitationSchema, workstore.Schema, scopedRoleSchema, projectGovernanceSchema, accessRequestSchema, loginAttemptCapacitySchema}
 
 // Migrate is an explicit operator action. Runtime credentials should have no DDL
 // rights. One transaction and advisory lock prevent partial/concurrent schemas.

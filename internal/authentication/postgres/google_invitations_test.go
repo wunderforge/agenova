@@ -122,3 +122,63 @@ func TestGoogleInvitationExpiredAndInviterRevoked(t *testing.T) {
 		t.Fatal("inactive inviter authority retained")
 	}
 }
+
+func TestOwnerProofDeliveryRecovery(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	r := invitations.Request{Email: "owner@gmail.com", Project: "project", Role: Admin}
+	if s.DeliverGoogleOwner(ctx, "team", r, func(string) error { return invitations.ErrUnavailable }) == nil {
+		t.Fatal("failed output reported success")
+	}
+	wrong := r
+	wrong.Email = "different@gmail.com"
+	if s.DeliverGoogleOwner(ctx, "team", wrong, func(string) error { t.Fatal("changed recipient delivery"); return nil }) == nil {
+		t.Fatal("bootstrap recipient changed")
+	}
+	var old, proof string
+	if err := s.DeliverGoogleOwner(ctx, "team", r, func(p string) error { old = p; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeliverGoogleOwner(ctx, "team", r, func(p string) error { proof = p; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	id := googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "owner", Email: r.Email, EmailAuthoritative: true}
+	if _, err := s.AcceptGoogleInvitation(ctx, id, old); err == nil {
+		t.Fatal("old proof survived rotation")
+	}
+	if _, err := s.AcceptGoogleInvitation(ctx, id, proof); err != nil {
+		t.Fatal("recovered proof failed", err)
+	}
+	if s.DeliverGoogleOwner(ctx, "team", r, func(string) error { t.Fatal("established owner rotated"); return nil }) == nil {
+		t.Fatal("established Owner reissued")
+	}
+}
+
+func TestInvitationResolvesPendingAccess(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	_, proof, err := s.ReserveGoogleOwner(ctx, "team", invitations.Request{Email: "owner@gmail.com", Project: "project", Role: Admin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.AcceptGoogleInvitation(ctx, googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "owner", Email: "owner@gmail.com", EmailAuthoritative: true}, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "member", Email: "member@gmail.com", EmailAuthoritative: true}
+	if status, err := s.RegisterGoogleAccess(ctx, id, "team"); err != nil || status != "pending" {
+		t.Fatal(status, err)
+	}
+	_, proof, err = s.ReserveGoogleInvitation(ctx, owner, invitations.Request{Email: id.Email, Project: "project", Role: MemberRole})
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := s.AcceptGoogleInvitation(ctx, id, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status, principal string
+	if err := s.DB.QueryRow(`SELECT status,principal FROM agenova_access_requests WHERE subject='member'`).Scan(&status, &principal); err != nil || status != "approved" || principal != member.Subject {
+		t.Fatal("pending request not reconciled", err)
+	}
+}

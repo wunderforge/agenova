@@ -62,10 +62,10 @@ func durableTestDB(t *testing.T) *sql.DB {
 }
 
 func TestDurableWorkSurvivesServiceRestartWithoutRedispatch(t *testing.T) {
-	testDurableRestart(t, false)
+	testDurableRestart(t, "")
 }
 func TestDurableCompletedWorkRepairsLostFinalAcknowledgement(t *testing.T) {
-	testDurableRestart(t, true)
+	testDurableRestart(t, "finish")
 }
 
 type failedFinishStore struct{ *workstore.Store }
@@ -73,7 +73,18 @@ type failedFinishStore struct{ *workstore.Store }
 func (failedFinishStore) Finish(context.Context, evidence.View) error {
 	return workstore.ErrUnavailable
 }
-func testDurableRestart(t *testing.T, lostFinish bool) {
+func TestDurableTerminalFactFailureStopsClientPolling(t *testing.T) { testDurableRestart(t, "outcome") }
+
+type failedOutcomeStore struct{ *workstore.Store }
+
+func (s failedOutcomeStore) Append(ctx context.Context, f facts.Fact, state *v0.IssuedState) error {
+	if f.Kind == "RunOutcome" {
+		return workstore.ErrUnavailable
+	}
+	return s.Store.Append(ctx, f, state)
+}
+func testDurableRestart(t *testing.T, failure string) {
+	lostFinish := failure != ""
 	input := func() []byte {
 		return []byte(strings.Replace(string(httpInput("durable-run")), `"repository":"acme/payments"`, `"repository":"acme/payments","attempts":3`, 1))
 	}
@@ -100,7 +111,11 @@ func testDurableRestart(t *testing.T, lostFinish bool) {
 		}
 		var durable DurableWork = store
 		if firstProcess && lostFinish {
-			durable = failedFinishStore{store}
+			if failure == "finish" {
+				durable = failedFinishStore{store}
+			} else {
+				durable = failedOutcomeStore{store}
+			}
 		}
 		firstProcess = false
 		service, err := NewServiceWithOptions(&verticalBackend{}, httpExecutor{}, provider, app.ReferencePrincipalTeamA, Options{Durable: durable, Setup: memberTestSetup, Configure: memberTestConfigure, Access: identity, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
@@ -135,7 +150,21 @@ func testDurableRestart(t *testing.T, lostFinish bool) {
 	}
 	var first evidence.View
 	if lostFinish {
-		first, err = service.SubmitFor(input(), p)
+		done := make(chan error, 1)
+		go func() { _, runErr := client.RunFile(path); done <- runErr }()
+		select {
+		case runErr := <-done:
+			if runErr == nil || !strings.Contains(runErr.Error(), "HTTP 503") {
+				t.Fatalf("client failed to report storage error: %v", runErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("client kept polling after terminal persistence failure")
+		}
+		views, listErr := store.ListFor(ctx, p)
+		if listErr != nil || len(views) != 1 {
+			t.Fatal("missing durable admission", listErr)
+		}
+		first = views[0]
 	} else {
 		first, err = client.RunFile(path)
 	}
@@ -161,6 +190,23 @@ func testDurableRestart(t *testing.T, lostFinish bool) {
 			t.Fatal("durable outcome not published")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+	if lostFinish {
+		for _, path := range []string{"/api/requests", "/api/requests/" + first.RequestRef + "/evidence", "/api/claims/" + first.State.Claim.ID + "/evidence"} {
+			req := httptest.NewRequest("GET", path, nil)
+			req.Header.Set("Authorization", "Bearer "+raw)
+			result := httptest.NewRecorder()
+			handler.ServeHTTP(result, req)
+			if result.Code != 503 {
+				t.Fatalf("%s returned %d instead of unavailable", path, result.Code)
+			}
+		}
+		if provider.calls.Load() != 1 {
+			t.Fatal("provider replayed after storage failure")
+		}
+		if failure == "outcome" {
+			return
+		} // missing terminal fact requires recovery, not publication repair
 	}
 	service.Close()
 	if err := store.Close(); err != nil {
