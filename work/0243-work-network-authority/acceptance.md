@@ -25,9 +25,25 @@ Tool Gateway enforces MCP scope. A model's refusal is not an enforcement test.
 - Independent review has no remaining known major integration defect. Live
   enforcement is still a separate gate, not inferred from this review.
 
-The full pinned Linux source/race/integration campaign is recorded at completion,
-not assumed from the focused results above. Windows has an existing unrelated
-owner-invitation file synchronization test failure; it is not skipped or changed.
+The pinned Linux campaign completed successfully (read-only source mount, no
+cloud credentials, D:-scoped cache/temp and automatic owned-container removal):
+
+| Command | Result |
+| --- | --- |
+| `go test -p 2 -count=1 -timeout 5m ./...` | pass |
+| `go test -p 2 -race -count=1 -timeout 5m ./internal/app ./internal/runtime/... ./internal/operator ./internal/console ./internal/authority ./internal/policy ./internal/adapters/bundled ./internal/toolgateway` | pass |
+| `go test -p 2 -race -tags integration -run '^TestIncidentDemo' -count=1 -timeout 5m ./cmd/agenova-control-plane` | pass, 47.342s |
+| `go vet ./...` | pass |
+| `./scripts/check.ps1 -Docs` | pass |
+| `./scripts/check.ps1 -Profile Fast -ChangedOnly` | pass |
+
+Pinned image:
+`golang@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8`.
+Windows has an existing unrelated owner-invitation file synchronization test
+failure; it is not skipped or changed. The Linux source gate includes that test.
+The test-only native observer was also tested/vetted separately, and its exact
+Worker-derived image retains the original control handshake; #242 records this
+local image evidence without claiming AWS enforcement.
 
 ## Approved deployment boundary
 

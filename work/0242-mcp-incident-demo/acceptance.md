@@ -116,3 +116,71 @@ space, so subsequent builds used owned `.tmp/mcp-242-go-*` directories on D:.
 Sandboxed fixture sockets then failed with Windows access-permission errors;
 the same local gate passed after normal execution approval. No cache directories,
 user files or cloud resources were deleted to make the tests pass.
+
+## Exact local image gates — 20 October 2026
+
+Both images were built locally from reviewed source/pinned builders; neither was
+pushed by this lane. The existing fixture source/Dockerfile were unchanged. The
+test-only netprobe derivative preserves the selected Worker's inherited USER,
+original `/agenova-workerctl` and original demo-worker binary; it adds only the
+observer and a CA bundle. It is not a mandatory Agent base image.
+
+| Artifact | Exact local provenance |
+| --- | --- |
+| Worker base | reviewed existing Worker repository, immutable digest `sha256:97160e812087129fc8b51e6950577585557a1526afd31b4fa0128dbc86d1dec2`; inspected USER `65532:65532` |
+| Go builder | `golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414` |
+| Fixture final base | `gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab` |
+| Netprobe local tag | `agenova-netprobe-243:20261020` |
+| Netprobe manifest list | `sha256:53d7a5fe5963c71938b61cd5286f7ebfbacb902f787e5585e6b4c36c4a1c0b71` |
+| Netprobe Linux/amd64 manifest | `sha256:7ab7b5632be54c32ed51e197044e5807874ed2bed96457e0de0f9b981b45d649` |
+| Netprobe config | `sha256:5748d4a1d6eb1831bf22fb73933c95656faf44024d748059cab59a429285db6e` |
+| MCP local tag | `agenova-mcp-242:20261020` |
+| MCP manifest list | `sha256:b98f99004376a07de037df1af7a07ded9c11147cd1bd6da42b889003c7c6c7e3` |
+| MCP Linux/amd64 manifest | `sha256:ec22de938b2996d3b79230cd2c16046542dfbfe919d0e2c21ae030ceefab701e` |
+| MCP config | `sha256:b1978b50a8c37ea7560a8c62dad97e4291263a8759ee217e415e0b6f4c88033c` |
+
+The parent explicitly approved registry login for Neo account only. Its temporary
+ECR password was piped directly from AWS CLI to Docker login; this lane did not
+read Docker configuration, print the password or write a credential file. No
+cloud resource, registry push, policy or shared deployment was created/changed.
+
+### Worker derivative control handshake
+
+Built with the supplied netprobe Dockerfile and the exact Worker base above.
+Owned container `agenova-netprobe-local-243-20261020` ran with `--network none`,
+read-only root, a writable `/tmp` tmpfs, no added capabilities, no-new-privileges,
+64Mi memory and 0.25 CPU. It inherited USER `65532:65532`.
+
+Using only a synthetic fixed-format control token, the original commands passed:
+`status` idle -> `start` started -> `status` running -> `stop` stopped -> `status`
+stopped. The independent original worker result was
+`probe-4e01090dadec4cb2`. Probe logs contained 49 bounded records beginning with
+`native-probe-start`, with public TLS, DNS and direct MCP native attempts. The
+unchanged control-command stdout was not contaminated by observer receipts.
+
+This gate proves image composition, inherited user/tmp/socket compatibility and
+the existing control handshake. Docker `--network none` is a **local no-network
+substrate simulation, not EKS/CNI or per-Work Policy enforcement proof**. No public
+or cloud probes were possible from that container. Its stop/removal was verified;
+no owned temporary container remained. The local image was retained for the
+integrator's release preparation.
+
+### Actual MCP image/SDK file reads
+
+Built `harness/integration/mcpfixture/Dockerfile`; module checksums verified during
+the pinned build. Owned container `agenova-mcp-local-242-20261020` ran nonroot
+`65532:65532`, read-only root, no capabilities/new privileges, 64Mi memory and
+0.25 CPU. Its only host port bound to `127.0.0.1`; the four synthetic source files
+were bind-mounted read-only at `/data`.
+
+`/healthz` returned HTTP 200. An official MCP SDK client established protocol
+`2025-06-18` and read `payments/INC-P1042/logs.txt` and
+`billing/INC-B2081/job-config.txt`; both actual results contained the synthetic
+data label. Two independent `tools/call` receipts and two successful tool-handler
+reads matched safe correlation `local-image-242-read`. File contents were checked
+in memory, not printed into receipts. This is a local service-image gate, not a
+governed Work/model or credentials/isolation assertion.
+
+The owned fixture container was stopped/removed by its captured container ID;
+absence was verified. No shared containers, user files or existing images were
+removed. The source fixture/Dockerfile and dataset were unchanged.
