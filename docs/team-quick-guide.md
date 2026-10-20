@@ -14,9 +14,14 @@ Agenova members do not need AWS credentials, kubeconfig, or cluster access.
 
 ## 1. Sign in to Agenova
 
-Open <https://app.agenova.app/> and select **Continue with Google**.
+Open <https://app.agenova.app/>, select **Sign in**, then **Continue with Google**.
 If access is pending, send your sign-in email to an administrator. After approval
 and project-role assignment, sign in again.
+
+The homepage is public; the workspace is not. After signing in, open **Work** to
+see your accessible requests and their activity. Select a request to inspect its
+result, requested/granted permissions and recorded evidence. The activity chart
+summarizes the loaded list, not all organization traffic.
 
 Administrators use **[Administration](https://app.agenova.app/admin)** to manage users and approve access requests. The previous `/members` URL redirects there.
 
