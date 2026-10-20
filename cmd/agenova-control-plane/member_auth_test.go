@@ -211,6 +211,17 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w.Code
 	}
+	checkGrafana := func(wantCode int, role string) {
+		r := httptest.NewRequest("POST", c.Origin+"/api/platform/authorize", strings.NewReader(`{"installation":"sydney","action":"grafana"}`))
+		r.Header.Set("Authorization", "Bearer valid")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != wantCode || (role != "" && !strings.Contains(w.Body.String(), `"role":"`+role+`"`)) {
+			t.Fatal("Grafana role endpoint", w.Code, w.Body.String())
+		}
+	}
+	checkGrafana(403, "")
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
 		t.Fatal("implicit platform access", code)
 	}
@@ -220,6 +231,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
 		t.Fatal("scoped platform authorization", code)
 	}
+	checkGrafana(200, "Viewer")
 	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
 		t.Fatal("foreign installation", code)
 	}
@@ -238,6 +250,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
 		t.Fatal("team admin deployment", code)
 	}
+	checkGrafana(200, "Editor")
 	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
 		t.Fatal("team admin installation escape", code)
 	}
@@ -247,6 +260,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
 		t.Fatal("demoted admin deployment", code)
 	}
+	checkGrafana(403, "")
 	m.Active = false
 	if err = store.PutMember(context.Background(), "operator", m); err != nil {
 		t.Fatal(err)

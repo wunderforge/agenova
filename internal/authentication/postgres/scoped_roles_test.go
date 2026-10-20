@@ -167,3 +167,38 @@ func TestTeamAdministratorBundleAndRevocation(t *testing.T) {
 		}
 	}
 }
+
+func TestGrafanaRolesUseLiveMembership(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	for _, name := range []string{"owner", "admin", "operator", "member"} {
+		if err := s.PutMember(ctx, "bootstrap", Member{Issuer: "issuer", Subject: name, Principal: name, Team: "team", Active: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Exec(`UPDATE agenova_members SET account_role='owner' WHERE principal='owner'; UPDATE agenova_members SET account_role='admin' WHERE principal='admin'; INSERT INTO agenova_projects VALUES('team','project'); INSERT INTO agenova_project_grants VALUES('admin','team','project','admin'); INSERT INTO agenova_scoped_roles VALUES('operator','team','platform-operator','installation','installed')`); err != nil {
+		t.Fatal(err)
+	}
+	p := func(name string) v0.Principal {
+		return v0.Principal{Subject: name, Team: "team", AuthenticationContext: "oidc"}
+	}
+	for name, want := range map[string]string{"owner": "Editor", "admin": "Editor", "operator": "Viewer"} {
+		if role, err := s.GrafanaRole(ctx, p(name), "installed"); err != nil || role != want {
+			t.Fatal(name, role, err)
+		}
+	}
+	for _, name := range []string{"member", "missing"} {
+		if _, err := s.GrafanaRole(ctx, p(name), "installed"); err == nil {
+			t.Fatal("unauthorized", name)
+		}
+	}
+	if _, err := s.GrafanaRole(ctx, p("operator"), "other"); err == nil {
+		t.Fatal("installation escape")
+	}
+	if _, err := s.DB.Exec(`UPDATE agenova_members SET active=false WHERE principal='admin'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GrafanaRole(ctx, p("admin"), "installed"); err == nil {
+		t.Fatal("revoked admin")
+	}
+}

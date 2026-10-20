@@ -24,10 +24,10 @@ func TestExistingMemberSessionAndInstallationAreTheOnlyAuthority(t *testing.T) {
 		}
 		var input map[string]string
 		json.NewDecoder(r.Body).Decode(&input)
-		if r.URL.Path != "/api/platform/authorize" || input["action"] != "status" || input["installation"] != "installed" {
+		if r.URL.Path != "/api/platform/authorize" || input["action"] != "grafana" || input["installation"] != "installed" {
 			t.Error("wrong authorization boundary")
 		}
-		w.WriteHeader(204)
+		json.NewEncoder(w).Encode(map[string]string{"role": "Editor"})
 	}))
 	defer issuer.Close()
 	b := memberBoundary{origin: issuer.URL, installation: "installed", client: issuer.Client()}
@@ -37,7 +37,8 @@ func TestExistingMemberSessionAndInstallationAreTheOnlyAuthority(t *testing.T) {
 	r.Header.Set("Authorization", "Bearer do-not-forward")
 	r.Header.Set("X-WEBAUTH-USER", "spoofed")
 	p, err := b.Authenticate(r)
-	if err != nil || p.Subject != "trusted" || b.authorize(r, p) != nil || calls != 2 {
+	role, roleErr := b.authorize(r, p)
+	if err != nil || p.Subject != "trusted" || roleErr != nil || role != "Editor" || calls != 2 {
 		t.Fatal("existing member boundary not used", err)
 	}
 	r.AddCookie(&http.Cookie{Name: "__Host-agenova-session", Value: "duplicate"})

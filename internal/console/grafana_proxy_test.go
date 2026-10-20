@@ -35,11 +35,11 @@ func TestGrafanaProxyReauthorizesAndIsolatesCredentials(t *testing.T) {
 	defer upstream.Close()
 	auth := &grafanaAuth{}
 	var revoked atomic.Bool
-	proxy, err := GrafanaProxy(upstream.URL, "https://app.example", auth, func(*http.Request, v0.Principal) error {
+	proxy, err := GrafanaProxy(upstream.URL, "https://app.example", auth, func(*http.Request, v0.Principal) (string, error) {
 		if revoked.Load() {
-			return errors.New("revoked role")
+			return "", errors.New("revoked role")
 		}
-		return nil
+		return "Viewer", nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -92,11 +92,15 @@ func TestGrafanaProxyAgainstPinnedRealGrafana(t *testing.T) {
 	}
 	auth := &grafanaAuth{}
 	var revoked atomic.Bool
-	proxy, err := GrafanaProxy(target, "https://app.example", auth, func(*http.Request, v0.Principal) error {
+	var editor atomic.Bool
+	proxy, err := GrafanaProxy(target, "https://app.example", auth, func(*http.Request, v0.Principal) (string, error) {
 		if revoked.Load() {
-			return errors.New("revoked")
+			return "", errors.New("revoked")
 		}
-		return nil
+		if editor.Load() {
+			return "Editor", nil
+		}
+		return "Viewer", nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -122,8 +126,72 @@ func TestGrafanaProxyAgainstPinnedRealGrafana(t *testing.T) {
 	if orgs.Code != 200 || json.Unmarshal(orgs.Body.Bytes(), &roles) != nil || len(roles) != 1 || roles[0].Role != "Viewer" {
 		t.Fatal("real Grafana did not enforce Viewer", orgs.Code, orgs.Body.String())
 	}
+	editor.Store(true)
+	orgs = call("/api/user/orgs")
+	if json.Unmarshal(orgs.Body.Bytes(), &roles) != nil || len(roles) != 1 || roles[0].Role != "Editor" {
+		t.Fatal("real editor sync failed", orgs.Body.String())
+	}
+	save := func() *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "https://app.example/grafana/api/dashboards/db", strings.NewReader(`{"dashboard":{"id":null,"uid":"agenova-editor-test","title":"Editor acceptance","schemaVersion":39,"panels":[]},"overwrite":true}`))
+		r.Header.Set("Origin", "https://app.example")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		proxy.ServeHTTP(w, r)
+		return w
+	}
+	if result := save(); result.Code != 200 {
+		t.Fatal("real editor save", result.Code, result.Body.String())
+	}
+	if result := call("/api/dashboards/uid/agenova-editor-test"); result.Code != 200 {
+		t.Fatal("saved dashboard unavailable", result.Code)
+	}
+	editor.Store(false)
+	if save().Code != 403 {
+		t.Fatal("downgraded viewer saved dashboard")
+	}
+	orgs = call("/api/user/orgs")
+	if json.Unmarshal(orgs.Body.Bytes(), &roles) != nil || len(roles) != 1 || roles[0].Role != "Viewer" {
+		t.Fatal("real role downgrade failed", orgs.Body.String())
+	}
 	revoked.Store(true)
 	if call("/api/user").Code != 403 {
 		t.Fatal("revoked role kept real Grafana access")
+	}
+}
+
+func TestGrafanaDashboardWritesFollowLiveRole(t *testing.T) {
+	var role = "Editor"
+	var calls int
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("X-WEBAUTH-ROLE") != role {
+			t.Fatal("stale role")
+		}
+		w.WriteHeader(200)
+	}))
+	defer upstream.Close()
+	proxy, err := GrafanaProxy(upstream.URL, "https://app.example", &grafanaAuth{}, func(*http.Request, v0.Principal) (string, error) { return role, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(path, origin string) int {
+		r := httptest.NewRequest("POST", "https://app.example/grafana"+path, strings.NewReader(`{}`))
+		r.Header.Set("Origin", origin)
+		w := httptest.NewRecorder()
+		proxy.ServeHTTP(w, r)
+		return w.Code
+	}
+	if call("/api/dashboards/db", "https://app.example") != 200 {
+		t.Fatal("editor cannot save")
+	}
+	if call("/api/admin/users", "https://app.example") != 403 || call("/api/dashboards/db", "") != 403 {
+		t.Fatal("write boundary bypass")
+	}
+	role = "Viewer"
+	if call("/api/dashboards/db", "https://app.example") != 403 {
+		t.Fatal("downgrade retained write")
+	}
+	if call("/api/ds/query", "https://app.example") != 200 || calls != 2 {
+		t.Fatal("viewer query or denied dispatch")
 	}
 }

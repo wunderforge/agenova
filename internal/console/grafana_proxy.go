@@ -17,7 +17,7 @@ import (
 // GrafanaProxy trusts only server-owned configuration and verified application
 // sessions. It never passes application cookies/tokens or client-authored
 // identity headers to Grafana. Each HTTP request rechecks live authorization.
-func GrafanaProxy(target, publicOrigin string, auth Authenticator, authorize func(*http.Request, v0.Principal) error) (http.Handler, error) {
+func GrafanaProxy(target, publicOrigin string, auth Authenticator, authorize func(*http.Request, v0.Principal) (string, error)) (http.Handler, error) {
 	upstream, err := url.Parse(target)
 	origin, originErr := url.Parse(publicOrigin)
 	if err != nil || originErr != nil || auth == nil || authorize == nil || upstream.Host == "" || upstream.User != nil || upstream.RawQuery != "" || upstream.Fragment != "" || upstream.Path != "" || upstream.Scheme != "http" || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawQuery != "" || origin.Fragment != "" {
@@ -32,10 +32,6 @@ func GrafanaProxy(target, publicOrigin string, auth Authenticator, authorize fun
 		}
 		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "POST" {
 			http.Error(w, "Method not allowed", 405)
-			return
-		}
-		if r.Method == "POST" && r.URL.Path != "/grafana/api/ds/query" && r.URL.Path != "/grafana/api/frontend-metrics" {
-			http.Error(w, "Read-only diagnostics", 403)
 			return
 		}
 		// No long-lived websocket can outlive a membership/session check.
@@ -56,15 +52,22 @@ func GrafanaProxy(target, publicOrigin string, auth Authenticator, authorize fun
 			http.Error(w, "Sign in required", 401)
 			return
 		}
-		if p.Subject == "" || p.Team == "" || p.AuthenticationContext != "oidc" || authorize(r, p) != nil {
+		role, roleErr := authorize(r, p)
+		if p.Subject == "" || p.Team == "" || p.AuthenticationContext != "oidc" || roleErr != nil || (role != "Viewer" && role != "Editor") {
 			http.Error(w, "Diagnostics access denied", 403)
+			return
+		}
+		if r.Method == "POST" && r.URL.Path != "/grafana/api/ds/query" && r.URL.Path != "/grafana/api/frontend-metrics" && !(role == "Editor" && r.URL.Path == "/grafana/api/dashboards/db") {
+			http.Error(w, "Dashboard write denied", 403)
 			return
 		}
 		if r.URL.Path == "/grafana" {
 			http.Redirect(w, r, "/grafana/", 303)
 			return
 		}
-		sum := sha256.Sum256([]byte(p.Team + "\x00" + p.Subject))
+		// Role-scoped logins avoid Grafana retaining cached permissions across a
+		// live E14 role change; the proxy still checks authority on every request.
+		sum := sha256.Sum256([]byte(p.Team + "\x00" + p.Subject + "\x00" + role))
 		login := "agenova-" + hex.EncodeToString(sum[:])
 		proxy := &httputil.ReverseProxy{Transport: transport, Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(upstream)
@@ -78,7 +81,7 @@ func GrafanaProxy(target, publicOrigin string, auth Authenticator, authorize fun
 				}
 			}
 			headers.Set("X-WEBAUTH-USER", login)
-			headers.Set("X-WEBAUTH-ROLE", "Viewer")
+			headers.Set("X-WEBAUTH-ROLE", role)
 			headers.Set("X-Forwarded-Proto", "https")
 			headers.Set("X-Forwarded-Host", origin.Host)
 			if pr.In.Header.Get("Origin") != "" {

@@ -96,6 +96,21 @@ func (d *memberDependencies) platformAuthorizationHandler() http.Handler {
 			http.Error(w, "Invalid request", 400)
 			return
 		}
+		if input.Action == "grafana" {
+			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
+			if installation == "" || input.Installation != installation {
+				http.Error(w, "Installation access denied", 403)
+				return
+			}
+			role, err := d.store.GrafanaRole(r.Context(), p, installation)
+			if err != nil {
+				http.Error(w, "Diagnostics access denied", 403)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"role": role})
+			return
+		}
 		action := ""
 		switch input.Action {
 		case "validate", "plan", "apply":

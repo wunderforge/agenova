@@ -277,9 +277,9 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	}
 	mux := http.NewServeMux()
 	if d.config.GrafanaURL != "" {
-		proxy, err := console.GrafanaProxy(d.config.GrafanaURL, d.config.Origin, d.boundary, func(r *http.Request, p v0.Principal) error {
+		proxy, err := console.GrafanaProxy(d.config.GrafanaURL, d.config.Origin, d.boundary, func(r *http.Request, p v0.Principal) (string, error) {
 			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
-			return d.store.AuthorizeInstallation(r.Context(), p, "platform.diagnose", installation, installation)
+			return d.store.GrafanaRole(r.Context(), p, installation)
 		})
 		if err != nil {
 			return nil, err

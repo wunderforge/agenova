@@ -91,3 +91,24 @@ permission on every request and gives Grafana an opaque Viewer identity only.
 No EKS deployment, IAM modification, new Google client or new public endpoint was applied by this extension. Real Google positive/negative login, private-network denial and persistent restart evidence remain deployment gates.
 
 Standalone Linux/amd64 bridge image build passed: [build log](evidence/google-image-build.log). The local manifest list is `sha256:388d25b82bbbd339ef61f4772d4c50dffc592485f7583569b66af0c304c65e3d`; this is a local build, not an ECR publication or EKS rollout. The optional [NGINX route fragment](../../deploy/production/grafana-location.conf) is prepared separately and has not been applied.
+
+## Administrator dashboard editing (20 October 2026)
+
+Owner authorized mapping administrators to Grafana Editor and pushing to #235.
+Live E14 membership grants Owner/Platform Admin Editor, installation operators
+Viewer, and denies ordinary or disabled members. Only dashboard create/save is
+added to the proxy write allowlist with exact same-origin checking. Role-scoped
+opaque Grafana identities avoid stale permission caches during role changes.
+
+Actual disposable Grafana 11.4 verified Editor dashboard save/read and immediate
+Viewer write denial, session/role revocation and credential isolation. Actual
+PostgreSQL verified membership, installation scope and revoked administrator
+checks with race detection; see [focused output](evidence/editor-focused.log).
+The member authorization endpoint must be upgraded before the standalone bridge.
+Provisioned dashboards remain source-managed; customize using Save as copy.
+No EKS rollout, storage/IAM change or live Google-to-Grafana acceptance is claimed.
+
+Final `check.ps1 -All` passed in the clean source snapshot, including all 63
+browser smoke cases; see [full gate](evidence/editor-all.log). Final packet/docs
+checks and PR delivery contract passed. Original workspace recursive checks
+retain the previously recorded unrelated `tmp/chatterbox-venv` SPDX blocker.

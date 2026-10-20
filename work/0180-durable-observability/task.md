@@ -120,9 +120,11 @@ Out of scope:
 ## Google/Grafana access extension
 
 - Owner explicitly requested Grafana Google login integration and reuse of existing system users in this chat. Read-only EKS/admin inspection found five approved users (one Owner, four Platform Admins); no roster or credentials are copied into source.
-- Reuse the existing Google session BFF at `/grafana/`, enforcing E14's installation-pinned `platform.diagnose` permission on every request. Grafana remains a private auth-proxy backend with Viewer access, no independent bearer/cookie session, and no anonymous/basic access.
+- Reuse the existing Google session BFF at `/grafana/`, enforcing E14's installation-pinned `platform.diagnose` permission on every request. Grafana remains a private auth-proxy backend with live Editor/Viewer mapping, no independent bearer/cookie session, and no anonymous/basic access.
 - Deploy behind the existing HTTPS application origin; no new OAuth client, external identity store or public unauthenticated Grafana endpoint. Explicit target configuration and enforced ingress isolation are required before enabling the proxy. Existing EKS has no Grafana stack yet; deployment and real Google positive/negative checks must be distinguished from local test evidence.
 
 - EKS preflight found only the EFS CSI driver; the advertised gp2 class has no installed EBS CSI provisioner. A persistent Grafana install is blocked pending a supported volume/provisioner and its explicitly approved budget/permissions, as required by the PRD production extension. No ephemeral substitute, IAM change or unverified EKS login is claimed.
 
 - Google extension validation: full PR profile passed all Go/race and 63 browser tests; actual Grafana 11.4 auth-proxy integration passed. The standalone linux/amd64 image built successfully; no EKS rollout has occurred. The user was asked whether to install EBS CSI with required AWS permissions and a 2 GiB Grafana volume under the PRD explicit-budget requirement. That infrastructure choice is pending; no elapsed-time approval is inferred.
+
+- Owner requested all administrators map to Grafana Editor on 20 October 2026. Live E14 membership derives Editor for Owner/Platform Admin, Viewer for installation operators; only dashboard create/save is additionally proxied. No EKS infrastructure approval or rollout is implied. The standalone bridge now requires the updated member authorization endpoint before rollout.

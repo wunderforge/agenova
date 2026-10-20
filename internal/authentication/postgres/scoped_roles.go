@@ -155,3 +155,25 @@ func (s Store) authorizeTeamAdministrator(ctx context.Context, p v0.Principal, p
 	}
 	return nil
 }
+
+// GrafanaRole derives diagnostics access from live E14 membership. Owner and
+// platform administrators can edit dashboards; installation operators only read.
+func (s Store) GrafanaRole(ctx context.Context, p v0.Principal, installation string) (string, error) {
+	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" || installation == "" {
+		return "", authentication.ErrForbidden
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var editor bool
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role='owner' OR (m.account_role='admin' AND EXISTS(SELECT 1 FROM agenova_project_grants g JOIN agenova_projects p ON p.team=g.team AND p.project=g.project WHERE g.principal=m.principal AND g.team=m.team AND g.role='admin'))))`, p.Subject, p.Team).Scan(&editor)
+	if err != nil {
+		return "", authentication.ErrForbidden
+	}
+	if editor {
+		return "Editor", nil
+	}
+	if s.AuthorizeInstallation(ctx, p, "platform.diagnose", installation, installation) != nil {
+		return "", authentication.ErrForbidden
+	}
+	return "Viewer", nil
+}

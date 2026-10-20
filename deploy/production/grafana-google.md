@@ -9,7 +9,13 @@ uses the existing `/login` flow; after Google sign-in, reopen `/grafana/`.
 The existing member directory decides access on each request. A disabled user,
 revoked session or removed installation permission is denied before Grafana.
 Platform diagnostic access is global operational visibility, not project Work
-read authority. The Grafana role is Viewer; no user gains Grafana administration.
+read authority. Owner and Platform Admin users receive Editor; installation operators receive Viewer.
+Editors can create/save dashboards; no user gains Grafana administration.
+Provisioned dashboards are maintained from source; use Save as copy for custom
+changes. The opaque Grafana login includes the derived role, preventing stale
+Grafana permission caches from carrying privileges across role changes.
+The bridge requires the updated member authorization endpoint (`action: grafana`);
+upgrade that endpoint before enabling the new bridge. Older endpoints deny access.
 
 ## Components and trust boundary
 
@@ -23,7 +29,7 @@ read authority. The Grafana role is Viewer; no user gains Grafana administration
   preserves the original browser cookie only as far as the membership bridge.
   Use the optional [route fragment](grafana-location.conf) inside the existing server block. Keep the regular login and API routes unchanged. Validate `nginx -t` before a
   graceful reload; do not restart active Work to change this route.
-- Grafana accepts only the bridge-generated opaque login and fixed Viewer role.
+- Grafana accepts only the bridge-generated opaque login and live Editor/Viewer role.
   Application cookies, bearer tokens and user-supplied identity headers never go
   to Grafana. Grafana cookies are not returned to the browser. Basic/anonymous
   login and independent Grafana login tokens are disabled.

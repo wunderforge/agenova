@@ -83,17 +83,23 @@ func (b memberBoundary) Authenticate(r *http.Request) (v0.Principal, error) {
 	}
 	return p, nil
 }
-func (b memberBoundary) authorize(r *http.Request, _ v0.Principal) error {
-	body, _ := json.Marshal(map[string]string{"installation": b.installation, "action": "status"})
+func (b memberBoundary) authorize(r *http.Request, _ v0.Principal) (string, error) {
+	body, _ := json.Marshal(map[string]string{"installation": b.installation, "action": "grafana"})
 	response, err := b.call(r, "/api/platform/authorize", body)
 	if err != nil {
-		return errors.New("authorization unavailable")
+		return "", errors.New("authorization unavailable")
 	}
 	defer response.Body.Close()
-	if response.StatusCode != 204 {
-		return errors.New("diagnostics denied")
+	if response.StatusCode != 200 {
+		return "", errors.New("diagnostics denied")
 	}
-	return nil
+	var result struct {
+		Role string `json:"role"`
+	}
+	if json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&result) != nil || (result.Role != "Viewer" && result.Role != "Editor") {
+		return "", errors.New("invalid diagnostics role")
+	}
+	return result.Role, nil
 }
 func main() {
 	if err := serve(); err != nil {
