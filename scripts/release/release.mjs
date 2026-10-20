@@ -50,8 +50,9 @@ export function config(env = process.env) {
 export function writeGate(env = process.env, deploy = false) {
   requireValue(env.GITHUB_REF === 'refs/heads/main', 'Releases require main');
   requireValue(['push', 'workflow_dispatch'].includes(env.GITHUB_EVENT_NAME), 'Unsupported release event');
-  requireValue(env.SHARED_EKS_RELEASE_ENABLED === 'true', 'Publication is disabled');
-  if (deploy) requireValue(env.SHARED_EKS_DEPLOY_ENABLED === 'true', 'Deployment is disabled');
+  const notDisabled = value => value === undefined || value === '' || value === 'false';
+  requireValue(notDisabled(env.SHARED_EKS_RELEASE_DISABLED), 'Publication is disabled or switch is invalid');
+  if (deploy) requireValue(notDisabled(env.SHARED_EKS_DEPLOY_DISABLED), 'Deployment is disabled or switch is invalid');
 }
 export function image(value, repo) {
   requireValue(value?.startsWith(`${repo}@`) && digestPattern.test(value.slice(repo.length + 1)), 'Expected repository-bound image digest');
@@ -79,11 +80,8 @@ export function snapshot(object, c, baseline, allowUnknown = false) {
   const result = { uid: m.uid, resourceVersion: m.resourceVersion, index, image: current,
     binding: hash({ template: t, strategy: s.strategy, replicas: s.replicas }),
     source: source ?? null, recordedSource: m.annotations?.[SOURCE] ?? null };
-  if (!allowUnknown) {
-    const compatible = vars.filter(v => v.name === 'AGENOVA_ALLOWED_WORKER_IMAGE');
-    requireValue(compatible.length <= 1, 'Ambiguous compatible Worker binding');
-    result.compatibleWorkerImage = compatible.length ? image(compatible[0].value, c.worker) : null;
-  }
+  // Legacy image hints remain inside the configuration hash, but are not an
+  // allowlist. Ordinary delivery must not depend on any user template/image.
   return result;
 }
 export function ready(object) {
@@ -116,7 +114,7 @@ export function changedComponents(paths, dirs) {
   const result = { controlPlane: false, worker: false };
   for (const raw of paths) {
     const p = raw.replaceAll('\\', '/');
-    if (p.endsWith('_test.go')) continue;
+    if (p.endsWith('_test.go') || p.endsWith('.md') || p.startsWith('ui/tests/') || p.startsWith('ui/e2e/')) continue;
     for (const [name, component] of Object.entries(COMPONENTS)) {
       if (['go.mod', 'go.sum', '.dockerignore'].includes(p) || p === component.dockerfile ||
           (name === 'controlPlane' && (p.startsWith('ui/') || p === 'deploy/reference/Dockerfile')) ||
@@ -138,6 +136,11 @@ export function plan(base, target, run = command) {
   }
   const paths = run('git', ['diff', '--no-renames', '--name-only', '-z', base, target]).split('\0').filter(Boolean);
   return { base, target, changed: changedComponents(paths, dirs) };
+}
+export function eventEligible(env = process.env, run = command) {
+  if (env.GITHUB_EVENT_NAME === 'workflow_dispatch') return true;
+  requireValue(env.GITHUB_EVENT_NAME === 'push' && env.GITHUB_REF === 'refs/heads/main', 'Unsupported release preflight event');
+  return Object.values(plan(sha(env.EVENT_BEFORE_SHA), sha(env.GITHUB_SHA), run).changed).some(Boolean);
 }
 export function existingDigest(repoName, tag, run = command) {
   try {
@@ -178,7 +181,7 @@ export function publish(releasePlan, c, run = command) {
     }
     result.images[name] = image(`${repo}@${digest}`, repo);
   }
-  result.workerRolloutRequired = Boolean(result.changed.worker);
+  result.workerRolloutRequired = false;
   return result;
 }
 
@@ -194,16 +197,23 @@ function patchImage(s, next) {
 export function deploy(release, expected, c, run = command, record = () => {}) {
   sha(release.target);
   requireValue(release.base === expected.source, 'Release baseline mismatch');
-  requireValue(!release.changed.worker && !release.workerRolloutRequired, 'Worker changes require a reviewed compatible template rollout; no automatic deployment');
+  if (!release.changed.controlPlane) {
+    const evidence = { source: release.target, previousSource: expected.source, result: 'published-no-platform-change' };
+    record(evidence);
+    return evidence;
+  }
   const next = release.changed.controlPlane ? image(release.images.controlPlane, c.controlPlane) : expected.image;
   const k = kube(c, run);
   const get = () => JSON.parse(k('get', 'deployment', c.deployment, '-o', 'json'));
   const patch = ops => k('patch', 'deployment', c.deployment, '--type=json', '--patch', JSON.stringify(ops), '-o', 'name');
   const original = get();
   const current = snapshot(original, c, expected.source);
-  current.worker = workerSnapshot(JSON.parse(k('get', 'configmap', 'agenova-template-slot', '-o', 'json')), c);
   requireValue(canonical(current) === canonical(expected), 'Deployment changed since snapshot; re-run from a fresh snapshot');
   requireValue(ready(original), 'Current Deployment is not healthy');
+  // Single-instance Recreate cannot safely replace a process owning Work.
+  // This is a quiet-window check, not an admission lock or zero-downtime drain.
+  const claims = JSON.parse(k('get', 'sandboxclaims.extensions.agents.x-k8s.io', '-o', 'json'));
+  requireValue(Array.isArray(claims.items) && claims.items.length === 0, 'Active SandboxClaims prevent rollout; retry in a quiet window');
   const evidence = { source: release.target, previousSource: expected.source,
     previousImage: expected.image, desiredImage: next, result: 'planned' };
   record(evidence);
@@ -218,8 +228,6 @@ export function deploy(release, expected, c, run = command, record = () => {}) {
     k('rollout', 'status', `deployment/${c.deployment}`, '--timeout=180s');
     const object = get();
     const after = snapshot(object, c, expected.source);
-    const worker = workerSnapshot(JSON.parse(k('get', 'configmap', 'agenova-template-slot', '-o', 'json')), c);
-    requireValue(canonical(worker) === canonical(expected.worker), 'Worker template changed during rollout');
     requireValue(after.uid === expected.uid && after.binding === expected.binding && after.image === next && after.recordedSource === expected.recordedSource && ready(object), 'Post-rollout health or binding mismatch');
     const annotations = { ...(object.metadata.annotations ?? {}), [SOURCE]: release.target };
     patch([
@@ -235,8 +243,6 @@ export function deploy(release, expected, c, run = command, record = () => {}) {
       try {
         const obj = get();
         const latest = snapshot(obj, c, expected.source);
-        const latestWorker = workerSnapshot(JSON.parse(k('get', 'configmap', 'agenova-template-slot', '-o', 'json')), c);
-        requireValue(canonical(latestWorker) === canonical(expected.worker), 'Worker drift prevents automatic recovery');
         requireValue(latest.uid === expected.uid && latest.binding === expected.binding && latest.recordedSource === expected.recordedSource && latest.image === next, 'Concurrent change prevents recovery');
         patch(patchImage(latest, expected.image));
         k('rollout', 'status', `deployment/${c.deployment}`, '--timeout=180s');
@@ -255,6 +261,14 @@ function save(file, data) { writeFileSync(file, `${JSON.stringify(data, null, 2)
 function load(file) { return JSON.parse(readFileSync(file, 'utf8')); }
 export function main(args = process.argv.slice(2)) {
   const [action] = args;
+  if (action === 'preflight') {
+    // Offline event classification happens before any cloud role is assumed.
+    // Manual dispatch deliberately allows inspecting cumulative pending changes.
+    const eligible = eventEligible();
+    requireValue(process.env.GITHUB_OUTPUT, 'Workflow output file is required');
+    writeFileSync(process.env.GITHUB_OUTPUT, `eligible=${eligible}\n`, { flag: 'a' });
+    return;
+  }
   const c = config();
   writeGate(process.env, action === 'deploy');
   const target = sha(process.env.GITHUB_SHA);
@@ -263,7 +277,6 @@ export function main(args = process.argv.slice(2)) {
     const object = JSON.parse(kube(c)('get', 'deployment', c.deployment, '-o', 'json'));
     requireValue(ready(object), 'Existing Deployment is not ready');
     const s = snapshot(object, c, process.env.SHARED_EKS_BASE_SHA);
-    s.worker = workerSnapshot(JSON.parse(kube(c)('get', 'configmap', 'agenova-template-slot', '-o', 'json')), c);
     save('snapshot.json', s);
   } else if (action === 'publish') {
     const s = load('snapshot.json');
@@ -271,8 +284,6 @@ export function main(args = process.argv.slice(2)) {
     save('plan.json', releasePlan);
     const release = publish(releasePlan, c);
     release.previousControlPlaneImage = s.image;
-    release.previousWorkerImage = installedWorkerImage(s, c);
-    release.candidatePair = { controlPlane: release.images.controlPlane ?? s.image, worker: release.images.worker ?? installedWorkerImage(s, c) };
     save('release.json', release);
   } else if (action === 'deploy') {
     const release = load('release.json');

@@ -202,10 +202,6 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	if tools != nil {
 		toolStatus = "configured"
 	}
-	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
-	if compatibleWorkerImage == "" {
-		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
-	}
 	if err := setInClusterKubeconfig(); err != nil {
 		return nil, err
 	}
@@ -357,14 +353,8 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			return prepared, nil
 		},
 		Configure: func(template *v0.AgentTemplate) (app.ResolvedLaunch, error) {
-			if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil {
-				return app.ResolvedLaunch{}, fmt.Errorf("registered template is incomplete")
-			}
-			if err := requireCompatibleWorkerImage(template.Spec.Artifact.Image, compatibleWorkerImage); err != nil {
+			if err := app.ValidateControlledTemplate(template); err != nil {
 				return app.ResolvedLaunch{}, err
-			}
-			if len(template.Spec.Entrypoint.Command) != 2 || template.Spec.Entrypoint.Command[0] != "/agenova-workerctl" || template.Spec.Entrypoint.Command[1] != "serve" {
-				return app.ResolvedLaunch{}, fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
 			}
 			name := template.Metadata.Name
 			if err := adapter.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
@@ -482,19 +472,6 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 	}
 	if len(authority.MemoryScopes) != 0 {
 		return &console.SubmissionError{Code: "memory_unsupported", Message: "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface."}
-	}
-	return nil
-}
-
-// The installed runtime declares one worker artifact implementing the
-// controlled-worker protocol. A template cannot redirect that protocol to an
-// arbitrary image merely by declaring the expected entrypoint command.
-func requireCompatibleWorkerImage(image, allowed string) error {
-	if allowed == "" {
-		return fmt.Errorf("installed runtime compatible worker image is missing")
-	}
-	if image != allowed {
-		return fmt.Errorf("registered template image does not match the installed runtime compatible worker image")
 	}
 	return nil
 }

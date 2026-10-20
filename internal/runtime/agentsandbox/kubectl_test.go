@@ -13,7 +13,50 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	agruntime "github.com/wunderforge/agenova/internal/runtime"
 )
+
+func TestWorkerImageFailureUsesStructuredReasonOnly(t *testing.T) {
+	for _, reason := range []string{"ImagePullBackOff", "ErrImagePull", "InvalidImageName", "ContainerCreating"} {
+		r := newKubectlRunner("kind-test", "isolated-test")
+		r.command = func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+			if strings.Join(args, " ") != "--context kind-test --namespace isolated-test get pods sbx-1 --ignore-not-found=true -o json" {
+				t.Fatalf("unexpected args %v", args)
+			}
+			return []byte(`{"status":{"containerStatuses":[{"name":"agent","state":{"waiting":{"reason":"` + reason + `","message":"private-registry-detail"}}}]}}`), nil
+		}
+		err := r.workerReadiness("sbx-1")
+		if reason == "ContainerCreating" {
+			if err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if !errors.Is(err, agruntime.ErrWorkerImageUnavailable) || strings.Contains(err.Error(), "private-registry") {
+			t.Fatalf("diagnostic=%v", err)
+		}
+	}
+}
+
+func TestReadinessAllowsPodCreationAfterAssignment(t *testing.T) {
+	r := newKubectlRunner("kind-test", "isolated-test")
+	r.command = func(context.Context, []byte, ...string) ([]byte, error) { return nil, nil }
+	if err := r.workerReadiness("sbx-1"); err != nil {
+		t.Fatalf("pending Pod incorrectly failed Work: %v", err)
+	}
+}
+
+func TestWorkerControlTransportDoesNotLeakProcessOutput(t *testing.T) {
+	r := newKubectlRunner("kind-test", "isolated-test")
+	r.command = func(context.Context, []byte, ...string) ([]byte, error) {
+		return []byte("private-process-detail"), errors.New("private-transport-detail")
+	}
+	_, err := r.execWorker("sbx-1", "status", "claim-token")
+	if !errors.Is(err, agruntime.ErrWorkerControlUnavailable) || strings.Contains(err.Error(), "private-") {
+		t.Fatalf("diagnostic=%v", err)
+	}
+}
 
 // fakeCommand replaces the kubectl executable while leaving argument
 // construction and result classification in kubectlRunner under test.

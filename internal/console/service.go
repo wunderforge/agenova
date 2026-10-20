@@ -722,6 +722,12 @@ func (s *Service) workCatalog(authority *v0.EffectiveAuthority) []workerprotocol
 // provider, model output or operating-system error text to the browser.
 func runFailure(err error, recorded []facts.Fact) (string, string) {
 	switch {
+	case errors.Is(err, runtime.ErrWorkerImageUnavailable):
+		return "runtime-image-unavailable", "The Agent image could not be pulled. Check the template image reference, registry access and node architecture."
+	case errors.Is(err, runtime.ErrWorkerControlUnavailable):
+		return "runtime-worker-control-unavailable", "The Agent control program did not respond. Check /agenova-workerctl and the controlled-v1 authoring guide."
+	case errors.Is(err, runtime.ErrWorkerProtocol):
+		return "runtime-worker-protocol", "The Agent did not acknowledge the controlled-v1 execution contract. Check its control program and entrypoint."
 	case errors.Is(err, context.Canceled):
 		return "run-cancelled", "The work was cancelled before execution completed."
 	case errors.Is(err, app.ErrRunDeadline), errors.Is(err, context.DeadlineExceeded):

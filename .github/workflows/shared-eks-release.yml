@@ -17,11 +17,11 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish candidates to ECR (also requires SHARED_EKS_RELEASE_ENABLED)
+        description: Publish candidates to ECR (unless SHARED_EKS_RELEASE_DISABLED)
         type: boolean
         default: false
       deploy:
-        description: Deploy the candidate (also requires publish and SHARED_EKS_DEPLOY_ENABLED)
+        description: Deploy the candidate (also requires publish; unless SHARED_EKS_DEPLOY_DISABLED)
         type: boolean
         default: false
 
@@ -43,8 +43,8 @@ env:
   CONTROL_PLANE_CONTAINER: control-plane
   ECR_CONTROL_PLANE_REPOSITORY: ${{ vars.ECR_CONTROL_PLANE_REPOSITORY }}
   ECR_WORKER_REPOSITORY: ${{ vars.ECR_WORKER_REPOSITORY }}
-  SHARED_EKS_RELEASE_ENABLED: ${{ vars.SHARED_EKS_RELEASE_ENABLED }}
-  SHARED_EKS_DEPLOY_ENABLED: ${{ vars.SHARED_EKS_DEPLOY_ENABLED }}
+  SHARED_EKS_RELEASE_DISABLED: ${{ vars.SHARED_EKS_RELEASE_DISABLED || 'false' }}
+  SHARED_EKS_DEPLOY_DISABLED: ${{ vars.SHARED_EKS_DEPLOY_DISABLED || 'false' }}
   SHARED_EKS_BASE_SHA: ${{ vars.SHARED_EKS_BASE_SHA }}
   SHARED_EKS_CANDIDATE_ENABLED: ${{ vars.SHARED_EKS_CANDIDATE_ENABLED }}
   SHARED_EKS_CANDIDATE_REF: ${{ vars.SHARED_EKS_CANDIDATE_REF }}
@@ -58,10 +58,13 @@ jobs:
     name: Validate without cloud credentials
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      eligible: ${{ steps.preflight.outputs.eligible }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
@@ -83,16 +86,22 @@ jobs:
       - name: Full source gate before any cloud access
         shell: pwsh
         run: ./scripts/check.ps1 -Profile Main
+      - id: preflight
+        name: Skip non-artifact changes before cloud authentication
+        env:
+          EVENT_BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/release/release.mjs preflight
 
   snapshot:
     needs: validate
     if: >-
-      (github.ref == 'refs/heads/main' &&
-       vars.SHARED_EKS_RELEASE_ENABLED == 'true' &&
+      needs.validate.outputs.eligible == 'true' &&
+      ((github.ref == 'refs/heads/main' &&
+       (vars.SHARED_EKS_RELEASE_DISABLED == '' || vars.SHARED_EKS_RELEASE_DISABLED == 'false') &&
        (github.event_name == 'push' || inputs.publish)) ||
       (inputs.candidate && github.event_name == 'workflow_dispatch' &&
        vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
-       github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA)
+       github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA))
     environment: shared-eks
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -165,7 +174,7 @@ jobs:
       - id: result
         name: Expose candidate summary
         run: |
-          node --input-type=module -e 'import fs from "node:fs"; const r=JSON.parse(fs.readFileSync("release.json")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `changed=${r.changed.controlPlane || r.changed.worker}\n`); fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### Release candidate\n```json\n"+JSON.stringify(r,null,2)+"\n```\n");'
+          node --input-type=module -e 'import fs from "node:fs"; const r=JSON.parse(fs.readFileSync("release.json")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `changed=${r.changed.controlPlane}\n`); fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### Release candidate\n```json\n"+JSON.stringify(r,null,2)+"\n```\n");'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -181,7 +190,7 @@ jobs:
     needs: publish
     if: >-
       needs.publish.outputs.changed == 'true' &&
-      ((vars.SHARED_EKS_DEPLOY_ENABLED == 'true' &&
+      (((vars.SHARED_EKS_DEPLOY_DISABLED == '' || vars.SHARED_EKS_DEPLOY_DISABLED == 'false') &&
         (github.event_name == 'push' || inputs.deploy)) ||
        (inputs.candidate && inputs.deploy && github.event_name == 'workflow_dispatch' &&
         vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
@@ -203,10 +212,6 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-candidate
-      - name: Stop before cluster access if Worker migration is required
-        if: ${{ !inputs.candidate }}
-        run: |
-          node --input-type=module -e 'import fs from "node:fs"; const r=JSON.parse(fs.readFileSync("release.json")); if(r.workerRolloutRequired){fs.writeFileSync("deployment.json",JSON.stringify({result:"blocked-worker-migration",source:r.target})); console.error("Worker candidate published; reviewed template rollout is required. No control-plane deployment."); process.exit(1);}'
       - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}

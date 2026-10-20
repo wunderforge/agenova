@@ -6,10 +6,13 @@ package agentsandbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 // defaultCommandTimeout bounds every single kubectl invocation so a hung
@@ -132,9 +135,44 @@ func (r *kubectlRunner) execWorker(workerID string, args ...string) (string, err
 	argv := append([]string{"exec", "pod/" + workerID, "-c", "agent", "--", "/agenova-workerctl"}, args...)
 	out, err := r.run(argv[0], argv[1:]...)
 	if err != nil {
-		return "", fmt.Errorf("worker control: %w", err)
+		return "", runtime.ErrWorkerControlUnavailable
 	}
 	return string(out), nil
+}
+
+// Inspect structured container state, never raw messages or logs.
+func (r *kubectlRunner) workerReadiness(workerID string) error {
+	var pod struct {
+		Status struct {
+			Containers []struct {
+				Name  string `json:"name"`
+				State struct {
+					Waiting *struct {
+						Reason string `json:"reason"`
+					} `json:"waiting"`
+				} `json:"state"`
+			} `json:"containerStatuses"`
+		} `json:"status"`
+	}
+	raw, err := r.runWithStdin(nil, "get", "pods", workerID, "--ignore-not-found=true", "-o", "json")
+	if err != nil {
+		return errors.New("worker readiness inspection unavailable")
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil
+	} // Pod creation can follow assignment.
+	if err := json.Unmarshal(raw, &pod); err != nil {
+		return errors.New("worker readiness inspection unavailable")
+	}
+	for _, c := range pod.Status.Containers {
+		if c.Name == "agent" && c.State.Waiting != nil {
+			switch c.State.Waiting.Reason {
+			case "ImagePullBackOff", "ErrImagePull", "InvalidImageName":
+				return runtime.ErrWorkerImageUnavailable
+			}
+		}
+	}
+	return nil
 }
 
 func (r *kubectlRunner) run(verb string, extraArgs ...string) ([]byte, error) {

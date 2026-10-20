@@ -76,8 +76,8 @@ func agentSandboxRuntimeRegistration() adapterregistry.Registration {
 		InstanceSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "connection.mode", Kind: adapterregistry.ValueString, Required: true, Description: "Control-plane-to-runtime connection mode", Default: "in-cluster"},
 			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-system"},
-			{Path: "compatible-worker-protocol", Kind: adapterregistry.ValueString, Description: "For a remote build of the bundled worker, explicitly attest controlled-v1 compatibility"},
-			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Required: true, Description: "Reference worker image allowed for this runtime", Default: referenceControlledWorkerImage},
+			{Path: "compatible-worker-protocol", Kind: adapterregistry.ValueString, Description: "Optional explicit selection of the supported controlled-v1 protocol; not image attestation"},
+			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Description: "Deprecated bootstrap hint; template images are selected independently"},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "isolation", Kind: adapterregistry.ValueString, Required: true, Description: "Requested supported isolation shape", Default: "dedicated"},
@@ -209,11 +209,17 @@ func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]an
 	if err != nil {
 		return nil, err
 	}
-	image, err := requiredString(input, "compatible-worker-image")
-	if err != nil || !compatibleWorkerConfig(input) {
-		return nil, platform.NewAdapterConfigError("unsupported-worker-image", "compatible-worker-image")
+	if !compatibleWorkerConfig(input) {
+		return nil, platform.NewAdapterConfigError("unsupported-worker-protocol", "compatible-worker-protocol")
 	}
-	result := map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}, "compatible-worker-image": image}
+	result := map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}}
+	if _, exists := input["compatible-worker-image"]; exists {
+		image, err := requiredString(input, "compatible-worker-image")
+		if err != nil {
+			return nil, err
+		}
+		result["compatible-worker-image"] = image
+	}
 	if protocol, exists := input["compatible-worker-protocol"]; exists {
 		result["compatible-worker-protocol"] = protocol
 	}
@@ -316,10 +322,6 @@ var remoteImagePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?/[a
 func remoteDigestImage(image string) bool { return remoteImagePattern.MatchString(image) }
 
 func compatibleWorkerConfig(config map[string]any) bool {
-	image, _ := config["compatible-worker-image"].(string)
 	protocol, present := config["compatible-worker-protocol"]
-	if present && protocol != "controlled-v1" {
-		return false
-	}
-	return image == referenceControlledWorkerImage || (remoteDigestImage(image) && protocol == "controlled-v1")
+	return !present || protocol == "controlled-v1"
 }

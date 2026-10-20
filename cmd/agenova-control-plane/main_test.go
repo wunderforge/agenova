@@ -53,23 +53,6 @@ func TestStatusProbesAreNeverCacheable(t *testing.T) {
 	}
 }
 
-func TestCompatibleWorkerImageMustMatchInstalledRuntime(t *testing.T) {
-	for _, test := range []struct {
-		image, allowed string
-		wantErr        bool
-	}{
-		{"agenova-testworker:kind", "agenova-testworker:kind", false},
-		{"other/worker:latest", "agenova-testworker:kind", true},
-		{"agenova-testworker:kind ", "agenova-testworker:kind", true},
-		{"agenova-testworker:kind", "", true},
-	} {
-		err := requireCompatibleWorkerImage(test.image, test.allowed)
-		if (err != nil) != test.wantErr {
-			t.Fatalf("image=%q allowed=%q: err=%v, wantErr=%t", test.image, test.allowed, err, test.wantErr)
-		}
-	}
-}
-
 func TestInstalledGatewayAuthorityRejectsUnimplementedGrantsBeforeWorkerSetup(t *testing.T) {
 	models := map[string]string{"coding-standard": "llama3.1:latest"}
 	runtimes := map[string]bool{"standard-isolated": true}

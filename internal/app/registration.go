@@ -51,36 +51,37 @@ func NewRegistrationService(stateDirectory string) (registration.Service, error)
 	}, nil
 }
 
-// Registration must reject a template that this installed reference runtime
-// cannot launch before the create-only registry takes its singleton slot.
+// Registration validates structure and runtime bounds, not executable compatibility.
+// A template owns its image. Successful controlled-v1 execution is verified at run time.
 func validateReferenceTemplate(template *v0.AgentTemplate, resolved *platform.ResolvedPlatform) error {
-	if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil || resolved == nil {
-		return fmt.Errorf("registered AgentTemplate or installed Platform is incomplete")
+	if resolved == nil {
+		return fmt.Errorf("installed Platform is required")
+	}
+	if err := ValidateControlledTemplate(template); err != nil {
+		return err
+	}
+	// Preserve the reference operator's existing registration bound. Member
+	// registration previously allowed broader ceilings; do not break those
+	// immutable records merely to decouple their images.
+	if ceiling := template.Spec.CapabilityCeiling; ceiling.MaxTimeout == nil || time.Duration(*ceiling.MaxTimeout) > 5*time.Minute || time.Duration(*ceiling.MaxTimeout) <= 0 {
+		return fmt.Errorf("reference runtime requires a positive execution timeout no greater than five minutes")
+	}
+	return nil
+}
+
+// ValidateControlledTemplate is shared by installed CLI/member registration and
+// launch. It intentionally accepts independently published images and commands.
+// Registration is not an attestation that an image implements controlled-v1.
+func ValidateControlledTemplate(template *v0.AgentTemplate) error {
+	if err := v0.ValidateAgentTemplate(template); err != nil {
+		return err
 	}
 	// The name is also used as an Agent Sandbox template and in a "pool-"
 	// resource name. Reject unusable names before create-only registration
-	// reserves the singleton and before Work submission's bounded HTTP body.
+	// reserves its immutable identity.
 	name := template.Metadata.Name
 	if len(name) == 0 || len(name) > 58 || !referenceTemplateName.MatchString(name) {
 		return fmt.Errorf("reference runtime requires an AgentTemplate name of at most 58 lowercase DNS-label characters")
-	}
-	workerImage := ""
-	runtimes := 0
-	for _, instance := range resolved.Instances {
-		if instance.Category == platform.CapabilityRuntime {
-			runtimes++
-			workerImage, _ = instance.Config["compatible-worker-image"].(string)
-		}
-	}
-	if runtimes != 1 || workerImage == "" || template.Spec.Artifact.Image != workerImage {
-		return fmt.Errorf("AgentTemplate image does not match the installed runtime compatible worker image")
-	}
-	command := template.Spec.Entrypoint.Command
-	if len(command) != 2 || command[0] != "/agenova-workerctl" || command[1] != "serve" {
-		return fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
-	}
-	if ceiling := template.Spec.CapabilityCeiling; ceiling == nil || ceiling.MaxTimeout == nil || time.Duration(*ceiling.MaxTimeout) > 5*time.Minute || time.Duration(*ceiling.MaxTimeout) <= 0 {
-		return fmt.Errorf("reference runtime requires a positive execution timeout no greater than five minutes")
 	}
 	return nil
 }

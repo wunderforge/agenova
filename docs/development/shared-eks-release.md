@@ -1,207 +1,108 @@
 # Shared EKS image delivery
 
-## Manual first-pair candidate trial
+## Automatic main delivery
 
-For an explicitly authorized integration test before merge, the existing **CI**
-workflow can dispatch this reusable workflow from one exact candidate branch.
-`SHARED_EKS_CANDIDATE_ENABLED`, `_REF`, `_SHA`, `_UID` and `_PREVIOUS_IMAGE` pin
-the operation. PR events, branch pushes, other refs and changed source SHAs cannot
-release. The full Linux source/race/browser gate runs before OIDC access.
-Automatic main releases remain separately disabled until explicitly activated.
-
-The first-pair path builds **both** images. It records an unknown deployed source
-as null, not an invented Git baseline. The member CP image includes the Portal
-at `/opt/agenova/portal` (`deploy/production/release.Dockerfile`). The pipeline
-atomically updates the CP image and `AGENOVA_ALLOWED_WORKER_IMAGE`, preserving
-all other configuration. It verifies Deployment UID/resource version, ready
-state, registry/Platform hashes and source annotation; a failed rollout restores
-both image values only while those bindings remain unchanged. No Secret reads,
-Policy/template writes, database migrations or external service installs occur
-inside this workflow. Register a **new** project template and policy version
-after rollout through authenticated Agenova CLI; retain old immutable records.
-
-Operator procedure (exact parameters come from a fresh read-only preflight):
-
-```powershell
-node scripts/release/candidate-access.mjs authorize refs/heads/codex/BRANCH FULL_SHA DEPLOYMENT_UID OLD_CP_DIGEST_REFERENCE
-gh workflow run ci.yml --repo wunderforge/agenova --ref codex/BRANCH
-# Inspect Actions artifacts; verify AWS/EKS digests and real Agenova Work.
-node scripts/release/candidate-access.mjs revoke
-```
-
-The access helper changes no IAM permission policy or cluster RBAC. It saves a
-non-secret receipt, temporarily adds only the exact publisher OIDC subject and
-environment branch, and refuses to overwrite concurrent trust changes during
-revoke. Always revoke even when a trial fails. No default release flags are
-enabled by this mode. A repeated authorization needs an operator-reviewed receipt,
-not deletion of the previous receipt to bypass its checks.
-
-The trial intentionally pins the reviewed login foundation `88888a2`; newer
-schema-009/proxy work requires separate migration and rollback acceptance.
-
-## Ordinary main delivery
-
-This is delivery tooling for **Neo's existing shared demo cluster**, not an EKS
-installer or a production upgrade system. It does not create/stop a cluster,
-change IAM, read Secrets, alter Policy, or install the Sandbox controller.
-
-**Publication and deployment are disabled unless explicitly enabled.** Opening
-or merging this PR does not by itself publish an image or update the cluster.
-The implementation was tested offline; a release-ready commit and live validation
-belong to the operator's separate integration exercise.
-
-## Flow
+After green Linux source/race/browser checks, a main push automatically publishes
+affected artifacts and deploys the control-plane image to **Neo's existing demo
+cluster**. Unset switches default on. Explicit repository variables
+`SHARED_EKS_RELEASE_DISABLED=true` or `SHARED_EKS_DEPLOY_DISABLED=true` stop future
+publication/deployment; unset/`false` permits automatic delivery. Obsolete opt-in
+`SHARED_EKS_RELEASE_ENABLED` / `SHARED_EKS_DEPLOY_ENABLED` variables no longer gate
+delivery, including retained `false` values from old installations. This is the
+Owner-approved switch to automatic delivery on merge, not an instruction to
+change live variables or deploy this unmerged PR. Invalid new switch values fail.
 
 ```text
-main push / manual run
-  -> full source checks (no AWS credentials)
-  -> opt-in: read current Deployment and deployed source SHA
-  -> diff deployed source..candidate (not previous push)
-  -> build/publish only affected images, or reuse immutable SHA tags
-  -> release-candidate artifact with digests
-  -> separate deployment opt-in
-  -> reject Worker changes requiring template migration
-  -> reject stale main / changed Deployment
-  -> patch only control-plane image, wait for readiness
-  -> record successful source SHA; retain failure/recovery evidence
+main push -> full checks + offline event diff
+  -> no artifact changes: stop before AWS authentication
+  -> snapshot deployed control-plane source/configuration
+  -> diff deployed source..candidate; publish affected immutable images
+  -> control plane changed: quiet-window check, guarded rollout, readiness
+  -> Worker only: publish reference artifact; no deployment/template changes
 ```
 
-Publication uses a main-ref OIDC role; deployment and the read-only snapshot use
-an environment-scoped OIDC role. Do not add `environment` to the publisher job:
-that changes its OIDC subject and will not match the existing publisher trust.
-There are no AWS access keys in GitHub. Official Actions are pinned to commits.
-
-## What updates automatically
-
-| Change | Image publication | Cluster update |
+| Change | Publication | Cluster update |
 | --- | --- | --- |
-| Control-plane Go dependency or Dockerfile | Control plane only | Selected container only |
-| Worker Go dependency or Dockerfile | Worker only | Blocked pending reviewed template migration |
-| Shared protocol / Go module lock | Both | Blocked pending compatible pair deployment |
-| Documentation or Go unit-test-only change | None | None |
-| Bundled Portal UI | Control plane only | Same guarded CP-image rollout |
-| Login proxy, Collector, other standalone service | Not part of these two images | Separate deployment required |
+| Control-plane dependency / Dockerfile / Portal | Control plane | Named container image only |
+| Reference Worker dependency / Dockerfile | Worker | None; authors select new images in new templates |
+| Shared protocol / Go module lock | Both | Control plane only; existing templates retain images |
+| Documentation / unit-test-only push | None | No cloud access |
+| Gateway service / Collector / login proxy | Not managed by these two images | Separate service delivery |
 
-Go dependencies are discovered with `go list -deps`. A new package imported by a
-Worker is therefore included, not silently assumed to be control-plane-only.
-Docker build contexts and their Dockerfiles must still include those sources.
+Components use `go list -deps`, not a hardcoded shared-package map. Artifact
+pushes diff from the installed source, so skipped/superseded changes are included.
+A docs-only push intentionally does not flush pending artifact changes; the next
+artifact push or explicit manual publish does. Manual dispatch defaults to
+validation only; select publish/deploy explicitly for cumulative delivery.
+PR events cannot access cloud roles. Official release Actions are commit-pinned.
 
-Tags are `sha-<full 40-character commit>`. ECR repositories must remain immutable.
-Existing tags are reused; only `ImageNotFoundException` permits a new build.
-Authorization/network errors fail, rather than masquerading as missing images.
-Candidate images use `linux/amd64`, matching this shared-cluster release target;
-other node architectures require an explicitly reviewed build-platform change.
+Worker publication is **not** Worker deployment: users register immutable
+AgentTemplates through authenticated Agenova CLI/API. Existing templates/pools
+are never rewritten, and Worker-only publication does not advance the platform's
+deployed source annotation. See the [image authoring guide](agent-images.md).
+Protocol compatibility remains a review/test obligation: an incompatible shared
+protocol change requires a versioned migration, not automatic user-image updates.
 
-## One-time activation — by the release operator, not this PR
+## Existing target and prerequisites
 
-1. Merge/review the compatible application code first. In particular, the source
-   must contain the member authentication implementation used by the public
-   cluster. Do not overwrite the member service with an older reference-only
-   main image. Coordinate a quiet deployment window with the team.
-2. Confirm the running control plane **and registered Worker** are a compatible
-   pair built from an identified source commit. Set repository variable
-   `SHARED_EKS_BASE_SHA` to that full commit SHA for the first run. It must be an
-   ancestor of the release candidate. Never set it to an arbitrary recent commit
-   just to skip changes. An unknown baseline is a stop condition.
-3. Confirm the target has one replica, `Recreate`, a digest-pinned ECR image,
-   member auth/config environment, and a control-plane readiness probe. The
-   managed `agenova-template-slot` must also reference a digest-pinned image in
-   the expected Worker ECR repository; its contents are hashed and checked for drift.
-   workflow rejects other installation shapes. Confirm GitHub-hosted runners can
-   reach the EKS API and have AWS CLI v2, kubectl, Docker/buildx available.
-4. Set repository variable `SHARED_EKS_RELEASE_ENABLED=true`. Leave
-   `SHARED_EKS_DEPLOY_ENABLED` unset/false. Manually run **Shared EKS release** on
-   **main**, selecting **publish=true**, **deploy=false**. Inspect the candidate
-   artifact and validate real OIDC/ECR behavior. No cluster mutation is made in
-   this mode, although ECR images are published.
-5. Once reviewed, set repository variable `SHARED_EKS_DEPLOY_ENABLED=true` and
-   rerun on main with both inputs true. The immutable tag is reused. These two
-   enabled variables also activate subsequent automatic main-push releases.
+Target: account `931228356546`, region `ap-southeast-2`, cluster `agenova-demo`,
+namespace `agenova-system`, Deployment `agenova-member-control-plane`, container
+`control-plane`. No cluster, IAM role, Secret, volume or other cloud resource is
+created. This workflow does not install services, run migrations or reconcile
+Platform configuration.
 
-Both switches must be **repository variables**, not only environment variables,
-because job admission is evaluated before environment variables become available.
-Manual dispatch with default inputs runs only local validation. It is not a
-deployment dry run and does not claim to verify EKS access.
-
-Existing non-secret configuration:
-
-| Location | Variables |
+| Location | Required configuration |
 | --- | --- |
 | Repository | `AWS_REGION`, `AWS_PUBLISH_ROLE_ARN`, `ECR_CONTROL_PLANE_REPOSITORY`, `ECR_WORKER_REPOSITORY` |
-| `shared-eks` environment | `AWS_DEPLOY_ROLE_ARN` |
-| Repository, operator activation | `SHARED_EKS_RELEASE_ENABLED`, `SHARED_EKS_DEPLOY_ENABLED`, initial `SHARED_EKS_BASE_SHA` |
+| `shared-eks` environment | `AWS_DEPLOY_ROLE_ARN`; main-only deployment policy |
+| First identified deployment only | `SHARED_EKS_BASE_SHA` if no Deployment source annotation exists |
+| Repository, optional emergency stops | `SHARED_EKS_RELEASE_DISABLED=true`, `SHARED_EKS_DEPLOY_DISABLED=true` |
 
-The workflow explicitly targets account `931228356546`, region `ap-southeast-2`,
-cluster `agenova-demo`, namespace `agenova-system`, Deployment
-`agenova-member-control-plane`, container `control-plane`. Environment branch
-policy must remain `main` only. Existing target-name environment variables are
-not used to redirect this workflow; changing target requires reviewing the file.
+Publisher OIDC trust is main-ref-scoped; snapshot/deployment use the environment
+role. Do not add an environment to the publisher job: it changes the OIDC subject.
+No AWS access keys belong in GitHub. Existing environment approval rules apply;
+this PR does not bypass them.
 
-## Safety, compatibility and rollback limits
+The target needs one replica, `Recreate`, a digest-pinned control-plane image,
+member auth/configuration, readiness probe and identified ancestral source SHA.
+Unknown baselines stop delivery: never invent one. The deploy identity needs list
+access to SandboxClaims for the quiet-window check. Runners need AWS CLI, kubectl,
+Docker/buildx and EKS connectivity.
 
-- A workflow-wide concurrency group serializes snapshot, publication and rollout.
-  Running rollouts are not cancelled by new pushes. GitHub may supersede pending
-  runs; diffing from the last deployed SHA preserves cumulative changes.
-- Deployment rechecks current main immediately before cluster access. A newer
-  push causes a stale candidate to fail; there is still no distributed lock
-  against changes arriving after this check. Kubernetes resource-version tests
-  protect the actual patch from concurrent object mutations.
-- Only the named container's image is replaced. UID, resource version, current
-  image and a hash of the rest of the Pod template/strategy/replicas are checked.
-  Sidecars, authentication, credential references and service account remain
-  unchanged. Source annotation is updated only after readiness succeeds.
-- Readiness proves rollout convergence, **not** Google login, Work execution or
-  application-schema compatibility. Those smoke checks remain the operator's
-  first-release acceptance. Do not present this as full product E2E validation.
-- On rollout failure, restore the previous image only if UID, image, source and
-  configuration still match the attempted release; otherwise stop for the
-  operator. A failed release remains failed even when recovery succeeds.
-  Cancellation, runner loss, migrations and in-memory Work loss are not fixed by
-  image rollback. This is not zero-downtime/draining or transactional recovery.
-- **Worker template migration is deliberately not implemented.** The current
-  registry uses an immutable slot. Publishing a Worker image does not change
-  that slot or any existing worker Pod. A candidate with Worker changes cannot
-  automatically replace the control plane. Establish a compatible pair through
-  a separately reviewed registration/upgrade path, then explicitly re-baseline
-  the `delivery.agenova.io/source-sha` Deployment annotation to the verified
-  commit. Never delete/recreate the slot merely to bypass this guard.
-- **This workflow updates an image, not the declarative Platform revision.** It
-  leaves `agenova-platform`, Policy and template records untouched. Deployment
-  source annotation and release artifacts identify the binary version. A later
-  `platform apply` must use a reviewed configuration with the chosen image;
-  stale installation configuration can otherwise restore an older image or
-  report drift. Full Platform reconciliation remains separate work.
-- Kubernetes patch rights are object-scoped, not field-scoped. The script checks
-  constrain normal releases but do not protect against malicious code approved
-  on main. Main review, OIDC trust and environment restrictions remain essential.
+Images use immutable `sha-<full source SHA>` tags and repository-bound digests on
+`linux/amd64`. Only ECR `ImageNotFoundException` permits building; access/network
+errors stop. Reference Worker publication needs its ECR repository; user images
+need not use that registry.
 
-Set both enable variables to false to stop future cloud jobs. That does not undo
-an already running release; coordinate with its operator before cancelling.
-No cleanup command in this workflow destroys the shared cluster or ECR repos.
+## Guardrails and limits
 
-## Evidence and local verification
+- Releases serialize without cancelling a running rollout. Main must still match
+  the tested SHA immediately before deployment; this is not a distributed lock.
+- Refuse rollout while any upstream SandboxClaim exists in the target namespace;
+  retry in a coordinated quiet window. This is not admission locking/draining:
+  incoming Work can race the check. Avoid submitting Work during deployment.
+- Patch only the named control-plane image. Check UID, resource version, old
+  image, source annotation and the rest of the Pod configuration. Preserve
+  authentication, sidecars, service accounts and credential references.
+- Record source only after readiness. Readiness does not prove Google login,
+  schema compatibility or successful Work; those require application smokes.
+- Failure restores the old image only while configuration, identity, source and
+  attempted image still match. A recovered release remains failed. Concurrent
+  changes require an operator and are never overwritten.
+- No template slot, project registry or Policy writes occur. Deprecated
+  `AGENOVA_ALLOWED_WORKER_IMAGE` is preserved but ignored by the new control plane.
+- `agenova-platform` is not updated. A later `platform apply` needs reviewed image
+  configuration or may restore an older control plane.
+- Migrations, external services, runner loss, malicious approved main code, zero
+  downtime and schema rollback are not solved by image delivery. Kubernetes
+  patch rights are object-scoped, not field-scoped. Budget policy remains separate.
 
-Artifacts retained for 14 days:
+## Legacy pre-merge first-pair trial
 
-- `release-snapshot`: UID, resource version, image, source SHA, configuration hash,
-  and registered Worker image/template hash;
-- `release-candidate`: source diff plan, changed-image digests and both images
-  in the proposed pair (unchanged images retain the installed digest);
-- `deployment-result`: previous/desired image and ready/failed/recovery result.
-
-No kubeconfig, OIDC token, Docker login password, complete Deployment or Secret
-is uploaded. AWS/EKS permissions must be reviewed independently; offline mocks
-are not proof that live OIDC exchange or cluster RBAC succeeds.
-
-```powershell
-node --test scripts/release/release.test.mjs
-go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/shared-eks-release.yml .github/workflows/ci.yml
-./scripts/check.ps1 -All
-```
-
-The first two commands do not use AWS, Docker or Kubernetes: subprocess calls in
-the behavioral tests are fakes. CI runs these checks without `id-token: write`.
-The full gate includes existing local Playwright tests, not the shared cluster.
-
-References: [GitHub OIDC for AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws),
-[GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+`candidate.mjs` and `candidate-access.mjs` retain the explicitly authorized legacy
+first-pair migration path, not ordinary Worker delivery. It pins an exact manual
+ref/SHA/Deployment UID/previous image, builds both images and changes the old image
+environment binding atomically. Registry/Platform hashes and pair rollback are
+checked; templates are not rewritten. It requires separate operator authorization,
+temporary exact OIDC trust and revocation after the trial. It cannot run from PR
+events or ordinary branch/main pushes. Do not use it to force user-image updates.

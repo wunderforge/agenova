@@ -52,6 +52,11 @@ commands. [Installation details](docs/cli-installation.md) and
 Ordinary members do not need AWS access; infrastructure operators follow the
 separate AWS SSO/EKS section. Hosting availability is environment-specific.
 
+**Publishing an Agent:** the [image guide](docs/development/agent-images.md)
+explains independent image/template versions, the current execution contract and
+failure diagnostics. Platform [CI/CD](docs/development/shared-eks-release.md)
+does not rewrite application images or templates.
+
 For the tested 19 October shared deployment, use the [shared EKS trial](docs/development/shared-eks-trial.md): build the matching CLI, sign in, submit an allowed or denied Work and query its evidence. It names the new compatible template and the capabilities still awaiting external-service deployment.
 
 

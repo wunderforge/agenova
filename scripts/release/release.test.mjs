@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SOURCE, config, writeGate, snapshot as deploymentSnapshot, workerSnapshot, installedWorkerImage, ready, changedComponents, plan, publish, existingDigest, deploy } from './release.mjs';
+import { SOURCE, config, writeGate, snapshot as deploymentSnapshot, workerSnapshot, ready, changedComponents, plan, publish, existingDigest, deploy, eventEligible } from './release.mjs';
 
 const A = 'a'.repeat(40), B = 'b'.repeat(40);
 const OLD = `sha256:${'1'.repeat(64)}`, NEW = `sha256:${'2'.repeat(64)}`;
@@ -20,7 +20,7 @@ function workerFixture() {
     data: { 'template.json': JSON.stringify({ spec: { artifact: { image: `${c.worker}@${OLD}` } } }) } };
 }
 function snapshot(object, settings, baseline) {
-  return { ...deploymentSnapshot(object, settings, baseline), worker: workerSnapshot(workerFixture(), settings) };
+  return deploymentSnapshot(object, settings, baseline);
 }
 const paths = { controlPlane: ['cmd/agenova-control-plane', 'internal/app', 'internal/workerprotocol'], worker: ['cmd/agenova-demo-worker', 'internal/workerprotocol', 'harness/integration/agentsandbox/testworker'] };
 function fixture() {
@@ -39,9 +39,9 @@ function fixture() {
   };
 }
 function candidate(changed = { controlPlane: true, worker: false }) {
-  return { base: A, target: B, changed, images: { controlPlane: `${c.controlPlane}@${NEW}` }, workerRolloutRequired: changed.worker };
+  return { base: A, target: B, changed, images: { controlPlane: `${c.controlPlane}@${NEW}` }, workerRolloutRequired: false };
 }
-function fakeCluster(initial = fixture(), { failRollout = false, driftOnFailure = false } = {}) {
+function fakeCluster(initial = fixture(), { failRollout = false, driftOnFailure = false, activeClaims = [] } = {}) {
   let object = structuredClone(initial), rollouts = 0;
   const calls = [];
   const run = (bin, args) => {
@@ -49,6 +49,7 @@ function fakeCluster(initial = fixture(), { failRollout = false, driftOnFailure 
     assert.equal(bin, 'kubectl');
     assert.deepEqual(args.slice(0, 2), ['--namespace', c.namespace]);
     const a = args.slice(2);
+    if (a[0] === 'get' && a[1] === 'sandboxclaims.extensions.agents.x-k8s.io') return JSON.stringify({ items: activeClaims });
     if (a[0] === 'get' && a[1] === 'configmap') { assert.deepEqual(a, ['get', 'configmap', 'agenova-template-slot', '-o', 'json']); return JSON.stringify(workerFixture()); }
     if (a[0] === 'get') { assert.deepEqual(a, ['get', 'deployment', c.deployment, '-o', 'json']); return JSON.stringify(object); }
     if (a[0] === 'patch') {
@@ -83,10 +84,12 @@ function fakeCluster(initial = fixture(), { failRollout = false, driftOnFailure 
   return { run, calls, object: () => object };
 }
 
-test('cloud write gates reject PRs, non-main, missing enablement and deployment opt-out', () => {
-  const valid = { GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'push', SHARED_EKS_RELEASE_ENABLED: 'true', SHARED_EKS_DEPLOY_ENABLED: 'true' };
+test('main defaults on; PRs, non-main, explicit opt-out and invalid switches fail closed', () => {
+  const valid = { GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'push' };
   writeGate(valid, true);
-  for (const mutation of [{ GITHUB_REF: 'refs/pull/1/merge' }, { GITHUB_EVENT_NAME: 'pull_request' }, { SHARED_EKS_RELEASE_ENABLED: '' }, { SHARED_EKS_DEPLOY_ENABLED: 'false' }]) {
+  writeGate({ GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'push' }, true);
+  writeGate({ ...valid, SHARED_EKS_RELEASE_ENABLED: 'false', SHARED_EKS_DEPLOY_ENABLED: 'false' }, true); // obsolete opt-in variables
+  for (const mutation of [{ GITHUB_REF: 'refs/pull/1/merge' }, { GITHUB_EVENT_NAME: 'pull_request' }, { SHARED_EKS_RELEASE_DISABLED: 'true' }, { SHARED_EKS_DEPLOY_DISABLED: 'true' }, { SHARED_EKS_RELEASE_DISABLED: 'typo' }]) {
     assert.throws(() => writeGate({ ...valid, ...mutation }, true));
   }
 });
@@ -96,7 +99,21 @@ test('reject foreign repositories and injected target strings', () => {
   }
 });
 test('docs and unit tests require no images', () => {
-  assert.deepEqual(changedComponents(['README.md', 'docs/demo.md', 'internal/app/app_test.go'], paths), { controlPlane: false, worker: false });
+  assert.deepEqual(changedComponents(['README.md', 'docs/demo.md', 'internal/app/app_test.go', 'ui/README.md', 'ui/tests/portal.spec.ts'], paths), { controlPlane: false, worker: false });
+});
+test('event preflight rejects PRs and skips docs-only pushes without a cloud command', () => {
+  const env = { GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'push', EVENT_BEFORE_SHA: A, GITHUB_SHA: B };
+  const run = (bin, args) => {
+    assert.ok(['git', 'go'].includes(bin));
+    if (args[0] === 'rev-parse') return B;
+    if (args[0] === 'merge-base') return '';
+    if (bin === 'go') return 'github.com/wunderforge/agenova/internal/app';
+    if (args[0] === 'diff') return 'ui/README.md\0internal/app/app_test.go\0';
+    throw Error('unexpected');
+  };
+  assert.equal(eventEligible(env, run), false);
+  assert.throws(() => eventEligible({ ...env, GITHUB_EVENT_NAME: 'pull_request' }, run));
+  assert.equal(eventEligible({ ...env, GITHUB_EVENT_NAME: 'workflow_dispatch' }, () => { throw Error('offline'); }), true);
 });
 test('control-plane-only changes build only control plane', () => {
   assert.deepEqual(changedComponents(['internal/app/app.go'], paths), { controlPlane: true, worker: false });
@@ -193,16 +210,18 @@ test('successful deployment changes only selected image and records source after
   assert.equal(evidence.at(-1).result, 'ready');
   assert.ok(cluster.calls.every(v => !v.includes('secret') && !(v.includes('patch') && v.includes('configmap'))));
 });
-test('Worker changes block all control-plane mutations', () => {
+test('Worker publication does not block a control-plane release', () => {
   const f = fixture(), cluster = fakeCluster(f);
-  assert.throws(() => deploy(candidate({ controlPlane: true, worker: true }), snapshot(f, c), c, cluster.run), /Worker changes/);
-  assert.equal(cluster.calls.length, 0);
+  deploy(candidate({ controlPlane: true, worker: true }), snapshot(f, c), c, cluster.run);
+  assert.equal(cluster.object().spec.template.spec.containers[1].image, `${c.controlPlane}@${NEW}`);
+  assert.ok(cluster.calls.every(v => !v.includes('configmap')));
 });
-test('registered Worker drift rejects a candidate before image replacement', () => {
-  const f = fixture(), cluster = fakeCluster(f), expected = snapshot(f, c);
-  expected.worker.image = `${c.worker}@${NEW}`;
-  assert.throws(() => deploy(candidate(), expected, c, cluster.run), /changed since snapshot/);
-  assert.equal(cluster.calls.filter(v => v.includes('patch')).length, 0);
+test('Worker-only release never accesses cluster or advances platform source', () => {
+  const f = fixture(), cluster = fakeCluster(f);
+  const result = deploy(candidate({ controlPlane: false, worker: true }), snapshot(f, c), c, cluster.run);
+  assert.equal(result.result, 'published-no-platform-change');
+  assert.equal(cluster.calls.length, 0);
+  assert.equal(cluster.object().metadata.annotations[SOURCE], A);
 });
 test('Worker registration must be managed and digest-pinned to the expected repository', () => {
   const w = workerFixture();
@@ -212,15 +231,13 @@ test('Worker registration must be managed and digest-pinned to the expected repo
   delete w.metadata.labels['app.kubernetes.io/managed-by'];
   assert.throws(() => workerSnapshot(w, c), /managed Worker/);
 });
-test('ordinary release reports the active compatible Worker, not a retained old immutable slot', () => {
+test('ordinary release does not interpret deprecated global image hints', () => {
   const f=fixture();
   f.spec.template.spec.containers[1].env.push({name:'AGENOVA_ALLOWED_WORKER_IMAGE',value:`${c.worker}@${NEW}`});
   const s=snapshot(f,c);
-  assert.equal(s.worker.image,`${c.worker}@${OLD}`);
-  assert.equal(installedWorkerImage(s,c),`${c.worker}@${NEW}`);
-  assert.equal(installedWorkerImage(snapshot(fixture(),c),c),`${c.worker}@${OLD}`);
+  assert.ok(!('worker' in s) && !('compatibleWorkerImage' in s));
   f.spec.template.spec.containers[1].env.at(-1).value='foreign:latest';
-  assert.throws(()=>snapshot(f,c),/repository-bound/);
+  assert.doesNotThrow(()=>snapshot(f,c));
 });
 test('wrong artifact base or foreign image rejected before cluster access', () => {
   const f = fixture(), cluster = fakeCluster(f);
@@ -273,25 +290,21 @@ test('lost patch response can recover only the exact attempted image', () => {
   assert.throws(() => deploy(candidate(), snapshot(f, c), c, run), /failed-image-restored/);
   assert.equal(cluster.object().spec.template.spec.containers[1].image, `${c.controlPlane}@${OLD}`);
 });
-test('Worker drift during a failed rollout prevents automatic recovery', () => {
-  const f = fixture(), cluster = fakeCluster(f, { failRollout: true }); let failed = false;
-  const run = (bin, args) => {
-    if (failed && args.includes('configmap')) {
-      const w = workerFixture();
-      w.data['template.json'] = JSON.stringify({ spec: { artifact: { image: `${c.worker}@${NEW}` } } });
-      return JSON.stringify(w);
-    }
-    try { return cluster.run(bin, args); } catch (error) { failed = true; throw error; }
-  };
-  assert.throws(() => deploy(candidate(), snapshot(f, c), c, run), /needs-operator/);
-  assert.equal(cluster.calls.filter(v => v.includes('patch')).length, 1);
+test('active or malformed claim inventory prevents rollout before mutations', () => {
+  const f = fixture(), cluster = fakeCluster(f, { activeClaims: [{ metadata: { name: 'running-work' } }] });
+  assert.throws(() => deploy(candidate(), snapshot(f, c), c, cluster.run), /Active SandboxClaims/);
+  assert.equal(cluster.calls.filter(v => v.includes('patch')).length, 0);
 });
 test('workflow guards and credential separation remain explicit', () => {
   const yaml = readFileSync(new URL('../../.github/workflows/shared-eks-release.yml', import.meta.url), 'utf8');
   assert.ok(!yaml.includes('pull_request:'));
   assert.match(yaml, /cancel-in-progress: false/);
-  assert.match(yaml, /vars.SHARED_EKS_RELEASE_ENABLED == 'true'/);
-  assert.match(yaml, /vars.SHARED_EKS_DEPLOY_ENABLED == 'true'/);
+  assert.match(yaml, /vars.SHARED_EKS_RELEASE_DISABLED == 'false'/);
+  assert.match(yaml, /vars.SHARED_EKS_DEPLOY_DISABLED == 'false'/);
+  assert.ok(!yaml.includes('vars.SHARED_EKS_RELEASE_ENABLED'));
+  assert.match(yaml, /needs.validate.outputs.eligible == 'true'/);
+  assert.ok(yaml.indexOf('release.mjs preflight') < yaml.indexOf('configure-aws-credentials'));
+  assert.ok(!yaml.includes('blocked-worker-migration'));
   const publishing = yaml.split('\n  publish:')[1].split('\n  deploy:')[0];
   assert.ok(!/^    environment:/m.test(publishing));
   assert.match(publishing, /AWS_PUBLISH_ROLE_ARN/);

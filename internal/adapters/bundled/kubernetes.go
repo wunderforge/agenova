@@ -43,19 +43,6 @@ func policyRegistrationRecord(id, version string) string {
 	return "agenova-policy-" + hex.EncodeToString(sum[:12])
 }
 
-func referenceWorkerImage(resolved *platform.ResolvedPlatform) string {
-	if resolved == nil {
-		return ""
-	}
-	for _, instance := range resolved.Instances {
-		if instance.Category == platform.CapabilityRuntime {
-			image, _ := instance.Config["compatible-worker-image"].(string)
-			return image
-		}
-	}
-	return ""
-}
-
 func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 	if request.Platform == nil {
 		return fmt.Errorf("resolved Platform is required")
@@ -76,7 +63,7 @@ func validateReferenceRuntime(request platformapply.DeploymentRequest) error {
 			return fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 		}
 		if !compatibleWorkerConfig(instance.Config) {
-			return fmt.Errorf("reference runtime requires the bundled controlled worker image")
+			return fmt.Errorf("reference runtime requires the controlled-v1 worker protocol")
 		}
 	}
 	if count != 1 {
@@ -872,7 +859,6 @@ func deploymentObject(request platformapply.DeploymentRequest, namespace string)
 			map[string]any{"name": "AGENOVA_PLATFORM_NAME", "value": request.Platform.PlatformName},
 			map[string]any{"name": "AGENOVA_PLATFORM_REVISION", "value": request.Platform.Revision},
 			map[string]any{"name": "AGENOVA_POLICY_REF", "value": request.Platform.InitialPolicyRef.ID + "@" + request.Platform.InitialPolicyRef.Version},
-			map[string]any{"name": "AGENOVA_ALLOWED_WORKER_IMAGE", "value": referenceWorkerImage(request.Platform)},
 		},
 		"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/readyz", "port": "http"}, "initialDelaySeconds": 1, "periodSeconds": 2},
 	}
