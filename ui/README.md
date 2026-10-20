@@ -1,6 +1,21 @@
 # Agenova React console
 
-The default **Demo** mode is an illustrative Work/Platform story, not live
+## Use the hosted Portal
+
+Open [app.agenova.app](https://app.agenova.app/), choose **Sign in**, then
+**Continue with Google**. New accounts require administrator approval and
+project access; ordinary members need no AWS or Kubernetes credentials.
+After signing in, open **Work**, select a request, and inspect its result,
+requested/granted access and recorded activity.
+
+The public landing is available without login; private Work and evidence are not.
+See the [Team Quick Guide](../docs/team-quick-guide.md) for account approval and
+CLI use. The screenshot in the [repository overview](../README.md#see-the-product)
+shows this React UI with labelled illustrative data, not hosted member records.
+
+## Run the frontend locally
+
+The local development server's default **Demo** mode is an illustrative Work/Platform story, not live
 evidence. **Connected** mode (`/?mode=connected#/work`) reads and submits through
 the Agenova `/api` contract. Its source is selected by the Vite development
 server, not by a browser-held credential or a Kubernetes-specific UI adapter.
@@ -18,6 +33,56 @@ on reload. Connected work comes only from the configured API; a failed tunnel
 shows a connection error, never demo data or an invented empty result. The
 header preserves the selected mode and route across reloads. `/fixtures`
 remains the original canonical contract reader.
+
+## Work explorer and evidence inspection
+
+The Portal uses a fixed-light June palette, independently of the system's
+light/dark preference. Browser extensions or force-dark settings may still
+override it. Work summary cards count only the loaded list, not global traffic.
+Admission **Decision** and execution **Status** are separate columns.
+
+The Work activity chart groups loaded requests by recorded request/admission time
+in UTC; choose a recorded date to inspect hourly counts. Colors show current Work
+status, not execution volume or global telemetry. Missing timestamps are disclosed.
+The profile avatar and sidebar account open the existing identity/connection links
+and retain member-service POST logout. Connected identity comes from `/api/setup`,
+not a Work record. Quick guide and Help explain the interface; `/` focuses list
+search, `?` opens help and Escape closes overlays. View settings changes table
+density in this tab only, never platform permissions or server configuration.
+
+Open a Work, expand its recorded activity, and select **Inspect** to read the
+recorded target, status and turn beside the call list. **Open evidence record**
+opens the existing full record. No duration or provider completion is inferred
+from an access grant. Requested/granted comparison, result, lifecycle and technical
+identifiers remain available in their existing sections. On narrow screens the
+inspector stacks below the activity and tables scroll within their own container.
+
+The refresh is presentation-only: no new API, authentication or deployment steps.
+Visual regression: `npm --prefix ui run test:smoke -- june.spec.ts`.
+
+## Anonymous member-service entry
+
+The installed **member service** shows the public product landing at `/` when
+there is no active authenticated identity. Its Sign in links open the existing
+`/login` page and Google flow; authenticated root still opens Connected Work.
+Only the reviewed `landing/` HTML, styles, script and two illustrative product
+captures are public. Work, policy, templates, member identity and management APIs
+still require the existing authorization boundary. Login and pending-access pages
+use the same fixed-light June palette without changing form/CSRF behavior.
+
+Vite packages these static files from `public/landing/` into `dist/landing/`;
+the current member image already copies the entire build. No new service or
+OAuth configuration is required. Existing builds missing the landing files return
+an explicit unavailable page, not a private Portal or fixture fallback.
+
+For a frontend-only preview, open `/landing/` on Vite. Vite's default Demo and
+reference Connected paths are unchanged; Vite itself is not an authentication
+server, so test the `/login` handoff through the member HTTP service.
+
+Browser regression: `npm --prefix ui run test:smoke -- landing.spec.ts`.
+The two public product screenshots are unchanged captures of the actual June
+React UI using illustrative test fixtures (not live member evidence). See
+[scope, provenance and verification](../work/0215-invited-team-access/landing.md).
 
 After applying the reference Platform, open a **separate** PowerShell terminal
 at the repository root and keep this loopback-only connection running before

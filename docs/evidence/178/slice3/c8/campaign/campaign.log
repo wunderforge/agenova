@@ -1,0 +1,26 @@
+2026-10-15T05:28:06Z preflight
+2026-10-15T05:28:13Z build c50a6bc9af3caeba8cef815ebb29d7dcad4b1e5d
+2026-10-15T05:28:16Z protect complete
+2026-10-15T05:28:18Z load
+2026-10-15T05:28:24Z fixture agenova-e16-mcp:c50a6bc9af3c
+2026-10-15T05:28:25Z controlled-read pass
+2026-10-15T05:28:35Z install install/20261015T052825Z
+2026-10-15T05:29:56Z parity positive attempt 1 (e16-positive-a1) exit 0
+2026-10-15T05:29:56Z work positive attempt 1 (e16-positive-a1) pass
+2026-10-15T05:30:04Z parity admission-deny attempt 1 (e16-admission-deny-a1) exit 0
+2026-10-15T05:30:04Z work admission-deny attempt 1 (e16-admission-deny-a1) pass
+2026-10-15T05:30:53Z parity n6-timeout attempt 1 (e16-n6-timeout-a1) exit 0
+2026-10-15T05:30:53Z work n6-timeout attempt 1 (e16-n6-timeout-a1) pass
+2026-10-15T05:31:08Z parity n7-oversize attempt 1 (e16-n7-oversize-a1) exit 0
+2026-10-15T05:31:08Z work n7-oversize attempt 1 (e16-n7-oversize-a1) pass
+2026-10-15T05:31:40Z parity n8-truncation attempt 1 (e16-n8-truncation-a1) exit 0
+2026-10-15T05:31:40Z work n8-truncation attempt 1 (e16-n8-truncation-a1) pass
+2026-10-15T05:31:58Z parity token-valid attempt 1 (e16-token-valid-a1) exit 0
+2026-10-15T05:31:58Z work token-valid attempt 1 (e16-token-valid-a1) pass
+2026-10-15T05:32:17Z parity token-missing attempt 1 (e16-token-missing-a1) exit 0
+2026-10-15T05:32:17Z work token-missing attempt 1 (e16-token-missing-a1) pass
+2026-10-15T05:32:31Z parity token-wrong attempt 1 (e16-token-wrong-a1) exit 0
+2026-10-15T05:32:31Z work token-wrong attempt 1 (e16-token-wrong-a1) pass
+2026-10-15T05:32:39Z probe pass
+2026-10-15T05:34:33Z scan-corrected pass
+2026-10-15T05:35:12Z restore

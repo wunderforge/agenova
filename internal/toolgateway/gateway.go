@@ -13,6 +13,7 @@ import (
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/gateway"
 	"github.com/wunderforge/agenova/internal/governance"
+	"github.com/wunderforge/agenova/internal/workloadidentity"
 )
 
 // Request is a backend-neutral governed tool invocation. Provider credentials
@@ -46,13 +47,15 @@ type Policy func(req Request) gateway.Outcome
 
 // Gateway governs tool attempts against the application-owned claim view.
 type Gateway struct {
-	claims   app.ClaimAuthorityReader
-	lineage  *governance.Lineage
-	store    *facts.Store
-	adapter  Adapter
-	ids      gateway.IDSource
-	policy   Policy
-	observer func(Request, gateway.Decision) error
+	claims          app.ClaimAuthorityReader
+	lineage         *governance.Lineage
+	store           *facts.Store
+	adapter         Adapter
+	ids             gateway.IDSource
+	policy          Policy
+	observer        func(Request, gateway.Decision) error
+	identity        *workloadidentity.Service
+	requireIdentity bool
 }
 
 type Option func(*Gateway)
@@ -86,6 +89,11 @@ func WithPolicy(policy Policy) Option {
 	}
 }
 
+// WithWorkloadIdentity turns this Gateway into a live worker boundary.
+func WithWorkloadIdentity(identity *workloadidentity.Service) Option {
+	return func(g *Gateway) { g.identity = identity; g.requireIdentity = true }
+}
+
 func NewGateway(claims app.ClaimAuthorityReader, lineage *governance.Lineage, store *facts.Store, opts ...Option) *Gateway {
 	if store == nil {
 		store = facts.NewStore()
@@ -108,6 +116,38 @@ func NewGateway(claims app.ClaimAuthorityReader, lineage *governance.Lineage, st
 // invoke the provider adapter. The error channel is reserved for gateway or
 // adapter execution failure, not a governance outcome.
 func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
+	if g != nil && g.requireIdentity {
+		return decision(g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "verified workload identity is required"}), nil
+	}
+	return g.invoke(req)
+}
+
+// InvokeAuthenticated authenticates the worker before reading claim authority.
+func (g *Gateway) InvokeAuthenticated(req Request, token string) (gateway.Decision, error) {
+	if g == nil {
+		return gateway.Decision{}, errors.New("tool gateway is unavailable")
+	}
+	deny := func() (gateway.Decision, error) {
+		return decision(g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "workload identity rejected"}), nil
+	}
+	if g.identity == nil {
+		return deny()
+	}
+	verified, err := g.identity.Verify(token, "tool-gateway")
+	if err != nil || g.claims == nil {
+		return deny()
+	}
+	snapshot, ok := g.claims.ClaimAuthority(verified.ClaimID)
+	if !ok || snapshot.Claim.BackendIdentity == nil || snapshot.Claim.BackendIdentity.WorkerID != verified.WorkerID || app.RequireRunningClaimSnapshot(snapshot.Claim, verified.ClaimID) != nil {
+		return deny()
+	}
+	if req.ClaimID != verified.ClaimID {
+		return g.record(Request{ClaimID: verified.ClaimID, Tool: req.Tool, Action: req.Action}, g.ids(), gateway.Outcome{Result: gateway.ResultDeny, Category: gateway.CategoryWorkloadIdentity, Reason: "target claim differs from verified worker claim"})
+	}
+	return g.invoke(req)
+}
+
+func (g *Gateway) invoke(req Request) (gateway.Decision, error) {
 	if g == nil {
 		return gateway.Decision{}, errors.New("tool gateway is unavailable")
 	}
@@ -117,11 +157,11 @@ func (g *Gateway) Invoke(req Request) (gateway.Decision, error) {
 	req.Parameters = cloneStringMap(req.Parameters)
 
 	if outcome, rejected := validate(req); rejected {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	snapshot, outcome, unresolved := g.resolveClaim(req.ClaimID)
 	if unresolved {
-		return decision(id, outcome), nil
+		return g.notify(req, id, outcome)
 	}
 	if outcome, denied := g.claimBaseline(req.ClaimID, snapshot.Claim); denied {
 		return g.record(req, id, outcome)
@@ -168,12 +208,26 @@ func decision(id string, outcome gateway.Outcome) gateway.Decision {
 	}
 }
 
-func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+// notify reports a decision to the trusted sink without writing the
+// claim-attributed fact store. An untrusted or absent claim ID must never
+// acquire a fabricated claim-attributed fact, but the run that issued the
+// request must still leave evidence of the denial: the observer attributes the
+// decision to that run, not to req.ClaimID. A recording failure keeps failing
+// closed.
+func (g *Gateway) notify(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
 	d := decision(id, outcome)
 	if g.observer != nil {
 		if err := g.observer(req, d); err != nil {
-			return d, fmt.Errorf("tool decision recording failed")
+			return d, fmt.Errorf("tool decision recording failed: %w", err)
 		}
+	}
+	return d, nil
+}
+
+func (g *Gateway) record(req Request, id string, outcome gateway.Outcome) (gateway.Decision, error) {
+	d, err := g.notify(req, id, outcome)
+	if err != nil {
+		return d, err
 	}
 	g.store.RecordToolInvocation(req.ClaimID, toolName(req), id, outcome.Result)
 	return d, nil

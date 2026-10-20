@@ -39,6 +39,7 @@ const (
 	CategoryOutOfParentScope       = "out-of-parent-scope"
 	CategoryInvalidPolicyOutcome   = "invalid-policy-outcome"
 	CategoryGatewayUnavailable     = "gateway-unavailable"
+	CategoryWorkloadIdentity       = "workload-identity-invalid"
 )
 
 // Decision correlates one governed attempt: the same InvocationID identifies

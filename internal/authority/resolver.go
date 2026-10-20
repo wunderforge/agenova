@@ -12,6 +12,7 @@ import (
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authorization"
+	"github.com/wunderforge/agenova/internal/policy"
 )
 
 // Resolve intersects a validated request with a validated AgentTemplate
@@ -32,11 +33,33 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	}
 
 	ceiling := template.Spec.CapabilityCeiling
+	caps := admission.Constraints()
+	for _, dimension := range []struct {
+		path      string
+		requested []string
+		cap       *policy.StringSetConstraint
+	}{
+		{"spec.requestedAccess.tools", request.Spec.RequestedAccess.Tools, capSet(caps, "tools")},
+		{"spec.requestedAccess.resourceScopes", request.Spec.RequestedAccess.ResourceScopes, capSet(caps, "resources")},
+		{"spec.requestedAccess.memoryScopes", request.Spec.RequestedAccess.MemoryScopes, capSet(caps, "memory")},
+		{"spec.requestedAccess.modelProfile", []string{request.Spec.RequestedAccess.ModelProfile}, capSet(caps, "models")},
+		{"spec.runtime.profileRef", []string{request.Spec.Runtime.ProfileRef}, capSet(caps, "runtimes")},
+	} {
+		if dimension.cap == nil {
+			continue
+		}
+		for _, value := range dimension.cap.Values {
+			if !contains(dimension.requested, value) {
+				return nil, invalid(dimension.path, "policy constraint contains unrequested authority")
+			}
+		}
+	}
 	if err := validateScopeCeiling(ceiling.ResourceScopes); err != nil {
 		return nil, err
 	}
 
 	tools := exactIntersection(request.Spec.RequestedAccess.Tools, ceiling.Tools)
+	tools = applySetCap(tools, capSet(caps, "tools"))
 	if len(request.Spec.RequestedAccess.Tools) > 0 && len(tools) == 0 {
 		return nil, invalid("spec.requestedAccess.tools", "requested tools resolved completely empty")
 	}
@@ -44,10 +67,12 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	if err != nil {
 		return nil, err
 	}
+	resources = applySetCap(resources, capSet(caps, "resources"))
 	if len(request.Spec.RequestedAccess.ResourceScopes) > 0 && len(resources) == 0 {
 		return nil, invalid("spec.requestedAccess.resourceScopes", "requested resource scopes resolved completely empty")
 	}
 	memory := exactIntersection(request.Spec.RequestedAccess.MemoryScopes, ceiling.MemoryScopes)
+	memory = applySetCap(memory, capSet(caps, "memory"))
 	if len(request.Spec.RequestedAccess.MemoryScopes) > 0 && len(memory) == 0 {
 		return nil, invalid("spec.requestedAccess.memoryScopes", "requested memory scopes resolved completely empty")
 	}
@@ -56,9 +81,15 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	if model != "" && !contains(ceiling.ModelProfiles, model) {
 		return nil, invalid("spec.requestedAccess.modelProfile", "requested model profile is outside the template ceiling")
 	}
+	if cap := capSet(caps, "models"); cap != nil && model != "" && !contains(cap.Values, model) {
+		return nil, invalid("spec.requestedAccess.modelProfile", "policy constraint excludes requested model profile")
+	}
 	runtimeProfile := request.Spec.Runtime.ProfileRef
 	if !contains(ceiling.RuntimeProfiles, runtimeProfile) {
 		return nil, invalid("spec.runtime.profileRef", "requested runtime profile is outside the template ceiling")
+	}
+	if cap := capSet(caps, "runtimes"); cap != nil && !contains(cap.Values, runtimeProfile) {
+		return nil, invalid("spec.runtime.profileRef", "policy constraint excludes requested runtime profile")
 	}
 	if ceiling.MaxTimeout == nil || time.Duration(*ceiling.MaxTimeout) <= 0 {
 		return nil, invalid("spec.capabilityCeiling.maxTimeout", "a positive runtime timeout ceiling is required")
@@ -66,6 +97,9 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	timeout := *request.Spec.Runtime.Timeout
 	if *ceiling.MaxTimeout < timeout {
 		timeout = *ceiling.MaxTimeout
+	}
+	if caps != nil && caps.MaxTimeout != nil && v1alpha1.Duration(*caps.MaxTimeout) < timeout {
+		timeout = v1alpha1.Duration(*caps.MaxTimeout)
 	}
 
 	return &v1alpha1.EffectiveAuthority{
@@ -78,6 +112,32 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 			Timeout:    timeout,
 		},
 	}, nil
+}
+
+func capSet(caps *policy.AuthorityConstraints, dimension string) *policy.StringSetConstraint {
+	if caps == nil {
+		return nil
+	}
+	switch dimension {
+	case "tools":
+		return caps.Tools
+	case "resources":
+		return caps.ResourceScopes
+	case "memory":
+		return caps.MemoryScopes
+	case "models":
+		return caps.ModelProfiles
+	case "runtimes":
+		return caps.RuntimeProfiles
+	}
+	return nil
+}
+
+func applySetCap(values []string, cap *policy.StringSetConstraint) []string {
+	if cap == nil {
+		return values
+	}
+	return exactIntersection(values, cap.Values)
 }
 
 func exactIntersection(requested, allowed []string) []string {

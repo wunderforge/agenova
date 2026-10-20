@@ -1,0 +1,21 @@
+platform: demo-eks-bedrock
+revision: sha256:dd6b937e475e5036551ebb5b55af14c3ff7d4c1b194f5a4b588899966acaee32
+target: agenova-demo/agenova-system
+changes: 0
+- adapter/agent-sandbox-runtime: configured (agenova.io/runtime/agent-sandbox@0.1.0)
+- adapter/bedrock-backend: configured (agenova.io/model/bedrock@0.1.0)
+- adapter/kubernetes-deployment: used (agenova.io/deployment/kubernetes@0.1.0)
+- deployment/agenova-control-plane: available
+- deployment/agenova-control-plane-account: configured
+- deployment/agenova-control-plane-runtime: configured
+- deployment/agenova-control-plane-runtime-binding: configured
+- deployment/agenova-control-plane-service: available
+- deployment/agenova-platform: configured (sha256:dd6b937e475e5036551ebb5b55af14c3ff7d4c1b194f5a4b588899966acaee32)
+- deployment/agenova-system: available
+- policy/agenova-active-policy: configured (reference-default-deny@1)
+- policy/agenova-policy-3c894142a815b4b87b6a8c70: configured (reference-default-deny@1)
+installation ready: true
+readiness scope: installation-components
+provider health: not checked
+api after local connect: http://127.0.0.1:8088
+connect: agenova api connect --state-dir '.tmp/e13/state' (separate terminal; connection not checked)

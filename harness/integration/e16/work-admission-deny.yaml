@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-admission-deny
+spec:
+  templateRef: e16-engineer
+  projectRef: billing
+  task:
+    type: investigation
+    input:
+      objective: Investigate a synthetic billing retry alert.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-fixture]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 1m

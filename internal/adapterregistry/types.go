@@ -105,6 +105,9 @@ type FragmentInfrastructure struct {
 }
 
 type FragmentServices struct {
+	Observability []v1alpha1.PlatformInstance `json:"observability,omitempty" yaml:"observability,omitempty"`
+	ToolBackends  []v1alpha1.PlatformInstance `json:"toolBackends,omitempty" yaml:"toolBackends,omitempty"`
+	ToolProfiles  []v1alpha1.PlatformProfile  `json:"toolProfiles,omitempty" yaml:"toolProfiles,omitempty"`
 	ModelBackends []v1alpha1.PlatformInstance `json:"modelBackends,omitempty" yaml:"modelBackends,omitempty"`
 	ModelProfiles []v1alpha1.PlatformProfile  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
 }
@@ -141,7 +144,7 @@ func normalizeLock(lock InstallationLock) (InstallationLock, error) {
 		}
 		capabilitySeen := map[platform.Capability]struct{}{}
 		for _, capability := range item.Capabilities {
-			if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel {
+			if capability != platform.CapabilityDeployment && capability != platform.CapabilityRuntime && capability != platform.CapabilityModel && capability != platform.CapabilityTool && capability != platform.CapabilityTelemetry {
 				return InstallationLock{}, fmt.Errorf("adapters[%d]: unsupported capability %q", i, capability)
 			}
 			if _, exists := capabilitySeen[capability]; exists {

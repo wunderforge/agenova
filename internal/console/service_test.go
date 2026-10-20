@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -57,7 +58,7 @@ type verticalExecutor struct {
 
 func (e *verticalExecutor) Execute(ctx context.Context, id v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handle workerprotocol.Handler) (string, error) {
 	e.calls.Add(1)
-	op := workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}
+	op := workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}
 	if e.foreign {
 		op.ClaimID = "claim:other"
 	}
@@ -452,5 +453,102 @@ func TestVerticalCloseCancelsActiveAndQueuedWorkBeforeFurtherAllocation(t *testi
 	}
 	if _, err = s.Submit(verticalRequest(t, "after-close")); err == nil {
 		t.Fatal("submission after shutdown accepted")
+	}
+}
+
+func TestCapacityDiagnosticNamesTheOnlyRemedy(t *testing.T) {
+	message := ErrCapacity.Error()
+	if !strings.Contains(message, "restart") {
+		t.Fatalf("capacity diagnostic omits the only remedy: %q", message)
+	}
+	// Negative case: the cap counts retained terminal records and nothing
+	// removes them, so the message must not send the operator off to wait.
+	if strings.Contains(message, "after active work completes") {
+		t.Fatalf("capacity diagnostic still promises that waiting frees capacity: %q", message)
+	}
+}
+
+func TestSubmitFailureReleasesItsCapacityReservation(t *testing.T) {
+	backend := &verticalBackend{}
+	s, err := NewServiceWithOptions(backend, &verticalExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{
+		Prepare: func(data []byte) (app.PreparedAssignment, error) {
+			prepared, prepareErr := app.PrepareReferenceAssignment(data, app.ReferencePrincipalTeamA)
+			if prepareErr != nil {
+				return prepared, prepareErr
+			}
+			// The journal rejects a resolution fact without a stable reason, so
+			// Submit fails after the request is registered and before any record
+			// replaces its reservation.
+			prepared.Admission.Decision.Reason = ""
+			return prepared, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for i := 0; i < 40; i++ {
+		ref := fmt.Sprintf("unrecordable-%d", i)
+		if _, err := s.Submit(verticalRequest(t, ref)); err == nil {
+			t.Fatalf("%s: an unrecordable resolution was accepted", ref)
+		} else if errors.Is(err, ErrCapacity) || errors.Is(err, ErrConflict) {
+			t.Fatalf("%s: a refused submission leaked its reservation: %v", ref, err)
+		}
+		if _, err := s.QueryRequest(ref); err == nil {
+			t.Fatalf("%s: a refused submission left a queryable record", ref)
+		}
+	}
+	if views := s.List(); len(views) != 0 || backend.calls.Load() != 0 {
+		t.Fatalf("refused submissions produced work: list=%d backend=%d", len(views), backend.calls.Load())
+	}
+}
+
+func TestDeniedSubmissionRecordSurvivesAndBlocksItsReference(t *testing.T) {
+	s, err := NewService(&verticalBackend{}, &verticalExecutor{}, &verticalProvider{}, app.ReferencePrincipalTeamB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	view, err := s.Submit(verticalRequest(t, "denied-kept"))
+	if err != nil || view.State == nil || view.State.Decision.Result != v0.DecisionResultDeny {
+		t.Fatalf("denial = %#v, %v", view.State, err)
+	}
+	if _, err := s.QueryRequest("denied-kept"); err != nil {
+		t.Fatalf("a terminal denial record was released with its reservation: %v", err)
+	}
+	if views := s.List(); len(views) != 1 {
+		t.Fatalf("denial record missing from order: list=%d", len(views))
+	}
+	if _, err := s.Submit(verticalRequest(t, "denied-kept")); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a terminal denial reference became reusable: %v", err)
+	}
+}
+
+func TestRunOutcomeSkipsARecordThatIsGone(t *testing.T) {
+	// verticalProvider closes entered on every Complete call, so this seam only
+	// works with an executor that makes exactly one model call.
+	p := &verticalProvider{entered: make(chan struct{}), release: make(chan struct{})}
+	s, err := NewService(&verticalBackend{}, &verticalExecutor{}, p, app.ReferencePrincipalTeamA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Submit(verticalRequest(t, "evicted")); err != nil {
+		t.Fatal(err)
+	}
+	<-p.entered // the run goroutine is inside the provider call
+	// Stand in for any future record cleanup or eviction. Before the guard this
+	// makes run() dereference a nil *record and panic on an unrecovered
+	// goroutine, taking the console and every other request's evidence with it.
+	s.mu.Lock()
+	delete(s.records, "evicted")
+	s.mu.Unlock()
+	close(p.release)
+	s.Close() // wg.Wait(): the run goroutine must finish, not panic
+	// Negative case: the guard skips, it does not resurrect the record.
+	if _, err := s.QueryRequest("evicted"); err == nil {
+		t.Fatal("a removed record was recreated by the run outcome write")
+	}
+	if len(s.List()) != 0 {
+		t.Fatalf("removed record still listed: %d", len(s.List()))
 	}
 }

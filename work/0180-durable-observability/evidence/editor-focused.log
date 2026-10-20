@@ -1,0 +1,4 @@
+ok  	github.com/wunderforge/agenova/internal/console	10.416s
+ok  	github.com/wunderforge/agenova/cmd/agenova-grafana-proxy	(cached)
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	14.867s
+ok  	github.com/wunderforge/agenova/internal/authentication/postgres	(cached)

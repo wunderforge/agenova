@@ -26,7 +26,7 @@ The manual path below remains available for step-by-step diagnosis and non-macOS
 
 ## Prerequisites
 
-- Docker Desktop, kind, kubectl, Go 1.22+, and Ollama are available.
+- Docker Desktop, kind, kubectl, Go 1.27.2+ (the pinned patched build toolchain), and Ollama are available.
 - The existing kind cluster is named `agenova-k8s-lab`, its context is `kind-agenova-k8s-lab`, and Agent Sandbox v0.4.6 is installed.
 - Local Ollama contains `llama3.1:latest` and is reachable from kind containers at `host.docker.internal:11434`.
 - Both `agenova-testworker:kind` and the branch-built `agenova-control-plane:0.1.0` image are loaded into the kind cluster. Building and loading these images prepares the underlying test environment; it is not a hidden step in the Agenova control flow. For a new environment, run from the repository root:

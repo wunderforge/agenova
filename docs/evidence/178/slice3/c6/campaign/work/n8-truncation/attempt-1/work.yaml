@@ -1,0 +1,24 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-n8-truncation-a1
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: |-
+        Read notes/incident-timeline.md and summarise the incident. Read no other file, and finish on the turn after you read it.
+        Write two or three short sentences, each on its own line, that summarise the incident and say whether the text you received covered the whole timeline or stopped part way. Then end your answer with the line below on its own line, with the placeholder replaced by yes or no, and nothing after it.
+        timeline_complete: <yes if you saw the whole timeline, otherwise no>
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-faults]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

@@ -1,0 +1,21 @@
+# Copyright 2026 Agenova contributors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: e16-token-wrong-a1
+spec:
+  templateRef: e16-engineer
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: Read README.md from the repository and summarise in two sentences what the incident it describes is about.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:agenova/e16-token-wrong]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 5m

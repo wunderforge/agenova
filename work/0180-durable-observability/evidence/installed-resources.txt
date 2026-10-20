@@ -1,0 +1,15 @@
+NAME                                         READY   STATUS    RESTARTS   AGE   IP             NODE                            NOMINATED NODE   READINESS GATES
+pod/agenova-control-plane-68c48bd96b-zrbgm   1/1     Running   0          87s   10.244.0.123   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-grafana-5f45d9b8fb-77d78         1/1     Running   0          88s   10.244.0.121   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-loki-89fdf7858-f55wk             1/1     Running   0          88s   10.244.0.122   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-otel-76c84b4864-5lrft            1/1     Running   0          89s   10.244.0.119   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-pool-pool-engineer-2sgmd         1/1     Running   0          97s   10.244.0.118   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-prometheus-76c94778f4-zvxxg      1/1     Running   0          89s   10.244.0.120   agenova-k8s-lab-control-plane   <none>           <none>
+pod/agenova-tempo-86587dc869-99446           1/1     Running   0          80s   10.244.0.124   agenova-k8s-lab-control-plane   <none>           <none>
+
+NAME                                            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/agenova-evidence-data     Bound    pvc-e646d537-5d85-4dc2-9908-a544acbd6d56   1Gi        RWO            standard       <unset>                 35m   Filesystem
+persistentvolumeclaim/agenova-grafana-data      Bound    pvc-86490bb2-4d19-49c8-abb4-f656d04d28d6   2Gi        RWO            standard       <unset>                 35m   Filesystem
+persistentvolumeclaim/agenova-loki-data         Bound    pvc-53e2ba60-46e2-4c3d-8605-e7ceeb7bde45   2Gi        RWO            standard       <unset>                 35m   Filesystem
+persistentvolumeclaim/agenova-prometheus-data   Bound    pvc-6426d8c2-72e0-4cc6-95e6-961009220a54   2Gi        RWO            standard       <unset>                 35m   Filesystem
+persistentvolumeclaim/agenova-tempo-data        Bound    pvc-6dee234f-0e54-47ba-acf7-11c7906387f1   2Gi        RWO            standard       <unset>                 35m   Filesystem

@@ -48,6 +48,18 @@ var (
 // before cleanup and final outcome publication.
 type WorkFunc func(context.Context) error
 
+type runDeadlineKey struct{}
+
+// WorkDeadline is the authoritative deadline supplied only to the trusted
+// in-process work callback. It is not a caller-supplied claim field.
+func WorkDeadline(ctx context.Context) (time.Time, bool) {
+	if ctx == nil {
+		return time.Time{}, false
+	}
+	deadline, ok := ctx.Value(runDeadlineKey{}).(time.Time)
+	return deadline, ok && !deadline.IsZero()
+}
+
 // ClaimReader is the application-owned lifecycle view used by governed
 // interfaces. Implementations return defensive public claim snapshots; they
 // never derive authority from backend readiness or resource existence.
@@ -376,6 +388,7 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 
 	workCtx, cancelWork := context.WithCancel(ctx)
 	defer cancelWork()
+	workCtx = context.WithValue(workCtx, runDeadlineKey{}, deadline)
 	workDone := make(chan error, 1)
 	go func() {
 		workDone <- work(workCtx)

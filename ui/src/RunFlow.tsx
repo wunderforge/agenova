@@ -15,7 +15,7 @@ const labels = ['Request', 'Access', 'Worker', 'Result', 'Cleanup'] as const;
 
 // Presence is evidence, not an assumption that all preceding stages completed.
 export function flowStages(e: FlowEvidence): FlowStage[] {
-  const terminal = ['Succeeded', 'Failed', 'Denied', 'Cancelled', 'Expired', 'Approval required'].includes(e.status);
+  const terminal = ['Succeeded', 'Failed', 'Denied', 'Cancelled', 'Expired', 'Approval required', 'Interrupted'].includes(e.status);
   const observed = [e.received, e.authorized, e.started, e.result, e.cleanup];
   const failureAt = e.status === 'Denied' ? 'Access' : e.failureAt === 'Model' ? 'Worker' : e.failureAt;
   const active = failureAt || terminal ? -1
@@ -33,7 +33,7 @@ export function flowStages(e: FlowEvidence): FlowStage[] {
 }
 export function RunFlow({ evidence, activityHref, summary }: { evidence: FlowEvidence; activityHref: string; summary?: string }) {
   const stages = flowStages(evidence);
-  return <section className="portal-flow" aria-label="Work status">
+  return <section className="portal-flow" aria-label="Work status" data-status={evidence.status}>
     <div className="portal-flow-head"><h2>Work status</h2></div>
     {summary && <p className="portal-work-summary" role="status">{summary}</p>}
     <ol className="portal-flow-track">

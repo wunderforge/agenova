@@ -1,0 +1,56 @@
+Client: Agenova root module on go1.22.12 (standard library only). Server: harness/integration/mcpfixture on go1.27.1 with github.com/modelcontextprotocol/go-sdk v1.8.0, run locally against the committed dataset with FIXTURE_TOKEN_FILE set to a fresh synthetic token (openssl rand -hex 32, mode 0600, deleted after the run).
+$ AGENOVA_MCP_INTEROP_ENDPOINT=http://127.0.0.1:18942/mcp AGENOVA_MCP_INTEROP_TOKEN_ENDPOINT=http://127.0.0.1:18942/mcp-token AGENOVA_MCP_INTEROP_TOKEN_FILE=<token file> go test -count=1 -v -run Interoperates ./internal/adapters/bundled
+=== RUN   TestMCPClientInteroperatesWithFixtureServer
+--- PASS: TestMCPClientInteroperatesWithFixtureServer
+=== RUN   TestMCPClientInteroperatesWithTokenFixture
+--- PASS: TestMCPClientInteroperatesWithTokenFixture
+PASS
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled
+exit=0
+--- token checks: occurrences of the token in the server log: 0; server stderr lines: 0
+--- header-less request on /mcp-token (as the campaign's controlled read sends it)
+HTTP status: 401
+--- token checks after both runs: occurrences in the server log: 0; server stderr lines: 0
+--- fixture server log (JSON lines; no file contents, no token or token hash, session IDs hashed)
+{"time":"2026-10-04T13:24:26.811918Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","auth":"missing"}
+{"time":"2026-10-04T13:24:26.81245Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210}
+{"time":"2026-10-04T13:24:26.812739Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"18dfc56ba9fc","auth":"missing"}
+{"time":"2026-10-04T13:24:26.812772Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-10-04T13:24:26.812949Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"README.md","correlation":"inv-42","session":"18dfc56ba9fc","auth":"missing"}
+{"time":"2026-10-04T13:24:26.813372Z","pod":"local-interop","event":"tool","path":"/mcp","tool":"read_file","file":"README.md","correlation":"inv-42","outcome":"ok","bytes":490}
+{"time":"2026-10-04T13:24:26.813432Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":598}
+{"time":"2026-10-04T13:24:26.813682Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","session":"18dfc56ba9fc","auth":"missing"}
+{"time":"2026-10-04T13:24:26.813728Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","status":204}
+{"time":"2026-10-04T13:24:26.813912Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","auth":"missing"}
+{"time":"2026-10-04T13:24:26.814034Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210}
+{"time":"2026-10-04T13:24:26.814186Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"84907f923a34","auth":"missing"}
+{"time":"2026-10-04T13:24:26.814225Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-10-04T13:24:26.814348Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"logs/full-trace.log","correlation":"inv-42","session":"84907f923a34","auth":"missing"}
+{"time":"2026-10-04T13:24:26.815166Z","pod":"local-interop","event":"tool","path":"/mcp","tool":"read_file","file":"logs/full-trace.log","correlation":"inv-42","outcome":"ok","bytes":73744}
+{"time":"2026-10-04T13:24:26.816039Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":74678,"durationMs":1}
+{"time":"2026-10-04T13:24:26.816178Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","session":"84907f923a34","auth":"missing"}
+{"time":"2026-10-04T13:24:26.816201Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","status":204}
+{"time":"2026-10-04T13:24:26.816296Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","auth":"missing"}
+{"time":"2026-10-04T13:24:26.816368Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-42","status":200,"bytes":210}
+{"time":"2026-10-04T13:24:26.816455Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","session":"a1b07dca9618","auth":"missing"}
+{"time":"2026-10-04T13:24:26.816507Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-42","status":202}
+{"time":"2026-10-04T13:24:26.816601Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"missing.md","correlation":"inv-42","session":"a1b07dca9618","auth":"missing"}
+{"time":"2026-10-04T13:24:26.816661Z","pod":"local-interop","event":"tool","path":"/mcp","tool":"read_file","file":"missing.md","correlation":"inv-42","outcome":"error","error":"not-found"}
+{"time":"2026-10-04T13:24:26.816686Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-42","status":200,"bytes":138}
+{"time":"2026-10-04T13:24:26.816769Z","pod":"local-interop","event":"receipt","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","session":"a1b07dca9618","auth":"missing"}
+{"time":"2026-10-04T13:24:26.81678Z","pod":"local-interop","event":"response","path":"/mcp","httpMethod":"DELETE","correlation":"inv-42","status":204}
+{"time":"2026-10-04T13:24:26.817353Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-valid","auth":"ok"}
+{"time":"2026-10-04T13:24:26.81748Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-valid","status":200,"bytes":210}
+{"time":"2026-10-04T13:24:26.817572Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-token-valid","session":"44e9f15b8fda","auth":"ok"}
+{"time":"2026-10-04T13:24:26.817592Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"notifications/initialized","correlation":"inv-token-valid","status":202}
+{"time":"2026-10-04T13:24:26.817688Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","tool":"read_file","file":"README.md","correlation":"inv-token-valid","session":"44e9f15b8fda","auth":"ok"}
+{"time":"2026-10-04T13:24:26.817766Z","pod":"local-interop","event":"tool","path":"/mcp-token","tool":"read_file","file":"README.md","correlation":"inv-token-valid","outcome":"ok","bytes":490}
+{"time":"2026-10-04T13:24:26.817797Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"tools/call","rpcId":"2","correlation":"inv-token-valid","status":200,"bytes":598}
+{"time":"2026-10-04T13:24:26.817889Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"DELETE","correlation":"inv-token-valid","session":"44e9f15b8fda","auth":"ok"}
+{"time":"2026-10-04T13:24:26.817904Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"DELETE","correlation":"inv-token-valid","status":204}
+{"time":"2026-10-04T13:24:26.81821Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-wrong","auth":"invalid"}
+{"time":"2026-10-04T13:24:26.81822Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-wrong","status":401,"bytes":22}
+{"time":"2026-10-04T13:24:26.818506Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-none","auth":"missing"}
+{"time":"2026-10-04T13:24:26.818513Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-token-none","status":401,"bytes":22}
+{"time":"2026-10-04T13:24:26.866509Z","pod":"local-interop","event":"receipt","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-m2","auth":"missing"}
+{"time":"2026-10-04T13:24:26.866576Z","pod":"local-interop","event":"response","path":"/mcp-token","httpMethod":"POST","rpcMethod":"initialize","rpcId":"1","correlation":"inv-m2","status":401,"bytes":22}

@@ -49,7 +49,7 @@ export function useConnection(parts: string[], revision: number) {
         if (nextSetup) { setSetup(nextSetup); setSetupError(''); setupLoaded = true; }
         setWorks(list); setCurrent(detail);
         setLoading(false); setError('');
-        if (detail && isTerminal(detail) && detail.outcome) return;
+        if (detail && isTerminal(detail) && (detail.outcome || detail.recovery)) return;
         if (Date.now() - started >= 120_000) { setPaused(true); return; }
         timer = setTimeout(load, 1000);
       } catch (cause) {

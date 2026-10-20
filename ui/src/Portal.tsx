@@ -10,8 +10,13 @@ import { WorkDetailLayout } from './WorkDetailLayout';
 import { usePortalMotion } from './portal-motion';
 import { displayWorkName, maxWorkName } from './work-name';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
+import { WorkOverview } from './WorkOverview';
+import { PortalIcon } from './PortalIcon';
+import { ProfileMenu, PortalUtilities } from './PortalChrome';
+import { WorkActivityChart } from './WorkActivityChart';
+import type { Principal } from './contracts.generated';
 import './portal.css';
-import './portal-motion.css';
+import './portal-june.css';
 
 const workFilters = ['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending'] as const;
 const workActivityKinds = ['All', 'Request', 'Decision', 'Claim', 'Runtime', 'Tool', 'Model'] as const;
@@ -49,11 +54,13 @@ function WorkList({ works }: { works: WorkItem[] }) {
   const shown = works.filter(work => (filter === 'All' || work.status === filter) &&
     `${work.title} ${work.instructions || ''} ${work.requestRef} ${work.team} ${work.agent} ${work.context?.value ?? ''}`.toLowerCase().includes(search.toLowerCase()));
   return <><Head title="Work" subtitle="Requests and agent runs you can inspect." action={<a className="portal-button primary" href={href('work/new')}>New work</a>}/>
+    <WorkOverview statuses={works.map(work => work.status)}/>
+    <WorkActivityChart entries={works.map(work => ({ timestamp: work.submittedAt, status: work.status }))}/>
     <div className="portal-toolbar"><div className="portal-filters" role="group" aria-label="Filter work">{workFilters.map(item => <button key={item} type="button" className={filter === item ? 'selected' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div>
       <input aria-label="Search work" placeholder="Search work" type="search" value={search} onChange={event => setSearch(event.target.value)}/></div>
-    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead><tbody>
+    <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Agent</th><th>Requested by</th><th>Decision</th><th>Last update</th><th>Status</th></tr></thead><tbody>
       {shown.map(work => <tr key={work.id}><td><a className="portal-work-title" href={href(`work/${work.id}`)}>{work.title}</a><small>{work.team}{work.context && <> · {work.context.label}: {work.context.value}</>}</small></td>
-        <td>{work.agent}</td><td>{work.updated}</td><td><Badge value={work.status}/></td></tr>)}
+        <td>{work.agent}</td><td>{work.principal}</td><td><Badge value={work.decision}/></td><td>{work.updated}</td><td><Badge value={work.status}/></td></tr>)}
     </tbody></table>{!shown.length && <p className="portal-empty">No work matches this filter.</p>}</div>
     <p className="portal-source-note">Illustrative work history. The live evidence list and persistence are not connected.</p></>;
 }
@@ -181,7 +188,7 @@ function NewWork({ addWork, selectedAgent }: { addWork: (work: WorkItem) => void
     const memory = String(values.get('memory') || '');
     const work: WorkItem = {
       id, title: displayWorkName(values.get('workName'), objective, id), instructions: objective, status: 'Pending', agent: agentId, team: 'Team A', principal: demoIdentity.subject,
-      context: { label: repositoryTask ? 'Repository' : 'Topic', value: contextValue }, branch: repositoryTask ? branch : undefined, submitted: 'Just now', updated: time, requestRef: id,
+      context: { label: repositoryTask ? 'Repository' : 'Topic', value: contextValue }, branch: repositoryTask ? branch : undefined, submitted: 'Just now', submittedAt: new Date().toISOString(), updated: time, requestRef: id,
       decision: 'Pending', decisionReason: 'Authorization has not been evaluated.', requestedRuntime: `${runtime} · ${timeout} min`,
       requested: { resourceScopes: repositoryTask ? [`repo:${contextValue}`] : [], tools, model, memory: memory ? [memory] : [] },
       events: [{ id: `${id}-request`, kind: 'Request', title: 'Work requested', time: `${time}:00`, result: 'Recorded', source: 'Demo UI', target: contextValue, description: 'An example request was added in this browser. No authorization or worker allocation occurred.' }],
@@ -207,6 +214,8 @@ export function Portal({ mode }: { mode: PortalMode }) {
   const [location, setLocation] = useState(() => window.location.hash);
   const motionRoot = usePortalMotion(`${mode}:${location}`);
   const [works, setWorks] = useState<WorkItem[]>(() => exampleWorks.map(work => structuredClone(work)));
+  const [principal, setPrincipal] = useState<Principal>();
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   useEffect(() => { const changed = () => setLocation(window.location.hash); window.addEventListener('hashchange', changed); return () => window.removeEventListener('hashchange', changed); }, []);
   const { parts, query } = route();
   const section = parts[0] || 'work';
@@ -220,7 +229,7 @@ export function Portal({ mode }: { mode: PortalMode }) {
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
   let content: ReactNode;
-  if (mode === 'connected') content = <ConnectedPortal parts={parts} onDemo={() => changeMode('demo')}/>;
+  if (mode === 'connected') content = <ConnectedPortal parts={parts} onDemo={() => changeMode('demo')} onPrincipal={setPrincipal}/>;
   else if (section === 'work' && parts[1] === 'new') content = <NewWork addWork={item => setWorks(current => [item, ...current])} selectedAgent={query.get('agent') || ''}/>;
   else if (section === 'work' && !parts[1]) content = <WorkList works={works}/>;
   else if (section === 'work' && work && parts[2] === 'access') content = <WorkAccess work={work}/>;
@@ -236,10 +245,13 @@ export function Portal({ mode }: { mode: PortalMode }) {
   else if (section === 'platform') content = <PlatformPage/>;
   else if (section === 'identity') content = <IdentityPage/>;
   else content = <><Head title="Work not found"/><a href={href('work')}>Back to Work</a></>;
+  const accountNavigation = document.querySelector('meta[name="agenova-account-navigation"]')?.getAttribute('content') || undefined;
+  const profile = { name: mode === 'demo' ? demoIdentity.displayName : principal?.subject || 'Not connected', team: mode === 'demo' ? 'Illustrative identity' : principal?.team || 'Identity unavailable', initials: mode === 'demo' ? 'TA' : principal ? 'ME' : '?', accountNavigation };
   void location; // hashchange drives the render; route() reads the current URL.
-  return <div ref={motionRoot} className="portal-shell"><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
-    <nav aria-label="Main navigation"><a className={section === 'work' ? 'active' : ''} href={href('work')}>Work</a><a className={section === 'agents' ? 'active' : ''} href={href('agents')}>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}>Platform</a></nav>
-    <div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Current server session</>}</div></aside><div className="portal-main"><header className="portal-topbar"><span>{section === 'work' ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
-      {mode === 'demo' ? <a href={href('identity')} className="portal-identity">TA <span>{demoIdentity.displayName}</span></a> : <a href={href('identity')} className="portal-identity">View identity</a>}</div><div className="portal-scroll-progress" aria-hidden="true"/></header>
+  return <div ref={motionRoot} className="portal-shell" data-density={density}><a className="portal-skip" href="#portal-main" onClick={event => { event.preventDefault(); document.getElementById('portal-main')?.focus(); }}>Skip to content</a><aside className="portal-sidebar"><a className="portal-brand" href={href('work')}><span>A</span>Agenova</a>
+    <div className="portal-workspace"><span>A</span><div>Agenova workspace<small>{mode === 'demo' ? 'Illustrative records' : 'Connected platform'}</small></div></div>
+    <nav aria-label="Main navigation"><small className="portal-nav-label">OBSERVE</small><a className={(section === 'work' || section === 'history') ? 'active' : ''} href={href('work')}><PortalIcon name="work"/>Work</a><small className="portal-nav-label">MANAGE</small><a className={section === 'agents' ? 'active' : ''} href={href('agents')}><PortalIcon name="agents"/>Agents</a><a className={section === 'policy' ? 'active' : ''} href={href('policy')}><PortalIcon name="policy"/>Policy</a><a className={section === 'platform' ? 'active' : ''} href={href('platform')}><PortalIcon name="platform"/>Platform</a>{accountNavigation === 'admin' && <a href="/admin">Administration</a>}{accountNavigation && <form method="post" action="/logout"><button className="portal-nav-action" type="submit">Log out</button></form>}</nav>
+    <div className="portal-sidebar-bottom"><PortalUtilities density={density} setDensity={setDensity}/><div className="portal-sidebar-foot">{mode === 'demo' ? <>Interactive demo<br/>Illustrative records</> : <>Connected view<br/>Server evidence</>}</div><ProfileMenu {...profile} sidebar/></div></aside><div className="portal-main"><header className="portal-topbar"><span>{(section === 'work' || section === 'history') ? 'Work' : section === 'agents' ? 'Agents' : section === 'policy' ? 'Policy' : section === 'platform' ? 'Platform' : mode === 'demo' ? 'Demo identity' : 'Identity'}</span><div className="portal-topbar-controls"><div className="portal-mode-switch" role="group" aria-label="Data view"><button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Demo</button><button type="button" aria-pressed={mode === 'connected'} onClick={() => changeMode('connected')}>Connected</button></div><span className={`portal-source-state ${mode}`}>{mode === 'demo' ? 'Example data' : 'Server data'}</span>
+      <ProfileMenu {...profile}/></div><div className="portal-scroll-progress" aria-hidden="true"/></header>
       <main id="portal-main" tabIndex={-1} className="portal-page">{content}</main></div></div>;
 }

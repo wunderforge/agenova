@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:35727) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 installed/mcp.spec.ts:90:1 › installed E16 setup reports the configured MCP tool and E16 registrations @setup (134ms)
+  ✓  2 installed/mcp.spec.ts:147:3 › n6-timeout: the tool failure is explicit, never mock, and fails the Work @n6-timeout (1.1s)
+
+  2 passed (1.7s)

@@ -1,0 +1,15 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: engineer
+spec:
+  artifact:
+    image: 931228356546.dkr.ecr.ap-southeast-2.amazonaws.com/agenova-demo/worker@sha256:ec74e41c6348b4e4d10d4da3ab1ee0561d44c1e05964487adb2cc4a9c7b4ca9e
+  entrypoint:
+    command: [/agenova-workerctl, serve]
+  capabilityCeiling:
+    tools: [git.read]
+    resourceScopes: [repo:acme/payments]
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    maxTimeout: 5m

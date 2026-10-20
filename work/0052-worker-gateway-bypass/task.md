@@ -17,7 +17,7 @@ Always:
 Additional task-specific context:
 
 - [Architecture contract: Authority and Credentials](../../docs/product/architecture-contract.md#authority-and-credentials)
-- #194 security claim matrix, rows AC-4, AC-6, AC-7, AC-8, AC-9, ES-5, RI-2, TM-1, TM-3, plus "Meaning of the worker cannot bypass the Gateway" and Disclosure (`work/0194-security-claim-matrix/spec.md`, PR #195, not yet merged)
+- #194 security claim matrix, rows AC-4, AC-6, AC-7, AC-8, AC-9, ES-5, RI-2, TM-1, TM-3, plus "Meaning of the worker cannot bypass the Gateway" and Disclosure (`work/0194-security-claim-matrix/spec.md`, PR #195, merged)
 - [Agent Sandbox backend note](../../docs/backends/agent-sandbox.md) and [#51 kind evidence](../../docs/evidence/51/kind-run.md)
 - [#167 installed run evidence](../../docs/evidence/167/summary.md) for the governed-call commands
 - [Reference Platform for kind](../../deploy/reference/platform.kind.yaml) (provider endpoint `http://host.docker.internal:11434/v1`)
@@ -127,11 +127,15 @@ Oracles outside Agenova: Ollama server log line counts on the host (`~/.ollama/l
 - Planning depth: Task. The method is fixed by the #194 matrix rows and the #52 comments; no new spec or design.
 - Starts from merged controlled-worker path (#134/#136/#144) without waiting for #51 (board reconciliation note in the #52 body, 21 Sep).
 - The meaning of "bypass the Gateway" follows the owner calibration on #52 (16 Sep) and the #194 spec: public egress is TM-1 exfiltration, not bypass, on kind.
-- Branch was cut from `main` at `c56ba3a` and rebased onto `ebb4c04` after PR #195 merged; matrix links are added in a follow-up change.
-- Private vulnerability reporting is disabled on the repository; high-severity findings go to the maintainer privately until it is enabled.
+- Branch was cut from `main` at `c56ba3a` and rebased onto `ebb4c04` after PR #195 merged; matrix evidence links are added during PR #209 integration.
+- Private vulnerability reporting was enabled and verified by the maintainer on 12 October 2026 (#177). New high-severity findings use the private reporting channel; public evidence omits reproduction details until disclosure is approved.
 - Assignee decisions (5 Oct): probe a worker bound by a real `agenova run` first, falling back to a `SandboxClaim` on `agenova-tmpl-engineer` with a recorded Pod-spec comparison; run the experimental default-deny second probe.
 - First run (5 Oct): a real `agenova run` ends before a full probe completes (one bound-worker datapoint only), so the full probe used a held `SandboxClaim` with the same `sandboxTemplateRef` and `warmpool` as the adapter. The control-plane canary needs a temporary env var on the control-plane Deployment; it was reverted and `platform status` returned `changes: 0`.
 - Disclosure (5–6 Oct): the AC-9 startup result was sent to the maintainer privately under the #194 Disclosure rule. The maintainer confirmed it as a real vulnerability and asked for a public issue: #208. Public egress (TM-1) is #202.
 - Related: #201 (E13) owns the EKS worker egress boundary; the kind public-egress result (TM-1) is filed separately.
 - Review (12 Oct, PR #209): `startup-window.sh` cleanup deleted every claim with the shared probe label, so a second or failed run could remove another run's worker. Fixed: arguments are validated before any create, claims are created with `create` (an existing name is refused, not adopted), and cleanup deletes only the claims this run created, by name with a UID precondition. Covered by `test-startup-window.sh`. The committed evidence run (5 Oct) used the earlier script; the fix changes cleanup only, not the probe.
 - Dates: packet 9 Oct, probe results 16 Oct, conclusion and docs 23 Oct 2026.
+
+- Integration (20 Oct): merged the latest `origin/main`, retaining current member-mode status and the explicitly dated kind findings. Historical probe output remains unchanged; follow-up cleanup verification is recorded separately.
+- Cleanup revalidation (20 Oct): four fake-kubectl cases and Docs gate passed; the real pool-mode probe exited 0 and both owned claims were removed while the existing control-plane/warm Pod remained. See [follow-up evidence](../../docs/evidence/52/cleanup-verification-20261020.md). Startup reachability remained observable; no remediation is claimed.
+- Integrated repository gate (20 Oct): `pwsh -NoProfile -File ./scripts/check.ps1 -All` passed, including all 69 Playwright smoke tests; the old macOS failure was not reproduced. Full output is linked from the follow-up evidence.

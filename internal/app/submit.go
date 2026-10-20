@@ -102,7 +102,14 @@ func SubmitClaimRequestFile(path string, backend runtime.RuntimeBackend, preset 
 	if err := journal.BindClaim(result.RequestRef, *issued.Claim); err != nil {
 		return report, err
 	}
-	if _, err := journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: result.RequestRef, ClaimID: issued.Claim.ID, Authority: issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling"}); err != nil {
+	resolutionCode := "admitted-template-ceiling"
+	for _, change := range prepared.Changes {
+		if change.ReasonCode == "outside-policy-constraint" || change.ReasonCode == "policy-timeout-cap" {
+			resolutionCode = "admitted-policy-constraint"
+			break
+		}
+	}
+	if _, err := journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: result.RequestRef, ClaimID: issued.Claim.ID, Authority: issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: resolutionCode}); err != nil {
 		return report, err
 	}
 	runner, err := NewRunService(backend, RunServiceOptions{OnEvent: func(state *v1alpha1.IssuedState, event string) error {

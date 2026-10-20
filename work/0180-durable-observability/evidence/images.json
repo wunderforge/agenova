@@ -1,0 +1,65 @@
+[
+  {
+    "pod": "agenova-control-plane-68c48bd96b-zrbgm",
+    "images": [
+      "agenova-control-plane:0.1.180"
+    ],
+    "imageIds": [
+      "sha256:3b3f11f11367384842a091723e6e2512bae8e25beb5e2e17e556915fd4f5159c"
+    ]
+  },
+  {
+    "pod": "agenova-grafana-5f45d9b8fb-77d78",
+    "images": [
+      "grafana/grafana:11.4.0"
+    ],
+    "imageIds": [
+      "docker.io/grafana/grafana@sha256:d8ea37798ccc41061a62ab080f2676dda6bf7815558499f901bdb0f533a456fb"
+    ]
+  },
+  {
+    "pod": "agenova-loki-89fdf7858-f55wk",
+    "images": [
+      "grafana/loki:3.3.2"
+    ],
+    "imageIds": [
+      "docker.io/grafana/loki@sha256:8af2de1abbdd7aa92b27c9bcc96f0f4140c9096b507c77921ffddf1c6ad6c48f"
+    ]
+  },
+  {
+    "pod": "agenova-otel-76c84b4864-5lrft",
+    "images": [
+      "otel/opentelemetry-collector-contrib:0.116.1"
+    ],
+    "imageIds": [
+      "docker.io/otel/opentelemetry-collector-contrib@sha256:d0ebf65280da2e1b1491d1b93648281afd353d4b9ea19160090303cec9a233bd"
+    ]
+  },
+  {
+    "pod": "agenova-pool-pool-engineer-2sgmd",
+    "images": [
+      "agenova-testworker:kind"
+    ],
+    "imageIds": [
+      "sha256:c57d7fc7d8a73ae28367fde07d09672ae87f1d7a612d0ae2c52293606867c166"
+    ]
+  },
+  {
+    "pod": "agenova-prometheus-76c94778f4-zvxxg",
+    "images": [
+      "prom/prometheus:v3.0.1"
+    ],
+    "imageIds": [
+      "docker.io/prom/prometheus@sha256:565ee86501224ebbb98fc10b332fa54440b100469924003359edf49cbce374bd"
+    ]
+  },
+  {
+    "pod": "agenova-tempo-86587dc869-99446",
+    "images": [
+      "grafana/tempo:2.6.1"
+    ],
+    "imageIds": [
+      "docker.io/grafana/tempo@sha256:ef4384fce6e8ad22b95b243d8fc165628cda655376fd50e7850536ad89d71d50"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	2.622s
+ok  	github.com/wunderforge/agenova/internal/invitations	1.334s
+ok  	github.com/wunderforge/agenova/internal/authentication	1.183s
+ok  	github.com/wunderforge/agenova/internal/authentication/cognito	3.046s
+ok  	github.com/wunderforge/agenova/internal/authentication/postgres	2.125s
+ok  	github.com/wunderforge/agenova/internal/console	4.836s
+ok  	github.com/wunderforge/agenova/internal/websession	1.734s
