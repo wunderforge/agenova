@@ -16,6 +16,7 @@ Always:
 
 Additional task-specific context:
 
+- [Google/Grafana deployment boundary](../../deploy/production/grafana-google.md), [standalone gateway](../../cmd/agenova-grafana-proxy/main.go), [proxy contract](../../internal/console/grafana_proxy.go).
 - [Spec](spec.md), [design](design.md), [verification report](evidence.md), [architecture contract](../../docs/product/architecture-contract.md), especially Backend Neutrality, Authority and Credentials, Evidence Surfaces and Reference Installation and Bootstrap.
 - [AIDLC approval/source ownership](../../docs/development/AIDLC.md#from-existing-ticket-to-task-packet), [playbooks](../../docs/harness/playbooks.md), [existing shared API packet](../0167-shared-installed-api/task.md).
 - [Journal](../../internal/facts/journal.go), [evidence](../../internal/evidence/view.go), [service](../../internal/console/service.go), [HTTP](../../internal/console/http.go) and adjacent tests.
@@ -115,3 +116,13 @@ Out of scope:
 - The pre-merge kind/Ollama images and screenshots remain historical evidence for the earlier source manifest. No deployment of the reconciled branch is implied by those artifacts.
 
 - Reconciled `-Profile PR` passed with lockfile-installed UI dependencies, full Go/race and 63 browser cases; real PostgreSQL tests were enabled. Evidence: [merge gate](evidence/merge-pr-gate.log), [focused database race](evidence/merge-postgres-race.log), [source hashes](evidence/merge-source.json).
+
+## Google/Grafana access extension
+
+- Owner explicitly requested Grafana Google login integration and reuse of existing system users in this chat. Read-only EKS/admin inspection found five approved users (one Owner, four Platform Admins); no roster or credentials are copied into source.
+- Reuse the existing Google session BFF at `/grafana/`, enforcing E14's installation-pinned `platform.diagnose` permission on every request. Grafana remains a private auth-proxy backend with Viewer access, no independent bearer/cookie session, and no anonymous/basic access.
+- Deploy behind the existing HTTPS application origin; no new OAuth client, external identity store or public unauthenticated Grafana endpoint. Explicit target configuration and enforced ingress isolation are required before enabling the proxy. Existing EKS has no Grafana stack yet; deployment and real Google positive/negative checks must be distinguished from local test evidence.
+
+- EKS preflight found only the EFS CSI driver; the advertised gp2 class has no installed EBS CSI provisioner. A persistent Grafana install is blocked pending a supported volume/provisioner and its explicitly approved budget/permissions, as required by the PRD production extension. No ephemeral substitute, IAM change or unverified EKS login is claimed.
+
+- Google extension validation: full PR profile passed all Go/race and 63 browser tests; actual Grafana 11.4 auth-proxy integration passed. The standalone linux/amd64 image built successfully; no EKS rollout has occurred. The user was asked whether to install EBS CSI with required AWS permissions and a 2 GiB Grafana volume under the PRD explicit-budget requirement. That infrastructure choice is pending; no elapsed-time approval is inferred.

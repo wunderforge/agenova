@@ -19,6 +19,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/authentication/cognito"
 	"github.com/wunderforge/agenova/internal/authentication/googleoidc"
@@ -34,6 +35,7 @@ import (
 // Operator configuration contains file references, never plaintext credentials.
 // Its presence selects authenticated mode. Invalid or partial config is fatal.
 type memberConfig struct {
+	GrafanaURL              string `json:"grafanaURL,omitempty"`
 	TrustLocalProxyClientIP bool   `json:"trustLocalProxyClientIP,omitempty"`
 	RegistrationTeam        string `json:"registrationTeam,omitempty"`
 	GoogleOAuthFile         string `json:"googleOAuthFile"`
@@ -274,6 +276,18 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		return nil, err
 	}
 	mux := http.NewServeMux()
+	if d.config.GrafanaURL != "" {
+		proxy, err := console.GrafanaProxy(d.config.GrafanaURL, d.config.Origin, d.boundary, func(r *http.Request, p v0.Principal) error {
+			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
+			return d.store.AuthorizeInstallation(r.Context(), p, "platform.diagnose", installation, installation)
+		})
+		if err != nil {
+			return nil, err
+		}
+		mux.Handle("/grafana", proxy)
+		mux.Handle("/grafana/", proxy)
+	}
+
 	invitationService := invitations.Service{Registration: d.config.RegistrationTeam != "", Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
 	mux.Handle("/admin", invitations.Page(invitationService, d.boundary))
 	mux.HandleFunc("/members", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin", http.StatusSeeOther) })

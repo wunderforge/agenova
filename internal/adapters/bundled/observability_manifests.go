@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -33,6 +34,10 @@ func stackSteps(request platformapply.DeploymentRequest, namespace string) []man
 		return map[string]any{"name": name, "namespace": namespace, "labels": managedLabels(), "annotations": map[string]any{"agenova.io/platform-revision": request.Platform.Revision}}
 	}
 	steps := []manifestStep{}
+	if proxy, ok := config["grafanaAuthProxy"].(map[string]any); ok {
+		steps = append(steps, manifestStep{name: "agenova-grafana-private", category: "observability", object: map[string]any{"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": metadata("agenova-grafana-private"), "spec": map[string]any{"podSelector": map[string]any{"matchLabels": map[string]any{"app.kubernetes.io/name": "agenova-grafana"}}, "policyTypes": []any{"Ingress"}, "ingress": []any{map[string]any{"from": []any{map[string]any{"namespaceSelector": map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": proxy["namespace"]}}, "podSelector": map[string]any{"matchLabels": map[string]any{"app": proxy["app"]}}}}, "ports": []any{map[string]any{"protocol": "TCP", "port": 3000}}}}}}})
+	}
+
 	pvc := func(name, size string) {
 		steps = append(steps, manifestStep{name: name + "-data", category: "observability", object: map[string]any{"apiVersion": "v1", "kind": "PersistentVolumeClaim", "metadata": metadata(name + "-data"), "spec": map[string]any{"accessModes": []any{"ReadWriteOnce"}, "storageClassName": class, "resources": map[string]any{"requests": map[string]any{"storage": size}}}}})
 	}
@@ -89,6 +94,17 @@ func stackSteps(request platformapply.DeploymentRequest, namespace string) []man
 		container := map[string]any{"name": c.name, "image": c.image, "imagePullPolicy": "IfNotPresent", "args": c.args, "ports": ports, "volumeMounts": mounts, "resources": map[string]any{"requests": map[string]any{"cpu": "50m", "memory": "128Mi"}, "limits": map[string]any{"cpu": "1", "memory": "512Mi"}}, "readinessProbe": map[string]any{"httpGet": map[string]any{"path": c.ready, "port": c.port}, "initialDelaySeconds": 2, "periodSeconds": 3}}
 		if c.name == "grafana" {
 			container["env"] = []any{map[string]any{"name": "GF_SECURITY_ADMIN_USER", "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": config["grafanaAdminSecretRef"], "key": "username"}}}, map[string]any{"name": "GF_SECURITY_ADMIN_PASSWORD", "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": config["grafanaAdminSecretRef"], "key": "password"}}}, map[string]any{"name": "GF_ANALYTICS_REPORTING_ENABLED", "value": "false"}, map[string]any{"name": "GF_ANALYTICS_CHECK_FOR_UPDATES", "value": "false"}}
+			if proxy, ok := config["grafanaAuthProxy"].(map[string]any); ok {
+				values := map[string]string{"GF_SERVER_ROOT_URL": proxy["publicOrigin"].(string) + "/grafana/", "GF_SERVER_SERVE_FROM_SUB_PATH": "true", "GF_SECURITY_COOKIE_SECURE": "true", "GF_AUTH_PROXY_ENABLED": "true", "GF_AUTH_PROXY_HEADER_NAME": "X-WEBAUTH-USER", "GF_AUTH_PROXY_HEADER_PROPERTY": "username", "GF_AUTH_PROXY_HEADERS": "Role:X-WEBAUTH-ROLE", "GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN": "false", "GF_AUTH_PROXY_AUTO_SIGN_UP": "true", "GF_AUTH_PROXY_SYNC_TTL": "0", "GF_AUTH_ANONYMOUS_ENABLED": "false", "GF_AUTH_BASIC_ENABLED": "false", "GF_AUTH_DISABLE_LOGIN_FORM": "true", "GF_USERS_AUTO_ASSIGN_ORG_ROLE": "Viewer", "GF_USERS_ALLOW_SIGN_UP": "false"}
+				names := make([]string, 0, len(values))
+				for name := range values {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				for _, name := range names {
+					container["env"] = append(container["env"].([]any), map[string]any{"name": name, "value": values[name]})
+				}
+			}
 			mounts = append(mounts, map[string]any{"name": "config", "mountPath": "/etc/grafana/provisioning/datasources/datasources.yaml", "subPath": "datasources.yaml", "readOnly": true}, map[string]any{"name": "config", "mountPath": "/etc/grafana/provisioning/dashboards/dashboards.yaml", "subPath": "dashboards.yaml", "readOnly": true}, map[string]any{"name": "config", "mountPath": "/var/lib/grafana/dashboards/agenova.json", "subPath": "dashboard.json", "readOnly": true})
 			container["volumeMounts"] = mounts
 		}
@@ -114,6 +130,8 @@ func stackMatches(actual map[string]any, step manifestStep, revision string) boo
 		a, _ := actual["spec"].(map[string]any)
 		b, _ := desired["spec"].(map[string]any)
 		return reflect.DeepEqual(a["selector"], b["selector"]) && expectedFieldsMatch(a, b)
+	case "networkpolicy":
+		return reflect.DeepEqual(actual["spec"], desired["spec"])
 	case "persistentvolumeclaim":
 		return expectedFieldsMatch(actual["spec"], desired["spec"])
 	}
@@ -180,7 +198,7 @@ func (k *KubernetesDeployment) preflightStack(ctx context.Context, request platf
 func (k *KubernetesDeployment) repairStack(ctx context.Context, contextName, namespace string, step manifestStep) error {
 	field := ""
 	switch stackKind(step) {
-	case "deployment":
+	case "deployment", "networkpolicy":
 		field = "spec"
 	case "service":
 		field = "spec/selector"

@@ -70,3 +70,14 @@ Governance evidence answers what Agenova authorized and observed. Operational te
 ## Open Decisions
 
 - Product choices are settled by the selected plan. Packet approval and the accepted E14 integration interface remain implementation gates; update this packet if upstream contract changes require adaptation.
+
+## Owner-approved Google access extension
+
+The existing Google session and E14 installation `platform.diagnose` permission
+may gate a private Grafana auth-proxy backend at the application's `/grafana/`
+path. No membership roster or OAuth secrets are copied. Recheck every HTTP
+request; deny revoked sessions/roles, strip browser credentials before proxying,
+assign Viewer only, disable independent Grafana sessions/basic/anonymous access,
+and require enforced private ingress before exposing the application route.
+The [deployment procedure](../../deploy/production/grafana-google.md) records
+current EKS prerequisites and the boundary of actual login evidence.

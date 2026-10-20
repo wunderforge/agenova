@@ -74,3 +74,20 @@ kubectl --context kind-agenova-k8s-lab -n agenova-observability-180 port-forward
 整合后的完整 `-Profile PR` 在锁文件依赖安装后的干净源码快照上通过：[完整日志](evidence/merge-pr-gate.log)。包含全量 Go 测试、全量 race、63 项浏览器测试、契约/文档/生产构建；数据库测试使用真实临时 PostgreSQL 16.6：[focused race 日志](evidence/merge-postgres-race.log)。[整合源码校验记录](evidence/merge-source.json)记录主分支基线及实际验证的 61 个实现/测试文件哈希。
 
 整合后 UI 的注入证据用例已补充截图并目视检查：[历史分页](evidence/merge-fixture-history.png)、[中断 Work 与失效权限](evidence/merge-fixture-interrupted.png)。它们仅证明 UI 对受控证据的渲染，不充当真实身份或后端部署证明。
+
+## Existing Google session / Grafana extension
+
+The user authorized Grafana Google access and reuse of existing system accounts.
+Read-only inspection through the existing Google login confirmed one Owner and
+four Platform Admins; no emails, Google credentials or roster are copied into
+source. The bridge consumes E14's current session and installation diagnostics
+permission on every request and gives Grafana an opaque Viewer identity only.
+
+- [Full PR gate](evidence/google-pr-gate.log): Go/race, contracts/build and 63 browser cases passed in a clean snapshot.
+- [Real Grafana protocol](evidence/google-real-grafana.log): actual pinned Grafana 11.4 backend accepted the trusted opaque identity as Viewer; revoked access was rejected. Identity/E14 are controlled test fixtures, not a real Google-to-EKS login claim.
+- [Read-only EKS preflight](evidence/google-eks-preflight.json): no installed Grafana, no EBS CSI driver for the advertised gp2 class; existing EFS CSI is not silently substituted for the planned Grafana PVC.
+- [Deployment/trust boundary](../../deploy/production/grafana-google.md): private ingress, credential isolation, image-only member rollout boundary and persistent install prerequisites.
+
+No EKS deployment, IAM modification, new Google client or new public endpoint was applied by this extension. Real Google positive/negative login, private-network denial and persistent restart evidence remain deployment gates.
+
+Standalone Linux/amd64 bridge image build passed: [build log](evidence/google-image-build.log). The local manifest list is `sha256:388d25b82bbbd339ef61f4772d4c50dffc592485f7583569b66af0c304c65e3d`; this is a local build, not an ECR publication or EKS rollout. The optional [NGINX route fragment](../../deploy/production/grafana-location.conf) is prepared separately and has not been applied.

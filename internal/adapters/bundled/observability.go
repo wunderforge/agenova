@@ -9,6 +9,7 @@ import (
 	"github.com/wunderforge/agenova/internal/platformapply"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 const OTLPAdapterID = "agenova.io/telemetry/otlp"
@@ -36,7 +37,7 @@ func otlpRegistration() adapterregistry.Registration {
 var k8sName = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9.]{0,61}[a-z0-9])?$`)
 
 func canonicalizeStack(input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "storageClass", "grafanaAdminSecretRef"); err != nil {
+	if err := onlyKeys(input, "storageClass", "grafanaAdminSecretRef", "grafanaAuthProxy"); err != nil {
 		return nil, err
 	}
 	result := map[string]any{}
@@ -46,6 +47,31 @@ func canonicalizeStack(input map[string]any) (map[string]any, error) {
 			return nil, platform.NewAdapterConfigError("invalid-reference", "observability."+key)
 		}
 		result[key] = value
+	}
+	if raw, ok := input["grafanaAuthProxy"]; ok {
+		proxy, ok := raw.(map[string]any)
+		if !ok {
+			return nil, platform.NewAdapterConfigError("invalid-object", "grafanaAuthProxy")
+		}
+		if err := onlyKeys(proxy, "publicOrigin", "namespace", "app"); err != nil {
+			return nil, err
+		}
+		canonical := map[string]any{}
+		for _, key := range []string{"publicOrigin", "namespace", "app"} {
+			value, err := requiredString(proxy, key)
+			if err != nil {
+				return nil, err
+			}
+			canonical[key] = value
+		}
+		u, err := url.Parse(canonical["publicOrigin"].(string))
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || strings.ContainsAny(u.Host, " \r\n") {
+			return nil, platform.NewAdapterConfigError("invalid-origin", "grafanaAuthProxy.publicOrigin")
+		}
+		if !k8sName.MatchString(canonical["namespace"].(string)) || !k8sName.MatchString(canonical["app"].(string)) {
+			return nil, platform.NewAdapterConfigError("invalid-reference", "grafanaAuthProxy")
+		}
+		result["grafanaAuthProxy"] = canonical
 	}
 	return result, nil
 }

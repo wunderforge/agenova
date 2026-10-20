@@ -1,0 +1,7 @@
+{
+  "imageManifestList": "sha256:388d25b82bbbd339ef61f4772d4c50dffc592485f7583569b66af0c304c65e3d",
+  "imagePlatform": "linux/amd64",
+  "loopbackHealthStatus": 200,
+  "spoofedIdentityWithoutSessionStatus": 401,
+  "eksDeployed": false
+}

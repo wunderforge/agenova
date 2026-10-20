@@ -85,3 +85,48 @@ func TestObservabilityReferenceComposition(t *testing.T) {
 		t.Fatal("implicit stack")
 	}
 }
+
+func TestGrafanaGoogleSessionProxyRequiresPrivateIngress(t *testing.T) {
+	input := map[string]any{"storageClass": "gp2", "grafanaAdminSecretRef": "grafana-admin", "grafanaAuthProxy": map[string]any{"publicOrigin": "https://app.example", "namespace": "observability", "app": "agenova-grafana-proxy"}}
+	config, err := canonicalizeStack(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := stackSteps(platformapply.DeploymentRequest{Config: map[string]any{"observability": config}, Platform: &platform.ResolvedPlatform{Revision: "test"}}, "observability")
+	if stackKind(steps[0]) != "networkpolicy" {
+		t.Fatal("private ingress must precede auth-proxy workload")
+	}
+	found := false
+	for _, step := range steps {
+		if step.name != "agenova-grafana" {
+			continue
+		}
+		raw, _ := json.Marshal(step.object)
+		var obj map[string]any
+		json.Unmarshal(raw, &obj)
+		selector := steps[0].object["spec"].(map[string]any)["podSelector"].(map[string]any)["matchLabels"].(map[string]any)
+		labels := obj["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any)["labels"].(map[string]any)
+		for key, value := range selector {
+			if labels[key] != value {
+				t.Fatal("private policy does not select the Grafana workload")
+			}
+		}
+		container := obj["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
+		env := map[string]any{}
+		for _, v := range container["env"].([]any) {
+			e := v.(map[string]any)
+			env[e["name"].(string)] = e["value"]
+		}
+		if env["GF_AUTH_PROXY_ENABLED"] != "true" || env["GF_AUTH_BASIC_ENABLED"] != "false" || env["GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN"] != "false" || env["GF_SERVER_ROOT_URL"] != "https://app.example/grafana/" {
+			t.Fatal("auth proxy permits bypass or wrong URL")
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("Grafana missing")
+	}
+	input["grafanaAuthProxy"].(map[string]any)["publicOrigin"] = "http://insecure.example"
+	if _, err := canonicalizeStack(input); err == nil {
+		t.Fatal("non-HTTPS public entry accepted")
+	}
+}
