@@ -71,3 +71,11 @@ so and is not proof of a live Google exchange, shared AWS deployment or a real W
   harness rejects all identity and login submissions. It reads no real OAuth
   files and cannot perform a real Google exchange. This is not a deployed login
   acceptance test.
+
+## Separate UI PR authorization
+
+After approving the local commits, the Owner requested merging #216 first and
+opening a separate PR for the June UI and this landing. Follow
+[the #233 integration packet](../0233-june-portal-landing/task.md) for current
+results, including the upstream Windows directory-sync test limitation. No
+deployment or shared migration is authorized by that UI PR workflow.

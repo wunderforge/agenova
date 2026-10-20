@@ -56,3 +56,8 @@ Visual references: the public [June preview](https://getdesign.md/design-md/june
 and [Datadog trace inspection](https://docs.datadoghq.com/tracing/trace_explorer/trace_view/).
 Use the approved preview's light surfaces and trace/list-inspector relationship,
 not proprietary design files, synthetic preview records or fabricated time bars.
+
+The Owner subsequently authorized a separate PR after merging #216. Current
+integration scope and verification are tracked in
+[the #233 packet](../0233-june-portal-landing/task.md); the earlier local-only
+restriction above records the original approval stage, not the current PR scope.

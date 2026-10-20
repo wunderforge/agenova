@@ -48,7 +48,8 @@ func (h *Handler) nativeAuthorize(w http.ResponseWriter, r *http.Request) {
 		failure(w, 503)
 		return
 	}
-	if h.c.Store.PutAttempt(r.Context(), "native:"+handle, nativeRequest{State: q.Get("state"), Challenge: q.Get("code_challenge")}) != nil {
+	source, sourceErr := h.loginSource(r)
+	if sourceErr != nil || h.c.Store.PutLoginAttempt(r.Context(), "native:"+handle, nativeRequest{State: q.Get("state"), Challenge: q.Get("code_challenge")}, source) != nil {
 		failure(w, 429)
 		return
 	}

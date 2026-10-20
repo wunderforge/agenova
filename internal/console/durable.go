@@ -108,7 +108,14 @@ func (s *Service) persistFinished(ref string) error {
 }
 func (s *Service) ListForResult(p v0.Principal) ([]evidence.View, error) {
 	if s.durable != nil {
-		return s.durable.ListFor(context.Background(), p)
+		if s.storageFailed.Load() {
+			return nil, workstore.ErrUnavailable
+		}
+		views, err := s.durable.ListFor(context.Background(), p)
+		if s.storageFailed.Load() {
+			return nil, workstore.ErrUnavailable
+		}
+		return views, err
 	}
 	return s.ListFor(p), nil
 }

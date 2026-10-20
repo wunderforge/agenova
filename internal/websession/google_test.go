@@ -206,7 +206,7 @@ func TestGoogleNativeHandoffPKCEAndReplay(t *testing.T) {
 	}
 	// A stolen authorization code without its original verifier cannot be used.
 	handle, _ := randomHandle()
-	if err := store.PutAttempt(ctx, "code:"+handle, nativeCode{Kind: "cli-code", Issuer: googleoidc.Issuer, Subject: "person", Challenge: oauth2.S256ChallengeFromVerifier(pkce)}); err != nil {
+	if err := store.PutCode(ctx, "code:"+handle, nativeCode{Kind: "cli-code", Issuer: googleoidc.Issuer, Subject: "person", Challenge: oauth2.S256ChallengeFromVerifier(pkce)}); err != nil {
 		t.Fatal(err)
 	}
 	form.Set("code", handle)
@@ -244,7 +244,7 @@ func TestGooglePendingRegistrationHasNoBrowserOrNativeCredentials(t *testing.T) 
 			if native {
 				a.Native = &nativeRequest{State: "native-state", Challenge: "challenge"}
 			}
-			if err := store.PutAttempt(ctx, handle, a); err != nil {
+			if err := store.PutLoginAttempt(ctx, handle, a, "192.0.2.1"); err != nil {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest("GET", "https://service.example/auth/callback?state=state&code=one-use", nil)
@@ -263,5 +263,39 @@ func TestGooglePendingRegistrationHasNoBrowserOrNativeCredentials(t *testing.T) 
 				t.Fatal("pending native credentials")
 			}
 		})
+	}
+}
+
+func TestAnonymousAuthorizeFloodCannotBlockOtherSource(t *testing.T) {
+	store := testStore(t)
+	h := &Handler{c: Config{Origin: "https://service.example", Google: &googleFixture{}, Store: store}}
+	q := url.Values{"client_id": {"agenova-cli"}, "redirect_uri": {login.Callback}, "response_type": {"code"}, "scope": {"agenova/api"}, "code_challenge_method": {"S256"}, "code_challenge": {strings.Repeat("a", 43)}, "state": {strings.Repeat("b", 43)}}
+	request := func(method, path, remote string, index int) int {
+		r := httptest.NewRequest(method, "https://service.example"+path, nil)
+		r.RemoteAddr = remote
+		r.Header.Set("Origin", "https://service.example")
+		r.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", index))
+		r.Header.Set("X-Agenova-Client-IP", fmt.Sprintf("203.0.113.%d", index))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	for i := 0; i < 129; i++ {
+		want := 429
+		if i < 8 {
+			want = 303
+		}
+		if got := request("GET", "/auth/authorize?"+q.Encode(), "192.0.2.1:123", i); got != want {
+			t.Fatalf("request %d: %d", i, got)
+		}
+	}
+	if got := request("POST", "/login", "192.0.2.1:456", 1); got != 429 {
+		t.Fatal("browser bypassed source cap", got)
+	}
+	if got := request("POST", "/login", "192.0.2.2:123", 1); got != 303 {
+		t.Fatal("other source blocked", got)
+	}
+	if got := request("GET", "/auth/authorize?"+q.Encode(), "192.0.2.2:456", 1); got != 303 {
+		t.Fatal("other native source blocked", got)
 	}
 }

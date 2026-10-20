@@ -318,3 +318,23 @@ func TestGoogleMemberConfigRejectsMixedProviders(t *testing.T) {
 		t.Fatal("wrong callback or secret disclosure")
 	}
 }
+
+func TestOwnerBootstrapDeliveryGuards(t *testing.T) {
+	if validateBootstrapTeam("pinned", "other") == nil {
+		t.Fatal("mismatched bootstrap team accepted")
+	}
+	if validateBootstrapTeam("pinned", "pinned") != nil || validateBootstrapTeam("", "team") != nil {
+		t.Fatal("valid bootstrap team rejected")
+	}
+	path := filepath.Join(t.TempDir(), "owner.invitation")
+	if err := writeOwnerInvitation(path, "private-link"); err != nil {
+		t.Fatal(err)
+	}
+	if writeOwnerInvitation(path, "replacement") == nil {
+		t.Fatal("existing proof overwritten")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "private-link" {
+		t.Fatal("proof lost")
+	}
+}

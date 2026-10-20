@@ -57,18 +57,19 @@ type AccessRegistrar interface {
 	RegisterGoogleAccess(context.Context, googleoidc.LoginIdentity, string) (string, error)
 }
 type Config struct {
-	Registration        AccessRegistrar
-	RegistrationTeam    string
-	Invitations         InvitationAcceptor
-	Google              GoogleLogin
-	ApplicationSessions ApplicationSessions
-	Origin              string
-	Native              login.Config
-	Web                 oauth2.Config
-	Store               *Store
-	Boundary            *authentication.Boundary
-	Revoker             Revoker
-	Next                http.Handler
+	TrustLocalProxyClientIP bool
+	Registration            AccessRegistrar
+	RegistrationTeam        string
+	Invitations             InvitationAcceptor
+	Google                  GoogleLogin
+	ApplicationSessions     ApplicationSessions
+	Origin                  string
+	Native                  login.Config
+	Web                     oauth2.Config
+	Store                   *Store
+	Boundary                *authentication.Boundary
+	Revoker                 Revoker
+	Next                    http.Handler
 	// Landing is explicitly public product material, not a second Portal/API.
 	// Only anonymous root and the /landing/ asset namespace may reach it.
 	Landing    http.Handler
@@ -273,7 +274,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				cookie(w, nativeCookie, "", -1)
 			}
 		}
-		if h.c.Store.PutAttempt(ctx, handle, a) != nil {
+		source, sourceErr := h.loginSource(r)
+		if sourceErr != nil || h.c.Store.PutLoginAttempt(ctx, handle, a, source) != nil {
 			failure(w, 429)
 			return
 		}
@@ -462,7 +464,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			grant := nativeCode{Kind: "cli-code", Issuer: id.Issuer, Subject: id.Subject, Challenge: a.Native.Challenge}
-			if h.c.Store.PutAttempt(r.Context(), "code:"+code, grant) != nil {
+			if h.c.Store.PutCode(r.Context(), "code:"+code, grant) != nil {
 				callbackFailure(w, 503, "native_code_storage")
 				return
 			}
