@@ -199,7 +199,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		styleHash := sha256.Sum256([]byte(loginCSS))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(styleHash[:])+"'; frame-ancestors 'none'")
-		_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+title+" | Agenova</title><style>"+loginCSS+"</style><main><p>Agenova</p><h1>"+title+"</h1><p>"+message+"</p><a href=\"/login\">Back to sign in</a></main></html>")
+		_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"color-scheme\" content=\"only light\"><meta name=\"darkreader-lock\"><meta name=\"theme-color\" content=\"#faf9fc\"><title>"+title+" | Agenova</title><style>"+loginCSS+"</style><main><p>Agenova</p><h1>"+title+"</h1><p>"+message+"</p><a href=\"/login\">Back to sign in</a></main></html>")
 		return
 	case "/login":
 		if r.Method == "GET" {
