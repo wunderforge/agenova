@@ -47,12 +47,15 @@ export function config(env = process.env) {
   requireValue(c.controlPlane !== c.worker, 'Separate image repositories are required');
   return c;
 }
-export function writeGate(env = process.env, deploy = false) {
-  requireValue(env.GITHUB_REF === 'refs/heads/main', 'Releases require main');
-  requireValue(['push', 'workflow_dispatch'].includes(env.GITHUB_EVENT_NAME), 'Unsupported release event');
+export function releaseStopGate(env = process.env, deploy = false) {
   const notDisabled = value => value === undefined || value === '' || value === 'false';
   requireValue(notDisabled(env.SHARED_EKS_RELEASE_DISABLED), 'Publication is disabled or switch is invalid');
   if (deploy) requireValue(notDisabled(env.SHARED_EKS_DEPLOY_DISABLED), 'Deployment is disabled or switch is invalid');
+}
+export function writeGate(env = process.env, deploy = false) {
+  requireValue(env.GITHUB_REF === 'refs/heads/main', 'Releases require main');
+  requireValue(['push', 'workflow_dispatch'].includes(env.GITHUB_EVENT_NAME), 'Unsupported release event');
+  releaseStopGate(env, deploy);
 }
 export function image(value, repo) {
   requireValue(value?.startsWith(`${repo}@`) && digestPattern.test(value.slice(repo.length + 1)), 'Expected repository-bound image digest');

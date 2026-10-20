@@ -11,7 +11,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,6 +26,7 @@ import (
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	runtimebackend "github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 var secondImage = flag.String("second-worker-image", "", "second independently built compatible image; opt-in image-decoupling smoke")
@@ -39,6 +42,42 @@ type imageTestProvider struct{ calls atomic.Int32 }
 func (p *imageTestProvider) Complete(context.Context, modelprovider.Request) (modelprovider.Result, error) {
 	n := p.calls.Add(1)
 	return modelprovider.Result{Text: `{"action":"finish","tool":"","resource":"","input":"","answer":"image contract verified"}`, Model: "synthetic-image-test", ResponseID: fmt.Sprint(n), InputTokens: 1, OutputTokens: 1}, nil
+}
+
+type imageObservation struct {
+	Image   string
+	Command []string
+}
+type imageRecordingExecutor struct {
+	console.Executor
+	mu      sync.Mutex
+	workers map[string]imageObservation
+}
+
+func (e *imageRecordingExecutor) Execute(ctx context.Context, id v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handle workerprotocol.Handler) (string, error) {
+	data, err := kubectl("get", "pod/"+id.WorkerID, "-o", "json")
+	if err != nil {
+		return "", fmt.Errorf("read test-owned worker image: %w", err)
+	}
+	var pod struct {
+		Spec struct {
+			Containers []struct {
+				Name, Image string
+				Command     []string
+			}
+		}
+	}
+	if err := json.Unmarshal(data, &pod); err != nil {
+		return "", err
+	}
+	for _, c := range pod.Spec.Containers {
+		if c.Name == "agent" {
+			e.mu.Lock()
+			e.workers[task.ClaimID] = imageObservation{c.Image, c.Command}
+			e.mu.Unlock()
+		}
+	}
+	return e.Executor.Execute(ctx, id, task, handle)
 }
 
 // One unchanged application service, one runtime instance, independent templates.
@@ -76,15 +115,18 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 		}
 	})
 	a := runtimebackend.NewControlled(*kubeContext, *namespace)
-	registry := imageRegistry{registration.NewMemoryStore()}
-	registrar := registration.Service{Store: registry, ValidateTemplate: app.ValidateControlledTemplate}
+	registries := map[string]imageRegistry{}
+	templates := map[string]*v0.AgentTemplate{}
 	bundle := app.ReferencePolicy()
 	bundle.Rules = nil
 	images := []string{*controlledWorkerImage, *secondImage, *incompatibleImage}
 	for i, image := range images {
-		name := fmt.Sprintf("image-contract-%d", i)
+		project := fmt.Sprintf("project-%d", i)
+		registry := imageRegistry{registration.NewMemoryStore()}
+		registries[project] = registry
+		registrar := registration.Service{Store: registry, ValidateTemplate: app.ValidateControlledTemplate}
 		template := app.ReferenceTemplate()
-		template.Metadata.Name, template.Spec.Artifact.Image = name, image
+		template.Metadata.Name, template.Spec.Artifact.Image = "engineer", image
 		template.Spec.Entrypoint.Command = []string{"/agenova-workerctl", "serve"}
 		if i == 1 {
 			template.Spec.Entrypoint.Command = []string{"/bin/sh", "-c", "exec /agenova-workerctl serve"}
@@ -102,13 +144,23 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 		if _, err := registrar.ApplyTemplate(document); err != nil {
 			t.Fatalf("independent registration %d: %v", i, err)
 		}
+		stored, err := registry.Template("engineer")
+		if err != nil {
+			t.Fatal(err)
+		}
+		templates[project] = stored
+		// Prewarm every variant before the first Work. A name-only pool could
+		// otherwise hand project 0 a ready Pod from project 1 or 2.
+		if _, err := a.ConfigureAgentTemplate(stored); err != nil {
+			t.Fatal(err)
+		}
 		// Immutable identity still cannot be repointed at another image.
 		template.Spec.Artifact.Image = "different-image:must-conflict"
 		changed, _ := json.Marshal(template)
 		if _, err := registrar.ApplyTemplate(changed); !errors.Is(err, registration.ErrConflict) {
 			t.Fatalf("immutable registration changed: %v", err)
 		}
-		bundle.Rules = append(bundle.Rules, policy.Rule{Team: "team-a", Action: "claim.create", Project: "payments", TemplateRef: name})
+		bundle.Rules = append(bundle.Rules, policy.Rule{Team: "team-a", Action: "claim.create", Project: project, TemplateRef: "engineer"})
 	}
 	loader := &policy.Loader{}
 	if err := loader.Load(bundle); err != nil {
@@ -119,22 +171,25 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := &imageTestProvider{}
-	service, err := console.NewServiceWithOptions(a, a, provider, app.ReferencePrincipalTeamA, console.Options{
+	executor := &imageRecordingExecutor{Executor: a, workers: map[string]imageObservation{}}
+	service, err := console.NewServiceWithOptions(a, executor, provider, app.ReferencePrincipalTeamA, console.Options{
 		Prepare: func(data []byte) (app.PreparedAssignment, error) {
+			request, err := v0.ParseClaimRequestYAML(data)
+			if err != nil {
+				return app.PreparedAssignment{}, err
+			}
+			registry, ok := registries[request.Spec.ProjectRef]
+			if !ok {
+				return app.PreparedAssignment{}, errors.New("unknown test project")
+			}
 			return app.PrepareAssignment(data, principal, loader, registry)
 		},
 		Configure: func(template *v0.AgentTemplate) (app.ResolvedLaunch, error) {
 			if err := app.ValidateControlledTemplate(template); err != nil {
 				return app.ResolvedLaunch{}, err
 			}
-			name := template.Metadata.Name
-			if err := a.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			if err := a.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: name, Replicas: 1}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			return app.ResolvedLaunch{TemplateRef: name}, nil
+			ref, err := a.ConfigureAgentTemplate(template)
+			return app.ResolvedLaunch{TemplateRef: ref}, err
 		},
 	})
 	if err != nil {
@@ -142,9 +197,12 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 	}
 	defer service.Close()
 	workers := map[string]bool{}
-	for i, image := range images {
+	// Return to project 0 after project 1 to exercise an already prewarmed pool.
+	for i, variant := range []int{0, 1, 0, 2} {
 		name := fmt.Sprintf("image-contract-%d", i)
-		request := fmt.Sprintf(`{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":"%s"},"spec":{"templateRef":"%s","projectRef":"payments","task":{"type":"investigation","input":{"objective":"verify independent image execution"}},"requestedAccess":{"modelProfile":"approved-coding-model"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`, name, name)
+		project := fmt.Sprintf("project-%d", variant)
+		image := images[variant]
+		request := fmt.Sprintf(`{"apiVersion":"agenova.io/v1alpha1","kind":"ClaimRequest","metadata":{"name":"%s"},"spec":{"templateRef":"engineer","projectRef":"%s","task":{"type":"investigation","input":{"objective":"verify independent image execution"}},"requestedAccess":{"modelProfile":"approved-coding-model"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}}`, name, project)
 		before := provider.calls.Load()
 		if _, err := service.Submit([]byte(request)); err != nil {
 			t.Fatalf("submit: %v", err)
@@ -178,14 +236,20 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 		if !cleanup {
 			t.Fatal("resource release not confirmed; retain owned namespace")
 		}
-		if i < 2 {
+		if variant < 2 {
 			if final.Outcome.Status != "Succeeded" || final.Outcome.Text != "image contract verified" || provider.calls.Load() <= before {
 				t.Fatalf("compatible image failed: %+v", final.Outcome)
+			}
+			executor.mu.Lock()
+			actual, observed := executor.workers[final.State.Claim.ID]
+			executor.mu.Unlock()
+			if !observed || actual.Image != image || !reflect.DeepEqual(actual.Command, templates[project].Spec.Entrypoint.Command) {
+				t.Fatalf("same-name project template used wrong worker: project=%s image=%s command=%v", project, actual.Image, actual.Command)
 			}
 		} else if final.Outcome.Status != "Failed" || provider.calls.Load() != before || final.Diagnosis == nil || final.Diagnosis.Code != "runtime-worker-control-unavailable" {
 			t.Fatalf("incompatible image did not fail before provider: %+v diagnosis=%+v", final.Outcome, final.Diagnosis)
 		}
-		t.Logf("image=%s entrypoint-independent=true status=%s providerCalls=%d cleanup=confirmed worker=%s", image, final.Outcome.Status, provider.calls.Load()-before, worker)
+		t.Logf("project=%s template=engineer image=%s entrypoint-isolated=true status=%s providerCalls=%d cleanup=confirmed worker=%s", project, image, final.Outcome.Status, provider.calls.Load()-before, worker)
 	}
 	clean = true
 }

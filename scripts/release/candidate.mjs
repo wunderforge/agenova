@@ -5,10 +5,11 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {config, command, connect, sha, image, canonical, snapshot, workerSnapshot, ready, publish, SOURCE} from './release.mjs';
+import {config, command, connect, sha, image, canonical, snapshot, workerSnapshot, ready, publish, SOURCE, releaseStopGate} from './release.mjs';
 
 function requireValue(ok, message) { if (!ok) throw new Error(message); }
-export function candidateGate(env = process.env) {
+export function candidateGate(env = process.env, deploy = false) {
+  releaseStopGate(env, deploy);
   requireValue(env.GITHUB_EVENT_NAME === 'workflow_dispatch', 'Candidate releases are manual only');
   requireValue(env.SHARED_EKS_CANDIDATE_ENABLED === 'true', 'Candidate release disabled');
   const ref = env.SHARED_EKS_CANDIDATE_REF;
@@ -104,7 +105,7 @@ export function deployPair(release, expected, c, run = command, record = () => {
   }
 }
 export function main(args=process.argv.slice(2)) {
-  candidateGate();
+  candidateGate(process.env, args[0] === 'deploy');
   const c=config(), target=sha(process.env.GITHUB_SHA), action=args[0];
   // Do not simulate main or an origin SHA. Candidate first publication deliberately
   // builds BOTH images and records an unknown prior source as null, not a fake base.

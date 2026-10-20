@@ -19,6 +19,17 @@ an image or template does not grant it.
 Applicable policy must also authorize the new template reference; registration
 never automatically edits policy or grants permission to run it.
 
+Public template names are project-local. Internally, the runtime keys template
+and warm-pool resources by immutable resolved content (including image, command
+and ceiling), not the public name alone. Two projects can both use `engineer`
+without repointing each other's image or entrypoint. Equal-content templates may
+share standing-authority-free warm capacity, but every Work still has its own
+worker binding, temporary identity, authority and cleanup evidence.
+
+Upgrading does not adopt/repoint old name-based warm pools. Their retirement is
+a separate operator cleanup after confirming no active Work; this change never
+deletes existing shared resources during rollout.
+
 ## Current execution contract: controlled-v1
 
 Select your own image/entrypoint, but this adapter is not a generic executor for
@@ -90,9 +101,11 @@ kind load docker-image agenova-worker-240:a agenova-worker-240:b agenova-worker-
 go test -v -count=1 -tags 'integration controlled' -run '^TestIndependentAgentImages_Kind$' -timeout 5m ./harness/integration/agentsandbox -args -kube-context kind-YOUR_OWNED_TEST_CLUSTER -namespace NEW_DISPOSABLE_NAMESPACE -controlled-worker-image agenova-worker-240:a -second-worker-image agenova-worker-240:b -incompatible-worker-image agenova-worker-240:incompatible
 ```
 
-This proves independent immutable registrations, two image/entrypoint variants
-in one unchanged service, separate Worker identities, protocol failure with zero
-provider calls and confirmed release. Model replies are explicitly synthetic;
+This registers the same public name in separate project registries, prewarms
+all variants, runs A -> B -> A through one unchanged service and checks each
+actual Pod's image/entrypoint. It also proves separate Worker identities,
+incompatible-image failure with zero provider calls and confirmed release.
+Model replies are explicitly synthetic;
 this is not real-LLM, production-authentication or hostile-container proof. The
 test refuses namespace reuse and deletes only its newly created namespace once
 Work cleanup is confirmed. Failure retains diagnostic resources for inspection.

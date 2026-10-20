@@ -81,3 +81,9 @@ Out of scope:
 - Existing repository `SHARED_EKS_RELEASE_ENABLED=false` would prevent a default-only change from activating. The Owner's automatic-delivery request is implemented with new opt-out `*_DISABLED=true` switches; obsolete opt-in variables no longer gate delivery. No live variables are changed in this PR.
 - Windows full gate reaches one pre-existing `TestOwnerBootstrapDeliveryGuards` failure (directory fsync); do not weaken this test. Linux CI remains required. The changed adapter-init expectation was updated for the now-optional image hint.
 - [Local acceptance and reproduction](acceptance.md). No AWS changes, live switch updates, merge or deployment were performed.
+
+## Independent review follow-up — PR #241
+
+- [x] P1: prevent same-named templates in different project registries from repointing runtime resources. Configure the immutable resolved content through one adapter-owned content-addressed resource path; do not change project authorization or public template references.
+- [x] P2: apply release/deploy emergency stops to candidate paths as well as main, before cloud-role admission and again at the script gate.
+- [ ] Run concurrent/real-backend isolation, full regression and Linux/race CI; request another independent review of the fixes. No merge or deployment.

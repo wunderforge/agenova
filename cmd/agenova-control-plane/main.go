@@ -356,14 +356,8 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			if err := app.ValidateControlledTemplate(template); err != nil {
 				return app.ResolvedLaunch{}, err
 			}
-			name := template.Metadata.Name
-			if err := adapter.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			if err := adapter.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: "pool-" + name}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: name, Replicas: 1}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			return app.ResolvedLaunch{TemplateRef: name}, nil
+			ref, err := adapter.ConfigureAgentTemplate(template)
+			return app.ResolvedLaunch{TemplateRef: ref}, err
 		},
 	}
 	if memberStore, ok := access.(identitydb.Store); ok {

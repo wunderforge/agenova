@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { SOURCE, config, writeGate, snapshot as deploymentSnapshot, workerSnapshot, ready, changedComponents, plan, publish, existingDigest, deploy, eventEligible } from './release.mjs';
 
 const A = 'a'.repeat(40), B = 'b'.repeat(40);
@@ -319,4 +320,27 @@ test('workflow guards and credential separation remain explicit', () => {
   assert.match(ci, /github.sha == vars.SHARED_EKS_CANDIDATE_SHA/);
   assert.ok(!ci.includes('configure-aws-credentials'));
   assert.ok(ci.includes('node --test scripts/release/release.test.mjs'));
+});
+
+test('actual workflow conditions apply emergency stops outside both release modes', () => {
+  const yaml = readFileSync(new URL('../../.github/workflows/shared-eks-release.yml', import.meta.url), 'utf8');
+  const condition = job => {
+    const section = yaml.split(`\n  ${job}:`)[1].split(/\n  [a-z]+:/)[0];
+    const multiline = section.match(/\n    if: >-\n([\s\S]*?)(?=\n    [a-z])/);
+    return multiline ? multiline[1].trim() : section.match(/\n    if: (.*)/)[1];
+  };
+  for (const candidate of [false,true]) {
+    const ref = candidate ? 'refs/heads/codex/exact-candidate' : 'refs/heads/main';
+    const base = {needs:{validate:{outputs:{eligible:'true'}},publish:{outputs:{changed:'true'}}},
+      github:{ref,sha:B,event_name:candidate?'workflow_dispatch':'push'}, inputs:{candidate,publish:true,deploy:true},
+      vars:{SHARED_EKS_RELEASE_DISABLED:'',SHARED_EKS_DEPLOY_DISABLED:'',SHARED_EKS_CANDIDATE_ENABLED:'true',SHARED_EKS_CANDIDATE_REF:ref,SHARED_EKS_CANDIDATE_SHA:B}};
+    const evaluate = (job, changes={}) => runInNewContext(condition(job), {...base,vars:{...base.vars,...changes}}, {timeout:100});
+    for (const job of ['snapshot','publish','deploy']) {
+      assert.equal(evaluate(job),true,`${job} default mode=${candidate}`);
+      for(const value of ['true','typo']) assert.equal(evaluate(job,{SHARED_EKS_RELEASE_DISABLED:value}),false,`${job} release stop mode=${candidate}`);
+    }
+    assert.equal(evaluate('snapshot',{SHARED_EKS_DEPLOY_DISABLED:'true'}),true);
+    assert.equal(evaluate('publish',{SHARED_EKS_DEPLOY_DISABLED:'true'}),true);
+    for(const value of ['true','typo']) assert.equal(evaluate('deploy',{SHARED_EKS_DEPLOY_DISABLED:value}),false,`deploy stop mode=${candidate}`);
+  }
 });

@@ -61,3 +61,43 @@ or member data are included in this summary.
   operational limit. Automatic schema migration is not included.
 - Production EKS/CI release execution is intentionally deferred until the Owner
   approves this PR. Existing templates/images are not automatically updated.
+
+## Independent review fixes — PR #241
+
+Both findings against `a5b8f2f` were accepted and fixed without changing the
+execution protocol or shared authorization contracts:
+
+- **P1, same-name project collision:** production configuration now uses one
+  adapter-owned `ConfigureAgentTemplate` path. It derives resource identities
+  from the full immutable resolved template (160-bit content key with upstream
+  name/suffix headroom). Different images, commands and ceilings cannot repoint
+  the same runtime template/pool. Equal-content warm capacity is not claim or
+  authority sharing; old name-based resources are not adopted or deleted.
+- **P2, candidate bypass of emergency stops:** snapshot/publication/deployment
+  conditions apply the stops outside both mode alternatives; candidate script
+  entry also checks the common stop gate before any subprocess/cloud action.
+
+Focused proof:
+
+- Concurrent unit regression configures two same-named image snapshots repeatedly
+  and checks both immutable template/pool pairs still bind the correct image.
+  Separate command-only and ceiling-only changes produce separate runtime keys.
+- The real-container regression now registers `engineer` in three independent
+  project registries, prewarms every variant, runs A -> B -> A -> incompatible,
+  and independently reads each successful assigned Pod's image and command.
+  One unchanged application service/runtime passes all four runs: model calls
+  2 / 2 / 2 / 0; all Work cleanup confirmed; test-owned namespace removed.
+  `TestIndependentAgentImages_Kind` passed in 105.341s on disposable local cluster
+  `worker-review-241`; raw output is ignored in `.tmp/review-241/`.
+- **39/39** Node release tests pass, including evaluation of the actual workflow
+  conditions for main and candidate modes. Release stop blocks snapshot,
+  publication and deployment; deploy-only stop permits publication but blocks
+  deployment. Invalid values fail closed. Candidate CLI gates are tested too.
+- Focused Go tests and Actionlint pass. Full Windows `check.ps1 -All` again
+  reaches only the existing owner-invitation directory-fsync failure. Local race
+  execution is unavailable with this host's CGO disabled; complete Linux/race CI
+  remains mandatory and is not weakened or skipped.
+
+Identity/model responses in this local test remain explicit fixtures. It is not
+AWS, Google/OIDC or a claim of hostile-container isolation. No live release
+switches, AWS resources, shared-cluster configuration, merge or deployment change.

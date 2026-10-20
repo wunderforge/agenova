@@ -11,6 +11,9 @@ publication/deployment; unset/`false` permits automatic delivery. Obsolete opt-i
 delivery, including retained `false` values from old installations. This is the
 Owner-approved switch to automatic delivery on merge, not an instruction to
 change live variables or deploy this unmerged PR. Invalid new switch values fail.
+These emergency stops also cover explicitly authorized candidate runs, before
+cloud-role admission and at their script gate. A deployment-only stop still
+permits publication; neither stop cancels a job already running.
 
 ```text
 main push -> full checks + offline event diff

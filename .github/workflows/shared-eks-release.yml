@@ -96,10 +96,10 @@ jobs:
     needs: validate
     if: >-
       needs.validate.outputs.eligible == 'true' &&
+      (vars.SHARED_EKS_RELEASE_DISABLED == '' || vars.SHARED_EKS_RELEASE_DISABLED == 'false') &&
       ((github.ref == 'refs/heads/main' &&
-       (vars.SHARED_EKS_RELEASE_DISABLED == '' || vars.SHARED_EKS_RELEASE_DISABLED == 'false') &&
        (github.event_name == 'push' || inputs.publish)) ||
-      (inputs.candidate && github.event_name == 'workflow_dispatch' &&
+      (inputs.candidate && inputs.publish && github.event_name == 'workflow_dispatch' &&
        vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
        github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA))
     environment: shared-eks
@@ -137,6 +137,7 @@ jobs:
 
   publish:
     needs: snapshot
+    if: vars.SHARED_EKS_RELEASE_DISABLED == '' || vars.SHARED_EKS_RELEASE_DISABLED == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # NO environment: publisher trust is exact main/candidate-ref scoped.
@@ -190,7 +191,9 @@ jobs:
     needs: publish
     if: >-
       needs.publish.outputs.changed == 'true' &&
-      (((vars.SHARED_EKS_DEPLOY_DISABLED == '' || vars.SHARED_EKS_DEPLOY_DISABLED == 'false') &&
+      (vars.SHARED_EKS_RELEASE_DISABLED == '' || vars.SHARED_EKS_RELEASE_DISABLED == 'false') &&
+      (vars.SHARED_EKS_DEPLOY_DISABLED == '' || vars.SHARED_EKS_DEPLOY_DISABLED == 'false') &&
+      ((github.ref == 'refs/heads/main' &&
         (github.event_name == 'push' || inputs.deploy)) ||
        (inputs.candidate && inputs.deploy && github.event_name == 'workflow_dispatch' &&
         vars.SHARED_EKS_CANDIDATE_ENABLED == 'true' &&
