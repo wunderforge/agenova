@@ -4,6 +4,8 @@ package agentsandbox
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/runtime"
@@ -35,6 +37,16 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 		return fmt.Errorf("restore cleanup: read claim: %w", err)
 	}
 	released := false
+	var pinnedClaimUID string
+	var pinnedPodUID string
+	if id.AllocationID != "" {
+		var valid bool
+		pinnedClaimUID, pinnedPodUID, valid = strings.Cut(id.AllocationID, "/")
+		if !valid || pinnedClaimUID == "" || pinnedPodUID == "" || strings.Contains(pinnedPodUID, "/") {
+			return errIdentityMismatch
+		}
+	}
+	var shutdownTime string
 	if present {
 		var claim upstreamSandboxClaim
 		if err := a.kube.get("sandboxclaims", name, &claim); err != nil {
@@ -42,6 +54,25 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 		}
 		if claim.Metadata.Name != name || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != id.WorkerID {
 			return errIdentityMismatch
+		}
+		if id.AllocationID != "" {
+			if claim.Metadata.UID != pinnedClaimUID || claim.Metadata.Annotations["agenova.io/claim-id"] != claimID {
+				return errIdentityMismatch
+			}
+			var pod struct {
+				Metadata upstreamMeta `json:"metadata"`
+			}
+			if err := a.kube.get("pods", id.WorkerID, &pod); err != nil {
+				return err
+			}
+			if pod.Metadata.Name != id.WorkerID || pod.Metadata.UID != pinnedPodUID || pod.Metadata.Labels[claimUIDLabel] != pinnedClaimUID {
+				return errIdentityMismatch
+			}
+		} else if claim.Metadata.Annotations["agenova.io/allocation-attempt"] != "" || (claim.Spec.Lifecycle != nil && claim.Spec.Lifecycle.ShutdownTime != "") {
+			return fmt.Errorf("restore cleanup: missing durable allocation incarnation; operator reconciliation required")
+		}
+		if claim.Spec.Lifecycle != nil {
+			shutdownTime = claim.Spec.Lifecycle.ShutdownTime
 		}
 	} else {
 		exists, err := a.kube.exists("sandboxes", id.WorkerID)
@@ -52,8 +83,22 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 			return errCleanupUnconfirmed
 		}
 		released = true
+		if id.AllocationID != "" {
+			podPresent, err := a.kube.exists("pods", id.WorkerID)
+			if err != nil {
+				return err
+			}
+			if podPresent {
+				return errCleanupUnconfirmed
+			}
+		}
 	}
 	entry := &allocationEntry{claimID: claimID, upstreamClaimName: name, workerID: id.WorkerID, state: allocBound, applyConfirmed: true}
+	entry.networkClaimUID = pinnedClaimUID
+	entry.networkPodUID = pinnedPodUID
+	if shutdownTime != "" {
+		entry.network.ExpiresAt, _ = time.Parse(time.RFC3339Nano, shutdownTime)
+	}
 	if released {
 		entry.state = allocReleased
 	}

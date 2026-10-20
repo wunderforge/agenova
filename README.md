@@ -112,6 +112,11 @@ The shared member service additionally has personal Google login, approved proje
 
 ## Validate
 
+The [two-incident MCP demo](harness/demo/incident-mcp/README.md) contains an
+isolated local scenario for the same Agent with different per-task resource
+scopes, plus real SDK/Worker-process integration tests and explicitly labelled
+scripted-model/reference-runtime limits. It does not install shared services.
+
 ```powershell
 .\scripts\check.ps1 -All
 ```

@@ -115,6 +115,52 @@ func (r *kubectlRunner) applyBytes(manifest []byte) error {
 	return nil
 }
 
+func (r *kubectlRunner) createBytes(manifest []byte) error {
+	_, err := r.runWithStdin(manifest, "create", "-f", "-")
+	return err
+}
+
+// patchPodIncarnation atomically guards the original Pod's immutable identity.
+// Patching a reused name without these JSONPatch tests could authorize a peer.
+func (r *kubectlRunner) patchPodIncarnation(name, podUID, claimUID, value string) error {
+	if !isDNSLabel(name) || podUID == "" || claimUID == "" || value != networkIncarnation(claimUID, podUID) {
+		return errors.New("invalid Pod network incarnation")
+	}
+	patch, err := json.Marshal([]map[string]string{
+		{"op": "test", "path": "/metadata/uid", "value": podUID},
+		{"op": "test", "path": "/metadata/labels/agents.x-k8s.io~1claim-uid", "value": claimUID},
+		{"op": "add", "path": "/metadata/labels/agenova.io~1network-incarnation", "value": value},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = r.runWithStdin(patch, "patch", "pods", name, "--type=json", "--patch-file=-")
+	return err
+}
+
+// deletePinned uses API DeleteOptions preconditions. kubectl's ordinary delete
+// can otherwise destroy a same-name replacement between verification/deletion.
+func (r *kubectlRunner) deletePinned(resource, name, uid, version string) error {
+	if !isDNSLabel(name) || uid == "" || version == "" {
+		return errors.New("pinned delete requires full resource identity")
+	}
+	var prefix string
+	switch resource {
+	case "sandboxclaims":
+		prefix = "/apis/extensions.agents.x-k8s.io/v1alpha1/namespaces/"
+	case "networkpolicies":
+		prefix = "/apis/networking.k8s.io/v1/namespaces/"
+	default:
+		return errors.New("unsupported pinned deletion resource")
+	}
+	if !isDNSLabel(r.namespace) {
+		return errors.New("invalid pinned deletion namespace")
+	}
+	payload, _ := json.Marshal(map[string]any{"apiVersion": "v1", "kind": "DeleteOptions", "preconditions": map[string]string{"uid": uid, "resourceVersion": version}})
+	_, err := r.runWithStdin(payload, "delete", "--raw", prefix+r.namespace+"/"+resource+"/"+name, "-f", "-")
+	return err
+}
+
 // get fetches a resource by type and name, unmarshaling into dst.
 func (r *kubectlRunner) get(resource, name string, dst any) error {
 	raw, err := r.run("get", resource, name, "-o", "json")

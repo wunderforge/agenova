@@ -64,6 +64,7 @@ func Issue(
 		{"effectiveAuthority.tools", resolved.Tools},
 		{"effectiveAuthority.resourceScopes", resolved.ResourceScopes},
 		{"effectiveAuthority.memoryScopes", resolved.MemoryScopes},
+		{"effectiveAuthority.networkProfiles", resolved.NetworkProfiles},
 	} {
 		for index, value := range dimension.values {
 			if strings.TrimSpace(value) == "" {
@@ -78,6 +79,7 @@ func Issue(
 	authority.Tools = cloneStrings(resolved.Tools)
 	authority.ResourceScopes = cloneStrings(resolved.ResourceScopes)
 	authority.MemoryScopes = cloneStrings(resolved.MemoryScopes)
+	authority.NetworkProfiles = cloneStrings(resolved.NetworkProfiles)
 
 	id, err := issuanceDigest(request, principal, action, decision, authority)
 	if err != nil {

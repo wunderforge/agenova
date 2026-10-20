@@ -107,6 +107,11 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 	if err != nil {
 		return err
 	}
+	if !entry.network.ExpiresAt.IsZero() {
+		if _, err := a.boundNetworkClaim(entry); err != nil {
+			return err
+		}
+	}
 	if err := a.checkStartPhase(id.WorkerID, entry.claimID); err != nil {
 		return err
 	}
@@ -211,6 +216,10 @@ func startPhaseError(phase controlPhase, claimID string) error {
 func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) error {
 	entry, err := a.entryFor(id)
 	if err != nil {
+		return err
+	}
+	if !entry.network.ExpiresAt.IsZero() {
+		_, err := a.RevokeNetwork(id)
 		return err
 	}
 	var operation *terminateOperation

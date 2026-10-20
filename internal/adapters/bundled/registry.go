@@ -78,6 +78,7 @@ func agentSandboxRuntimeRegistration() adapterregistry.Registration {
 			{Path: "connection.namespace", Kind: adapterregistry.ValueString, Required: true, Description: "Namespace containing Agent Sandbox resources", Default: "agenova-system"},
 			{Path: "compatible-worker-protocol", Kind: adapterregistry.ValueString, Description: "Optional explicit selection of the supported controlled-v1 protocol; not image attestation"},
 			{Path: "compatible-worker-image", Kind: adapterregistry.ValueString, Description: "Deprecated bootstrap hint; template images are selected independently"},
+			{Path: "network-policy-mode", Kind: adapterregistry.ValueString, Description: "Operator-verified strict startup network enforcement; omission is unsupported for governed network execution"},
 		}},
 		ProfileSchema: adapterregistry.ConfigSchema{Fields: []adapterregistry.Field{
 			{Path: "isolation", Kind: adapterregistry.ValueString, Required: true, Description: "Requested supported isolation shape", Default: "dedicated"},
@@ -188,7 +189,7 @@ func canonicalizeKubernetesDeployment(_ platform.Capability, input map[string]an
 }
 
 func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]any) (map[string]any, error) {
-	if err := onlyKeys(input, "connection", "compatible-worker-image", "compatible-worker-protocol"); err != nil {
+	if err := onlyKeys(input, "connection", "compatible-worker-image", "compatible-worker-protocol", "network-policy-mode"); err != nil {
 		return nil, err
 	}
 	connection, ok := input["connection"].(map[string]any)
@@ -213,6 +214,12 @@ func canonicalizeAgentSandboxInstance(_ platform.Capability, input map[string]an
 		return nil, platform.NewAdapterConfigError("unsupported-worker-protocol", "compatible-worker-protocol")
 	}
 	result := map[string]any{"connection": map[string]any{"mode": mode, "namespace": namespace}}
+	if value, present := input["network-policy-mode"]; present {
+		if value != "strict" {
+			return nil, platform.NewAdapterConfigError("unsupported-network-policy-mode", "network-policy-mode")
+		}
+		result["network-policy-mode"] = "strict"
+	}
 	if _, exists := input["compatible-worker-image"]; exists {
 		image, err := requiredString(input, "compatible-worker-image")
 		if err != nil {

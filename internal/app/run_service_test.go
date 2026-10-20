@@ -671,6 +671,16 @@ func (b *recordingBackend) Start(v1alpha1.SandboxClaimBackendIdentity) error {
 	return b.startErr
 }
 
+func (b *recordingBackend) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	return runtime.NetworkEvidence{ClaimID: b.lastAllocate.ClaimID, Identity: id, Profiles: append([]string(nil), b.lastAllocate.Network.Profiles...), ExpiresAt: b.lastAllocate.Network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, nil
+}
+
+func (b *recordingBackend) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	e, err := b.ActivateNetwork(id)
+	e.State = "Revoked"
+	return e, err
+}
+
 func (b *recordingBackend) Terminate(v1alpha1.SandboxClaimBackendIdentity) error {
 	b.record("terminate")
 	if b.terminateHook != nil {
@@ -842,7 +852,15 @@ func assertPhase(t *testing.T, state *v1alpha1.IssuedState, want v1alpha1.ClaimP
 
 func assertEvents(t *testing.T, state *v1alpha1.IssuedState, want ...string) {
 	t.Helper()
-	if got := eventKinds(state); !reflect.DeepEqual(got, want) {
+	// These pre-existing tests assert business/resource lifecycle ordering.
+	// Dedicated network lifecycle tests assert the additional safety events.
+	var got []string
+	for _, kind := range eventKinds(state) {
+		if !strings.HasPrefix(kind, "Network") {
+			got = append(got, kind)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("events = %v, want %v", got, want)
 	}
 }

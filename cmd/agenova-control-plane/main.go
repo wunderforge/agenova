@@ -207,6 +207,7 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	}
 	store := registration.KubernetesStore{Namespace: namespace}
 	runtimeNamespace := ""
+	networkPolicyMode := ""
 	adapterIDs := map[string]string{}
 	for _, adapter := range resolved.Adapters {
 		adapterIDs[adapter.Name] = adapter.ID
@@ -225,6 +226,7 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			return nil, fmt.Errorf("unsupported runtime connection")
 		}
 		runtimeNamespace, _ = connection["namespace"].(string)
+		networkPolicyMode, _ = instance.Config["network-policy-mode"].(string)
 	}
 	if runtimeCount != 1 || runtimeNamespace == "" || runtimeNamespace == "default" {
 		return nil, fmt.Errorf("installed runtime namespace is invalid")
@@ -233,6 +235,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 	}
 	adapter := agentsandbox.NewControlled("", runtimeNamespace)
+	if networkPolicyMode != "" {
+		if err := adapter.ConfigureNetworkIsolation(networkPolicyMode); err != nil {
+			return nil, fmt.Errorf("runtime network policy mode is unsupported: %w", err)
+		}
+	}
 	modelProfiles := map[string]string{}
 	for _, profile := range resolved.Profiles {
 		if profile.Capability == platform.CapabilityModel {

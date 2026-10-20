@@ -143,11 +143,13 @@ type runtimeSpy struct {
 	cleanups   int
 	claimID    string
 	identity   v1alpha1.SandboxClaimBackendIdentity
+	network    runtime.NetworkAuthority
 }
 
 func (s *runtimeSpy) Allocate(request runtime.AllocateRequest) (runtime.Allocation, error) {
 	s.allocates++
 	s.claimID = request.ClaimID
+	s.network = request.Network
 	s.identity = v1alpha1.SandboxClaimBackendIdentity{Backend: "spy", WorkerID: "worker-1"}
 	return runtime.Allocation{ClaimID: request.ClaimID, Identity: s.identity}, nil
 }
@@ -165,4 +167,14 @@ func (s *runtimeSpy) Terminate(v1alpha1.SandboxClaimBackendIdentity) error {
 func (s *runtimeSpy) Cleanup(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
 	s.cleanups++
 	return runtime.CleanupResult{Identity: identity, Released: true}, nil
+}
+
+func (s *runtimeSpy) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	return runtime.NetworkEvidence{ClaimID: s.claimID, Identity: id, Profiles: append([]string(nil), s.network.Profiles...), ExpiresAt: s.network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, nil
+}
+
+func (s *runtimeSpy) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	e, err := s.ActivateNetwork(id)
+	e.State = "Revoked"
+	return e, err
 }

@@ -108,9 +108,18 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	if err := journal.BindClaim(view.RequestRef, *claim); err != nil {
 		return err
 	}
+	networkLevel := ""
 	runtimeFact := func(kind string) error {
 		view.State.Evidence.RuntimeEvents = append(view.State.Evidence.RuntimeEvents, v0.EvidenceRuntimeEvent{Kind: kind})
-		f, err := journal.AppendWithCommit(facts.Fact{Kind: "Runtime", RequestRef: view.RequestRef, ClaimID: claim.ID, BackendIdentity: claim.BackendIdentity, Operation: kind, ReasonCode: "recovery-" + kind, PolicyRef: &view.State.PolicyRef}, func(f facts.Fact) error { return store.Append(ctx, f, view.State) })
+		fact := facts.Fact{Kind: "Runtime", RequestRef: view.RequestRef, ClaimID: claim.ID, BackendIdentity: claim.BackendIdentity, Operation: kind, ReasonCode: "recovery-" + kind, PolicyRef: &view.State.PolicyRef}
+		if kind == "NetworkRevocationAttempt" || kind == "NetworkRevocationFailed" || kind == "NetworkRevoked" {
+			fact.Target = "work-network"
+			fact.Reason = "Recovery network release; original grant parameters are not reconstructed. This is not a packet-level enforcement test."
+			if kind == "NetworkRevoked" {
+				fact.Reason = "Network evidence level: " + networkLevel + ". " + fact.Reason
+			}
+		}
+		f, err := journal.AppendWithCommit(fact, func(f facts.Fact) error { return store.Append(ctx, f, view.State) })
 		if err == nil {
 			view.Facts = append(view.Facts, f)
 		}
@@ -120,12 +129,43 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 		claim.Phase = v0.ClaimPhaseFailed
 		terminalKind = "Failed"
 		if err := runtimeFact("Failed"); err != nil {
+			// Failed persistence cannot leave a restored, verified allocation
+			// online. A lost writer lease still forbids acting on another writer.
+			if !cleaned {
+				if writerErr := store.CheckWriter(ctx); writerErr != nil {
+					return errors.Join(err, writerErr)
+				}
+				if network, ok := backend.(runtime.NetworkBackend); ok {
+					_, revokeErr := network.RevokeNetwork(*claim.BackendIdentity)
+					return errors.Join(err, revokeErr)
+				}
+				stopErr := backend.Terminate(*claim.BackendIdentity)
+				_, cleanupErr := backend.Cleanup(*claim.BackendIdentity)
+				return errors.Join(err, stopErr, cleanupErr)
+			}
 			return err
 		}
 	}
 	if !cleaned {
 		if err := store.CheckWriter(ctx); err != nil {
 			return err
+		}
+		if network, ok := backend.(runtime.NetworkBackend); ok {
+			attemptErr := runtimeFact("NetworkRevocationAttempt")
+			result, err := network.RevokeNetwork(*claim.BackendIdentity)
+			if attemptErr != nil {
+				return errors.Join(attemptErr, err)
+			}
+			if err != nil || !validNetworkRelease(result, claim.ID, *claim.BackendIdentity) {
+				if recordErr := runtimeFact("NetworkRevocationFailed"); recordErr != nil {
+					return recordErr
+				}
+				return ErrRecoveryRequired
+			}
+			networkLevel = result.EvidenceLevel
+			if err := runtimeFact("NetworkRevoked"); err != nil {
+				return err
+			}
 		}
 		stopErr := backend.Terminate(*claim.BackendIdentity)
 		if stopErr != nil && !errors.Is(stopErr, runtime.ErrReleased) {
@@ -168,4 +208,9 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	}
 	view.Facts = append(view.Facts, f)
 	return store.Finish(ctx, view)
+}
+
+func validNetworkRelease(result runtime.NetworkEvidence, claim string, identity v0.SandboxClaimBackendIdentity) bool {
+	return result.ClaimID == claim && result.Identity == identity && result.State == "Revoked" &&
+		(result.EvidenceLevel == "Configured" || result.EvidenceLevel == "Simulated")
 }

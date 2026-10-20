@@ -1,0 +1,71 @@
+# Draft for an OWNED local cluster. Shared deployment requires confirmation.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agenova-e16
+  labels: {app.kubernetes.io/part-of: agenova-incident-demo}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e16-mcp
+  labels: {app.kubernetes.io/part-of: agenova-incident-demo}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: incident-evidence-mcp}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: incident-evidence-mcp, app.kubernetes.io/part-of: agenova-incident-demo}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mcp
+          image: agenova-e16-mcp:incident-demo
+          imagePullPolicy: Never
+          ports: [{name: mcp, containerPort: 8080}]
+          env:
+            - {name: FIXTURE_DATA_DIR, value: /data}
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+          readinessProbe: {httpGet: {path: /healthz, port: mcp}}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: data, mountPath: /data, readOnly: true}]
+      volumes:
+        - name: data
+          configMap:
+            name: incident-evidence-data
+            items:
+              - {key: payment-logs, path: payments/INC-P1042/logs.txt}
+              - {key: payment-retry, path: payments/INC-P1042/retry.txt}
+              - {key: billing-logs, path: billing/INC-B2081/logs.txt}
+              - {key: billing-job, path: billing/INC-B2081/job-config.txt}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e16-mcp
+  labels: {app.kubernetes.io/part-of: agenova-incident-demo}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: incident-evidence-mcp}
+  ports: [{port: 8080, targetPort: mcp}]
+---
+# CNI enforcement must be verified later; this file alone is not isolation proof.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: incident-evidence-gateway-only
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: incident-evidence-mcp}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: agenova-incident-demo}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: agenova-control-plane}}
+      ports: [{protocol: TCP, port: 8080}]

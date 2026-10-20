@@ -1,0 +1,70 @@
+# Standalone LOCAL configuration. Do not apply to an existing shared install.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: incident-mcp-local
+spec:
+  adapters:
+    - {name: deployment, id: agenova.io/deployment/kubernetes, version: 0.1.0}
+    - {name: runtime, id: agenova.io/runtime/agent-sandbox, version: 0.1.0}
+    - {name: model, id: agenova.io/model/openai-compatible, version: 0.1.0}
+    - {name: mcp, id: agenova.io/tool/mcp-http, version: 0.1.0}
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: deployment
+      config: {context: kind-incident-mcp-demo, namespace: agenova-incident-demo}
+    runtimeBackends:
+      - name: runtime
+        adapterRef: runtime
+        config:
+          connection: {mode: in-cluster, namespace: agenova-incident-demo}
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: runtime
+        config: {isolation: dedicated}
+  services:
+    modelBackends:
+      - name: local-model
+        adapterRef: model
+        config: {endpoint: "http://host.docker.internal:11434/v1"}
+    modelProfiles:
+      - name: coding-standard
+        backendRef: local-model
+        config: {model: "qwen2.5:7b"}
+    toolBackends:
+      - name: incident-evidence
+        adapterRef: mcp
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "2"
+    toolProfiles:
+      - name: payment-evidence
+        backendRef: incident-evidence
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:demo/payments
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            payments/INC-P1042/logs.txt
+            payments/INC-P1042/retry.txt
+      - name: billing-evidence
+        backendRef: incident-evidence
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:demo/billing
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            billing/INC-B2081/logs.txt
+            billing/INC-B2081/job-config.txt
+  initialPolicyRef: {id: reference-default-deny, version: "1"}

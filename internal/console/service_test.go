@@ -27,11 +27,13 @@ type verticalBackend struct {
 	claim        string
 	identity     v0.SandboxClaimBackendIdentity
 	cleanupError bool
+	network      runtime.NetworkAuthority
 }
 
 func (b *verticalBackend) Allocate(r runtime.AllocateRequest) (runtime.Allocation, error) {
 	b.calls.Add(1)
 	b.claim = r.ClaimID
+	b.network = r.Network
 	b.identity = v0.SandboxClaimBackendIdentity{Backend: "test", WorkerID: r.ClaimID}
 	return runtime.Allocation{ClaimID: r.ClaimID, Identity: b.identity}, nil
 }

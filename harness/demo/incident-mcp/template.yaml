@@ -1,0 +1,15 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: incident-investigator-demo-v1
+spec:
+  artifact:
+    image: agenova-testworker:incident-demo
+  entrypoint:
+    command: [/agenova-workerctl, serve]
+  capabilityCeiling:
+    tools: [repo.read]
+    resourceScopes: [repo:demo/payments, repo:demo/billing]
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    maxTimeout: 5m

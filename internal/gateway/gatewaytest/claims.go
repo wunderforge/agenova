@@ -43,6 +43,7 @@ func (c *Claims) ClaimAuthority(claimID string) (app.ClaimAuthoritySnapshot, boo
 	authority.Tools = append([]string(nil), authority.Tools...)
 	authority.ResourceScopes = append([]string(nil), authority.ResourceScopes...)
 	authority.MemoryScopes = append([]string(nil), authority.MemoryScopes...)
+	authority.NetworkProfiles = append([]string(nil), authority.NetworkProfiles...)
 	if claim.BackendIdentity != nil {
 		identity := *claim.BackendIdentity
 		claim.BackendIdentity = &identity

@@ -1,0 +1,323 @@
+// Copyright 2026 Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
+package agentsandbox
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"time"
+
+	"github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/runtime"
+)
+
+const claimUIDLabel = "agents.x-k8s.io/claim-uid"
+const networkIncarnationLabel = "agenova.io/network-incarnation"
+
+type pinnedNetworkClient interface {
+	createBytes([]byte) error
+	deletePinned(resource, name, uid, version string) error
+	patchPodIncarnation(name, podUID, claimUID, value string) error
+}
+
+func networkIncarnation(claimUID, podUID string) string {
+	digest := sha256.Sum256([]byte("agenova-work-network-v1\x00" + claimUID + "\x00" + podUID))
+	return hex.EncodeToString(digest[:20])
+}
+
+type networkPolicyObject struct {
+	Metadata struct {
+		upstreamMeta
+		Owners []struct{ APIVersion, Kind, Name, UID string } `json:"ownerReferences"`
+	} `json:"metadata"`
+	Spec map[string]any `json:"spec"`
+}
+
+// ConfigureNetworkIsolation declares an operator-verified startup-isolating
+// substrate. This declaration is NOT packet enforcement evidence. It must be
+// validated independently on the real cluster before advertising protection.
+func (a *ControlledAdapter) ConfigureNetworkIsolation(mode string) error {
+	if mode != "strict" {
+		return fmt.Errorf("%w: strict startup network isolation is required", runtime.ErrUnsupported)
+	}
+	a.SpikeAdapter.mu.Lock()
+	defer a.SpikeAdapter.mu.Unlock()
+	a.networkMode = mode
+	return nil
+}
+
+// ConfigureAgentTemplate refuses to start even an idle arbitrary image when
+// the operator has not established a startup-isolating substrate.
+func (a *ControlledAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) (string, error) {
+	a.SpikeAdapter.mu.Lock()
+	mode := a.networkMode
+	a.SpikeAdapter.mu.Unlock()
+	if mode != "strict" {
+		return "", fmt.Errorf("%w: strict startup network isolation is required before configuring workers", runtime.ErrUnsupported)
+	}
+	return a.SpikeAdapter.ConfigureAgentTemplate(template)
+}
+
+func (a *SpikeAdapter) validateNetworkAllocation(n runtime.NetworkAuthority) error {
+	if n.ExpiresAt.IsZero() && len(n.Profiles) == 0 {
+		return nil // direct legacy adapter probes, not a governed Work allocation
+	}
+	a.mu.Lock()
+	mode := a.networkMode
+	a.mu.Unlock()
+	if mode != "strict" {
+		return fmt.Errorf("%w: startup-isolating network substrate is not configured", runtime.ErrUnsupported)
+	}
+	if n.ExpiresAt.IsZero() || !time.Now().Before(n.ExpiresAt) {
+		return errors.New("network authority requires a future backend expiry")
+	}
+	if len(n.Profiles) > 1 || (len(n.Profiles) == 1 && n.Profiles[0] != "public-web") {
+		return errors.New("unsupported network authority profile")
+	}
+	return nil
+}
+
+func networkRuleName(claimID, workerID string) string {
+	return resourceName("net", claimID+":"+workerID)
+}
+
+func (a *ControlledAdapter) networkEvidence(entry *allocationEntry, state string) runtime.NetworkEvidence {
+	a.SpikeAdapter.mu.Lock()
+	defer a.SpikeAdapter.mu.Unlock()
+	return runtime.NetworkEvidence{ClaimID: entry.claimID, Identity: entry.identity(), Profiles: append([]string(nil), entry.network.Profiles...), ExpiresAt: entry.network.ExpiresAt, State: state, EvidenceLevel: "Configured"}
+}
+
+// boundNetworkClaim verifies the current upstream binding plus controller-
+// supplied Pod label. Neither worker-supplied values nor shared template names
+// select a network grant. A changed binding fails without touching its peer.
+func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamSandboxClaim, error) {
+	var claim upstreamSandboxClaim
+	if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+		return claim, err
+	}
+	a.SpikeAdapter.mu.Lock()
+	pinnedClaim, pinnedPod := entry.networkClaimUID, entry.networkPodUID
+	a.SpikeAdapter.mu.Unlock()
+	if claim.Metadata.Name != entry.upstreamClaimName || claim.Metadata.UID == "" || claim.Metadata.UID != pinnedClaim || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != entry.workerID {
+		return claim, errIdentityMismatch
+	}
+	var pod struct {
+		Metadata upstreamMeta `json:"metadata"`
+		Spec     struct {
+			HostNetwork bool `json:"hostNetwork"`
+		} `json:"spec"`
+	}
+	if err := a.kube.get("pods", entry.workerID, &pod); err != nil {
+		return claim, err
+	}
+	if pod.Metadata.Name != entry.workerID || pod.Metadata.UID == "" || pod.Metadata.Labels[claimUIDLabel] != claim.Metadata.UID || pod.Spec.HostNetwork {
+		return claim, errIdentityMismatch
+	}
+	if pinnedPod != "" && pod.Metadata.UID != pinnedPod {
+		return claim, errIdentityMismatch
+	}
+	a.SpikeAdapter.mu.Lock()
+	entry.networkPodUID = pod.Metadata.UID
+	a.SpikeAdapter.mu.Unlock()
+	return claim, nil
+}
+
+// ActivateNetwork is called after the application durably enters Running.
+// NetworkPolicy API acceptance is configuration evidence, not CNI convergence.
+func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	entry, err := a.entryFor(id)
+	if err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.SpikeAdapter.mu.Lock()
+	n := entry.network
+	revoked := entry.networkRevoked
+	a.SpikeAdapter.mu.Unlock()
+	if revoked || a.phases[id.WorkerID] != controlRunning {
+		return runtime.NetworkEvidence{}, runtime.ErrTerminated
+	}
+	if err := a.validateNetworkAllocation(n); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	if n.ExpiresAt.IsZero() {
+		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
+	}
+	claim, err := a.boundNetworkClaim(entry)
+	if err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	if claim.Spec.Lifecycle == nil || claim.Spec.Lifecycle.ShutdownTime == "" {
+		return runtime.NetworkEvidence{}, errors.New("independent backend expiry is missing")
+	}
+	expiry, err := time.Parse(time.RFC3339Nano, claim.Spec.Lifecycle.ShutdownTime)
+	if err != nil || expiry.After(n.ExpiresAt) || !time.Now().Before(expiry) {
+		return runtime.NetworkEvidence{}, errors.New("independent backend expiry does not match authority")
+	}
+	if len(n.Profiles) > 0 {
+		client, ok := a.kube.(pinnedNetworkClient)
+		if !ok {
+			return runtime.NetworkEvidence{}, runtime.ErrUnsupported
+		}
+		// Stamp only the original Pod, guarded atomically by its UID and claim
+		// label. Never place this label in a Sandbox/template: a replacement Pod
+		// under the same Running claim must not inherit this network capability.
+		if err := client.patchPodIncarnation(entry.workerID, entry.networkPodUID, entry.networkClaimUID, networkIncarnation(entry.networkClaimUID, entry.networkPodUID)); err != nil {
+			return runtime.NetworkEvidence{}, fmt.Errorf("pin network Pod incarnation: %w", err)
+		}
+		manifest, err := json.Marshal(a.publicWebPolicy(entry, claim.Metadata.UID))
+		if err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+		// Create-only: an unrelated same-name rule is never overwritten. An
+		// ambiguous/repeated create succeeds only after exact owned readback.
+		createErr := client.createBytes(manifest)
+		policy, readErr := a.ownedNetworkPolicy(entry)
+		if readErr != nil {
+			return runtime.NetworkEvidence{}, errors.Join(createErr, readErr)
+		}
+		var desired networkPolicyObject
+		if err := json.Unmarshal(manifest, &desired); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+		if !reflect.DeepEqual(policy.Spec, desired.Spec) {
+			return runtime.NetworkEvidence{}, errors.New("existing network rule differs from resolved authority")
+		}
+		if _, err := a.boundNetworkClaim(entry); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+	}
+	a.SpikeAdapter.mu.Lock()
+	entry.networkActive = true
+	a.SpikeAdapter.mu.Unlock()
+	return a.networkEvidence(entry, "Active"), nil
+}
+
+func (a *ControlledAdapter) publicWebPolicy(entry *allocationEntry, uid string) map[string]any {
+	return map[string]any{
+		"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+		"metadata": map[string]any{"name": networkRuleName(entry.claimID, entry.workerID), "namespace": a.namespace,
+			"annotations":     map[string]string{"agenova.io/claim-id": entry.claimID, "agenova.io/worker-id": entry.workerID},
+			"labels":          map[string]string{"app.kubernetes.io/managed-by": "agenova"},
+			"ownerReferences": []any{map[string]any{"apiVersion": apiVersionExtensions, "kind": kindSandboxClaim, "name": entry.upstreamClaimName, "uid": uid}}},
+		"spec": map[string]any{
+			"podSelector": map[string]any{"matchLabels": map[string]string{claimUIDLabel: uid, networkIncarnationLabel: networkIncarnation(uid, entry.networkPodUID)}},
+			"policyTypes": []string{"Egress"},
+			"egress": []any{
+				map[string]any{"to": []any{map[string]any{"ipBlock": map[string]any{"cidr": "0.0.0.0/0", "except": []string{"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4"}}}}, "ports": []any{map[string]any{"protocol": "TCP", "port": 443}}},
+				map[string]any{"to": []any{map[string]any{"namespaceSelector": map[string]any{"matchLabels": map[string]string{"kubernetes.io/metadata.name": "kube-system"}}, "podSelector": map[string]any{"matchLabels": map[string]string{"k8s-app": "kube-dns"}}}}, "ports": []any{map[string]any{"protocol": "UDP", "port": 53}, map[string]any{"protocol": "TCP", "port": 53}}},
+			},
+		},
+	}
+}
+
+func (a *ControlledAdapter) ownedNetworkPolicy(entry *allocationEntry) (networkPolicyObject, error) {
+	var policy networkPolicyObject
+	if err := a.kube.get("networkpolicies", networkRuleName(entry.claimID, entry.workerID), &policy); err != nil {
+		return policy, err
+	}
+	a.SpikeAdapter.mu.Lock()
+	claimUID := entry.networkClaimUID
+	a.SpikeAdapter.mu.Unlock()
+	m := policy.Metadata
+	if m.Name != networkRuleName(entry.claimID, entry.workerID) || m.Namespace != a.namespace || m.UID == "" || m.ResourceVersion == "" || m.Labels["app.kubernetes.io/managed-by"] != "agenova" || m.Annotations["agenova.io/claim-id"] != entry.claimID || m.Annotations["agenova.io/worker-id"] != entry.workerID {
+		return policy, errIdentityMismatch
+	}
+	for _, owner := range m.Owners {
+		if owner.APIVersion == apiVersionExtensions && owner.Kind == kindSandboxClaim && owner.Name == entry.upstreamClaimName && owner.UID == claimUID && claimUID != "" {
+			return policy, nil
+		}
+	}
+	return policy, errIdentityMismatch
+}
+
+// RevokeNetwork removes the grant and destroys the worker through the trusted
+// substrate, closing existing connections even when an arbitrary image lies
+// about stop acknowledgements. No success is reported until Pod absence.
+func (a *ControlledAdapter) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	entry, err := a.entryFor(id)
+	if err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.SpikeAdapter.mu.Lock()
+	revoked := entry.networkRevoked
+	a.SpikeAdapter.mu.Unlock()
+	if revoked {
+		return a.networkEvidence(entry, "Revoked"), nil
+	}
+	present, err := a.kube.exists("sandboxclaims", entry.upstreamClaimName)
+	if err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	var claim upstreamSandboxClaim
+	if present {
+		if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+		if claim.Metadata.Name != entry.upstreamClaimName || claim.Metadata.UID != entry.networkClaimUID || claim.Metadata.UID == "" || claim.Metadata.ResourceVersion == "" || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != id.WorkerID {
+			return runtime.NetworkEvidence{}, errIdentityMismatch
+		}
+	}
+	client, ok := a.kube.(pinnedNetworkClient)
+	if !ok {
+		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
+	}
+	var errs []error
+	ruleName := networkRuleName(entry.claimID, id.WorkerID)
+	rulePresent, queryErr := a.kube.exists("networkpolicies", ruleName)
+	if queryErr != nil {
+		errs = append(errs, queryErr)
+	}
+	if rulePresent {
+		policy, err := a.ownedNetworkPolicy(entry)
+		if err == nil {
+			err = client.deletePinned("networkpolicies", ruleName, policy.Metadata.UID, policy.Metadata.ResourceVersion)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	// Always attempt trusted worker destruction even when rule removal failed.
+	if present {
+		if err := client.deletePinned("sandboxclaims", entry.upstreamClaimName, claim.Metadata.UID, claim.Metadata.ResourceVersion); err != nil {
+			return runtime.NetworkEvidence{}, errors.Join(append(errs, err)...)
+		}
+	}
+	if err := a.confirmReleased(entry); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	deadline := time.Now().Add(a.cleanupTimeout)
+	for {
+		present, err := a.kube.exists("pods", id.WorkerID)
+		if err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+		if !present {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			return runtime.NetworkEvidence{}, errCleanupUnconfirmed
+		}
+		time.Sleep(a.pollInterval)
+	}
+	if len(errs) > 0 {
+		return runtime.NetworkEvidence{}, errors.Join(errs...)
+	}
+	a.SpikeAdapter.mu.Lock()
+	entry.networkActive = false
+	entry.networkRevoked = true
+	entry.state = allocReleased
+	entry.detail = "network grant removed; claim, sandbox and Pod confirmed absent"
+	a.SpikeAdapter.mu.Unlock()
+	a.phases[id.WorkerID] = controlTerminated
+	a.changed.Broadcast()
+	return a.networkEvidence(entry, "Revoked"), nil
+}

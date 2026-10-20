@@ -76,6 +76,21 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	if len(request.Spec.RequestedAccess.MemoryScopes) > 0 && len(memory) == 0 {
 		return nil, invalid("spec.requestedAccess.memoryScopes", "requested memory scopes resolved completely empty")
 	}
+	// Network authority requires positive consent from every ceiling. Unlike
+	// legacy dimensions, an absent Policy cap is deliberately default-deny.
+	// A cap may mention public-web for a reusable Policy while an offline Work
+	// omits it; the cap never manufactures an unsolicited grant.
+	network := request.Spec.RequestedAccess.NetworkProfiles
+	for _, profile := range network {
+		if !contains(ceiling.NetworkProfiles, profile) {
+			return nil, invalid("spec.requestedAccess.networkProfiles", "requested network profile is outside the template ceiling")
+		}
+		cap := capSet(caps, "network")
+		if cap == nil || !contains(cap.Values, profile) {
+			return nil, invalid("spec.requestedAccess.networkProfiles", "requested network profile requires an explicit matching policy constraint")
+		}
+	}
+	network = append([]string(nil), network...)
 
 	model := request.Spec.RequestedAccess.ModelProfile
 	if model != "" && !contains(ceiling.ModelProfiles, model) {
@@ -103,10 +118,11 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 	}
 
 	return &v1alpha1.EffectiveAuthority{
-		Tools:          tools,
-		ResourceScopes: resources,
-		ModelProfile:   model,
-		MemoryScopes:   memory,
+		Tools:           tools,
+		ResourceScopes:  resources,
+		ModelProfile:    model,
+		MemoryScopes:    memory,
+		NetworkProfiles: network,
 		Runtime: v1alpha1.EffectiveAuthorityRuntime{
 			ProfileRef: runtimeProfile,
 			Timeout:    timeout,
@@ -129,6 +145,8 @@ func capSet(caps *policy.AuthorityConstraints, dimension string) *policy.StringS
 		return caps.ModelProfiles
 	case "runtimes":
 		return caps.RuntimeProfiles
+	case "network":
+		return caps.NetworkProfiles
 	}
 	return nil
 }

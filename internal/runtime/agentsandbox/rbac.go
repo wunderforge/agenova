@@ -8,9 +8,10 @@ package agentsandbox
 // returned objects as opaque; upstream API vocabulary stays in this adapter.
 func ReferenceNamespaceRules() []any {
 	return []any{
-		map[string]any{"apiGroups": []any{""}, "resources": []any{"pods"}, "verbs": []any{"get"}},
+		map[string]any{"apiGroups": []any{""}, "resources": []any{"pods"}, "verbs": []any{"get", "patch"}},
 		map[string]any{"apiGroups": []any{""}, "resources": []any{"pods/exec"}, "verbs": []any{"create", "get"}},
 		map[string]any{"apiGroups": []any{"extensions.agents.x-k8s.io"}, "resources": []any{"sandboxtemplates", "sandboxwarmpools", "sandboxclaims"}, "verbs": []any{"get", "create", "patch", "delete"}},
 		map[string]any{"apiGroups": []any{"agents.x-k8s.io"}, "resources": []any{"sandboxes"}, "verbs": []any{"get"}},
+		map[string]any{"apiGroups": []any{"networking.k8s.io"}, "resources": []any{"networkpolicies"}, "verbs": []any{"get", "create", "patch", "delete"}},
 	}
 }

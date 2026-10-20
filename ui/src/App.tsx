@@ -11,7 +11,8 @@ function Access({ access }: { access: ClaimRequestedAccess | EffectiveAuthority 
   return <dl><dt>Tools</dt><dd><Values values={access.tools}/></dd>
     <dt>Resource scopes</dt><dd><Values values={access.resourceScopes}/></dd>
     <dt>Model profile</dt><dd>{access.modelProfile || 'Not supplied'}</dd>
-    <dt>Memory scopes</dt><dd><Values values={access.memoryScopes}/></dd></dl>;
+    <dt>Memory scopes</dt><dd><Values values={access.memoryScopes}/></dd>
+    <dt>Network profiles</dt><dd><Values values={access.networkProfiles}/></dd></dl>;
 }
 function Facts({ evidence }: { evidence: Evidence }) {
   return <section><h2>Recorded evidence</h2>

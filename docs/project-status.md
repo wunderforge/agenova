@@ -22,7 +22,23 @@ A fresh real Google login and authenticated live Work submission were not
 performed in this UI acceptance. See the
 [release evidence and schema-compatible recovery image](https://github.com/wunderforge/agenova/pull/234#issuecomment-6282259695).
 
-This does not certify production security or all adapters. Installed Tool remains labelled mock; real external MCP/Collector/Memory services, the private Tool credential finding, general HA/recovery and hostile-agent/network isolation require separate acceptance. Temporary migration Jobs and Secrets were removed. Temporary candidate branch access was revoked and ordinary automatic main cloud deployment remains disabled.
+The later #241 release enabled guarded automatic main control-plane deployment
+and separated user Worker image selection from that pipeline. Its shared-cluster
+A/B/A image acceptance and negative cases are recorded in the
+[sanitized release evidence](https://github.com/wunderforge/agenova/pull/241#issuecomment-6287334683).
+Worker image publication does not itself require rebuilding the control plane.
+
+This does not certify production security or all adapters. Real external MCP,
+general credential-store integration, HA/recovery and hostile-agent/network
+isolation require their own acceptance. Temporary migration Jobs and Secrets were
+removed. Temporary candidate branch access was revoked.
+
+The #242/#243 integrated candidate adds real MCP composition and explicit
+per-Work network intent/ceiling/Policy resolution, startup-deny configuration and
+allocation-bound activation/revocation. At this documentation checkpoint it is
+local implementation, **not an AWS isolation result**. See the
+[MCP acceptance](../work/0242-mcp-incident-demo/acceptance.md) and
+[network task gates](../work/0243-work-network-authority/task.md).
 
 ## Verified Reference Path
 

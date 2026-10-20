@@ -28,11 +28,13 @@ type httpBackend struct {
 	calls    atomic.Int32
 	released atomic.Bool
 	claim    string
+	network  runtime.NetworkAuthority
 }
 
 func (b *httpBackend) Allocate(r runtime.AllocateRequest) (runtime.Allocation, error) {
 	b.calls.Add(1)
 	b.claim = r.ClaimID
+	b.network = r.Network
 	return runtime.Allocation{ClaimID: r.ClaimID, Identity: v0.SandboxClaimBackendIdentity{Backend: "synthetic", WorkerID: "worker:1"}}, nil
 }
 func (b *httpBackend) Observe(id v0.SandboxClaimBackendIdentity) (runtime.Observation, error) {

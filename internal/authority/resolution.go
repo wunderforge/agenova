@@ -55,6 +55,7 @@ func ResolveForIssuance(request *v1alpha1.ClaimRequest, template *v1alpha1.Agent
 		{"tools", request.Spec.RequestedAccess.Tools, resolved.Tools, capSet(caps, "tools")},
 		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, resolved.ResourceScopes, capSet(caps, "resources")},
 		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, resolved.MemoryScopes, capSet(caps, "memory")},
+		{"networkProfiles", request.Spec.RequestedAccess.NetworkProfiles, resolved.NetworkProfiles, capSet(caps, "network")},
 	} {
 		for _, value := range dimension.requested {
 			if !contains(dimension.effective, value) {
@@ -98,6 +99,7 @@ func (r *Resolution) AuthorityFor(request *v1alpha1.ClaimRequest) (*v1alpha1.Eff
 	copy.Tools = append([]string(nil), r.authority.Tools...)
 	copy.ResourceScopes = append([]string(nil), r.authority.ResourceScopes...)
 	copy.MemoryScopes = append([]string(nil), r.authority.MemoryScopes...)
+	copy.NetworkProfiles = append([]string(nil), r.authority.NetworkProfiles...)
 	return &copy, true
 }
 
