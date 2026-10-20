@@ -75,3 +75,4 @@ Out of scope:
 - 2026-10-13: Full check passed locally after installing locked UI dependencies and Chromium. Installed kind two-user smoke remains unproven; no AWS-specific IAM claim is made here.
 
 - 2026-10-20: Rebased the substantive M3 Policy/authority commits onto the new member-service M2 draft (#228), excluding the old standalone `internal/identity` and token-file tests. Focused Policy, authority, admission, registration, console, CLI and control-plane package tests passed on this port. The Ticket still needs real two-member installed evidence and M2 review before M3 can merge.
+- 2026-10-20: M2–M5 were consolidated into draft PR #231 against main; #228–#230 are closed as superseded. M3's installed two-member authority comparison remains open.
