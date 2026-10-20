@@ -61,9 +61,22 @@ func run(input io.Reader, output io.Writer, sleep func(time.Duration)) error {
 		return err
 	}
 	if strings.Contains(task.Objective, "e15-scenario=reference") {
+		// The host keeps stdin open after the final result, so the copy runs
+		// outside Wait; Wait returns when the reference worker exits.
 		cmd := exec.Command(referenceWorker[0], referenceWorker[1:]...)
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = io.MultiReader(bytes.NewReader(line), reader), output, os.Stderr
-		return cmd.Run()
+		cmd.Stdout, cmd.Stderr = output, os.Stderr
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		go func() {
+			_, _ = io.Copy(stdin, io.MultiReader(bytes.NewReader(line), reader))
+			_ = stdin.Close()
+		}()
+		return cmd.Wait()
 	}
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 4096), lineLimit)

@@ -138,7 +138,14 @@ func TestInvalidScenarioInputIsRejected(t *testing.T) {
 // TestHelperReferenceWorker stands in for the bundled reference worker when
 // the reference scenario re-executes this test binary.
 func TestHelperReferenceWorker(t *testing.T) {
-	if os.Getenv("E15_REFERENCE_HELPER") != "1" {
+	switch os.Getenv("E15_REFERENCE_HELPER") {
+	case "line":
+		// Like the reference worker: answer and exit while stdin stays open.
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		os.Stdout.WriteString("finished " + line)
+		os.Exit(0)
+	case "1":
+	default:
 		return
 	}
 	input, _ := io.ReadAll(os.Stdin)
@@ -158,5 +165,27 @@ func TestReferenceScenarioForwardsTheUnchangedSession(t *testing.T) {
 	}
 	if want := "forwarded " + string(task) + "\n" + `{"allowed":true}` + "\n"; output.String() != want {
 		t.Fatalf("reference worker did not receive the unchanged session:\n%q\nwant\n%q", output.String(), want)
+	}
+}
+
+func TestReferenceScenarioReturnsWhenWorkerExitsWithStdinOpen(t *testing.T) {
+	t.Setenv("E15_REFERENCE_HELPER", "line")
+	saved := referenceWorker
+	referenceWorker = []string{os.Args[0], "-test.run=^TestHelperReferenceWorker$"}
+	t.Cleanup(func() { referenceWorker = saved })
+	task, _ := json.Marshal(testTask("e15-scenario=reference explain the retry deadline"))
+	input, host := io.Pipe()
+	t.Cleanup(func() { _ = host.Close() })
+	go func() { _, _ = host.Write(append(task, '\n')) }()
+	done := make(chan error, 1)
+	var output strings.Builder
+	go func() { done <- run(input, &output, nil) }()
+	select {
+	case err := <-done:
+		if err != nil || !strings.HasPrefix(output.String(), "finished ") {
+			t.Fatalf("err=%v output=%q", err, output.String())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("scripted worker did not return after the reference worker exited")
 	}
 }
