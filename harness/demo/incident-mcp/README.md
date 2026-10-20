@@ -54,6 +54,9 @@ least 9/10 successful business outcomes); deterministic safety probes must all p
   one explicitly synthetic legacy compatibility profile and an
   optional existing local Ollama endpoint. It creates no cluster. **Do not apply
   it to the shared install:** it is not a merge patch for existing login/model/config.
+  Its explicit `network-policy-mode: strict` is an operator declaration, not
+  packet evidence. Verify the selected cluster's startup-isolating CNI before
+  installation; ordinary kind networking does not satisfy this prerequisite.
 - `template.yaml`, `policy.yaml`, `work-*.yaml`: canonical registration/submission
   documents. Local image tags must be replaced with reviewed compatible immutable
   digests before cloud use. Register a new template name when changing content.

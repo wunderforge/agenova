@@ -9,6 +9,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +36,13 @@ type networkKube struct {
 	replaceBeforePatch bool
 	replaceAfterPatch  bool
 	patches            int
+	afterGet           func(string)
+	afterPatch         func()
+	afterExists        func(string)
+	afterPolicyCreate  func()
+	createResponseErr  error
+	networkCreates     int
+	createDeadline     time.Time
 }
 
 func (k *networkKube) applyBytes(data []byte) error {
@@ -69,6 +77,11 @@ func (k *networkKube) applyBytes(data []byte) error {
 }
 
 func (k *networkKube) get(resource, name string, dst any) error {
+	defer func() {
+		if k.afterGet != nil {
+			k.afterGet(resource)
+		}
+	}()
 	if resource == "networkpolicies" {
 		data, _ := json.Marshal(k.policy)
 		return json.Unmarshal(data, dst)
@@ -109,6 +122,11 @@ func (k *networkKube) delete(resource, name string) error {
 }
 
 func (k *networkKube) exists(resource, name string) (bool, error) {
+	defer func() {
+		if k.afterExists != nil {
+			k.afterExists(resource)
+		}
+	}()
 	if resource == "networkpolicies" {
 		return k.policy != nil, k.existsErr
 	}
@@ -116,6 +134,16 @@ func (k *networkKube) exists(resource, name string) (bool, error) {
 		return k.podPresent, k.existsErr
 	}
 	return k.fakeKube.exists(resource, name)
+}
+
+func (k *networkKube) createNetworkPolicyBefore(data []byte, expiry time.Time) error {
+	k.networkCreates++
+	k.createDeadline = expiry
+	err := k.createBytes(data)
+	if k.afterPolicyCreate != nil {
+		k.afterPolicyCreate()
+	}
+	return errors.Join(err, k.createResponseErr)
 }
 
 func (k *networkKube) createBytes(data []byte) error {
@@ -157,6 +185,11 @@ func (k *networkKube) deletePinned(resource, name, uid, version string) error {
 }
 
 func (k *networkKube) patchPodIncarnation(name, uid, claimUID, value string) error {
+	defer func() {
+		if k.afterPatch != nil {
+			k.afterPatch()
+		}
+	}()
 	k.patches++
 	if k.patchErr != nil {
 		return k.patchErr
@@ -197,6 +230,142 @@ func TestNetworkUnsupportedFailsBeforeAllocation(t *testing.T) {
 	_, err := a.Allocate(runtime.AllocateRequest{ClaimID: "blocked", TemplateRef: "tmpl-v1", Network: runtime.NetworkAuthority{ExpiresAt: time.Now().Add(time.Minute)}})
 	if !errors.Is(err, runtime.ErrUnsupported) || k.applies != 0 || len(a.allocations) != 0 {
 		t.Fatalf("unsupported allocated: %v %+v", err, k)
+	}
+}
+
+func TestNetworkActivationExpiryAtEveryRemoteBoundaryCompensates(t *testing.T) {
+	for _, boundary := range []string{"claim-read", "pod-read", "pod-patch", "rule-exists", "rule-create", "rule-readback", "final-binding", "offline-binding"} {
+		t.Run(boundary, func(t *testing.T) {
+			profiles := []string{"public-web"}
+			if boundary == "offline-binding" {
+				profiles = nil
+			}
+			a, k, f, alloc := networkFixture(t, profiles)
+			if err := a.Start(alloc.Identity); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now()
+			expiry := a.allocations["run-1"].network.ExpiresAt
+			a.networkNow = func() time.Time { return now }
+			advance := func() { now = expiry }
+			claimReads := 0
+			k.afterGet = func(resource string) {
+				if resource == "sandboxclaims" {
+					claimReads++
+				}
+				if (boundary == "claim-read" && resource == "sandboxclaims") || (boundary == "pod-read" && resource == "pods") || (boundary == "rule-readback" && resource == "networkpolicies") || (boundary == "final-binding" && resource == "sandboxclaims" && claimReads == 2) || (boundary == "offline-binding" && resource == "pods") {
+					advance()
+				}
+			}
+			if boundary == "pod-patch" {
+				k.afterPatch = advance
+			}
+			if boundary == "rule-exists" {
+				k.afterExists = func(resource string) {
+					if resource == "networkpolicies" {
+						advance()
+					}
+				}
+			}
+			if boundary == "rule-create" {
+				k.afterPolicyCreate = advance
+			}
+			evidence, err := a.ActivateNetwork(alloc.Identity)
+			if err == nil || evidence.State != "" {
+				t.Fatalf("expired activation returned authority: %+v %v", evidence, err)
+			}
+			if k.policy != nil || k.podPresent || len(k.claims) != 0 || f.stops != 0 {
+				t.Fatalf("expiry cleanup not trusted/complete: policy=%v pod=%v claims=%d stops=%d", k.policy, k.podPresent, len(k.claims), f.stops)
+			}
+			created := boundary == "rule-create" || boundary == "rule-readback" || boundary == "final-binding"
+			if (!created && k.networkCreates != 0) || (created && k.networkCreates != 1) {
+				t.Fatalf("creation crossed stale boundary: %d", k.networkCreates)
+			}
+			if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+				t.Fatal("expired allocation reactivated")
+			}
+		})
+	}
+}
+
+func TestNetworkActivationAmbiguousCreateRevokesOwnedRuleAndDestroysWorker(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		t.Run(fmt.Sprint("expired-", expired), func(t *testing.T) {
+			a, k, _, alloc := networkFixture(t, []string{"public-web"})
+			if err := a.Start(alloc.Identity); err != nil {
+				t.Fatal(err)
+			}
+			transportErr := errors.New("ambiguous create response")
+			k.createResponseErr = transportErr
+			if expired {
+				now := time.Now()
+				a.networkNow = func() time.Time { return now }
+				k.afterPolicyCreate = func() { now = a.allocations["run-1"].network.ExpiresAt }
+			}
+			evidence, err := a.ActivateNetwork(alloc.Identity)
+			if !errors.Is(err, transportErr) || evidence.State != "" || k.policy != nil || k.podPresent || len(k.claims) != 0 {
+				t.Fatalf("ambiguous grant escaped compensation: %+v %v pod=%v policy=%v", evidence, err, k.podPresent, k.policy)
+			}
+		})
+	}
+}
+
+func TestNetworkActivationExpiryCleanupFailureIsNotHidden(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	a.networkNow = func() time.Time { return now }
+	k.afterPolicyCreate = func() { now = a.allocations["run-1"].network.ExpiresAt }
+	cleanupErr := errors.New("rule cleanup unavailable")
+	k.ruleDeleteErr = cleanupErr
+	evidence, err := a.ActivateNetwork(alloc.Identity)
+	if !errors.Is(err, cleanupErr) || evidence.State != "" || k.podPresent {
+		t.Fatalf("cleanup failure hidden or live worker retained: %+v %v", evidence, err)
+	}
+	if k.policy == nil {
+		t.Fatal("test did not retain failed-delete rule")
+	}
+}
+
+func TestNetworkActivationWriteUsesEarlierUpstreamExpiry(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	earlier := time.Now().Add(10 * time.Second)
+	k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = earlier.Format(time.RFC3339Nano)
+	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	if !k.createDeadline.Equal(earlier) {
+		t.Fatalf("write deadline %v exceeds earlier upstream deadline %v", k.createDeadline, earlier)
+	}
+}
+
+func TestNetworkPolicyCreateTransportBoundedByAuthorityDeadline(t *testing.T) {
+	r := newKubectlRunner("test", "work")
+	expiry := time.Now().Add(20 * time.Millisecond)
+	called := false
+	r.command = func(ctx context.Context, _ []byte, args ...string) ([]byte, error) {
+		called = true
+		deadline, ok := ctx.Deadline()
+		if !ok || deadline.After(expiry) {
+			t.Fatal("write context outlives authority")
+		}
+		if !strings.Contains(strings.Join(args, " "), "create -f -") {
+			t.Fatal(args)
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	if err := r.createNetworkPolicyBefore([]byte(`{}`), expiry); !errors.Is(err, context.DeadlineExceeded) || !called {
+		t.Fatalf("unbounded grant write: %v called=%v", err, called)
+	}
+	called = false
+	if err := r.createNetworkPolicyBefore(nil, time.Now().Add(-time.Second)); !errors.Is(err, context.DeadlineExceeded) || called {
+		t.Fatalf("expired write was started: %v called=%v", err, called)
 	}
 }
 

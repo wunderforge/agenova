@@ -332,6 +332,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	networkReleaseStarted := false
 	networkReleasePending := false
 	networkReleased := false
+	// Network profiles did not exist in historical evidence. An explicit grant
+	// is therefore a new-contract snapshot: successful execution or dispatch
+	// cannot silently fall back to historical handling by omitting every event.
+	requiresNetworkLifecycle := view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) > 0
 	runOutcomeReasonCode := ""
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
@@ -433,6 +437,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "Runtime" {
+			if fact.Operation == "Succeeded" && requiresNetworkLifecycle && !networkActive {
+				return false
+			}
 			// Pending is the initial journal insertion, not a transition
 			// appended to IssuedState.Evidence.RuntimeEvents.
 			if fact.Operation != "Pending" {
@@ -524,6 +531,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
+			if requiresNetworkLifecycle && !networkActive {
+				return false
+			}
 			if !runningRecorded || runtimeTerminal &&
 				(fact.Kind != "ProviderOutcome" || fact.ProviderStatus != "Cancelled" ||
 					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {

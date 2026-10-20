@@ -120,6 +120,23 @@ func (r *kubectlRunner) createBytes(manifest []byte) error {
 	return err
 }
 
+// Bound the grant write itself, not just the checks preceding it. A canceled
+// API request may still have committed; activation always performs owned
+// readback/revocation compensation rather than treating cancellation as absence.
+func (r *kubectlRunner) createNetworkPolicyBefore(manifest []byte, expiry time.Time) error {
+	deadline := time.Now().Add(r.timeout)
+	if expiry.Before(deadline) {
+		deadline = expiry
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := r.command(ctx, manifest, r.baseArgs("create", "-f", "-")...)
+	return err
+}
+
 // patchPodIncarnation atomically guards the original Pod's immutable identity.
 // Patching a reused name without these JSONPatch tests could authorize a peer.
 func (r *kubectlRunner) patchPodIncarnation(name, podUID, claimUID, value string) error {

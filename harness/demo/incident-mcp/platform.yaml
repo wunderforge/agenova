@@ -19,6 +19,8 @@ spec:
         adapterRef: runtime
         config:
           connection: {mode: in-cluster, namespace: agenova-incident-demo}
+          # Declaration only: verify startup-isolating CNI before installation.
+          network-policy-mode: strict
     runtimeProfiles:
       - name: standard-isolated
         backendRef: runtime

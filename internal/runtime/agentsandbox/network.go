@@ -21,6 +21,7 @@ const networkIncarnationLabel = "agenova.io/network-incarnation"
 
 type pinnedNetworkClient interface {
 	createBytes([]byte) error
+	createNetworkPolicyBefore([]byte, time.Time) error
 	deletePinned(resource, name, uid, version string) error
 	patchPodIncarnation(name, podUID, claimUID, value string) error
 }
@@ -129,7 +130,7 @@ func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamS
 
 // ActivateNetwork is called after the application durably enters Running.
 // NetworkPolicy API acceptance is configuration evidence, not CNI convergence.
-func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (evidence runtime.NetworkEvidence, activationErr error) {
 	entry, err := a.entryFor(id)
 	if err != nil {
 		return runtime.NetworkEvidence{}, err
@@ -143,11 +144,30 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 	if revoked || a.phases[id.WorkerID] != controlRunning {
 		return runtime.NetworkEvidence{}, runtime.ErrTerminated
 	}
+	if n.ExpiresAt.IsZero() {
+		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
+	}
+	deadline := n.ExpiresAt
+	expired := func() bool { return !a.networkNow().Before(deadline) }
+	compensate := false
+	// Slow/ambiguous Kubernetes writes can complete after the authority deadline.
+	// Never return an Active receipt in that case. Reuse the trusted UID-guarded
+	// revocation path under the existing lock, not a worker-supplied stop ACK.
+	defer func() {
+		if expired() || compensate {
+			_, cleanupErr := a.revokeNetworkLocked(entry, id)
+			evidence = runtime.NetworkEvidence{}
+			if expired() {
+				activationErr = errors.Join(activationErr, errors.New("network authority expired during activation"))
+			}
+			activationErr = errors.Join(activationErr, cleanupErr)
+		}
+	}()
 	if err := a.validateNetworkAllocation(n); err != nil {
 		return runtime.NetworkEvidence{}, err
 	}
-	if n.ExpiresAt.IsZero() {
-		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
+	if expired() {
+		return runtime.NetworkEvidence{}, errors.New("network authority already expired")
 	}
 	claim, err := a.boundNetworkClaim(entry)
 	if err != nil {
@@ -157,8 +177,12 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		return runtime.NetworkEvidence{}, errors.New("independent backend expiry is missing")
 	}
 	expiry, err := time.Parse(time.RFC3339Nano, claim.Spec.Lifecycle.ShutdownTime)
-	if err != nil || expiry.After(n.ExpiresAt) || !time.Now().Before(expiry) {
+	if err != nil || expiry.After(n.ExpiresAt) {
 		return runtime.NetworkEvidence{}, errors.New("independent backend expiry does not match authority")
+	}
+	deadline = expiry
+	if expired() {
+		return runtime.NetworkEvidence{}, errors.New("independent backend expiry elapsed")
 	}
 	if len(n.Profiles) > 0 {
 		client, ok := a.kube.(pinnedNetworkClient)
@@ -175,12 +199,29 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if err != nil {
 			return runtime.NetworkEvidence{}, err
 		}
-		// Create-only: an unrelated same-name rule is never overwritten. An
-		// ambiguous/repeated create succeeds only after exact owned readback.
-		createErr := client.createBytes(manifest)
+		// An idempotent retry may inspect an existing rule, but never overwrite
+		// it. A failed/ambiguous create is NOT converted into successful authority.
+		present, queryErr := a.kube.exists("networkpolicies", networkRuleName(entry.claimID, entry.workerID))
+		if queryErr != nil {
+			return runtime.NetworkEvidence{}, queryErr
+		}
+		if !present {
+			// Reads and patch are remote calls: check immediately before write.
+			if expired() {
+				return runtime.NetworkEvidence{}, errors.New("network authority expired before rule creation")
+			}
+			if createErr := client.createNetworkPolicyBefore(manifest, deadline); createErr != nil {
+				compensate = true
+				return runtime.NetworkEvidence{}, createErr
+			}
+			if expired() {
+				return runtime.NetworkEvidence{}, errors.New("network authority expired during rule creation")
+			}
+		}
+		compensate = true // any failed owned readback/binding must remove the grant
 		policy, readErr := a.ownedNetworkPolicy(entry)
 		if readErr != nil {
-			return runtime.NetworkEvidence{}, errors.Join(createErr, readErr)
+			return runtime.NetworkEvidence{}, readErr
 		}
 		var desired networkPolicyObject
 		if err := json.Unmarshal(manifest, &desired); err != nil {
@@ -192,6 +233,7 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if _, err := a.boundNetworkClaim(entry); err != nil {
 			return runtime.NetworkEvidence{}, err
 		}
+		compensate = false
 	}
 	a.SpikeAdapter.mu.Lock()
 	entry.networkActive = true
@@ -247,6 +289,12 @@ func (a *ControlledAdapter) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentit
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.revokeNetworkLocked(entry, id)
+}
+
+// revokeNetworkLocked is shared with activation's expiry compensation. Caller
+// holds a.mu, preserving serialization with activation and terminal teardown.
+func (a *ControlledAdapter) revokeNetworkLocked(entry *allocationEntry, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	a.SpikeAdapter.mu.Lock()
 	revoked := entry.networkRevoked
 	a.SpikeAdapter.mu.Unlock()

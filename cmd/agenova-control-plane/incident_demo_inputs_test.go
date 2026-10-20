@@ -85,6 +85,19 @@ func TestIncidentDemoInputs(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
+	runtimeInstances := 0
+	for _, instance := range resolved.Instances {
+		if instance.Category != platform.CapabilityRuntime {
+			continue
+		}
+		runtimeInstances++
+		if instance.Config["network-policy-mode"] != "strict" {
+			t.Fatal("standalone incident runtime must explicitly require verified strict startup isolation")
+		}
+	}
+	if runtimeInstances != 1 {
+		t.Fatalf("standalone incident runtime instances = %d, want one", runtimeInstances)
+	}
 	if len(resolved.ToolRoutes) != 3 {
 		t.Fatal("expected two incident routes and one explicit legacy compatibility route")
 	}

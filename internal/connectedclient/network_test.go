@@ -189,6 +189,7 @@ func TestNetworkReleaseFailureRetryAndRecovery(t *testing.T) {
 
 func TestCancelledProviderMayFinishAfterNetworkRevocation(t *testing.T) {
 	v := networkView(t, false, false)
+	grantPublicNetwork(&v)
 	v.State.Claim.Phase = v0.ClaimPhaseFailed
 	v.Outcome = &evidence.Outcome{Status: "Cancelled", Failure: "synthetic cancellation"}
 	v.Request.Spec.RequestedAccess.ModelProfile = "coding-standard"
@@ -291,5 +292,180 @@ func TestToolArgumentRejectionIsNotAnInvocation(t *testing.T) {
 		if validEvidenceView(v, v.RequestRef) != (bad == "") {
 			t.Fatalf("rejection shape validity wrong: %q", bad)
 		}
+	}
+}
+
+func grantPublicNetwork(v *evidence.View) {
+	v.Request.Spec.RequestedAccess.NetworkProfiles = []string{"public-web"}
+	v.State.EffectiveAuthority.NetworkProfiles = []string{"public-web"}
+	for i := range v.Facts {
+		if v.Facts[i].Authority != nil {
+			v.Facts[i].Authority.NetworkProfiles = []string{"public-web"}
+		}
+	}
+}
+
+func withoutNetworkFacts(v evidence.View) evidence.View {
+	var kept []facts.Fact
+	for _, f := range v.Facts {
+		if !isNetworkOperation(f.Operation) {
+			kept = append(kept, f)
+		}
+	}
+	v.Facts = kept
+	refreshNetworkView(&v)
+	return v
+}
+
+func TestExplicitNetworkGrantCannotOmitWholeLifecycle(t *testing.T) {
+	for _, terminalOutcome := range []bool{false, true} {
+		v := networkView(t, false, false)
+		grantPublicNetwork(&v)
+		v = withoutNetworkFacts(v)
+		if !terminalOutcome {
+			v.Outcome = nil
+			v.Facts = v.Facts[:len(v.Facts)-1]
+			refreshNetworkView(&v)
+		}
+		if validEvidenceView(v, v.RequestRef) {
+			t.Fatal("public-web success accepted with the entire network lifecycle omitted", terminalOutcome)
+		}
+	}
+	// Empty/omitted networking predates this extension. Do not retroactively
+	// label it isolated, or make real historical records impossible to inspect.
+	v := withoutNetworkFacts(networkView(t, false, false))
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("historical evidence compatibility regressed")
+	}
+}
+
+func TestExplicitNetworkGrantRequiresActivationBeforeDispatch(t *testing.T) {
+	for _, kind := range []string{"WorkerActivity", "ModelDecision", "ProviderAttempt"} {
+		v := networkView(t, false, false)
+		grantPublicNetwork(&v)
+		v = withoutNetworkFacts(v)
+		v.Outcome = nil
+		v.State.Claim.Phase = v0.ClaimPhaseRunning
+		var prefix []facts.Fact
+		for _, f := range v.Facts {
+			prefix = append(prefix, f)
+			if f.Operation == "Running" {
+				break
+			}
+		}
+		v.Facts = prefix
+		v.Request.Spec.RequestedAccess.ModelProfile = "coding-standard"
+		v.State.EffectiveAuthority.ModelProfile = "coding-standard"
+		for i := range v.Facts {
+			if v.Facts[i].Authority != nil {
+				v.Facts[i].Authority.ModelProfile = "coding-standard"
+			}
+		}
+		refreshNetworkView(&v)
+		if !validEvidenceView(v, v.RequestRef) {
+			t.Fatal("Running-before-activation poll must be readable")
+		}
+		p := v.State.PolicyRef
+		decision := facts.Fact{Kind: "ModelDecision", RequestRef: v.RequestRef, ClaimID: v.State.Claim.ID, InvocationID: "early", PolicyRef: &p, Operation: "model.invoke", Target: "coding-standard", Result: v0.DecisionResultAllow}
+		if kind == "WorkerActivity" {
+			v.Facts = append(v.Facts, facts.Fact{Kind: kind, RequestRef: v.RequestRef, ClaimID: v.State.Claim.ID, Operation: "TurnStarted"})
+		} else {
+			v.Facts = append(v.Facts, decision)
+			if kind == "ProviderAttempt" {
+				v.Facts = append(v.Facts, facts.Fact{Kind: kind, RequestRef: v.RequestRef, ClaimID: v.State.Claim.ID, InvocationID: "early", Operation: "model.invoke", Target: "coding-standard", ProviderStatus: "Attempted"})
+			}
+		}
+		refreshNetworkView(&v)
+		if validEvidenceView(v, v.RequestRef) {
+			t.Fatal("dispatch/activity without network activation accepted", kind)
+		}
+	}
+}
+
+func TestExplicitNetworkGrantRejectsIncompleteTerminalLifecycle(t *testing.T) {
+	for _, omitted := range []string{"NetworkActivationAttempt", "NetworkActive", "NetworkRevocationAttempt", "NetworkRevoked", "release pair"} {
+		t.Run(omitted, func(t *testing.T) {
+			v := networkView(t, false, false)
+			grantPublicNetwork(&v)
+			var kept []facts.Fact
+			for _, f := range v.Facts {
+				if f.Operation != omitted && !(omitted == "release pair" && isNetworkRevocationOperation(f.Operation)) {
+					kept = append(kept, f)
+				}
+			}
+			v.Facts = kept
+			refreshNetworkView(&v)
+			if validEvidenceView(v, v.RequestRef) {
+				t.Fatal("incomplete explicit network lifecycle accepted")
+			}
+		})
+	}
+}
+
+func TestExplicitNetworkGrantAllowsLegitimatePartialPollingAndEarlyFailure(t *testing.T) {
+	for _, stop := range []string{"AuthorityResolved", "Bound", "BackendReady", "Running", "NetworkActivationAttempt", "NetworkActive"} {
+		t.Run(stop, func(t *testing.T) {
+			v := networkView(t, false, false)
+			grantPublicNetwork(&v)
+			for i, f := range v.Facts {
+				if f.Kind == stop || f.Operation == stop {
+					v.Facts = v.Facts[:i+1]
+					break
+				}
+			}
+			v.Outcome = nil
+			v.State.Claim.Phase = v0.ClaimPhaseRunning
+			if stop == "AuthorityResolved" {
+				v.State.Claim.Phase = v0.ClaimPhasePending
+				v.State.Claim.BackendIdentity = nil
+			}
+			if stop == "Bound" || stop == "BackendReady" {
+				v.State.Claim.Phase = v0.ClaimPhaseBound
+			}
+			refreshNetworkView(&v)
+			if !validEvidenceView(v, v.RequestRef) {
+				t.Fatal("legitimate queued/startup/activation snapshot rejected")
+			}
+		})
+	}
+	v := networkView(t, true, false)
+	grantPublicNetwork(&v)
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("terminal activation failure falsely required NetworkActive")
+	}
+	for i, f := range v.Facts {
+		if f.Operation == "NetworkActivationFailed" {
+			v.Facts = v.Facts[:i+1]
+			break
+		}
+	}
+	v.Outcome = nil
+	refreshNetworkView(&v)
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("activation failure crash window unreadable")
+	}
+	v.Recovery = &evidence.Recovery{Code: "service-restarted", Cleanup: "Unknown"}
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("activation failure recovery snapshot unreadable")
+	}
+	// Cancellation can legitimately win after Running but before any network
+	// grant or worker dispatch. Release facts must not be mistaken for activation.
+	v = networkView(t, true, false)
+	grantPublicNetwork(&v)
+	v.Outcome.Status = "Cancelled"
+	var cancelled []facts.Fact
+	for _, f := range v.Facts {
+		if f.Operation == "NetworkActivationAttempt" {
+			continue
+		}
+		if f.Operation == "NetworkActivationFailed" || f.Kind == "RunOutcome" {
+			f.Operation = "Cancelled"
+		}
+		cancelled = append(cancelled, f)
+	}
+	v.Facts = cancelled
+	refreshNetworkView(&v)
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("pre-activation cancellation falsely required a successful grant")
 	}
 }

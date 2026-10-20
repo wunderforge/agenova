@@ -115,3 +115,20 @@ source gate. Merge was held; no shared configuration was changed.
 Focused app/console/connected-client tests, vet, cluster-free controlled/live-tag
 tests and compilation passed. Full updated-source CI and independent rereview
 are required before merge; the earlier CI result alone does not cover these fixes.
+
+A second independent review identified three additional gaps; merge remained
+held. The standalone incident Platform now explicitly declares strict isolation
+and its resolved configuration is regression-tested. Connected evidence with an
+explicit public network grant cannot omit all network lifecycle facts and still
+claim execution or success; ordinary startup polling and historical snapshots
+remain supported. Runtime activation now rechecks expiry across remote binding,
+Pod patch and rule creation, bounds the grant-write deadline, and compensates
+expired or ambiguous writes through trusted owned-resource revocation. Slow-call,
+missing-evidence and compatibility regressions accompany these changes. Updated
+full gates and independent rereview are required for this new source as well.
+
+Cloud preparation on 21 October created only the approved internal MCP workload
+and its namespace, ClusterIP, synthetic-data ConfigMap and ingress/egress policy
+on existing nodes. The control plane and installed Platform remain unchanged at
+this checkpoint. Native amd64 image manifests were published to the existing
+immutable ECR repository; this is not AWS Work or network-enforcement acceptance.
