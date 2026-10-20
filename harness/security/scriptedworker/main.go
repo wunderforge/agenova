@@ -7,7 +7,7 @@
 // exercised on the installed reference environment. It is not a product
 // deliverable and never runs outside an explicitly selected test cluster.
 //
-// Objective format: "e15-scenario=<name> [target=<claim-id>] [wait=<duration>]"
+// Objective format: "e15-scenario=<name> [target=<claim-id>] [scope=<resource-scope>] [wait=<duration>]"
 package main
 
 import (
@@ -128,6 +128,12 @@ func scenario(task workerprotocol.Task) ([]step, error) {
 		return []step{allowed(), tool("git.write", grantedScope)}, nil
 	case "scope":
 		return []step{allowed(), tool("git.read", "repo:e15/ungranted")}, nil
+	case "foreign-scope":
+		// A granted operation name aimed at another Work's resource scope.
+		if len(task.Tools) == 0 || args["scope"] == "" || args["scope"] == grantedScope {
+			return nil, errors.New("foreign-scope needs a granted tool and a scope other than the granted one")
+		}
+		return []step{allowed(), tool(task.Tools[0].Operation, args["scope"])}, nil
 	case "malformed":
 		return []step{allowed(), {raw: "{not-json"}}, nil
 	case "unsupported":

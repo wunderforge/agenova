@@ -80,6 +80,9 @@ func TestNegativeScenariosChangeOnlyTheNamedField(t *testing.T) {
 		{"e15-scenario=scope", func(op workerprotocol.Operation) bool {
 			return op.Kind == "tool" && op.WorkloadToken == toolToken && op.Tool == "git.read" && op.ResourceScope == "repo:e15/ungranted"
 		}},
+		{"e15-scenario=foreign-scope scope=repo:acme/billing", func(op workerprotocol.Operation) bool {
+			return op.Kind == "tool" && op.WorkloadToken == toolToken && op.Tool == "git.read" && op.ResourceScope == "repo:acme/billing"
+		}},
 		{"e15-scenario=unsupported", func(op workerprotocol.Operation) bool { return op.Kind == "memory" && op.ClaimID == claimID }},
 	}
 	for _, c := range cases {
@@ -123,7 +126,7 @@ func TestRawAndTimedScenarios(t *testing.T) {
 }
 
 func TestInvalidScenarioInputIsRejected(t *testing.T) {
-	for _, objective := range []string{"e15-scenario=unknown", "no scenario", "e15-scenario=cross-claim", "e15-scenario=cross-claim target=claim-a", "e15-scenario=after-expiry wait=x"} {
+	for _, objective := range []string{"e15-scenario=unknown", "no scenario", "e15-scenario=cross-claim", "e15-scenario=cross-claim target=claim-a", "e15-scenario=after-expiry wait=x", "e15-scenario=foreign-scope", "e15-scenario=foreign-scope scope=repo:acme/payments"} {
 		if lines, _, err := drive(t, objective, 1); err == nil || len(lines) != 0 {
 			t.Fatalf("%q: want error before any record, got lines=%d err=%v", objective, len(lines), err)
 		}
