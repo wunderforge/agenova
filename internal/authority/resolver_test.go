@@ -154,15 +154,42 @@ func TestResolveDoesNotTreatPolicyConstraintsAsAuthorityGrant(t *testing.T) {
 		Tools: &policy.StringSetConstraint{Values: []string{"shell.exec"}},
 	})
 	got, err := Resolve(request, template, admission)
+	assertFailure(t, got, err, "spec.requestedAccess.tools")
+}
+
+func TestResolveAppliesPolicyCapAndReportsReason(t *testing.T) {
+	request, template, _ := fixtures(t)
+	admission := admitWithConstraints(t, request, &policy.AuthorityConstraints{
+		Tools: &policy.StringSetConstraint{Values: []string{"git.read"}},
+	})
+	resolution, err := ResolveForIssuance(request, template, admission)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(got.Tools, "shell.exec") {
-		t.Fatalf("Policy constraint expanded authority beyond the request/template: %+v", got)
+	got, ok := resolution.AuthorityFor(request)
+	if !ok || !reflect.DeepEqual(got.Tools, []string{"git.read"}) {
+		t.Fatalf("resolved tools = %+v, %v", got, ok)
 	}
-	if !reflect.DeepEqual(got.Tools, []string{"git.read", "git.write", "github.pull-request"}) {
-		t.Fatalf("M1 changed existing authority behavior before M3 constraint resolution: %v", got.Tools)
+	changes, ok := resolution.ChangesFor(request)
+	if !ok {
+		t.Fatal("missing changes")
 	}
+	found := false
+	for _, change := range changes {
+		if change.Field == "tools" && change.ReasonCode == "outside-policy-constraint" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing policy narrowing reason: %+v", changes)
+	}
+}
+
+func TestResolveExplicitEmptyPolicyCapDenies(t *testing.T) {
+	request, template, _ := fixtures(t)
+	admission := admitWithConstraints(t, request, &policy.AuthorityConstraints{Tools: &policy.StringSetConstraint{Values: []string{}}})
+	got, err := Resolve(request, template, admission)
+	assertFailure(t, got, err, "spec.requestedAccess.tools")
 }
 
 func TestResolveReturnsIndependentSnapshot(t *testing.T) {

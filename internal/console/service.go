@@ -7,6 +7,7 @@ package console
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
+	"github.com/wunderforge/agenova/internal/workloadidentity"
 	"github.com/wunderforge/agenova/internal/workstore"
 )
 
@@ -72,6 +74,7 @@ type Service struct {
 	order         []string
 	closed        bool
 	wg            sync.WaitGroup
+	workload      *workloadidentity.Service
 }
 
 // AccessAuthorizer checks current server-owned project roles; it cannot grant
@@ -136,6 +139,15 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 		}
 	}
 	s := &Service{tools: options.ToolBackend, durable: options.Durable, preset: preset, setup: options.Setup, setupFor: options.SetupFor, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	var key [32]byte
+	if _, err := rand.Read(key[:]); err != nil {
+		return nil, errors.New("workload identity entropy unavailable")
+	}
+	workload, err := workloadidentity.New(key[:], nil)
+	if err != nil {
+		return nil, err
+	}
+	s.workload = workload
 	runner, err := app.NewRunService(backend, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
@@ -311,14 +323,22 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	}
 	launch.ProfileRef = prepared.Issued.EffectiveAuthority.Runtime.ProfileRef
 	details := []string{}
+	resolutionCode := "admitted-template-ceiling"
 	for _, change := range prepared.Changes {
+		if change.ReasonCode == "outside-policy-constraint" || change.ReasonCode == "policy-timeout-cap" {
+			resolutionCode = "admitted-policy-constraint"
+		}
 		if change.Effective == "" {
-			details = append(details, change.Requested+" excluded by the template ceiling.")
+			if change.ReasonCode == "outside-policy-constraint" {
+				details = append(details, change.Requested+" excluded by the Policy constraint.")
+			} else {
+				details = append(details, change.Requested+" excluded by the template ceiling.")
+			}
 		} else {
 			details = append(details, change.Field+" capped from "+change.Requested+" to "+change.Effective+".")
 		}
 	}
-	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: "admitted-template-ceiling", Reason: strings.Join(details, " ")}); err != nil {
+	if _, err = s.journal.Append(facts.Fact{Kind: "AuthorityResolved", RequestRef: ref, ClaimID: prepared.Issued.Claim.ID, Authority: prepared.Issued.EffectiveAuthority, AuthorityChanges: prepared.Changes, PolicyRef: &d.PolicyRef, ReasonCode: resolutionCode, Reason: strings.Join(details, " ")}); err != nil {
 		return evidence.View{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(prepared.Issued.EffectiveAuthority.Runtime.Timeout))
@@ -394,8 +414,21 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		if !ok || snapshot.Claim.BackendIdentity == nil {
 			return errors.New("running worker binding is missing")
 		}
+		deadline, ok := app.WorkDeadline(ctx)
+		if !ok {
+			return errors.New("running claim deadline is missing")
+		}
+		workerID := snapshot.Claim.BackendIdentity.WorkerID
+		modelToken, err := s.workload.Issue(claimID, workerID, "model-gateway", deadline)
+		if err != nil {
+			return errors.New("model workload identity could not be issued")
+		}
+		toolToken, err := s.workload.Issue(claimID, workerID, "tool-gateway", deadline)
+		if err != nil {
+			return errors.New("tool workload identity could not be issued")
+		}
 		adapter := &completionAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef}
-		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
+		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithWorkloadIdentity(s.workload), modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -412,7 +445,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			configured := &providerToolAdapter{ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
 			selected, results = configured, configured.results
 		}
-		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
+		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithWorkloadIdentity(s.workload), toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
@@ -435,7 +468,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
 			return err
 		}
-		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		text, err := s.executor.Execute(ctx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -451,7 +484,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 					return workerprotocol.Reply{}, err
 				}
 				tool, action := toolbackend.SplitOperation(op.Tool)
-				d, err := toolGW.Invoke(toolgateway.Request{ClaimID: claimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: map[string]string{parameter: op.Input}})
+				d, err := toolGW.InvokeAuthenticated(toolgateway.Request{ClaimID: op.ClaimID, Tool: tool, Action: action, ResourceScope: op.ResourceScope, Parameters: map[string]string{parameter: op.Input}}, op.WorkloadToken)
 				if errors.Is(err, errToolEvidence) {
 					toolEvidenceFailed = true
 					return workerprotocol.Reply{}, errToolEvidence
@@ -486,7 +519,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			if len(workTools) == 0 || turn == workerprotocol.MaxTurns || len(readInputs) == workerprotocol.ToolInputs(workTools) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
-			d, err := gw.Invoke(modelgateway.Request{ClaimID: claimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}})
+			d, err := gw.InvokeAuthenticated(modelgateway.Request{ClaimID: op.ClaimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}}, op.WorkloadToken)
 			if err != nil {
 				return workerprotocol.Reply{}, errors.New("model execution failed; see evidence")
 			}

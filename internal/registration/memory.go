@@ -91,8 +91,10 @@ func (s *MemoryStore) Template(name string) (*v0.AgentTemplate, error) {
 }
 
 func cloneBundle(bundle policy.PolicyBundle) policy.PolicyBundle {
-	bundle.Rules = append([]policy.Rule(nil), bundle.Rules...)
-	return bundle
+	encoded, _ := json.Marshal(bundle)
+	var copy policy.PolicyBundle
+	_ = json.Unmarshal(encoded, &copy)
+	return copy
 }
 
 func cloneTemplate(template *v0.AgentTemplate) *v0.AgentTemplate {

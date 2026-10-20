@@ -58,7 +58,7 @@ type verticalExecutor struct {
 
 func (e *verticalExecutor) Execute(ctx context.Context, id v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handle workerprotocol.Handler) (string, error) {
 	e.calls.Add(1)
-	op := workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}
+	op := workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective}
 	if e.foreign {
 		op.ClaimID = "claim:other"
 	}
