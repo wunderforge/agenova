@@ -4,7 +4,8 @@
 
 The operator releases the control plane. An authorized Agent publisher builds and
 pushes an application image, then registers a **new immutable AgentTemplate** with
-`agenova agent-template apply -f agent.yaml` (authenticated connected mode). Work
+`agenova agent-template apply -f agent.yaml --server https://app.agenova.app --project payments`
+(authenticated connected mode; select your own endpoint/project as appropriate). Work
 selects that template. No platform rebuild, restart or CI/CD run is required
 merely to select another Agent image.
 
@@ -15,6 +16,8 @@ content conflicts. Registration validates structure, name and timeout bounds,
 still cannot grant authority. Prefer immutable digests; mutable tags make future
 pulls non-reproducible. Registry/node pull access must exist separately; publishing
 an image or template does not grant it.
+Applicable policy must also authorize the new template reference; registration
+never automatically edits policy or grants permission to run it.
 
 ## Current execution contract: controlled-v1
 
@@ -60,6 +63,8 @@ failure before binding may remain an allocation timeout. Control readiness retri
 have a 10-second polling window plus a bounded kubectl call; Work retains its
 deadline. Invalid pre-start responses issue no start/provider call. Ambiguity
 **after** start requires confirmed stop before cleanup and never implies success.
+Runtime command capture is capped at 1 MiB as well as time-bounded, so arbitrary
+worker stdout/stderr cannot grow the control plane's capture buffer indefinitely.
 
 Old Platform `compatible-worker-image` values remain parseable deprecated hints,
 optional and non-authoritative. Explicit unknown `compatible-worker-protocol`

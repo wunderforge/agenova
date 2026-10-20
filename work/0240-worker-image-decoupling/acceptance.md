@@ -35,6 +35,7 @@ or member data are included in this summary.
   tests pass. Missing/malformed acknowledgements remain fail-closed; raw worker
   text is not returned as diagnostics. Structured pull-failure classification and
   pending-Pod creation are unit tested. Existing cross-claim and cleanup tests run.
+  Runtime command output capture is bounded to 1 MiB independently of timeout.
 - Release transport: **38/38** offline Node tests pass. Main defaults automatic;
   obsolete opt-in `false` values cannot leave it silently disabled. New explicit
   `*_DISABLED=true` stops remain. Worker-only publication does not patch/restart

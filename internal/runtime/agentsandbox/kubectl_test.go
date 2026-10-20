@@ -6,6 +6,7 @@ package agentsandbox
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,22 @@ import (
 
 	agruntime "github.com/wunderforge/agenova/internal/runtime"
 )
+
+func TestRuntimeCommandOutputIsBoundedBeforeDeadline(t *testing.T) {
+	var output boundedCommandOutput
+	if _, err := output.Write([]byte(strings.Repeat("x", commandOutputLimit-2))); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := output.Write([]byte("unbounded-worker-output")); n != 2 || !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("oversize write=%d %v", n, err)
+	}
+	if output.data.Len() != commandOutputLimit {
+		t.Fatal("output exceeded capture limit")
+	}
+	if n, err := output.Write([]byte("more")); n != 0 || !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("continued write=%d %v", n, err)
+	}
+}
 
 func TestWorkerImageFailureUsesStructuredReasonOnly(t *testing.T) {
 	for _, reason := range []string{"ImagePullBackOff", "ErrImagePull", "InvalidImageName", "ContainerCreating"} {

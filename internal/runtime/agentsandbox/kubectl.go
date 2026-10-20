@@ -4,12 +4,15 @@
 package agentsandbox
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wunderforge/agenova/internal/runtime"
@@ -18,6 +21,26 @@ import (
 // defaultCommandTimeout bounds every single kubectl invocation so a hung
 // subprocess cannot outlive the adapter's polling deadlines.
 const defaultCommandTimeout = 30 * time.Second
+
+// A selected image can write arbitrary stdout/stderr through exec. A deadline
+// alone does not bound the memory captured before that deadline.
+const commandOutputLimit = 1 << 20
+
+type boundedCommandOutput struct {
+	mu   sync.Mutex
+	data bytes.Buffer
+}
+
+func (b *boundedCommandOutput) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	remaining := commandOutputLimit - b.data.Len()
+	if len(p) > remaining {
+		n, _ := b.data.Write(p[:remaining])
+		return n, io.ErrShortWrite
+	}
+	return b.data.Write(p)
+}
 
 // commandFunc runs one kubectl invocation. It exists so tests can substitute
 // a fake executable while the real argument construction and result
@@ -66,7 +89,10 @@ func execKubectl(ctx context.Context, stdin []byte, args ...string) ([]byte, err
 	if stdin != nil {
 		cmd.Stdin = strings.NewReader(string(stdin))
 	}
-	out, err := cmd.CombinedOutput()
+	var output boundedCommandOutput
+	cmd.Stdout, cmd.Stderr = &output, &output
+	err := cmd.Run()
+	out := output.data.Bytes() // All process/copy goroutines have joined.
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return out, fmt.Errorf("%w (command deadline %s)", ctxErr, deadlineString(ctx))
 	}
