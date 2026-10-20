@@ -123,4 +123,3 @@ Out of scope:
   passed source validation; snapshot, publish and deploy jobs were all skipped.
 - Linux PR CI remains the complete unskipped gate for the new UI candidate.
   Independent approval and all deployment prerequisites remain separate.
-
