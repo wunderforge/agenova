@@ -7,7 +7,8 @@
 // exercised on the installed reference environment. It is not a product
 // deliverable and never runs outside an explicitly selected test cluster.
 //
-// Objective format: "e15-scenario=<name> [target=<claim-id>] [scope=<resource-scope>] [wait=<duration>]"
+// Objective format: "e15-scenario=<name> [target=<claim-id>] [scope=<resource-scope>] [wait=<duration>]".
+// "e15-scenario=reference ..." runs the bundled reference worker unchanged.
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -25,6 +27,11 @@ import (
 )
 
 const lineLimit = 128 * 1024
+
+// referenceWorker is the unmodified reference worker bundled in the test
+// image. The reference scenario hands it the whole session, so one installed
+// template can run real-model controls beside scripted negative scenarios.
+var referenceWorker = []string{"/agenova-reference-worker"}
 
 // step is one worker record: an operation, a raw line, or a pause.
 type step struct {
@@ -41,12 +48,25 @@ func main() {
 }
 
 func run(input io.Reader, output io.Writer, sleep func(time.Duration)) error {
-	scanner := bufio.NewScanner(input)
-	scanner.Buffer(make([]byte, 4096), lineLimit)
+	// The task line is read through a Reader so any input buffered after it
+	// still reaches the reference worker in the reference scenario.
+	reader := bufio.NewReaderSize(input, lineLimit)
+	line, err := reader.ReadSlice('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return errors.New("invalid input")
+	}
+	line = append([]byte{}, line...)
 	var task workerprotocol.Task
-	if err := readLine(scanner, &task); err != nil {
+	if err := decode(bytes.TrimSuffix(line, []byte("\n")), &task); err != nil {
 		return err
 	}
+	if strings.Contains(task.Objective, "e15-scenario=reference") {
+		cmd := exec.Command(referenceWorker[0], referenceWorker[1:]...)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = io.MultiReader(bytes.NewReader(line), reader), output, os.Stderr
+		return cmd.Run()
+	}
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 4096), lineLimit)
 	steps, err := scenario(task)
 	if err != nil {
 		return err
@@ -161,7 +181,11 @@ func readLine(scanner *bufio.Scanner, value any) error {
 	if !scanner.Scan() {
 		return errors.New("session closed")
 	}
-	decoder := json.NewDecoder(bytes.NewReader(scanner.Bytes()))
+	return decode(scanner.Bytes(), value)
+}
+
+func decode(line []byte, value any) error {
+	decoder := json.NewDecoder(bytes.NewReader(line))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(value); err != nil {
 		return errors.New("invalid input")

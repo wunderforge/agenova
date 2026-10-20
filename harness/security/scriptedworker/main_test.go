@@ -6,6 +6,8 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +132,31 @@ func TestInvalidScenarioInputIsRejected(t *testing.T) {
 		if lines, _, err := drive(t, objective, 1); err == nil || len(lines) != 0 {
 			t.Fatalf("%q: want error before any record, got lines=%d err=%v", objective, len(lines), err)
 		}
+	}
+}
+
+// TestHelperReferenceWorker stands in for the bundled reference worker when
+// the reference scenario re-executes this test binary.
+func TestHelperReferenceWorker(t *testing.T) {
+	if os.Getenv("E15_REFERENCE_HELPER") != "1" {
+		return
+	}
+	input, _ := io.ReadAll(os.Stdin)
+	os.Stdout.WriteString("forwarded " + strings.TrimSpace(string(input)) + "\n")
+	os.Exit(0)
+}
+
+func TestReferenceScenarioForwardsTheUnchangedSession(t *testing.T) {
+	t.Setenv("E15_REFERENCE_HELPER", "1")
+	saved := referenceWorker
+	referenceWorker = []string{os.Args[0], "-test.run=^TestHelperReferenceWorker$"}
+	t.Cleanup(func() { referenceWorker = saved })
+	task, _ := json.Marshal(testTask("e15-scenario=reference explain the retry deadline"))
+	var output strings.Builder
+	if err := run(strings.NewReader(string(task)+"\n"+`{"allowed":true}`+"\n"), &output, nil); err != nil {
+		t.Fatal(err)
+	}
+	if want := "forwarded " + string(task) + "\n" + `{"allowed":true}` + "\n"; output.String() != want {
+		t.Fatalf("reference worker did not receive the unchanged session:\n%q\nwant\n%q", output.String(), want)
 	}
 }
