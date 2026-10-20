@@ -29,7 +29,7 @@ Package the current member-service acceptance path, a canonical Work fixture and
 
 ## Decisions and Blockers
 
-- M1 #207 has passed CI but awaits branch-policy approval/merge. M2 #228, M3 #229 and M4 #230 are draft stacked PRs with their own installed evidence pending.
+- M1 #207 merged on 20 October 2026. M2 #228, M3 #229 and M4 #230 remain draft stacked PRs; M2/M3 still need real two-member installed evidence and review.
 - The old M5 runbook targeted standalone JWT/JWKS plus `AGENOVA_TOKEN_FILE`, which conflicts with the Owner's selected current Google/member service. It was replaced rather than merged mechanically.
 - Two real approved Google members, a clean member-service installation path and a second teammate's independent run are not yet recorded. M5 remains draft until these are available.
 
