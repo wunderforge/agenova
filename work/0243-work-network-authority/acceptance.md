@@ -126,6 +126,10 @@ Pod patch and rule creation, bounds the grant-write deadline, and compensates
 expired or ambiguous writes through trusted owned-resource revocation. Slow-call,
 missing-evidence and compatibility regressions accompany these changes. Updated
 full gates and independent rereview are required for this new source as well.
+The follow-up missing-lifecycle matrix also covers Failed, Cancelled and Expired:
+every final allocated explicit-network outcome requires release evidence, even
+when interrupted before activation. Unallocated failures and terminal-phase
+polling before final cleanup remain readable.
 
 Cloud preparation on 21 October created only the approved internal MCP workload
 and its namespace, ClusterIP, synthetic-data ConfigMap and ingress/egress policy

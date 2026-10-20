@@ -469,3 +469,128 @@ func TestExplicitNetworkGrantAllowsLegitimatePartialPollingAndEarlyFailure(t *te
 		t.Fatal("pre-activation cancellation falsely required a successful grant")
 	}
 }
+
+func publicInterruptedView(t *testing.T, status string) evidence.View {
+	v := networkView(t, false, false)
+	grantPublicNetwork(&v)
+	v.State.Claim.Phase = v0.ClaimPhaseFailed
+	if status == "Expired" {
+		v.State.Claim.Phase = v0.ClaimPhaseExpired
+	}
+	v.Outcome = &evidence.Outcome{Status: status, Failure: "synthetic interruption"}
+	for i := range v.Facts {
+		if v.Facts[i].Operation == "Succeeded" {
+			v.Facts[i].Operation = status
+		}
+		if v.Facts[i].Kind == "RunOutcome" {
+			v.Facts[i].Operation, v.Facts[i].Reason = status, "synthetic interruption"
+		}
+	}
+	refreshNetworkView(&v)
+	return v
+}
+
+func TestAllAllocatedPublicTerminalOutcomesRequireReleaseFacts(t *testing.T) {
+	for _, status := range []string{"Failed", "Cancelled", "Expired"} {
+		t.Run(status, func(t *testing.T) {
+			for _, remove := range []string{"all network", "all release", "release result"} {
+				v := publicInterruptedView(t, status)
+				var kept []facts.Fact
+				for _, f := range v.Facts {
+					if remove == "all network" && isNetworkOperation(f.Operation) || remove == "all release" && isNetworkRevocationOperation(f.Operation) || remove == "release result" && f.Operation == "NetworkRevoked" {
+						continue
+					}
+					kept = append(kept, f)
+				}
+				v.Facts = kept
+				refreshNetworkView(&v)
+				if validEvidenceView(v, v.RequestRef) {
+					t.Fatal("final public Work accepted without release lifecycle", remove)
+				}
+			}
+			v := publicInterruptedView(t, status)
+			if !validEvidenceView(v, v.RequestRef) {
+				t.Fatal("valid interrupted lifecycle rejected")
+			}
+			// The service records terminal phase before starting release. This
+			// is a legitimate polling snapshot, not a completed release claim.
+			for i, f := range v.Facts {
+				if f.Kind == "Runtime" && f.Operation == status {
+					v.Facts = v.Facts[:i+1]
+					break
+				}
+			}
+			v.Outcome = nil
+			refreshNetworkView(&v)
+			if !validEvidenceView(v, v.RequestRef) {
+				t.Fatal("terminal phase with teardown still pending rejected")
+			}
+		})
+	}
+}
+
+func TestPublicReleaseWithoutActivationAndCleanupFailuresRemainReadable(t *testing.T) {
+	for _, status := range []string{"Failed", "Cancelled", "Expired"} {
+		v := publicInterruptedView(t, status)
+		var kept []facts.Fact
+		for _, f := range v.Facts {
+			if f.Operation != "NetworkActivationAttempt" && f.Operation != "NetworkActive" {
+				kept = append(kept, f)
+			}
+		}
+		v.Facts = kept
+		refreshNetworkView(&v)
+		if !validEvidenceView(v, v.RequestRef) {
+			t.Fatal("pre-activation interruption with release rejected", status)
+		}
+		// The same release contract holds if interruption won while Bound,
+		// before BackendReady/Running or any execution/network activation.
+		kept = nil
+		for _, f := range v.Facts {
+			if f.Operation != "BackendReady" && f.Operation != "Running" {
+				kept = append(kept, f)
+			}
+		}
+		v.Facts = kept
+		refreshNetworkView(&v)
+		if !validEvidenceView(v, v.RequestRef) {
+			t.Fatal("Bound failure with confirmed release rejected", status)
+		}
+		v = withoutNetworkFacts(v)
+		if validEvidenceView(v, v.RequestRef) {
+			t.Fatal("Bound final failure bypassed release requirement", status)
+		}
+	}
+	for _, failure := range []string{"CleanupFailed", "NetworkRevocationFailed"} {
+		v := publicInterruptedView(t, "Failed")
+		if failure == "CleanupFailed" {
+			changeNetworkFact(&v, "CleanupSucceeded", func(f *facts.Fact) { f.Operation = failure })
+		} else {
+			changeNetworkFact(&v, "NetworkRevoked", func(f *facts.Fact) { f.Operation = failure; f.ReasonCode = "runtime-" + failure })
+		}
+		refreshNetworkView(&v)
+		if !validEvidenceView(v, v.RequestRef) {
+			t.Fatal("explicit failure evidence must remain readable without pretending successful cleanup", failure)
+		}
+	}
+}
+
+func TestPublicPreallocationFailureDoesNotInventReleaseRequirement(t *testing.T) {
+	v := publicInterruptedView(t, "Failed")
+	v.State.Claim.BackendIdentity = nil
+	var kept []facts.Fact
+	for _, f := range v.Facts {
+		if f.Kind == "RequestReceived" || f.Kind == "RequestResolution" || f.Kind == "AuthorityResolved" {
+			kept = append(kept, f)
+		}
+	}
+	for _, operation := range []string{"Pending", "AllocationFailed"} {
+		kept = append(kept, facts.Fact{Kind: "Runtime", RequestRef: v.RequestRef, ClaimID: v.State.Claim.ID, Operation: operation})
+	}
+	kept = append(kept, facts.Fact{Kind: "RunOutcome", RequestRef: v.RequestRef, ClaimID: v.State.Claim.ID, Operation: "Failed", Reason: v.Outcome.Failure})
+	v.Facts = kept
+	refreshNetworkView(&v)
+	if !validEvidenceView(v, v.RequestRef) {
+		t.Fatal("unallocated failure incorrectly required runtime network release")
+	}
+}

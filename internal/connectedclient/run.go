@@ -690,6 +690,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		return false
 	}
 	if view.Outcome != nil {
+		// A completed allocated Work with explicit network authority must record
+		// its release even if cancellation/failure won before activation. While
+		// teardown is in progress there is no Outcome, so terminal-phase polling
+		// still does not demand facts that the service has not committed yet.
+		if requiresNetworkLifecycle && view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && !networkReleaseStarted {
+			return false
+		}
 		if networkReleasePending || networkActivationRecorded && !networkReleaseStarted ||
 			view.Outcome.Status == "Succeeded" && networkActivationRecorded && !networkActive {
 			return false
