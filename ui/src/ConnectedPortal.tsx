@@ -11,6 +11,7 @@ import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { maxWorkName } from './work-name';
+import { WorkOverview } from './WorkOverview';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -75,8 +76,9 @@ function WorkList({ works }: { works: View[] }) {
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
     `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
-    <Heading title="Work" subtitle="Current-session requests and results."
+    <Heading title="Work" subtitle="Requests, outcomes, and the evidence behind them."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
+    <WorkOverview statuses={works.map(workStatus)}/>
     <div className="portal-toolbar">
       <Filters values={['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending']}
         selected={filter} choose={setFilter}/>
@@ -84,12 +86,13 @@ function WorkList({ works }: { works: View[] }) {
         onChange={event => setSearch(event.target.value)}/>
     </div>
     <div className="portal-table-wrap"><table className="portal-table">
-      <thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
+      <thead><tr><th>Work</th><th>Agent</th><th>Requested by</th><th>Decision</th><th>Last update</th><th>Status</th></tr></thead>
       <tbody>{shown.map(work =>
         <tr key={work.requestRef}>
           <td><a className="portal-work-title" href={link(workLink(work))}>{workTitle(work)}</a>
             <small>{work.state?.principal.team || 'Identity not recorded'}</small></td>
-          <td>{work.request.spec.templateRef}</td><td>{time(work.facts.at(-1)?.timestamp)}</td>
+          <td>{work.request.spec.templateRef}</td><td>{work.state?.principal.subject || 'Not recorded'}</td>
+          <td><Badge value={work.state?.decision.result || 'Pending'}/></td><td>{time(work.facts.at(-1)?.timestamp)}</td>
           <td><Badge value={workStatus(work)}/></td>
         </tr>
       )}</tbody>

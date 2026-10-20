@@ -1,6 +1,6 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-10-19
+Updated: 2026-10-20
 
 This records what the repository currently proves, not the target architecture or mutable ticket priority. It does not track ticket owners, readiness or sequence. Product requirements live in the [PRD](product/prd.md); ticket status and dependencies live in GitHub. See the [AIDLC source-of-truth map](development/AIDLC.md).
 
@@ -20,6 +20,10 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 
 ## Other Implemented Surfaces
 
+- Local June Portal visual refresh: fixed-light surfaces, loaded-list summary,
+  separate admission/outcome columns, and a selected-record inspector backed by
+  the existing activity projection. No API/authentication contract change and no
+  cloud deployment. [Scope and local evidence](../work/0143-midterm-vertical/june-portal.md).
 - Backend-neutral ClaimRequest, AgentTemplate, SandboxClaim lifecycle, RuntimeBackend contract, trusted-principal reference authorization and system-issued effective authority.
 - In-memory runtime and governance reference path, isolated behind explicit `--backend memory` for CLI Work.
 - Claim-scoped Tool and Model authorization/facts, evidence projection, and a controlled-worker ReAct demonstration. Example tool content in the kind/Ollama path is labelled synthetic.

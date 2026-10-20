@@ -19,6 +19,23 @@ shows a connection error, never demo data or an invented empty result. The
 header preserves the selected mode and route across reloads. `/fixtures`
 remains the original canonical contract reader.
 
+## Work explorer and evidence inspection
+
+The Portal uses a fixed-light June palette, independently of the system's
+light/dark preference. Browser extensions or force-dark settings may still
+override it. Work summary cards count only the loaded list, not global traffic.
+Admission **Decision** and execution **Status** are separate columns.
+
+Open a Work, expand its recorded activity, and select **Inspect** to read the
+recorded target, status and turn beside the call list. **Open evidence record**
+opens the existing full record. No duration or provider completion is inferred
+from an access grant. Requested/granted comparison, result, lifecycle and technical
+identifiers remain available in their existing sections. On narrow screens the
+inspector stacks below the activity and tables scroll within their own container.
+
+The refresh is presentation-only: no new API, authentication or deployment steps.
+Visual regression: `npm --prefix ui run test:smoke -- june.spec.ts`.
+
 After applying the reference Platform, open a **separate** PowerShell terminal
 at the repository root and keep this loopback-only connection running before
 opening Connected:
