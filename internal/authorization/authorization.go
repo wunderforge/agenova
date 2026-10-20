@@ -25,18 +25,13 @@ type Request struct {
 	Action     v1alpha1.Action
 }
 
-// BundleSource exposes the active immutable policy without coupling admission
-// to policy loading or administration.
-type BundleSource interface {
-	Current() (policy.PolicyBundle, bool)
-}
-
 // Evaluation binds one evidence-ready decision to the complete request that
 // was actually evaluated. Its fields are private so a public Decision cannot
 // be replayed as admission proof for a different assignment.
 type Evaluation struct {
-	request  Request
-	decision v1alpha1.Decision
+	request          Request
+	policyEvaluation policy.Evaluation
+	decision         v1alpha1.Decision
 }
 
 // Decision returns the public, evidence-ready result of this evaluation.
@@ -45,7 +40,7 @@ func (e Evaluation) Decision() v1alpha1.Decision {
 }
 
 func (e Evaluation) matches(input Request) bool {
-	return e.request == input
+	return e.request == input && policy.ContextEqual(e.policyEvaluation.Context, policyContext(input))
 }
 
 // Evaluator allows Gate to enforce the pre-side-effect ordering boundary.
@@ -84,9 +79,15 @@ func (a Admission) Decision() v1alpha1.Decision {
 	return a.evaluation.Decision()
 }
 
-// Authorizer performs exact-match, default-deny assignment admission.
+// Constraints returns a defensive copy of the Policy caps bound to admission.
+// The returned value is not a grant and may only narrow downstream authority.
+func (a Admission) Constraints() *policy.AuthorityConstraints {
+	return policy.CloneEvaluation(a.evaluation.policyEvaluation).Constraints
+}
+
+// Authorizer maps assignment admission into one immutable generic Policy snapshot.
 type Authorizer struct {
-	Policies BundleSource
+	Policies policy.SnapshotSource
 }
 
 // Evaluate returns one evidence-ready decision. Invalid trusted/request
@@ -96,36 +97,22 @@ func (a Authorizer) Evaluate(input Request) (Evaluation, error) {
 		return Evaluation{}, err
 	}
 
-	decision := v1alpha1.Decision{
-		PrincipalRef: input.Principal.Subject,
-		Action:       input.Action.Name,
-		Result:       v1alpha1.DecisionResultDeny,
-	}
+	context := policyContext(input)
 	if a.Policies == nil {
-		decision.Reason = "no active policy bundle"
-		return completeEvaluation(input, decision), nil
+		return Evaluation{}, required("evaluator.snapshot")
 	}
-	bundle, ok := a.Policies.Current()
+	evaluator, ok := a.Policies.Snapshot()
 	if !ok {
-		decision.Reason = "no active policy bundle"
-		return completeEvaluation(input, decision), nil
+		return Evaluation{}, required("evaluator.snapshot")
 	}
-	decision.PolicyRef = v1alpha1.PolicyReference{ID: bundle.ID, Version: bundle.Version}
-
-	matched := bundle.Allows(policy.Match{
-		Team:        input.Principal.Team,
-		Action:      input.Action.Name,
-		Project:     input.Action.Project,
-		TemplateRef: input.Action.TemplateRef,
-	})
-	if !matched {
-		decision.Reason = "no exact policy rule matched the trusted principal and requested assignment"
-		return completeEvaluation(input, decision), nil
+	if evaluator == nil {
+		return Evaluation{}, required("evaluator.snapshot")
 	}
-
-	decision.Result = v1alpha1.DecisionResultAllow
-	decision.Reason = "exact policy rule matched the trusted principal and requested assignment"
-	return completeEvaluation(input, decision), nil
+	evaluation, err := evaluator.Evaluate(context)
+	if err != nil {
+		return Evaluation{}, err
+	}
+	return completePolicyEvaluation(input, evaluation), nil
 }
 
 // Gate invokes the authorized continuation exactly once only for Allow.
@@ -152,6 +139,9 @@ func (g Gate) Admit(input Request, onAllowed func(Admission) error) (v1alpha1.De
 	}
 	if err := validateDecision(input, decision); err != nil {
 		return decision, err
+	}
+	if err := policy.ValidateEvaluation(policyContext(input), evaluation.policyEvaluation); err != nil {
+		return decision, invalid("evaluation", err.Error())
 	}
 	if decision.Result != v1alpha1.DecisionResultAllow {
 		return decision, nil
@@ -196,7 +186,51 @@ func validateDecision(input Request, decision v1alpha1.Decision) error {
 
 func completeEvaluation(input Request, decision v1alpha1.Decision) Evaluation {
 	decision.ID = decisionID(input, decision)
-	return Evaluation{request: input, decision: decision}
+	policyEvaluation := policy.Evaluation{
+		Context:   policyContext(input),
+		Decision:  policy.Decision(decision.Result),
+		PolicyRef: policy.PolicyReference{ID: decision.PolicyRef.ID, Version: decision.PolicyRef.Version},
+		Reasons:   []policy.Reason{{Code: "authorization-compatibility", Message: decision.Reason}},
+	}
+	return Evaluation{request: input, policyEvaluation: policyEvaluation, decision: decision}
+}
+
+func completePolicyEvaluation(input Request, evaluation policy.Evaluation) Evaluation {
+	copy := policy.CloneEvaluation(evaluation)
+	reason := ""
+	if len(copy.Reasons) > 0 {
+		reason = copy.Reasons[0].Message
+	}
+	decision := v1alpha1.Decision{
+		PrincipalRef: input.Principal.Subject,
+		Action:       input.Action.Name,
+		Result:       v1alpha1.DecisionResult(copy.Decision),
+		PolicyRef:    v1alpha1.PolicyReference{ID: copy.PolicyRef.ID, Version: copy.PolicyRef.Version},
+		Reason:       reason,
+	}
+	decision.ID = decisionID(input, decision)
+	return Evaluation{request: input, policyEvaluation: copy, decision: decision}
+}
+
+func policyContext(input Request) policy.EvaluationContext {
+	return policy.EvaluationContext{
+		Principal: policy.PrincipalContext{
+			Subject:               input.Principal.Subject,
+			AuthenticationContext: input.Principal.AuthenticationContext,
+			Attributes: []policy.Attribute{{
+				Name: "team", Values: []string{input.Principal.Team},
+			}},
+		},
+		Action: input.Action.Name,
+		Resource: policy.ResourceContext{
+			Type: "assignment",
+			ID:   input.RequestRef,
+			Attributes: []policy.Attribute{
+				{Name: "project", Values: []string{input.Action.Project}},
+				{Name: "templateRef", Values: []string{input.Action.TemplateRef}},
+			},
+		},
+	}
 }
 
 func decisionID(input Request, decision v1alpha1.Decision) string {
