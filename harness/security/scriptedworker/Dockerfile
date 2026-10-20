@@ -6,7 +6,7 @@
 # worker entrypoint path is the scripted worker. Never push or publish it.
 # Build with the repository root as context:
 #   docker build -f harness/security/scriptedworker/Dockerfile -t agenova-e15-scriptedworker:kind .
-FROM golang:1.22-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker
