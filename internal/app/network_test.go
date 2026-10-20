@@ -140,3 +140,66 @@ func TestWorkNetworkUnsupportedOfflineBackendDoesNotAllocate(t *testing.T) {
 		t.Fatalf("unsupported allocated: %+v %v", state, err)
 	}
 }
+
+func TestWorkNetworkRechecksInterruptionAfterDurableWrites(t *testing.T) {
+	for _, event := range []string{EventRunning, EventNetworkActivationAttempt, EventNetworkActive} {
+		for _, interruption := range []string{"cancel", "runtime-deadline", "caller-deadline"} {
+			t.Run(event+"/"+interruption, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				if interruption == "caller-deadline" {
+					var timeoutCancel context.CancelFunc
+					ctx, timeoutCancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
+					defer timeoutCancel()
+				}
+				now := time.Now()
+				initialNow := now
+				triggered := false
+				b := &networkRecordingBackend{recordingBackend: newRecordingBackend()}
+				s := newTestRunService(t, b, RunServiceOptions{
+					Now: func() time.Time { return now },
+					OnEvent: func(_ *v1alpha1.IssuedState, kind string) error {
+						if kind != event {
+							return nil
+						}
+						triggered = true
+						switch interruption {
+						case "cancel":
+							cancel()
+						case "runtime-deadline":
+							now = initialNow.Add(2 * time.Minute)
+						case "caller-deadline":
+							<-ctx.Done()
+						}
+						return nil // write eventually succeeds AFTER eligibility changed
+					},
+				})
+				b.service = s
+				issued := pendingIssuedState(time.Minute)
+				issued.EffectiveAuthority.NetworkProfiles = []string{"public-web"}
+				workCalls := 0
+				state, err := s.RunContext(ctx, issued, testLaunch(issued), func(context.Context) error { workCalls++; return nil })
+				wantPhase, wantEvent, wantErr := v1alpha1.ClaimPhaseFailed, "Cancelled", context.Canceled
+				if interruption != "cancel" {
+					wantPhase, wantEvent, wantErr = v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline
+					if interruption == "caller-deadline" {
+						wantErr = context.DeadlineExceeded
+					}
+				}
+				if !triggered || !errors.Is(err, wantErr) || state.Claim.Phase != wantPhase || !hasEvent(state, wantEvent) || workCalls != 0 {
+					t.Fatalf("persisted interruption dispatched work or lost outcome: triggered=%v err=%v phase=%s work=%d events=%v", triggered, err, state.Claim.Phase, workCalls, eventKinds(state))
+				}
+				wantActivations := 0
+				if event == EventNetworkActive {
+					wantActivations = 1
+				}
+				if b.activations != wantActivations || b.revocations != 1 || !hasEvent(state, EventNetworkRevoked) || !hasEvent(state, EventCleanupOK) {
+					t.Fatalf("interrupted grant/release incorrect: activations=%d want=%d revoke=%d events=%v", b.activations, wantActivations, b.revocations, eventKinds(state))
+				}
+				if wantActivations == 0 && hasEvent(state, EventNetworkActive) {
+					t.Fatal("pre-grant interruption transiently activated networking")
+				}
+			})
+		}
+	}
+}

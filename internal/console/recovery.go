@@ -69,7 +69,7 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 			continue
 		}
 		switch f.Operation {
-		case "Succeeded", "Failed", "Expired", "Cancelled", "StartFailed":
+		case "Succeeded", "Failed", "Expired", "Cancelled", "StartFailed", "NetworkActivationFailed":
 			terminal = true
 			terminalKind = f.Operation
 		case "TerminateSucceeded", "TerminateFailed":

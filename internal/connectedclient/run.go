@@ -326,6 +326,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	runtimeTerminalOperation := ""
 	terminationRecorded := false
 	cleanupRecorded := false
+	networkActivationPending := false
+	networkActivationRecorded := false
+	networkActive := false
+	networkReleaseStarted := false
+	networkReleasePending := false
+	networkReleased := false
 	runOutcomeReasonCode := ""
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
@@ -439,8 +445,42 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			if runtimeTerminal && !isRuntimeTeardownOperation(fact.Operation) {
 				return false
 			}
-			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal {
+			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal && !isNetworkRevocationOperation(fact.Operation) {
 				return false
+			}
+			if isNetworkOperation(fact.Operation) {
+				// These are configuration/lifecycle facts, never packet-level proof.
+				// Require the original allocation incarnation, not merely a worker name.
+				recoveryRelease := isNetworkRevocationOperation(fact.Operation) && fact.ReasonCode == "recovery-"+fact.Operation
+				if !boundRecorded || (terminationRecorded || cleanupRecorded) && !recoveryRelease || !validNetworkFact(fact, view.State) {
+					return false
+				}
+				switch fact.Operation {
+				case "NetworkActivationAttempt":
+					if !runningRecorded || networkActivationRecorded || networkReleaseStarted {
+						return false
+					}
+					networkActivationRecorded, networkActivationPending = true, true
+				case "NetworkActive", "NetworkActivationFailed":
+					if !networkActivationPending || networkReleaseStarted {
+						return false
+					}
+					networkActivationPending = false
+					networkActive = fact.Operation == "NetworkActive"
+				case "NetworkRevocationAttempt":
+					// Recovery can retry an interrupted release whose result was never
+					// committed. Only the explicitly labelled recovery path may do so.
+					if (networkReleasePending || networkReleased) && fact.ReasonCode != "recovery-NetworkRevocationAttempt" {
+						return false
+					}
+					networkReleaseStarted, networkReleasePending = true, true
+				case "NetworkRevoked", "NetworkRevocationFailed":
+					if !networkReleasePending {
+						return false
+					}
+					networkReleasePending = false
+					networkReleased = fact.Operation == "NetworkRevoked"
+				}
 			}
 			if fact.Operation == "Pending" {
 				if pendingRecorded || boundRecorded || backendReadyRecorded || runningRecorded {
@@ -489,6 +529,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {
 				return false
 			}
+			// An in-flight call may finish during cancellation/release. No new
+			// activity or dispatch can begin once release has started. Historical
+			// views without network facts retain their pre-extension semantics.
+			if networkReleaseStarted && fact.Kind != "ProviderOutcome" || networkActivationRecorded && !networkActive && !networkReleaseStarted {
+				return false
+			}
 		}
 		if fact.Kind == "ToolDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.Tools, fact.Target)) {
@@ -501,6 +547,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		switch fact.Kind {
 		case "WorkerActivity":
 			switch fact.Operation {
+			case "ToolRequestRejected":
+				if fact.InvocationID != "" || fact.Target != "tool.invoke" || fact.ReasonCode != "tool-arguments-rejected" ||
+					fact.Reason != "Tool parameters do not match an installed route; no provider call was made." ||
+					fact.Decision != nil || fact.Result != "" || fact.Authority != nil || len(fact.AuthorityChanges) != 0 ||
+					fact.ProviderStatus != "" || fact.PolicyRef != nil || fact.BackendIdentity != nil {
+					return false
+				}
 			case "TurnStarted", "ActionReceived", "ObservationReceived", "FinalAnswer":
 				if fact.InvocationID != "" {
 					return false
@@ -627,6 +680,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		return false
 	}
 	if view.Outcome != nil {
+		if networkReleasePending || networkActivationRecorded && !networkReleaseStarted ||
+			view.Outcome.Status == "Succeeded" && networkActivationRecorded && !networkActive {
+			return false
+		}
 		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
 			return false
 		}
@@ -692,7 +749,7 @@ func runtimeProvesAllocation(fact facts.Fact) bool {
 	case "Bound", "BackendReady", "Running", "StartFailed", "Succeeded", "CleanupSucceeded", "CleanupFailed", "TerminateSucceeded", "TerminateFailed":
 		return true
 	default:
-		return false
+		return isNetworkOperation(fact.Operation)
 	}
 }
 
@@ -711,11 +768,27 @@ func validRunOutcomeOperation(operation string, phase v0.ClaimPhase) bool {
 
 func isRuntimeTerminalOperation(operation string) bool {
 	switch operation {
-	case "AllocationFailed", "StartFailed", "Succeeded", "Failed", "Expired", "Cancelled":
+	case "AllocationFailed", "StartFailed", "Succeeded", "Failed", "Expired", "Cancelled", "NetworkActivationFailed":
 		return true
 	default:
 		return false
 	}
+}
+
+func isNetworkRevocationOperation(operation string) bool {
+	return operation == "NetworkRevocationAttempt" || operation == "NetworkRevoked" || operation == "NetworkRevocationFailed"
+}
+
+func isNetworkOperation(operation string) bool {
+	return operation == "NetworkActivationAttempt" || operation == "NetworkActive" || operation == "NetworkActivationFailed" || isNetworkRevocationOperation(operation)
+}
+
+func validNetworkFact(fact facts.Fact, state *v0.IssuedState) bool {
+	return fact.BackendIdentity != nil && state.Claim.BackendIdentity != nil && *fact.BackendIdentity == *state.Claim.BackendIdentity &&
+		fact.PolicyRef != nil && *fact.PolicyRef == state.PolicyRef && fact.Target == "work-network" &&
+		(fact.ReasonCode == "runtime-"+fact.Operation || isNetworkRevocationOperation(fact.Operation) && fact.ReasonCode == "recovery-"+fact.Operation) &&
+		strings.TrimSpace(fact.Reason) != "" && len(fact.Reason) <= 4096 && !strings.ContainsFunc(fact.Reason, unicode.IsControl) &&
+		fact.InvocationID == "" && fact.Decision == nil && fact.Result == "" && fact.Authority == nil && len(fact.AuthorityChanges) == 0 && fact.ProviderStatus == ""
 }
 
 func isRuntimeTeardownOperation(operation string) bool {
@@ -723,7 +796,7 @@ func isRuntimeTeardownOperation(operation string) bool {
 	case "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
 		return true
 	default:
-		return false
+		return isNetworkRevocationOperation(operation)
 	}
 }
 
@@ -733,7 +806,7 @@ func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase, identi
 		case "Pending", "Bound", "BackendReady", "Running", "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
 			return true
 		default:
-			return false
+			return isNetworkOperation(operation)
 		}
 	}
 	switch operation {
@@ -741,6 +814,8 @@ func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase, identi
 		return phase == v0.ClaimPhaseFailed && !identity && pending && !bound && !ready && !running
 	case "StartFailed":
 		return phase == v0.ClaimPhaseFailed && identity && bound && ready && !running
+	case "NetworkActivationFailed":
+		return phase == v0.ClaimPhaseFailed && identity && bound && ready && running
 	case "Succeeded":
 		return phase == v0.ClaimPhaseSucceeded && identity && running
 	case "Failed":
@@ -760,6 +835,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		{granted.Tools, wanted.Tools},
 		{granted.ResourceScopes, wanted.ResourceScopes},
 		{granted.MemoryScopes, wanted.MemoryScopes},
+		{granted.NetworkProfiles, wanted.NetworkProfiles},
 	} {
 		if len(pair.requested) > 0 && len(pair.granted) == 0 {
 			return false
@@ -783,6 +859,7 @@ func validAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthori
 		{"tools", request.Spec.RequestedAccess.Tools, granted.Tools},
 		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, granted.ResourceScopes},
 		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, granted.MemoryScopes},
+		{"networkProfiles", request.Spec.RequestedAccess.NetworkProfiles, granted.NetworkProfiles},
 	} {
 		for _, value := range dimension.requested {
 			if !slices.Contains(dimension.effective, value) {
@@ -817,7 +894,7 @@ func validAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthori
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {
 	return a.ID == b.ID && slices.Equal(a.Tools, b.Tools) && slices.Equal(a.ResourceScopes, b.ResourceScopes) &&
-		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
+		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && slices.Equal(a.NetworkProfiles, b.NetworkProfiles) && a.Runtime == b.Runtime
 }
 
 func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedProfile string) bool {

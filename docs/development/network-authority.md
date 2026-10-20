@@ -35,6 +35,11 @@ config:
 
 This is a capability declaration, not proof. Verify the actual CNI and fresh-Pod first-packet behavior with reachable independent controls. A worker self-check, a sleep, an idle warm pool or a NetworkPolicy YAML object is not sufficient. Unsupported environments must not silently run a governed Work permissively.
 
+The opt-in governed Agent Sandbox integration tests likewise require
+`-verified-strict-cni` before contacting a cluster or model. This is an operator
+attestation, not independent packet evidence; do not use it with ordinary kind
+networking merely to bypass the prerequisite.
+
 Managed templates explicitly deny network access instead of inheriting upstream public-by-default rules. Warm workers have no standing Internet grant. A running Work receives only its own temporary network rule, selected by trusted runtime identity rather than reusable template name. Native egress authority carries an absolute backend deadline. On release, a trusted substrate destroys the worker and verifies absence instead of trusting an arbitrary image's stop acknowledgment.
 
 ## Evidence and limits

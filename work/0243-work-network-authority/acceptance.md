@@ -87,3 +87,31 @@ Do not describe this section as passed until actual retained receipts exist:
 There is currently no public Work-cancel API. Closing a CLI/polling connection is
 not cancellation evidence. Any live cancellation claim requires an actual
 trusted cancellation path; source-level cancellation tests remain labelled local.
+
+## Premerge review follow-up — 21 October 2026
+
+The later independent PR review found three P1 gaps despite the prior passing
+source gate. Merge was held; no shared configuration was changed.
+
+- The controlled real-backend recorder now preserves `NetworkBackend` only when
+  its wrapped backend supports it. Cluster-free application/wrapper regressions
+  pass, including unsupported-before-allocation behavior and exact forwarding.
+  Live-tag package compilation passes; governed cluster runs now require the
+  explicit verified-CNI prerequisite instead of assuming ordinary kind is safe.
+- Recovery recognizes a committed `NetworkActivationFailed` terminal state.
+  Tests recreate that crash window, verify cleanup without execution replay,
+  reject unknown terminal operations and confirm idempotent completion.
+- Cancellation and deadline are rechecked after durable Running/activation
+  writes, immediately before a grant and before dispatching work. Nine write-hook
+  cases pass, including repeated and Linux race checks; pre-grant interruption
+  activates nothing and post-grant interruption revokes without starting work.
+- The review led to an additional integration repair: the connected CLI now
+  validates the new network lifecycle and authority fields and bounded argument
+  rejection records. Actual Service -> TLS API -> CLI regressions pass for
+  success, activation failure and recovered failure. Unknown/forged lifecycle,
+  expanded profiles, mismatched allocation and invented invocations are rejected;
+  historical no-network evidence remains readable.
+
+Focused app/console/connected-client tests, vet, cluster-free controlled/live-tag
+tests and compilation passed. Full updated-source CI and independent rereview
+are required before merge; the earlier CI result alone does not cover these fixes.

@@ -348,6 +348,21 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		state, err := s.finish(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
 		return s.teardown(state, identity, err)
 	}
+	// Durable callbacks may block long enough for the request to be revoked or
+	// expire. Successful persistence is not a fresh eligibility check: recheck
+	// immediately after those writes and before granting or dispatching work.
+	stopIfInterrupted := func() (*v1alpha1.IssuedState, error, bool) {
+		if ctx.Err() != nil {
+			state, err := cancelled()
+			return state, err, true
+		}
+		if s.deadlineReached(deadline) {
+			state, err := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+			state, err = s.teardown(state, identity, err)
+			return state, err, true
+		}
+		return nil, nil, false
+	}
 
 	for {
 		if ctx.Err() != nil {
@@ -406,11 +421,17 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, err)
 		return s.teardown(state, identity, transitionErr)
 	}
+	if state, err, interrupted := stopIfInterrupted(); interrupted {
+		return state, err
+	}
 	if network, ok := s.backend.(runtime.NetworkBackend); ok {
 		// Commit the attempt before the side effect. Failure cannot grant even
 		// one connection; cleanup still runs after any ambiguous backend result.
 		err := s.recordEvent(claimID, EventNetworkActivationAttempt)
 		if err == nil {
+			if state, err, interrupted := stopIfInterrupted(); interrupted {
+				return state, err
+			}
 			var evidence runtime.NetworkEvidence
 			evidence, err = network.ActivateNetwork(identity)
 			if err == nil {
@@ -424,6 +445,9 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventNetworkActivationFailed, err)
 			return s.teardown(state, identity, transitionErr)
 		}
+	}
+	if state, err, interrupted := stopIfInterrupted(); interrupted {
+		return state, err
 	}
 
 	workCtx, cancelWork := context.WithCancel(ctx)

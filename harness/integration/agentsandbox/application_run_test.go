@@ -6,6 +6,7 @@
 package agentsandbox
 
 import (
+	"flag"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,27 @@ import (
 	runtimeagentsandbox "github.com/wunderforge/agenova/internal/runtime/agentsandbox"
 )
 
+var verifiedStrictCNI = flag.Bool("verified-strict-cni", false, "Operator attests this disposable cluster was independently verified to enforce default-deny from process startup; not packet-test evidence")
+
+func governedNetworkPrerequisite(verified bool) (string, error) {
+	if !verified {
+		return "", fmt.Errorf("%w: explicit -verified-strict-cni required before any cluster/model calls; ordinary kind is not assumed to enforce networking", runtime.ErrUnsupported)
+	}
+	return "strict", nil
+}
+
+func requireGovernedNetworkPrerequisite(t *testing.T) string {
+	t.Helper()
+	mode, err := governedNetworkPrerequisite(*verifiedStrictCNI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Using explicit operator attestation of strict startup isolation; this flag is not independent CNI packet evidence")
+	return mode
+}
+
 func TestGovernedApplicationRun_Kind(t *testing.T) {
+	networkMode := requireGovernedNetworkPrerequisite(t)
 	if *kubeContext == "" {
 		t.Fatal("explicit -kube-context required; no cluster was contacted")
 	}
@@ -49,6 +70,9 @@ func TestGovernedApplicationRun_Kind(t *testing.T) {
 	})
 
 	adapter := runtimeagentsandbox.NewControlled(*kubeContext, runNamespace)
+	if err := adapter.ConfigureNetworkIsolation(networkMode); err != nil {
+		t.Fatal(err)
+	}
 	const poolName = "reference-engineer-pool"
 	if err := adapter.AddTemplate(v1alpha1.AgentSandboxTemplate{
 		Metadata: v1alpha1.ObjectMeta{Name: app.ReferenceRuntimeTemplateRef},
@@ -68,10 +92,10 @@ func TestGovernedApplicationRun_Kind(t *testing.T) {
 		t.Fatalf("AddWarmPool: %v", err)
 	}
 
-	recorder := &recordingRuntimeBackend{RuntimeBackend: adapter}
+	recorder, recordedBackend := newRecordingRuntimeBackend(adapter)
 	requestPath := filepath.Join("..", "..", "..", "harness", "fixtures", "contract", "v0", "inputs", "claim-request", "valid-team-a-engineer.yaml")
 
-	denied, err := app.SubmitClaimRequestFile(requestPath, recorder, app.ReferencePrincipalTeamB)
+	denied, err := app.SubmitClaimRequestFile(requestPath, recordedBackend, app.ReferencePrincipalTeamB)
 	if err != nil {
 		t.Fatalf("Team B submission: %v", err)
 	}
@@ -96,7 +120,7 @@ func TestGovernedApplicationRun_Kind(t *testing.T) {
 		recorder.workerResult = status
 		return nil
 	}
-	allowed, err := app.SubmitClaimRequestFile(requestPath, recorder, app.ReferencePrincipalTeamA)
+	allowed, err := app.SubmitClaimRequestFile(requestPath, recordedBackend, app.ReferencePrincipalTeamA)
 	if err != nil {
 		t.Fatalf("Team A submission: %v", err)
 	}
@@ -127,6 +151,31 @@ type recordingRuntimeBackend struct {
 	allocation   runtime.Allocation
 	afterStart   func(string, v1alpha1.SandboxClaimBackendIdentity) error
 	workerResult string
+}
+
+// Preserve the optional capability instead of hiding it behind RuntimeBackend
+// or fabricating support for a backend that cannot enforce even offline Work.
+func newRecordingRuntimeBackend(backend runtime.RuntimeBackend) (*recordingRuntimeBackend, runtime.RuntimeBackend) {
+	recorder := &recordingRuntimeBackend{RuntimeBackend: backend}
+	if network, ok := backend.(runtime.NetworkBackend); ok {
+		return recorder, &recordingNetworkRuntimeBackend{recordingRuntimeBackend: recorder, network: network}
+	}
+	return recorder, recorder
+}
+
+type recordingNetworkRuntimeBackend struct {
+	*recordingRuntimeBackend
+	network runtime.NetworkBackend
+}
+
+func (r *recordingNetworkRuntimeBackend) ActivateNetwork(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	r.calls = append(r.calls, "ActivateNetwork")
+	return r.network.ActivateNetwork(identity)
+}
+
+func (r *recordingNetworkRuntimeBackend) RevokeNetwork(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	r.calls = append(r.calls, "RevokeNetwork")
+	return r.network.RevokeNetwork(identity)
 }
 
 func (r *recordingRuntimeBackend) Allocate(request runtime.AllocateRequest) (runtime.Allocation, error) {
@@ -175,7 +224,7 @@ func (r *recordingRuntimeBackend) assertCompleted(claimID string) error {
 	if r.workerResult == "" {
 		return fmt.Errorf("controlled worker result was not observed")
 	}
-	wantSuffix := []string{"Start", "Terminate", "Cleanup"}
+	wantSuffix := []string{"Start", "ActivateNetwork", "RevokeNetwork", "Terminate", "Cleanup"}
 	if len(r.calls) < len(wantSuffix) {
 		return fmt.Errorf("incomplete backend calls: %v", r.calls)
 	}
