@@ -1,5 +1,7 @@
 # #198 kind claim-boundary evidence
 
+> **Historical baseline.** Round 2 on current main (`56e9763`, includes #231/#192), organized by the three #177 Demo groups, is in [r2/summary.md](r2/summary.md).
+
 - Run date: 19 October 2026 (Australia/Melbourne; raw timestamps are UTC).
 - Baseline: `ae24a67`, with the uncommitted test harness in this packet.
 - Context: `kind-agenova-k8s-lab`; disposable namespaces `agenova-e15-198-a` and `agenova-e15-198-b`.

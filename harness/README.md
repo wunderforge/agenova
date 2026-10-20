@@ -34,4 +34,6 @@ Static fixture files do not count as runtime evidence. Add a harness scenario on
 
 `go test -race ./harness/security/boundaryprobe` runs supplementary in-memory tests for queueing, terminal refusal and downstream Gateway Deny. These use an injected Executor and do not replace installed-worker or prompt-injection evidence.
 
+`security/run-claim-escape-r2.py` runs round 2 for the three #177 Demo groups on one disposable install, with the E16 MCP fixture as the tool-call oracle; the scripted worker's `reference` scenario forwards the session to the bundled reference worker for real-model controls. See [the round-2 report](../docs/evidence/198/r2/summary.md).
+
 The optional `security/supplement-evidence.py` and `security/verify-198-ui.mjs` runners add positive-controlled allocation watches, bounded canary scanning and real rendered evidence parity. They require an explicit disposable install; replay steps and limits are in [the supplement](../docs/evidence/198/supplement/summary.md).

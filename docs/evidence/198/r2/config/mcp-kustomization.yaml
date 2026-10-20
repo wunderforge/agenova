@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agenova-e16
+resources:
+  - ../../../harness/integration/mcpfixture
+images:
+  - name: agenova-e16-mcp:0.1.0
+    newName: agenova-e16-mcp
+    newTag: e15-198-56e9763
