@@ -4,4 +4,4 @@ Use `internal/authentication` and `internal/console.AuthenticatedHandler` as the
 
 The focused test composes the production boundary with two deterministic identities and memberships. It asserts Policy input/issued principal, forged-team resistance, owner-only evidence, and zero backend/provider calls after invalid authentication. It does not claim a real Google login or installed-kind result. The old `internal/identity` verifier and separate OIDC installation mode stay off this branch to avoid competing authentication paths.
 
-Risk: #203's direct JWT/JWKS and token-file wording differs from the approved Google/member delivery. Record the transport choice in the Ticket and run real two-member acceptance before M2 merge.
+Risk: synthetic tests cannot establish installed two-member Google login or CLI/API/Portal parity. Run and record that acceptance before M2 merge.
