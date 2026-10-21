@@ -69,7 +69,7 @@ func assertReplacementIntact(t *testing.T, k *incarnationCleanupKube, name strin
 // backend/API simulation, not an actual RunService or real-cluster test.
 func TestIncarnationBackendTeardownRejectsCoherentSameNameReplacement(t *testing.T) {
 	a, k, allocation := incarnationFixture(t)
-	name := resourceName("claim", allocation.ClaimID)
+	name := allocation.Identity.WorkerID
 	replaceIncarnation(k, name)
 	if _, err := a.RevokeNetwork(allocation.Identity); !errors.Is(err, errIdentityMismatch) {
 		t.Fatal("strong revocation should reject replacement", err)
@@ -90,7 +90,7 @@ func TestIncarnationCleanupPinnedDeleteClosesClaimTOCTOU(t *testing.T) {
 	for _, change := range []string{"UID", "resourceVersion"} {
 		t.Run(change, func(t *testing.T) {
 			a, k, allocation := incarnationFixture(t)
-			name := resourceName("claim", allocation.ClaimID)
+			name := allocation.Identity.WorkerID
 			k.beforePinned = func() {
 				if change == "UID" {
 					replaceIncarnation(k, name)
@@ -111,7 +111,7 @@ func TestIncarnationCleanupValidatesOwnershipAndPodBinding(t *testing.T) {
 	for _, change := range []string{"attempt", "claim-id", "pod-uid", "pod-label", "missing-version"} {
 		t.Run(change, func(t *testing.T) {
 			a, k, allocation := incarnationFixture(t)
-			name := resourceName("claim", allocation.ClaimID)
+			name := allocation.Identity.WorkerID
 			switch change {
 			case "attempt":
 				k.claims[name].Metadata.Annotations["agenova.io/allocation-attempt"] = "foreign-attempt"
@@ -139,7 +139,7 @@ func TestRestoredIncarnationCleanupUsesOriginalUID(t *testing.T) {
 	for _, replacement := range []bool{false, true} {
 		t.Run(map[bool]string{false: "original", true: "replacement"}[replacement], func(t *testing.T) {
 			_, k, allocation := incarnationFixture(t)
-			name := resourceName("claim", allocation.ClaimID)
+			name := allocation.Identity.WorkerID
 			restored := newControlledAdapter(newTestAdapter(k.fakeKube), &fakeWorkerControl{})
 			restored.kube = k
 			if err := restored.RestoreForCleanup(allocation.ClaimID, allocation.Identity); err != nil {
@@ -163,7 +163,7 @@ func TestRestoredIncarnationCleanupUsesOriginalUID(t *testing.T) {
 
 func TestLegacyIdentityCannotAdoptGovernedClaimForCleanup(t *testing.T) {
 	a, k, allocation := incarnationFixture(t)
-	name := resourceName("claim", allocation.ClaimID)
+	name := allocation.Identity.WorkerID
 	entry := a.allocations[allocation.ClaimID]
 	entry.networkClaimUID, entry.networkPodUID, entry.attemptID = "", "", ""
 	legacy := allocation.Identity

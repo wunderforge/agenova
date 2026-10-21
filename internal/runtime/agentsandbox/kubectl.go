@@ -116,7 +116,11 @@ func (r *kubectlRunner) applyBytes(manifest []byte) error {
 }
 
 func (r *kubectlRunner) createBytes(manifest []byte) error {
-	_, err := r.runWithStdin(manifest, "create", "-f", "-")
+	return r.createBytesContext(context.Background(), manifest)
+}
+
+func (r *kubectlRunner) createBytesContext(ctx context.Context, manifest []byte) error {
+	_, err := r.runWithStdinContext(ctx, manifest, "create", "-f", "-")
 	return err
 }
 

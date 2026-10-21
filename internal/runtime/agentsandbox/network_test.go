@@ -45,6 +45,8 @@ type networkKube struct {
 	networkCreates     int
 	createDeadline     time.Time
 	createContext      context.Context
+	forceWarmBinding   bool
+	foreignCreate      bool
 }
 
 func (k *networkKube) applyBytes(data []byte) error {
@@ -58,6 +60,13 @@ func (k *networkKube) applyBytes(data []byte) error {
 		}
 		k.policy = obj
 		return nil
+	}
+	var requested upstreamSandboxClaim
+	if err := json.Unmarshal(data, &requested); err != nil {
+		return err
+	}
+	if requested.Spec.Warmpool == "none" && !k.forceWarmBinding {
+		k.bindOnApply = requested.Metadata.Name
 	}
 	if err := k.fakeKube.applyBytes(data); err != nil {
 		return err
@@ -251,7 +260,7 @@ func TestNetworkCanceledActivationPreservesCleanupAndForeignIdentityErrors(t *te
 	defer cancel()
 	k.afterGet = func(resource string) {
 		if resource == "sandboxclaims" {
-			k.claims[resourceName("claim", "run-1")].Metadata.UID = "foreign-claim"
+			k.claims[alloc.Identity.WorkerID].Metadata.UID = "foreign-claim"
 			cancel()
 		}
 	}
@@ -459,12 +468,19 @@ func TestNetworkLifetimeCannotDeleteSameNameForeignReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := lifetimeGuard(t, a, ctx, alloc.Identity)
-	k.claims[resourceName("claim", "run-1")].Metadata.UID = "foreign-claim"
+	k.claims[alloc.Identity.WorkerID].Metadata.UID = "foreign-claim"
 	cancel()
 	awaitLifetime(t, g)
-	if !errors.Is(g.err, errIdentityMismatch) || k.delets != 0 || k.claims[resourceName("claim", "run-1")].Metadata.UID != "foreign-claim" {
+	if !errors.Is(g.err, errIdentityMismatch) || k.delets != 0 || k.claims[alloc.Identity.WorkerID].Metadata.UID != "foreign-claim" {
 		t.Fatalf("lifetime cleanup touched foreign incarnation %v deletes=%d", g.err, k.delets)
 	}
+}
+
+func (k *networkKube) createBytesContext(ctx context.Context, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return errors.Join(k.createBytes(data), ctx.Err())
 }
 
 func (k *networkKube) createBytes(data []byte) error {
@@ -476,6 +492,9 @@ func (k *networkKube) createBytes(data []byte) error {
 		return err
 	}
 	if header.Kind == kindSandboxClaim {
+		if k.foreignCreate {
+			k.claims[header.Metadata.Name] = &upstreamSandboxClaim{Metadata: upstreamMeta{Name: header.Metadata.Name, UID: "foreign-claim"}, Status: upstreamSandboxClaimStatus{Sandbox: &upstreamSandboxRef{Name: "foreign-worker"}}}
+		}
 		if _, exists := k.claims[header.Metadata.Name]; exists {
 			return errors.New("AlreadyExists")
 		}
@@ -542,6 +561,7 @@ func networkFixture(t *testing.T, profiles []string) (*ControlledAdapter, *netwo
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.worker = alloc.Identity.WorkerID
 	return a, k, f, alloc
 }
 
@@ -656,7 +676,7 @@ func TestNetworkActivationWriteUsesEarlierUpstreamExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	earlier := time.Now().Add(10 * time.Second)
-	k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = earlier.Format(time.RFC3339Nano)
+	k.claims[alloc.Identity.WorkerID].Spec.Lifecycle.ShutdownTime = earlier.Format(time.RFC3339Nano)
 	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +748,7 @@ func TestNetworkActivationIsWorkBoundAndExpiresIndependently(t *testing.T) {
 			t.Fatalf("missing %s in %s", want, text)
 		}
 	}
-	claim := k.claims[resourceName("claim", "run-1")]
+	claim := k.claims[alloc.Identity.WorkerID]
 	deadline, err := time.Parse(time.RFC3339Nano, claim.Spec.Lifecycle.ShutdownTime)
 	if err != nil || !deadline.Equal(evidence.ExpiresAt) {
 		t.Fatalf("expiry not upstream: %v %v", deadline, err)
@@ -777,7 +797,7 @@ func TestNetworkConcretePodIncarnationNeverTransfersToSameClaimReplacement(t *te
 	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 		t.Fatal("replacement was relabelled as original")
 	}
-	claim, _ := json.Marshal(k.claims[resourceName("claim", "run-1")])
+	claim, _ := json.Marshal(k.claims[alloc.Identity.WorkerID])
 	if strings.Contains(string(claim), networkIncarnationLabel) {
 		t.Fatal("incarnation escaped into claim/template inheritance")
 	}
@@ -878,7 +898,7 @@ func TestNetworkForgedBindingAndFailedGrantFailClosed(t *testing.T) {
 			case "apply-failure":
 				k.policyErr = errors.New("no grant")
 			case "expiry-missing":
-				k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = ""
+				k.claims[alloc.Identity.WorkerID].Spec.Lifecycle.ShutdownTime = ""
 			}
 			if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil || k.policy != nil {
 				t.Fatal("invalid authority granted")
@@ -925,7 +945,7 @@ func TestNetworkIncarnationRejectsCoherentSameNameReplacement(t *testing.T) {
 	a, k, _, alloc := networkFixture(t, []string{"public-web"})
 	// Same names, coherent current UID labels, but NOT this allocation's UID.
 	k.claimUID, k.podUID = "replacement-claim", "replacement-pod"
-	k.claims[resourceName("claim", "run-1")].Metadata.UID = k.claimUID
+	k.claims[alloc.Identity.WorkerID].Metadata.UID = k.claimUID
 	if err := a.Start(alloc.Identity); err == nil {
 		t.Fatal("replacement started as original")
 	}
@@ -1001,9 +1021,7 @@ func TestNetworkRuleDeleteFailureStillDestroysWorker(t *testing.T) {
 }
 
 func TestNetworkForeignClaimIsNeverAppliedOrCompensated(t *testing.T) {
-	k := &networkKube{fakeKube: newFakeKube()}
-	name := resourceName("claim", "run-1")
-	k.claims[name] = &upstreamSandboxClaim{Metadata: upstreamMeta{Name: name, UID: "foreign-claim"}, Status: upstreamSandboxClaimStatus{Sandbox: &upstreamSandboxRef{Name: "foreign-worker"}}}
+	k := &networkKube{fakeKube: newFakeKube(), foreignCreate: true}
 	a := newControlledAdapter(newTestAdapter(k.fakeKube), &fakeWorkerControl{})
 	a.kube = k
 	if err := a.ConfigureNetworkIsolation("strict"); err != nil {
@@ -1012,8 +1030,13 @@ func TestNetworkForeignClaimIsNeverAppliedOrCompensated(t *testing.T) {
 	if _, err := a.Allocate(runtime.AllocateRequest{ClaimID: "run-1", TemplateRef: "tmpl-v1", Network: runtime.NetworkAuthority{ExpiresAt: time.Now().Add(time.Minute)}}); err == nil {
 		t.Fatal("foreign claim adopted")
 	}
-	if k.delets != 0 || k.claims[name].Metadata.UID != "foreign-claim" {
+	if k.delets != 0 || len(k.claims) != 1 {
 		t.Fatal("foreign claim modified or compensated")
+	}
+	for _, claim := range k.claims {
+		if claim.Metadata.UID != "foreign-claim" {
+			t.Fatal("foreign claim changed")
+		}
 	}
 }
 

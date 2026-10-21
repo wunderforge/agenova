@@ -32,6 +32,13 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 		return fmt.Errorf("restore cleanup: allocation already registered")
 	}
 	name := resourceName("claim", claimID)
+	dedicated := isDedicatedClaimName(id.WorkerID)
+	if dedicated {
+		if id.AllocationID == "" {
+			return errIdentityMismatch
+		}
+		name = id.WorkerID
+	}
 	present, err := a.kube.exists("sandboxclaims", name)
 	if err != nil {
 		return fmt.Errorf("restore cleanup: read claim: %w", err)
@@ -47,12 +54,17 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 		}
 	}
 	var shutdownTime string
+	var attemptID string
 	if present {
 		var claim upstreamSandboxClaim
 		if err := a.kube.get("sandboxclaims", name, &claim); err != nil {
 			return fmt.Errorf("restore cleanup: read binding: %w", err)
 		}
 		if claim.Metadata.Name != name || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != id.WorkerID {
+			return errIdentityMismatch
+		}
+		attemptID = claim.Metadata.Annotations["agenova.io/allocation-attempt"]
+		if dedicated && (attemptID == "" || dedicatedClaimName(claimID, attemptID) != name || claim.Spec.Warmpool != "none") {
 			return errIdentityMismatch
 		}
 		if id.AllocationID != "" {
@@ -103,6 +115,7 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 		}
 	}
 	entry := &allocationEntry{claimID: claimID, upstreamClaimName: name, workerID: id.WorkerID, state: allocBound, applyConfirmed: true}
+	entry.attemptID = attemptID
 	entry.networkClaimUID = pinnedClaimUID
 	entry.networkPodUID = pinnedPodUID
 	if shutdownTime != "" {

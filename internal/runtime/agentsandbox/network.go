@@ -102,6 +102,7 @@ func (a *ControlledAdapter) canceledNetworkLifetimeLocked(id v1alpha1.SandboxCla
 
 type pinnedNetworkClient interface {
 	createBytes([]byte) error
+	createBytesContext(context.Context, []byte) error
 	createNetworkPolicyBefore(context.Context, []byte, time.Time) error
 	getContext(context.Context, string, string, any) error
 	existsContext(context.Context, string, string) (bool, error)
@@ -145,7 +146,9 @@ func (a *ControlledAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTempl
 	if mode != "strict" {
 		return "", fmt.Errorf("%w: strict startup network isolation is required before configuring workers", runtime.ErrUnsupported)
 	}
-	return a.SpikeAdapter.ConfigureAgentTemplate(template)
+	// Controlled workers must not share warm-pool prefixes: some supported
+	// CNIs cache policy by Pod name with the final hyphen segment removed.
+	return a.SpikeAdapter.configureAgentTemplate(template, false)
 }
 
 func (a *SpikeAdapter) validateNetworkAllocation(n runtime.NetworkAuthority) error {

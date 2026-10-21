@@ -27,7 +27,7 @@ func TestNetworkActivationRemoteCommandsActuallyAbortOnCallerCancellation(t *tes
 			}
 			earlierExpiry := strings.HasSuffix(boundary, "-expiry")
 			if earlierExpiry {
-				k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = time.Now().Add(200 * time.Millisecond).Format(time.RFC3339Nano)
+				k.claims[alloc.Identity.WorkerID].Spec.Lifecycle.ShutdownTime = time.Now().Add(200 * time.Millisecond).Format(time.RFC3339Nano)
 			}
 			r := newKubectlRunner("test", "agenova-test")
 			type milestone struct {

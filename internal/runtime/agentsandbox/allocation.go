@@ -4,12 +4,15 @@
 package agentsandbox
 
 import (
+	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -126,6 +129,18 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 	if err != nil {
 		return runtime.Allocation{}, err
 	}
+	// One absolute budget covers every governed bind/incarnation read, rather
+	// than giving each polling phase or kubectl invocation a fresh timeout.
+	var bindingContext context.Context
+	if !req.Network.ExpiresAt.IsZero() {
+		deadline := time.Now().Add(a.bindTimeout)
+		if req.Network.ExpiresAt.Before(deadline) {
+			deadline = req.Network.ExpiresAt
+		}
+		var cancel context.CancelFunc
+		bindingContext, cancel = context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+	}
 
 	manifest, err := a.claimManifest(entry.upstreamClaimName, pool, req.Network.ExpiresAt)
 	if err != nil {
@@ -150,7 +165,7 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 		if err != nil {
 			return runtime.Allocation{}, err
 		}
-		apply = client.createBytes
+		apply = func(data []byte) error { return client.createBytesContext(bindingContext, data) }
 	}
 	if err := apply(manifest); err != nil {
 		// The server may have accepted the create despite the error.
@@ -160,24 +175,33 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 	entry.applyConfirmed = true
 	a.mu.Unlock()
 
-	workerID, err := a.waitForSandbox(entry.upstreamClaimName)
+	workerID, err := a.waitForSandboxContext(entry.upstreamClaimName, bindingContext)
 	if err != nil {
 		return runtime.Allocation{}, a.compensate(entry, err)
 	}
 	if !req.Network.ExpiresAt.IsZero() {
 		var claim upstreamSandboxClaim
-		if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+		if err := a.allocationRead(bindingContext, "sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
 			return runtime.Allocation{}, a.compensate(entry, err)
 		}
 		if claim.Metadata.UID == "" || claim.Metadata.Annotations["agenova.io/allocation-attempt"] != entry.attemptID || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != workerID {
+			return runtime.Allocation{}, a.compensate(entry, errIdentityMismatch)
+		}
+		if workerID != entry.upstreamClaimName {
 			return runtime.Allocation{}, a.compensate(entry, errIdentityMismatch)
 		}
 		a.mu.Lock()
 		entry.networkClaimUID = claim.Metadata.UID
 		entry.workerID = workerID
 		a.mu.Unlock()
-		if err := a.pinAllocatedPod(entry); err != nil {
+		if err := a.pinAllocatedPod(entry, bindingContext); err != nil {
 			return runtime.Allocation{}, a.compensate(entry, err)
+		}
+		if err := bindingContext.Err(); err != nil {
+			return runtime.Allocation{}, a.compensate(entry, err)
+		}
+		if !time.Now().Before(req.Network.ExpiresAt) {
+			return runtime.Allocation{}, a.compensate(entry, fmt.Errorf("network authority expired during allocation"))
 		}
 	}
 
@@ -244,7 +268,19 @@ func (a *SpikeAdapter) beginAttempt(req runtime.AllocateRequest) (*allocationEnt
 			return nil, poolEntry{}, fmt.Errorf("claim already exists through the legacy claim path: %s", req.ClaimID)
 		}
 	}
-	pool, err := a.poolForTemplateLocked(req.TemplateRef)
+	var pool poolEntry
+	var err error
+	if !req.Network.ExpiresAt.IsZero() {
+		// Governed Works always acquire a dedicated cold Sandbox, even if an
+		// earlier installation still has an idle warm pool for this template.
+		if name, ok := a.poolRefs[req.TemplateRef]; ok {
+			pool = poolEntry{upstreamTemplateName: name, upstreamPoolName: "none"}
+		} else {
+			err = fmt.Errorf("template not found: %s (call AddTemplate first)", req.TemplateRef)
+		}
+	} else {
+		pool, err = a.poolForTemplateLocked(req.TemplateRef)
+	}
 	if err != nil {
 		a.mu.Unlock()
 		return nil, poolEntry{}, err
@@ -262,6 +298,7 @@ func (a *SpikeAdapter) beginAttempt(req runtime.AllocateRequest) (*allocationEnt
 			return nil, poolEntry{}, err
 		}
 		entry.attemptID = hex.EncodeToString(nonce[:])
+		entry.upstreamClaimName = dedicatedClaimName(req.ClaimID, entry.attemptID)
 	}
 	a.allocations[req.ClaimID] = entry
 	a.mu.Unlock()
@@ -538,6 +575,11 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 			// now could destroy a worker assigned after this empty snapshot.
 			return fail("read upstream claim for worker identity", errWorkerUnknown)
 		}
+		if isDedicatedClaimName(claimName) && sc.Status.Sandbox.Name != claimName {
+			// An unexpected warm/foreign binding is not ours to destroy. Keep
+			// the claim for explicit reconciliation; deleting it can GC a peer.
+			return fail("refuse non-dedicated worker compensation", errIdentityMismatch)
+		}
 		if workerID != "" && workerID != sc.Status.Sandbox.Name {
 			return fail("upstream binding changed during recovery", errIdentityMismatch)
 		}
@@ -581,8 +623,11 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 	return nil
 }
 
-func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry) error {
+func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry, ctx context.Context) error {
 	deadline := time.Now().Add(a.bindTimeout)
+	if !entry.network.ExpiresAt.IsZero() && entry.network.ExpiresAt.Before(deadline) {
+		deadline = entry.network.ExpiresAt
+	}
 	for {
 		var pod struct {
 			Metadata upstreamMeta `json:"metadata"`
@@ -590,18 +635,54 @@ func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry) error {
 				HostNetwork bool `json:"hostNetwork"`
 			} `json:"spec"`
 		}
-		if err := a.kube.get("pods", entry.workerID, &pod); err == nil {
-			if pod.Metadata.Name == entry.workerID && pod.Metadata.UID != "" && pod.Metadata.Labels[claimUIDLabel] == entry.networkClaimUID && !pod.Spec.HostNetwork {
+		if err := a.allocationRead(ctx, "pods", entry.workerID, &pod); err == nil {
+			if time.Now().Before(deadline) && pod.Metadata.Name == entry.workerID && pod.Metadata.UID != "" && pod.Metadata.Labels[claimUIDLabel] == entry.networkClaimUID && !pod.Spec.HostNetwork {
 				a.mu.Lock()
 				entry.networkPodUID = pod.Metadata.UID
 				a.mu.Unlock()
 				return nil
 			}
+		} else if ctx != nil && ctx.Err() != nil {
+			return fmt.Errorf("pin allocated worker incarnation: %w", ctx.Err())
 		}
 		if !time.Now().Before(deadline) {
 			return fmt.Errorf("pin allocated worker incarnation: %w", errIdentityMismatch)
 		}
-		time.Sleep(a.pollInterval)
+		if err := allocationPoll(ctx, a.pollInterval); err != nil {
+			return fmt.Errorf("pin allocated worker incarnation: %w", err)
+		}
+	}
+}
+
+// Legacy probes intentionally retain their old transport; governed reads must
+// propagate the absolute binding deadline into the actual kubectl process.
+func (a *SpikeAdapter) allocationRead(ctx context.Context, resource, name string, dst any) error {
+	if ctx == nil {
+		return a.kube.get(resource, name, dst)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	client, ok := a.kube.(pinnedNetworkClient)
+	if !ok {
+		return runtime.ErrUnsupported
+	}
+	err := client.getContext(ctx, resource, name, dst)
+	return errors.Join(err, ctx.Err())
+}
+
+func allocationPoll(ctx context.Context, interval time.Duration) error {
+	if ctx == nil {
+		time.Sleep(interval)
+		return nil
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -637,7 +718,19 @@ func (a *SpikeAdapter) confirmReleased(entry *allocationEntry) error {
 			return err
 		}
 		if !claimPresent && !sandboxPresent {
-			return nil
+			// A governed failed cold start may observe the worker before its
+			// Pod UID is pinned. Claim/Sandbox absence alone is not proof that
+			// the original process has stopped; wait for Pod absence as well.
+			if entry.attemptID == "" {
+				return nil
+			}
+			podPresent, err := a.kube.exists("pods", workerID)
+			if err != nil {
+				return err
+			}
+			if !podPresent {
+				return nil
+			}
 		}
 		if !time.Now().Before(deadline) {
 			return fmt.Errorf("%w after %s: claim present=%t sandbox present=%t", errCleanupUnconfirmed, a.cleanupTimeout, claimPresent, sandboxPresent)
@@ -649,19 +742,30 @@ func (a *SpikeAdapter) confirmReleased(entry *allocationEntry) error {
 // waitForSandbox polls the upstream claim until the controller assigns a
 // sandbox name or the bind budget expires.
 func (a *SpikeAdapter) waitForSandbox(claimName string) (string, error) {
+	return a.waitForSandboxContext(claimName, nil)
+}
+
+func (a *SpikeAdapter) waitForSandboxContext(claimName string, ctx context.Context) (string, error) {
 	deadline := time.Now().Add(a.bindTimeout)
+	if ctx != nil {
+		if absolute, ok := ctx.Deadline(); ok && absolute.Before(deadline) {
+			deadline = absolute
+		}
+	}
 	for {
 		var sc upstreamSandboxClaim
-		if err := a.kube.get("sandboxclaims", claimName, &sc); err != nil {
+		if err := a.allocationRead(ctx, "sandboxclaims", claimName, &sc); err != nil {
 			return "", fmt.Errorf("get claim status: %w", err)
 		}
-		if sc.Status.Sandbox != nil && sc.Status.Sandbox.Name != "" {
+		if time.Now().Before(deadline) && sc.Status.Sandbox != nil && sc.Status.Sandbox.Name != "" {
 			return sc.Status.Sandbox.Name, nil
 		}
 		if !time.Now().Before(deadline) {
 			return "", fmt.Errorf("bind timeout after %s: claim %s not assigned a sandbox", a.bindTimeout, claimName)
 		}
-		time.Sleep(a.pollInterval)
+		if err := allocationPoll(ctx, a.pollInterval); err != nil {
+			return "", fmt.Errorf("get claim status: %w", err)
+		}
 	}
 }
 
@@ -724,10 +828,31 @@ func (a *SpikeAdapter) poolForTemplateLocked(templateRef string) (poolEntry, err
 	sort.Strings(names)
 	switch len(names) {
 	case 0:
+		if a.coldRefs[templateRef] {
+			return poolEntry{upstreamTemplateName: upstreamTemplate, upstreamPoolName: "none"}, nil
+		}
 		return poolEntry{}, fmt.Errorf("no pool registered for template %s", templateRef)
 	case 1:
 		return a.pools[names[0]], nil
 	default:
 		return poolEntry{}, fmt.Errorf("ambiguous pool selection for template %s: %v", templateRef, names)
 	}
+}
+
+// The trailing segment is deliberately disposable. AWS network-policy-agent
+// v1.4.0 removes it when deriving its policy cache key; all distinguishing bits
+// must remain before that final hyphen. The attempt nonce also isolates retries.
+func dedicatedClaimName(claimID, attemptID string) string {
+	digest := sha256.Sum256([]byte("agenova-work-cold-v1\x00" + claimID + "\x00" + attemptID))
+	return "agenova-nw-" + hex.EncodeToString(digest[:20]) + "-w"
+}
+
+func isDedicatedClaimName(name string) bool {
+	const prefix = "agenova-nw-"
+	if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, "-w") || len(name) != len(prefix)+40+2 {
+		return false
+	}
+	key := name[len(prefix) : len(prefix)+40]
+	_, err := hex.DecodeString(key)
+	return err == nil && key == strings.ToLower(key)
 }
