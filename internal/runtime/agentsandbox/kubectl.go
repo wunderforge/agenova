@@ -155,7 +155,10 @@ func (r *kubectlRunner) patchPodIncarnationContext(ctx context.Context, name, po
 	if err != nil {
 		return err
 	}
-	_, err = r.runWithStdinContext(ctx, patch, "patch", "pods", name, "--type=json", "--patch-file=-")
+	// kubectl's --patch-file is a filesystem path, not a stdin sentinel. This
+	// bounded patch contains only original Pod/claim UIDs and an incarnation
+	// label, never task data or credentials, so pass it as one direct argv value.
+	_, err = r.runWithStdinContext(ctx, nil, "patch", "pods", name, "--type=json", "--patch", string(patch))
 	return err
 }
 
