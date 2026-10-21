@@ -6,6 +6,7 @@
 package agentsandbox
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"path/filepath"
@@ -168,9 +169,9 @@ type recordingNetworkRuntimeBackend struct {
 	network runtime.NetworkBackend
 }
 
-func (r *recordingNetworkRuntimeBackend) ActivateNetwork(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (r *recordingNetworkRuntimeBackend) ActivateNetwork(ctx context.Context, identity v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	r.calls = append(r.calls, "ActivateNetwork")
-	return r.network.ActivateNetwork(identity)
+	return r.network.ActivateNetwork(ctx, identity)
 }
 
 func (r *recordingNetworkRuntimeBackend) RevokeNetwork(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {

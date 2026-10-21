@@ -10,6 +10,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -94,7 +95,14 @@ type NetworkEvidence struct {
 // is called only after Running is durably recorded. Revocation must confirm
 // actual resource termination, not merely a worker's self-reported stop.
 type NetworkBackend interface {
-	ActivateNetwork(v1alpha1.SandboxClaimBackendIdentity) (NetworkEvidence, error)
+	// Activation must not grant or report success after caller cancellation.
+	// The context remains the grant's lifetime signal until caller teardown:
+	// a real enforcing backend must independently invoke trusted revocation on
+	// cancellation, even if application persistence or teardown is blocked.
+	// Repeated activation must retain earlier cancellation guards. Explicit
+	// revocation unregisters them. Compensating revocation deliberately does
+	// not inherit the canceled context; Simulated backends are not CNI proof.
+	ActivateNetwork(context.Context, v1alpha1.SandboxClaimBackendIdentity) (NetworkEvidence, error)
 	RevokeNetwork(v1alpha1.SandboxClaimBackendIdentity) (NetworkEvidence, error)
 }
 

@@ -57,15 +57,16 @@ type cleanupOperation struct {
 // to report ErrUnsupported for Start/Terminate on ordinary images.
 type ControlledAdapter struct {
 	*SpikeAdapter
-	control    workerControl
-	mu         sync.Mutex
-	changed    *sync.Cond
-	phases     map[string]controlPhase // keyed by the observed worker identity
-	stops      map[string]*terminateOperation
-	cleanups   map[string]*cleanupOperation
-	recovered  map[string]string // worker -> claim, attached only for cleanup
-	releases   map[string]runtime.CleanupResult
-	networkNow func() time.Time // adapter-local test seam; production is wall clock
+	control          workerControl
+	mu               sync.Mutex
+	changed          *sync.Cond
+	phases           map[string]controlPhase // keyed by the observed worker identity
+	stops            map[string]*terminateOperation
+	cleanups         map[string]*cleanupOperation
+	recovered        map[string]string // worker -> claim, attached only for cleanup
+	releases         map[string]runtime.CleanupResult
+	networkNow       func() time.Time // adapter-local test seam; production is wall clock
+	networkLifetimes map[string]map[<-chan struct{}]*networkLifetime
 }
 
 var _ runtime.RuntimeBackend = (*ControlledAdapter)(nil)
@@ -79,14 +80,15 @@ func NewControlled(kubeContext, namespace string) *ControlledAdapter {
 
 func newControlledAdapter(base *SpikeAdapter, control workerControl) *ControlledAdapter {
 	adapter := &ControlledAdapter{
-		SpikeAdapter: base,
-		control:      control,
-		phases:       make(map[string]controlPhase),
-		stops:        make(map[string]*terminateOperation),
-		cleanups:     make(map[string]*cleanupOperation),
-		releases:     make(map[string]runtime.CleanupResult),
-		recovered:    make(map[string]string),
-		networkNow:   time.Now,
+		SpikeAdapter:     base,
+		control:          control,
+		phases:           make(map[string]controlPhase),
+		stops:            make(map[string]*terminateOperation),
+		cleanups:         make(map[string]*cleanupOperation),
+		releases:         make(map[string]runtime.CleanupResult),
+		recovered:        make(map[string]string),
+		networkNow:       time.Now,
+		networkLifetimes: make(map[string]map[<-chan struct{}]*networkLifetime),
 	}
 	adapter.changed = sync.NewCond(&adapter.mu)
 	return adapter

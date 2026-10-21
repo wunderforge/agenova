@@ -73,13 +73,19 @@ func TestRecoveryWriteFailureNeverSkipsVerifiedNetworkRevocation(t *testing.T) {
 		})
 	}
 }
-func (b *verticalBackend) ActivateNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (b *verticalBackend) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	return simulatedNetwork(b.claim, id, b.network, "Active"), nil
 }
 func (b *verticalBackend) RevokeNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	return simulatedNetwork(b.claim, id, b.network, "Revoked"), nil
 }
-func (b *httpBackend) ActivateNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (b *httpBackend) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	return simulatedNetwork(b.claim, id, b.network, "Active"), nil
 }
 func (b *httpBackend) RevokeNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
@@ -199,7 +205,7 @@ func TestRecoveryRecognizesCommittedNetworkActivationFailure(t *testing.T) {
 
 type activationFailureBackend struct{ verticalBackend }
 
-func (*activationFailureBackend) ActivateNetwork(v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (*activationFailureBackend) ActivateNetwork(context.Context, v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	return runtime.NetworkEvidence{}, runtime.ErrUnsupported
 }
 

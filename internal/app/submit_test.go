@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -169,12 +170,13 @@ func (s *runtimeSpy) Cleanup(identity v1alpha1.SandboxClaimBackendIdentity) (run
 	return runtime.CleanupResult{Identity: identity, Released: true}, nil
 }
 
-func (s *runtimeSpy) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (s *runtimeSpy) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	return runtime.NetworkEvidence{ClaimID: s.claimID, Identity: id, Profiles: append([]string(nil), s.network.Profiles...), ExpiresAt: s.network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, nil
 }
 
 func (s *runtimeSpy) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
-	e, err := s.ActivateNetwork(id)
-	e.State = "Revoked"
-	return e, err
+	return runtime.NetworkEvidence{ClaimID: s.claimID, Identity: id, Profiles: append([]string(nil), s.network.Profiles...), ExpiresAt: s.network.ExpiresAt, State: "Revoked", EvidenceLevel: "Simulated"}, nil
 }

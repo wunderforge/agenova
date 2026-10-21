@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,15 +22,26 @@ type networkRecordingBackend struct {
 	mutate                   func(*runtime.NetworkEvidence)
 	activationErr            error
 	revocationErr            error
+	activationHook           func(context.Context) error
+	ignoreActivationContext  bool
 }
 
-func (b *networkRecordingBackend) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (b *networkRecordingBackend) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	b.activations++
 	state := b.service.State(b.lastAllocate.ClaimID)
 	if state.Claim.Phase != v1alpha1.ClaimPhaseRunning || !hasEvent(state, EventNetworkActivationAttempt) {
 		return runtime.NetworkEvidence{}, errors.New("activation before durable Running/attempt")
 	}
-	e, err := b.recordingBackend.ActivateNetwork(id)
+	if b.activationHook != nil {
+		if err := b.activationHook(ctx); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
+	}
+	backendContext := ctx
+	if b.ignoreActivationContext {
+		backendContext = context.Background()
+	}
+	e, err := b.recordingBackend.ActivateNetwork(backendContext, id)
 	if b.mutate != nil {
 		b.mutate(&e)
 	}
@@ -201,5 +213,191 @@ func TestWorkNetworkRechecksInterruptionAfterDurableWrites(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestWorkNetworkCancellationDuringActivationNeverDispatchesAndAlwaysReleases(t *testing.T) {
+	for _, interruption := range []string{"cancel", "caller-deadline", "runtime-deadline"} {
+		for _, backendResult := range []string{"context-error", "ambiguous-error", "success-after-interruption"} {
+			t.Run(interruption+"/"+backendResult, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				runtimeTimeout := time.Minute
+				if interruption == "caller-deadline" {
+					var deadlineCancel context.CancelFunc
+					ctx, deadlineCancel = context.WithTimeout(context.Background(), 150*time.Millisecond)
+					defer deadlineCancel()
+				}
+				if interruption == "runtime-deadline" {
+					runtimeTimeout = 150 * time.Millisecond
+				}
+				type contextMarker struct{}
+				ctx = context.WithValue(ctx, contextMarker{}, "caller-context")
+				entered := make(chan struct{})
+				b := &networkRecordingBackend{recordingBackend: newRecordingBackend(), ignoreActivationContext: backendResult == "success-after-interruption"}
+				b.activationHook = func(activationCtx context.Context) error {
+					if activationCtx.Value(contextMarker{}) != "caller-context" {
+						t.Error("caller context values lost")
+					}
+					limit, ok := activationCtx.Deadline()
+					if !ok || limit.After(b.lastAllocate.Network.ExpiresAt.Add(time.Millisecond)) {
+						t.Error("activation is not bounded by the Work expiry")
+					}
+					close(entered)
+					<-activationCtx.Done() // Side effect is genuinely blocked when interrupted.
+					switch backendResult {
+					case "context-error":
+						return activationCtx.Err()
+					case "ambiguous-error":
+						return errors.New("backend result ambiguous after interruption")
+					default:
+						return nil // Even a backend returning success must not start Work.
+					}
+				}
+				s := newTestRunService(t, b, RunServiceOptions{Now: time.Now})
+				b.service = s
+				issued := pendingIssuedState(runtimeTimeout)
+				issued.EffectiveAuthority.NetworkProfiles = []string{"public-web"}
+				cancelledAfterEntry := make(chan struct{})
+				if interruption == "cancel" {
+					go func() { <-entered; cancel(); close(cancelledAfterEntry) }()
+				} else {
+					close(cancelledAfterEntry)
+				}
+				workCalls := 0
+				state, err := s.RunContext(ctx, issued, testLaunch(issued), func(context.Context) error { workCalls++; return nil })
+				<-cancelledAfterEntry
+				wantPhase, wantEvent, wantErr := v1alpha1.ClaimPhaseFailed, "Cancelled", context.Canceled
+				if interruption != "cancel" {
+					wantPhase, wantEvent, wantErr = v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline
+					if interruption == "caller-deadline" {
+						wantErr = context.DeadlineExceeded
+					}
+				}
+				// The equal effective deadline can be observed by the Work timer
+				// just before the caller timer publishes Err; both are expiry,
+				// never cancellation or a generic activation failure.
+				validError := errors.Is(err, wantErr) || interruption == "caller-deadline" && errors.Is(err, ErrRunDeadline)
+				if !validError || state.Claim.Phase != wantPhase || !hasEvent(state, wantEvent) || workCalls != 0 || b.activations != 1 || b.revocations != 1 {
+					t.Fatalf("activation interruption lost: err=%v phase=%s work=%d activations=%d revocations=%d events=%v", err, state.Claim.Phase, workCalls, b.activations, b.revocations, eventKinds(state))
+				}
+				if hasEvent(state, EventNetworkActive) || hasEvent(state, EventNetworkActivationFailed) || !hasEvent(state, EventNetworkRevoked) || !hasEvent(state, EventCleanupOK) {
+					t.Fatalf("interruption fabricated a grant/failure or skipped release: %v", eventKinds(state))
+				}
+			})
+		}
+	}
+}
+
+// Simulate the real runtime's context-lifetime enforcement without manufacturing
+// packet evidence or racing the reference backend's state maps. Only the
+// runtime-owned lease flag is touched by the watcher; journaling stays in Run.
+type lifetimeNetworkBackend struct {
+	*recordingBackend
+	mu        sync.Mutex
+	stop      chan struct{}
+	revoked   chan struct{}
+	watchDone chan struct{}
+	once      sync.Once
+}
+
+func (b *lifetimeNetworkBackend) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	e, err := b.recordingBackend.ActivateNetwork(ctx, id)
+	if err != nil {
+		return e, err
+	}
+	b.mu.Lock()
+	b.stop = make(chan struct{})
+	stop := b.stop
+	b.mu.Unlock()
+	go func() {
+		defer close(b.watchDone)
+		select {
+		case <-ctx.Done():
+			// Runtime performs the safety action independently of the app/DB
+			// lock. Authoritative evidence is still recorded by normal teardown.
+			close(b.revoked)
+		case <-stop:
+		}
+	}()
+	return e, nil
+}
+
+func (b *lifetimeNetworkBackend) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	b.mu.Lock()
+	stop := b.stop
+	b.mu.Unlock()
+	if stop != nil {
+		b.once.Do(func() { close(stop) })
+	}
+	return b.recordingBackend.RevokeNetwork(id)
+}
+
+func TestWorkNetworkCancellationRevokesBeforeBlockedActiveWriteReturns(t *testing.T) {
+	for _, writeErr := range []bool{false, true} {
+		t.Run(map[bool]string{false: "write-success", true: "write-failure"}[writeErr], func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			entered, unblock := make(chan struct{}), make(chan struct{})
+			var releaseWrite sync.Once
+			defer releaseWrite.Do(func() { close(unblock) })
+			b := &lifetimeNetworkBackend{recordingBackend: newRecordingBackend(), revoked: make(chan struct{}), watchDone: make(chan struct{})}
+			s := newTestRunService(t, b, RunServiceOptions{Now: time.Now, OnEvent: func(_ *v1alpha1.IssuedState, event string) error {
+				if event == EventNetworkActive {
+					close(entered)
+					<-unblock
+					if writeErr {
+						return errors.New("blocked persistence eventually failed")
+					}
+				}
+				return nil
+			}})
+			issued := pendingIssuedState(time.Minute)
+			issued.EffectiveAuthority.NetworkProfiles = []string{"public-web"}
+			type result struct {
+				state *v1alpha1.IssuedState
+				err   error
+				work  int
+			}
+			done := make(chan result, 1)
+			go func() {
+				calls := 0
+				state, err := s.RunContext(ctx, issued, testLaunch(issued), func(context.Context) error { calls++; return nil })
+				done <- result{state, err, calls}
+			}()
+			select {
+			case <-entered:
+			case <-time.After(2 * time.Second):
+				t.Fatal("Active persistence was not reached")
+			}
+			// Activation must retain the context: successful return alone must
+			// not cancel a lease that is still eligible to run.
+			select {
+			case <-b.revoked:
+				t.Fatal("activation context ended before cancellation")
+			default:
+			}
+			cancel()
+			select {
+			case <-b.revoked:
+			case <-time.After(2 * time.Second):
+				t.Fatal("runtime safety action waited for blocked persistence")
+			}
+			select {
+			case <-done:
+				t.Fatal("blocked write unexpectedly returned")
+			default:
+			}
+			releaseWrite.Do(func() { close(unblock) })
+			select {
+			case got := <-done:
+				if !errors.Is(got.err, context.Canceled) || got.state.Claim.Phase != v1alpha1.ClaimPhaseFailed || !hasEvent(got.state, "Cancelled") || hasEvent(got.state, EventNetworkActivationFailed) || !hasEvent(got.state, EventNetworkRevoked) || !hasEvent(got.state, EventCleanupOK) || got.work != 0 {
+					t.Fatalf("cancelled persistence lost lifecycle: err=%v work=%d events=%v", got.err, got.work, eventKinds(got.state))
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("cancelled Work did not finish after releasing persistence")
+			}
+			<-b.watchDone
+		})
 	}
 }

@@ -136,3 +136,20 @@ and its namespace, ClusterIP, synthetic-data ConfigMap and ingress/egress policy
 on existing nodes. The control plane and installed Platform remain unchanged at
 this checkpoint. Native amd64 image manifests were published to the existing
 immutable ECR repository; this is not AWS Work or network-enforcement acceptance.
+
+The next review exposed an in-flight activation cancellation gap and a weaker
+generic cleanup path. Activation now receives the caller context and remaining
+Work deadline through telemetry and recorder wrappers; cancellation or ambiguous
+writes use context-independent compensation. The context remains live through
+Run teardown so the real runtime can revoke independently of blocked application
+persistence. Local application tests explicitly hold the Active write while
+cancelling and require the safety action before that write resumes.
+
+Observe and generic Cleanup also validate the recorded claim/Pod incarnation,
+allocation annotations and binding. Governed deletion uses UID/resourceVersion
+preconditions; restored allocations retain their durable UID pair. Same-name
+replacement, read/delete swap, missing binding and retained-Pod cases reject
+without reporting release. Genuine historical reduced-contract allocations keep
+their old behavior. These are local API/controller simulations, not atomic exec
+identity or cloud packet evidence. The updated full-source gates and independent
+review must pass before coordinated release.

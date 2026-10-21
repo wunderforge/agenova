@@ -79,9 +79,9 @@ type observedNetworkRuntime struct {
 	network runtime.NetworkBackend
 }
 
-func (r *observedNetworkRuntime) ActivateNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (r *observedNetworkRuntime) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	end := r.start(r.claim(id), "runtime.network.activate")
-	v, err := r.network.ActivateNetwork(id)
+	v, err := r.network.ActivateNetwork(ctx, id)
 	end(err == nil)
 	if err == nil {
 		r.s.networkEvidence.Store(v.ClaimID, v)

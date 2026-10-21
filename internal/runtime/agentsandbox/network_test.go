@@ -43,6 +43,7 @@ type networkKube struct {
 	createResponseErr  error
 	networkCreates     int
 	createDeadline     time.Time
+	createContext      context.Context
 }
 
 func (k *networkKube) applyBytes(data []byte) error {
@@ -136,14 +137,313 @@ func (k *networkKube) exists(resource, name string) (bool, error) {
 	return k.fakeKube.exists(resource, name)
 }
 
-func (k *networkKube) createNetworkPolicyBefore(data []byte, expiry time.Time) error {
+func (k *networkKube) createNetworkPolicyBefore(ctx context.Context, data []byte, expiry time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	k.networkCreates++
+	k.createContext = ctx
 	k.createDeadline = expiry
 	err := k.createBytes(data)
 	if k.afterPolicyCreate != nil {
 		k.afterPolicyCreate()
 	}
 	return errors.Join(err, k.createResponseErr)
+}
+
+func TestNetworkActivationCancellationAtEveryRemoteBoundaryCompensates(t *testing.T) {
+	for _, boundary := range []string{"before-activation", "claim-read", "pod-read", "pod-patch", "rule-exists", "rule-create", "rule-readback", "final-binding", "offline-binding"} {
+		t.Run(boundary, func(t *testing.T) {
+			profiles := []string{"public-web"}
+			if boundary == "offline-binding" {
+				profiles = nil
+			}
+			a, k, f, alloc := networkFixture(t, profiles)
+			if err := a.Start(alloc.Identity); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			claimReads := 0
+			k.afterGet = func(resource string) {
+				if resource == "sandboxclaims" {
+					claimReads++
+				}
+				if (boundary == "claim-read" && resource == "sandboxclaims") || (boundary == "pod-read" && resource == "pods") || (boundary == "rule-readback" && resource == "networkpolicies") || (boundary == "final-binding" && resource == "sandboxclaims" && claimReads == 2) || (boundary == "offline-binding" && resource == "pods") {
+					cancel()
+				}
+			}
+			if boundary == "pod-patch" {
+				k.afterPatch = cancel
+			}
+			if boundary == "rule-exists" {
+				k.afterExists = func(resource string) {
+					if resource == "networkpolicies" {
+						cancel()
+					}
+				}
+			}
+			if boundary == "rule-create" {
+				k.afterPolicyCreate = cancel
+			}
+			if boundary == "before-activation" {
+				cancel()
+			}
+			evidence, err := a.ActivateNetwork(ctx, alloc.Identity)
+			if !errors.Is(err, context.Canceled) || evidence.State != "" {
+				t.Fatalf("canceled activation returned proof: %+v %v", evidence, err)
+			}
+			if k.policy != nil || k.podPresent || len(k.claims) != 0 || f.stops != 0 {
+				t.Fatalf("cancellation cleanup inherited canceled context or trusted image: policy=%v pod=%v claims=%d stops=%d", k.policy, k.podPresent, len(k.claims), f.stops)
+			}
+			created := boundary == "rule-create" || boundary == "rule-readback" || boundary == "final-binding"
+			if (!created && k.networkCreates != 0) || (created && k.networkCreates != 1) {
+				t.Fatalf("created grant after cancellation boundary: %d", k.networkCreates)
+			}
+			if created && k.createContext != ctx {
+				t.Fatal("caller context not forwarded to grant write")
+			}
+		})
+	}
+}
+
+func TestNetworkCanceledActivationPreservesCleanupAndForeignIdentityErrors(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cleanupErr := errors.New("rule deletion unavailable")
+	k.afterPolicyCreate = cancel
+	k.ruleDeleteErr = cleanupErr
+	evidence, err := a.ActivateNetwork(ctx, alloc.Identity)
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, cleanupErr) || evidence.State != "" || k.podPresent {
+		t.Fatalf("cancellation/cleanup error hidden %+v %v", evidence, err)
+	}
+	// Compensation is still UID bound if a claim name is replaced while read is slow.
+	a, k, _, alloc = networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	k.afterGet = func(resource string) {
+		if resource == "sandboxclaims" {
+			k.claims[resourceName("claim", "run-1")].Metadata.UID = "foreign-claim"
+			cancel()
+		}
+	}
+	_, err = a.ActivateNetwork(ctx, alloc.Identity)
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, errIdentityMismatch) || k.delets != 0 || k.policy != nil {
+		t.Fatalf("canceled activation touched replacement: %v deletes=%d", err, k.delets)
+	}
+}
+
+func TestNetworkPolicyCreateTransportInheritsCancellationAndEarlierCallerDeadline(t *testing.T) {
+	r := newKubectlRunner("test", "work")
+	expiry := time.Now().Add(time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	called := false
+	r.command = func(context.Context, []byte, ...string) ([]byte, error) { called = true; return nil, nil }
+	if err := r.createNetworkPolicyBefore(ctx, nil, expiry); !errors.Is(err, context.Canceled) || called {
+		t.Fatalf("pre-canceled write started: %v called=%v", err, called)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	r.command = func(child context.Context, _ []byte, _ ...string) ([]byte, error) {
+		cancel()
+		<-child.Done()
+		return nil, child.Err()
+	}
+	if err := r.createNetworkPolicyBefore(ctx, nil, expiry); !errors.Is(err, context.Canceled) {
+		t.Fatal("active write ignored cancellation", err)
+	}
+	deadline := time.Now().Add(15 * time.Millisecond)
+	ctx, cancel = context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	r.command = func(child context.Context, _ []byte, _ ...string) ([]byte, error) {
+		actual, ok := child.Deadline()
+		if !ok || actual.After(deadline) {
+			t.Fatal("write outlives earlier caller deadline")
+		}
+		<-child.Done()
+		return nil, child.Err()
+	}
+	if err := r.createNetworkPolicyBefore(ctx, nil, expiry); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+}
+
+func lifetimeGuard(t *testing.T, a *ControlledAdapter, ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) *networkLifetime {
+	t.Helper()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	g := a.networkLifetimes[id.WorkerID][ctx.Done()]
+	if g == nil {
+		t.Fatal("successful activation did not retain caller lifetime")
+	}
+	return g
+}
+func awaitLifetime(t *testing.T, g *networkLifetime) {
+	t.Helper()
+	select {
+	case <-g.complete:
+	case <-time.After(time.Second):
+		t.Fatal("activation lifetime did not complete trusted safety action")
+	}
+}
+
+func TestNetworkActivationLifetimeRevokesWithoutApplicationProgress(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	evidence, err := a.ActivateNetwork(ctx, alloc.Identity)
+	if err != nil || evidence.State != "Active" {
+		t.Fatalf("activate %+v %v", evidence, err)
+	}
+	g := lifetimeGuard(t, a, ctx, alloc.Identity)
+	// Simulate an application journal never returning after receiving Active:
+	// no app teardown, explicit revoke or additional adapter call is made.
+	cancel()
+	awaitLifetime(t, g)
+	if g.err != nil || k.policy != nil || k.podPresent || len(k.claims) != 0 {
+		t.Fatalf("grant survived blocked application: err=%v policy=%v pod=%v", g.err, k.policy, k.podPresent)
+	}
+	a.mu.Lock()
+	remaining := len(a.networkLifetimes)
+	a.mu.Unlock()
+	if remaining != 0 {
+		t.Fatal("completed lifetime retained callback references")
+	}
+}
+
+func TestNetworkActivationLifetimeDeadlineRevokesWithoutApplicationProgress(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := a.ActivateNetwork(ctx, alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	g := lifetimeGuard(t, a, ctx, alloc.Identity)
+	awaitLifetime(t, g)
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) || g.err != nil || k.policy != nil || k.podPresent {
+		t.Fatalf("deadline did not revoke trusted grant: %v %v", ctx.Err(), g.err)
+	}
+}
+
+func TestNetworkExplicitRevokeDeregistersAllActivationLifetimes(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	for _, ctx := range []context.Context{ctx1, ctx1, ctx2} {
+		if _, err := a.ActivateNetwork(ctx, alloc.Identity); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g1, g2 := lifetimeGuard(t, a, ctx1, alloc.Identity), lifetimeGuard(t, a, ctx2, alloc.Identity)
+	a.mu.Lock()
+	count := len(a.networkLifetimes[alloc.Identity.WorkerID])
+	a.mu.Unlock()
+	if count != 2 {
+		t.Fatal("repeated activation duplicated original lifetime")
+	}
+	if _, err := a.RevokeNetwork(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	awaitLifetime(t, g1)
+	awaitLifetime(t, g2)
+	cancel1()
+	cancel2()
+	a.mu.Lock()
+	count = len(a.networkLifetimes)
+	a.mu.Unlock()
+	if count != 0 || k.policy != nil || k.podPresent {
+		t.Fatal("explicit release retained live callbacks or grant")
+	}
+}
+
+func TestNetworkLifetimeAndExplicitRevokeAreIdempotentTogether(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := a.ActivateNetwork(ctx, alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	g := lifetimeGuard(t, a, ctx, alloc.Identity)
+	done := make(chan error, 1)
+	go func() { _, err := a.RevokeNetwork(alloc.Identity); done <- err }()
+	cancel()
+	awaitLifetime(t, g)
+	if err := <-done; err != nil || g.err != nil || k.policy != nil || k.podPresent {
+		t.Fatalf("concurrent cleanup failed %v %v", err, g.err)
+	}
+}
+
+func TestNetworkLifetimeFailureRetainsDiagnosisAndRejectsReactivation(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := a.ActivateNetwork(ctx, alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	g := lifetimeGuard(t, a, ctx, alloc.Identity)
+	k.retainPod = true
+	cancel()
+	awaitLifetime(t, g)
+	if !errors.Is(g.err, errCleanupUnconfirmed) || k.policy != nil || !k.podPresent {
+		t.Fatalf("unconfirmed release hidden %v", g.err)
+	}
+	if evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil || evidence.State != "" {
+		t.Fatalf("new context revived canceled allocation %+v %v", evidence, err)
+	}
+	k.podPresent = false
+	if _, err := a.RevokeNetwork(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	a.mu.Lock()
+	remaining := len(a.networkLifetimes)
+	a.mu.Unlock()
+	if remaining != 0 {
+		t.Fatal("successful retry retained lifetime failure")
+	}
+}
+
+func TestNetworkLifetimeCannotDeleteSameNameForeignReplacement(t *testing.T) {
+	a, k, _, alloc := networkFixture(t, []string{"public-web"})
+	if err := a.Start(alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := a.ActivateNetwork(ctx, alloc.Identity); err != nil {
+		t.Fatal(err)
+	}
+	g := lifetimeGuard(t, a, ctx, alloc.Identity)
+	k.claims[resourceName("claim", "run-1")].Metadata.UID = "foreign-claim"
+	cancel()
+	awaitLifetime(t, g)
+	if !errors.Is(g.err, errIdentityMismatch) || k.delets != 0 || k.claims[resourceName("claim", "run-1")].Metadata.UID != "foreign-claim" {
+		t.Fatalf("lifetime cleanup touched foreign incarnation %v deletes=%d", g.err, k.delets)
+	}
 }
 
 func (k *networkKube) createBytes(data []byte) error {
@@ -270,7 +570,7 @@ func TestNetworkActivationExpiryAtEveryRemoteBoundaryCompensates(t *testing.T) {
 			if boundary == "rule-create" {
 				k.afterPolicyCreate = advance
 			}
-			evidence, err := a.ActivateNetwork(alloc.Identity)
+			evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity)
 			if err == nil || evidence.State != "" {
 				t.Fatalf("expired activation returned authority: %+v %v", evidence, err)
 			}
@@ -281,7 +581,7 @@ func TestNetworkActivationExpiryAtEveryRemoteBoundaryCompensates(t *testing.T) {
 			if (!created && k.networkCreates != 0) || (created && k.networkCreates != 1) {
 				t.Fatalf("creation crossed stale boundary: %d", k.networkCreates)
 			}
-			if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+			if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 				t.Fatal("expired allocation reactivated")
 			}
 		})
@@ -302,7 +602,7 @@ func TestNetworkActivationAmbiguousCreateRevokesOwnedRuleAndDestroysWorker(t *te
 				a.networkNow = func() time.Time { return now }
 				k.afterPolicyCreate = func() { now = a.allocations["run-1"].network.ExpiresAt }
 			}
-			evidence, err := a.ActivateNetwork(alloc.Identity)
+			evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity)
 			if !errors.Is(err, transportErr) || evidence.State != "" || k.policy != nil || k.podPresent || len(k.claims) != 0 {
 				t.Fatalf("ambiguous grant escaped compensation: %+v %v pod=%v policy=%v", evidence, err, k.podPresent, k.policy)
 			}
@@ -320,7 +620,7 @@ func TestNetworkActivationExpiryCleanupFailureIsNotHidden(t *testing.T) {
 	k.afterPolicyCreate = func() { now = a.allocations["run-1"].network.ExpiresAt }
 	cleanupErr := errors.New("rule cleanup unavailable")
 	k.ruleDeleteErr = cleanupErr
-	evidence, err := a.ActivateNetwork(alloc.Identity)
+	evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity)
 	if !errors.Is(err, cleanupErr) || evidence.State != "" || k.podPresent {
 		t.Fatalf("cleanup failure hidden or live worker retained: %+v %v", evidence, err)
 	}
@@ -336,7 +636,7 @@ func TestNetworkActivationWriteUsesEarlierUpstreamExpiry(t *testing.T) {
 	}
 	earlier := time.Now().Add(10 * time.Second)
 	k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = earlier.Format(time.RFC3339Nano)
-	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
 	if !k.createDeadline.Equal(earlier) {
@@ -360,11 +660,11 @@ func TestNetworkPolicyCreateTransportBoundedByAuthorityDeadline(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	if err := r.createNetworkPolicyBefore([]byte(`{}`), expiry); !errors.Is(err, context.DeadlineExceeded) || !called {
+	if err := r.createNetworkPolicyBefore(context.Background(), []byte(`{}`), expiry); !errors.Is(err, context.DeadlineExceeded) || !called {
 		t.Fatalf("unbounded grant write: %v called=%v", err, called)
 	}
 	called = false
-	if err := r.createNetworkPolicyBefore(nil, time.Now().Add(-time.Second)); !errors.Is(err, context.DeadlineExceeded) || called {
+	if err := r.createNetworkPolicyBefore(context.Background(), nil, time.Now().Add(-time.Second)); !errors.Is(err, context.DeadlineExceeded) || called {
 		t.Fatalf("expired write was started: %v called=%v", err, called)
 	}
 }
@@ -390,13 +690,13 @@ func TestNetworkWarmTemplateHasCustomDenyNotUpstreamPublicDefault(t *testing.T) 
 
 func TestNetworkActivationIsWorkBoundAndExpiresIndependently(t *testing.T) {
 	a, k, _, alloc := networkFixture(t, []string{"public-web"})
-	if _, err := a.ActivateNetwork(alloc.Identity); err == nil || k.policy != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil || k.policy != nil {
 		t.Fatal("idle worker gained access")
 	}
 	if err := a.Start(alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := a.ActivateNetwork(alloc.Identity)
+	evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity)
 	if err != nil || evidence.State != "Active" || evidence.EvidenceLevel != "Configured" {
 		t.Fatalf("activate: %+v %v", evidence, err)
 	}
@@ -414,7 +714,7 @@ func TestNetworkActivationIsWorkBoundAndExpiresIndependently(t *testing.T) {
 	}
 	// Defensive evidence cannot mutate authority.
 	evidence.Profiles[0] = "other"
-	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -424,7 +724,7 @@ func TestNetworkOfflineNeverCreatesAllowPolicy(t *testing.T) {
 	if err := a.Start(alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := a.ActivateNetwork(alloc.Identity)
+	evidence, err := a.ActivateNetwork(context.Background(), alloc.Identity)
 	if err != nil || len(evidence.Profiles) != 0 || k.policy != nil || k.patches != 0 {
 		t.Fatalf("offline grant: %+v %v", evidence, err)
 	}
@@ -443,7 +743,7 @@ func TestNetworkConcretePodIncarnationNeverTransfersToSameClaimReplacement(t *te
 	if err := a.Start(alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
 	if !simulatedPodMatchesNetworkRule(k) {
@@ -453,7 +753,7 @@ func TestNetworkConcretePodIncarnationNeverTransfersToSameClaimReplacement(t *te
 	if simulatedPodMatchesNetworkRule(k) {
 		t.Fatal("replacement inherited original Pod network grant")
 	}
-	if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 		t.Fatal("replacement was relabelled as original")
 	}
 	claim, _ := json.Marshal(k.claims[resourceName("claim", "run-1")])
@@ -477,7 +777,7 @@ func TestNetworkGuardedPodPatchRejectsReplacementAndFailedPatchBeforeGrant(t *te
 			case "patch-failure":
 				k.patchErr = errors.New("patch unavailable")
 			}
-			if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+			if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 				t.Fatal("unsafe activation succeeded")
 			}
 			if simulatedPodMatchesNetworkRule(k) {
@@ -500,7 +800,7 @@ func TestNetworkConcurrentActivationPinsSingleConcretePod(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+			if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -551,7 +851,7 @@ func TestNetworkForgedBindingAndFailedGrantFailClosed(t *testing.T) {
 			case "expiry-missing":
 				k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = ""
 			}
-			if _, err := a.ActivateNetwork(alloc.Identity); err == nil || k.policy != nil {
+			if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil || k.policy != nil {
 				t.Fatal("invalid authority granted")
 			}
 		})
@@ -563,7 +863,7 @@ func TestNetworkRevokeRequiresActualPodAbsenceNotImageAcknowledgement(t *testing
 	if err := a.Start(alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
 	k.retainPod = true
@@ -587,7 +887,7 @@ func TestNetworkRevokeRequiresActualPodAbsenceNotImageAcknowledgement(t *testing
 	if result, err := a.Cleanup(alloc.Identity); err != nil || !result.Released {
 		t.Fatalf("cleanup %+v %v", result, err)
 	}
-	if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 		t.Fatal("terminated authority reactivated")
 	}
 }
@@ -639,7 +939,7 @@ func TestNetworkForeignRuleCannotBeOverwrittenOrDeleted(t *testing.T) {
 	foreign["metadata"].(map[string]any)["uid"] = "foreign-policy"
 	foreign["metadata"].(map[string]any)["resourceVersion"] = "1"
 	k.policy = foreign
-	if _, err := a.ActivateNetwork(alloc.Identity); err == nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err == nil {
 		t.Fatal("foreign rule overwritten")
 	}
 	if _, err := a.RevokeNetwork(alloc.Identity); err == nil {
@@ -658,7 +958,7 @@ func TestNetworkRuleDeleteFailureStillDestroysWorker(t *testing.T) {
 	if err := a.Start(alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.ActivateNetwork(alloc.Identity); err != nil {
+	if _, err := a.ActivateNetwork(context.Background(), alloc.Identity); err != nil {
 		t.Fatal(err)
 	}
 	k.ruleDeleteErr = errors.New("rule deletion unavailable")

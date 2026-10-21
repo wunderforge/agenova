@@ -671,14 +671,15 @@ func (b *recordingBackend) Start(v1alpha1.SandboxClaimBackendIdentity) error {
 	return b.startErr
 }
 
-func (b *recordingBackend) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (b *recordingBackend) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	return runtime.NetworkEvidence{ClaimID: b.lastAllocate.ClaimID, Identity: id, Profiles: append([]string(nil), b.lastAllocate.Network.Profiles...), ExpiresAt: b.lastAllocate.Network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, nil
 }
 
 func (b *recordingBackend) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
-	e, err := b.ActivateNetwork(id)
-	e.State = "Revoked"
-	return e, err
+	return runtime.NetworkEvidence{ClaimID: b.lastAllocate.ClaimID, Identity: id, Profiles: append([]string(nil), b.lastAllocate.Network.Profiles...), ExpiresAt: b.lastAllocate.Network.ExpiresAt, State: "Revoked", EvidenceLevel: "Simulated"}, nil
 }
 
 func (b *recordingBackend) Terminate(v1alpha1.SandboxClaimBackendIdentity) error {

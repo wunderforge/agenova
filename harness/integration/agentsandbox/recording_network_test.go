@@ -6,6 +6,7 @@
 package agentsandbox
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -44,9 +45,14 @@ type recordingNetworkFake struct {
 	*recordingLegacyFake
 	activationErr, errorOnRevoke   error
 	lastActivation, lastRevocation v0.SandboxClaimBackendIdentity
+	activationContext              context.Context
 }
 
-func (f *recordingNetworkFake) ActivateNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (f *recordingNetworkFake) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	f.activationContext = ctx
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	f.lastActivation = id
 	return runtime.NetworkEvidence{ClaimID: f.request.ClaimID, Identity: id, Profiles: append([]string(nil), f.request.Network.Profiles...), ExpiresAt: f.request.Network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, f.activationErr
 }
@@ -104,9 +110,14 @@ func TestRecordingRuntimeNetworkErrorsForwarded_ClusterFree(t *testing.T) {
 	recorder, recorded := newRecordingRuntimeBackend(backend)
 	network := recorded.(runtime.NetworkBackend)
 	id := v0.SandboxClaimBackendIdentity{Backend: "test", WorkerID: "original", AllocationID: "original-incarnation"}
-	proof, err := network.ActivateNetwork(id)
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), struct{ label string }{"test-context"}, true))
+	defer cancel()
+	proof, err := network.ActivateNetwork(ctx, id)
 	if !errors.Is(err, activationErr) || proof.Identity != id || backend.lastActivation != id {
 		t.Fatal("activation error/binding suppressed")
+	}
+	if backend.activationContext != ctx {
+		t.Fatal("wrapper replaced caller activation context")
 	}
 	proof, err = network.RevokeNetwork(id)
 	if !errors.Is(err, revokeErr) || proof.Identity != id || backend.lastRevocation != id {
@@ -114,6 +125,17 @@ func TestRecordingRuntimeNetworkErrorsForwarded_ClusterFree(t *testing.T) {
 	}
 	if !reflect.DeepEqual(recorder.calls, []string{"ActivateNetwork", "RevokeNetwork"}) {
 		t.Fatal("network calls not recorded")
+	}
+}
+
+func TestRecordingRuntimeNetworkCancellationForwarded_ClusterFree(t *testing.T) {
+	backend := &recordingNetworkFake{recordingLegacyFake: &recordingLegacyFake{}}
+	_, recorded := newRecordingRuntimeBackend(backend)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := recorded.(runtime.NetworkBackend).ActivateNetwork(ctx, v0.SandboxClaimBackendIdentity{Backend: "test", WorkerID: "original"})
+	if !errors.Is(err, context.Canceled) || backend.activationContext != ctx || backend.lastActivation.WorkerID != "" {
+		t.Fatal("wrapper lost cancellation or allowed activation")
 	}
 }
 

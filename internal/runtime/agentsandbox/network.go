@@ -4,12 +4,14 @@
 package agentsandbox
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -19,9 +21,88 @@ import (
 const claimUIDLabel = "agents.x-k8s.io/claim-uid"
 const networkIncarnationLabel = "agenova.io/network-incarnation"
 
+// A successful grant must remain tied to its activation lifetime even while
+// application persistence is blocked. AfterFunc installs no parked goroutine;
+// explicit trusted release unregisters every retained callback. Guard identity
+// includes AllocationID, so a same-name replacement is never a cleanup target.
+type networkLifetime struct {
+	identity v1alpha1.SandboxClaimBackendIdentity
+	stop     func() bool
+	complete chan struct{}
+	once     sync.Once
+	err      error // protected by a.mu; retained when trusted revocation is unconfirmed
+}
+
+func (g *networkLifetime) finish() { g.once.Do(func() { close(g.complete) }) }
+
+func (a *ControlledAdapter) armNetworkLifetimeLocked(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) {
+	key := ctx.Done()
+	if key == nil {
+		return
+	} // Background has no cancellable lifetime to retain.
+	guards := a.networkLifetimes[id.WorkerID]
+	if guards == nil {
+		guards = make(map[<-chan struct{}]*networkLifetime)
+		a.networkLifetimes[id.WorkerID] = guards
+	}
+	if guards[key] != nil {
+		return
+	} // repeated activation keeps the original guard
+	g := &networkLifetime{identity: id, complete: make(chan struct{})}
+	guards[key] = g
+	g.stop = context.AfterFunc(ctx, func() {
+		defer g.finish()
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.networkLifetimes[id.WorkerID][key] != g {
+			return
+		}
+		entry, err := a.entryFor(g.identity)
+		if err == nil {
+			_, err = a.revokeNetworkLocked(entry, g.identity)
+		}
+		g.err = err
+		if err != nil && entry != nil {
+			a.SpikeAdapter.mu.Lock()
+			entry.detail = "activation context ended; trusted network revocation remains unconfirmed"
+			a.SpikeAdapter.mu.Unlock()
+		}
+	})
+}
+
+func (a *ControlledAdapter) stopNetworkLifetimesLocked(id v1alpha1.SandboxClaimBackendIdentity) {
+	guards := a.networkLifetimes[id.WorkerID]
+	for key, g := range guards {
+		if g.identity != id {
+			continue
+		}
+		delete(guards, key)
+		if g.stop != nil && g.stop() {
+			g.finish()
+		}
+	}
+	if len(guards) == 0 {
+		delete(a.networkLifetimes, id.WorkerID)
+	}
+}
+
+func (a *ControlledAdapter) canceledNetworkLifetimeLocked(id v1alpha1.SandboxClaimBackendIdentity) bool {
+	for done, g := range a.networkLifetimes[id.WorkerID] {
+		if g.identity != id {
+			continue
+		}
+		select {
+		case <-done:
+			return true
+		default:
+		}
+	}
+	return false
+}
+
 type pinnedNetworkClient interface {
 	createBytes([]byte) error
-	createNetworkPolicyBefore([]byte, time.Time) error
+	createNetworkPolicyBefore(context.Context, []byte, time.Time) error
 	deletePinned(resource, name, uid, version string) error
 	patchPodIncarnation(name, podUID, claimUID, value string) error
 }
@@ -97,8 +178,18 @@ func (a *ControlledAdapter) networkEvidence(entry *allocationEntry, state string
 // supplied Pod label. Neither worker-supplied values nor shared template names
 // select a network grant. A changed binding fails without touching its peer.
 func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamSandboxClaim, error) {
+	return a.boundNetworkClaimContext(context.Background(), entry)
+}
+
+func (a *ControlledAdapter) boundNetworkClaimContext(ctx context.Context, entry *allocationEntry) (upstreamSandboxClaim, error) {
 	var claim upstreamSandboxClaim
+	if err := ctx.Err(); err != nil {
+		return claim, err
+	}
 	if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+		return claim, errors.Join(err, ctx.Err())
+	}
+	if err := ctx.Err(); err != nil {
 		return claim, err
 	}
 	a.SpikeAdapter.mu.Lock()
@@ -114,6 +205,9 @@ func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamS
 		} `json:"spec"`
 	}
 	if err := a.kube.get("pods", entry.workerID, &pod); err != nil {
+		return claim, errors.Join(err, ctx.Err())
+	}
+	if err := ctx.Err(); err != nil {
 		return claim, err
 	}
 	if pod.Metadata.Name != entry.workerID || pod.Metadata.UID == "" || pod.Metadata.Labels[claimUIDLabel] != claim.Metadata.UID || pod.Spec.HostNetwork {
@@ -130,7 +224,7 @@ func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamS
 
 // ActivateNetwork is called after the application durably enters Running.
 // NetworkPolicy API acceptance is configuration evidence, not CNI convergence.
-func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (evidence runtime.NetworkEvidence, activationErr error) {
+func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (evidence runtime.NetworkEvidence, activationErr error) {
 	entry, err := a.entryFor(id)
 	if err != nil {
 		return runtime.NetworkEvidence{}, err
@@ -144,6 +238,9 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 	if revoked || a.phases[id.WorkerID] != controlRunning {
 		return runtime.NetworkEvidence{}, runtime.ErrTerminated
 	}
+	if a.canceledNetworkLifetimeLocked(id) {
+		return runtime.NetworkEvidence{}, runtime.ErrTerminated
+	}
 	if n.ExpiresAt.IsZero() {
 		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
 	}
@@ -154,22 +251,25 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 	// Never return an Active receipt in that case. Reuse the trusted UID-guarded
 	// revocation path under the existing lock, not a worker-supplied stop ACK.
 	defer func() {
-		if expired() || compensate {
+		if expired() || compensate || ctx.Err() != nil {
 			_, cleanupErr := a.revokeNetworkLocked(entry, id)
 			evidence = runtime.NetworkEvidence{}
 			if expired() {
 				activationErr = errors.Join(activationErr, errors.New("network authority expired during activation"))
 			}
-			activationErr = errors.Join(activationErr, cleanupErr)
+			activationErr = errors.Join(activationErr, ctx.Err(), cleanupErr)
 		}
 	}()
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	if err := a.validateNetworkAllocation(n); err != nil {
 		return runtime.NetworkEvidence{}, err
 	}
 	if expired() {
 		return runtime.NetworkEvidence{}, errors.New("network authority already expired")
 	}
-	claim, err := a.boundNetworkClaim(entry)
+	claim, err := a.boundNetworkClaimContext(ctx, entry)
 	if err != nil {
 		return runtime.NetworkEvidence{}, err
 	}
@@ -195,6 +295,9 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if err := client.patchPodIncarnation(entry.workerID, entry.networkPodUID, entry.networkClaimUID, networkIncarnation(entry.networkClaimUID, entry.networkPodUID)); err != nil {
 			return runtime.NetworkEvidence{}, fmt.Errorf("pin network Pod incarnation: %w", err)
 		}
+		if err := ctx.Err(); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
 		manifest, err := json.Marshal(a.publicWebPolicy(entry, claim.Metadata.UID))
 		if err != nil {
 			return runtime.NetworkEvidence{}, err
@@ -205,14 +308,23 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if queryErr != nil {
 			return runtime.NetworkEvidence{}, queryErr
 		}
+		if err := ctx.Err(); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
 		if !present {
 			// Reads and patch are remote calls: check immediately before write.
 			if expired() {
 				return runtime.NetworkEvidence{}, errors.New("network authority expired before rule creation")
 			}
-			if createErr := client.createNetworkPolicyBefore(manifest, deadline); createErr != nil {
+			if err := ctx.Err(); err != nil {
+				return runtime.NetworkEvidence{}, err
+			}
+			if createErr := client.createNetworkPolicyBefore(ctx, manifest, deadline); createErr != nil {
 				compensate = true
 				return runtime.NetworkEvidence{}, createErr
+			}
+			if err := ctx.Err(); err != nil {
+				return runtime.NetworkEvidence{}, err
 			}
 			if expired() {
 				return runtime.NetworkEvidence{}, errors.New("network authority expired during rule creation")
@@ -223,6 +335,9 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if readErr != nil {
 			return runtime.NetworkEvidence{}, readErr
 		}
+		if err := ctx.Err(); err != nil {
+			return runtime.NetworkEvidence{}, err
+		}
 		var desired networkPolicyObject
 		if err := json.Unmarshal(manifest, &desired); err != nil {
 			return runtime.NetworkEvidence{}, err
@@ -230,14 +345,18 @@ func (a *ControlledAdapter) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdent
 		if !reflect.DeepEqual(policy.Spec, desired.Spec) {
 			return runtime.NetworkEvidence{}, errors.New("existing network rule differs from resolved authority")
 		}
-		if _, err := a.boundNetworkClaim(entry); err != nil {
+		if _, err := a.boundNetworkClaimContext(ctx, entry); err != nil {
 			return runtime.NetworkEvidence{}, err
 		}
 		compensate = false
 	}
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
 	a.SpikeAdapter.mu.Lock()
 	entry.networkActive = true
 	a.SpikeAdapter.mu.Unlock()
+	a.armNetworkLifetimeLocked(ctx, id)
 	return a.networkEvidence(entry, "Active"), nil
 }
 
@@ -299,6 +418,7 @@ func (a *ControlledAdapter) revokeNetworkLocked(entry *allocationEntry, id v1alp
 	revoked := entry.networkRevoked
 	a.SpikeAdapter.mu.Unlock()
 	if revoked {
+		a.stopNetworkLifetimesLocked(id)
 		return a.networkEvidence(entry, "Revoked"), nil
 	}
 	present, err := a.kube.exists("sandboxclaims", entry.upstreamClaimName)
@@ -366,6 +486,7 @@ func (a *ControlledAdapter) revokeNetworkLocked(entry *allocationEntry, id v1alp
 	entry.detail = "network grant removed; claim, sandbox and Pod confirmed absent"
 	a.SpikeAdapter.mu.Unlock()
 	a.phases[id.WorkerID] = controlTerminated
+	a.stopNetworkLifetimesLocked(id)
 	a.changed.Broadcast()
 	return a.networkEvidence(entry, "Revoked"), nil
 }

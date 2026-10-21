@@ -123,12 +123,12 @@ func (r *kubectlRunner) createBytes(manifest []byte) error {
 // Bound the grant write itself, not just the checks preceding it. A canceled
 // API request may still have committed; activation always performs owned
 // readback/revocation compensation rather than treating cancellation as absence.
-func (r *kubectlRunner) createNetworkPolicyBefore(manifest []byte, expiry time.Time) error {
+func (r *kubectlRunner) createNetworkPolicyBefore(parent context.Context, manifest []byte, expiry time.Time) error {
 	deadline := time.Now().Add(r.timeout)
 	if expiry.Before(deadline) {
 		deadline = expiry
 	}
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	ctx, cancel := context.WithDeadline(parent, deadline)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return err

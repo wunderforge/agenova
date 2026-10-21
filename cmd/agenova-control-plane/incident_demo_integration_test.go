@@ -195,12 +195,12 @@ func (a *incidentAllocations) Allocate(req runtimebackend.AllocateRequest) (runt
 
 // Preserve the underlying reference runtime's simulated network lifecycle.
 // Embedding only RuntimeBackend would otherwise erase this required capability.
-func (a *incidentAllocations) ActivateNetwork(id v0.SandboxClaimBackendIdentity) (runtimebackend.NetworkEvidence, error) {
+func (a *incidentAllocations) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtimebackend.NetworkEvidence, error) {
 	network, ok := a.RuntimeBackend.(runtimebackend.NetworkBackend)
 	if !ok {
 		return runtimebackend.NetworkEvidence{}, runtimebackend.ErrUnsupported
 	}
-	return network.ActivateNetwork(id)
+	return network.ActivateNetwork(ctx, id)
 }
 
 func (a *incidentAllocations) RevokeNetwork(id v0.SandboxClaimBackendIdentity) (runtimebackend.NetworkEvidence, error) {

@@ -4,6 +4,7 @@
 package operator
 
 import (
+	"context"
 	"errors"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
@@ -12,10 +13,14 @@ import (
 
 // These operations are reference state-machine evidence, not process/network
 // isolation. The memory backend never claims real socket enforcement.
-func (r *Runtime) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+func (r *Runtime) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
 	a, err := r.allocationFor(id)
 	if err != nil {
 		return runtime.NetworkEvidence{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		_, cleanupErr := r.RevokeNetwork(id)
+		return runtime.NetworkEvidence{}, errors.Join(err, cleanupErr)
 	}
 	if !a.started || a.terminated || a.released {
 		return runtime.NetworkEvidence{}, runtime.ErrTerminated
@@ -24,6 +29,10 @@ func (r *Runtime) ActivateNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runt
 		return runtime.NetworkEvidence{}, errors.New("network authority expiry is missing")
 	}
 	a.networkActive = true
+	if err := ctx.Err(); err != nil {
+		_, cleanupErr := r.RevokeNetwork(id)
+		return runtime.NetworkEvidence{}, errors.Join(err, cleanupErr)
+	}
 	return memoryNetworkEvidence(a, "Active"), nil
 }
 

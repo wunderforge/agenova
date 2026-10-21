@@ -432,14 +432,34 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 			if state, err, interrupted := stopIfInterrupted(); interrupted {
 				return state, err
 			}
+			// Cancellation must reach the side effect itself, not merely a check
+			// before entering an adapter that may block. Bound activation to the
+			// same remaining Work lifetime; revocation deliberately uses no such
+			// context so an expired caller cannot disable safety cleanup.
+			activationCtx, cancelActivation := context.WithTimeout(ctx, deadline.Sub(s.now()))
+			// The real runtime retains this lifetime signal after activation so
+			// cancellation can revoke an already-started process even while a
+			// later durable write is blocked. End it only after Run's teardown.
+			defer cancelActivation()
 			var evidence runtime.NetworkEvidence
-			evidence, err = network.ActivateNetwork(identity)
+			evidence, err = network.ActivateNetwork(activationCtx, identity)
+			activationContextErr := activationCtx.Err()
+			if state, err, interrupted := stopIfInterrupted(); interrupted {
+				return state, err
+			}
+			if errors.Is(activationContextErr, context.DeadlineExceeded) {
+				state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+				return s.teardown(state, identity, transitionErr)
+			}
 			if err == nil {
 				err = validateNetworkEvidence(evidence, claimID, identity, "Active", allocateRequest.Network)
 			}
 		}
 		if err == nil {
 			err = s.recordEvent(claimID, EventNetworkActive)
+		}
+		if state, err, interrupted := stopIfInterrupted(); interrupted {
+			return state, err
 		}
 		if err != nil {
 			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventNetworkActivationFailed, err)
