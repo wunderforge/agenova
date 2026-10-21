@@ -64,6 +64,15 @@ while recovering a Work. Existing idle caches are retired only through a
 separate, ownership-checked drain. Dedicated identity is not CNI certification:
 fresh positive/negative packet probes remain necessary after deployment.
 
+The current EKS VPC CNI also documents inconsistent/unsupported network-policy
+behavior for standalone Pods; see [AWS troubleshooting](https://docs.aws.amazon.com/eks/latest/userguide/network-policies-troubleshooting.html).
+Agent Sandbox-owned Pods are not Deployment/ReplicaSet Pods. Dedicated names
+remove one cache-key collision but do not make that ownership layout supported.
+An Admin-selector change or compiled PolicyEndpoint is not a substitute for a
+compatible substrate or positive packet verification. Do not declare this
+combination supported, add arbitrary sleeps, or revert to open egress to pass a
+demo. A controller/CNI change requires a separate reviewed operator decision.
+
 ## Evidence and limits
 
 Requested/effective network profiles are visible in the shared CLI/API/Portal evidence. Runtime facts distinguish activation/revocation attempts, success and failures; their reason identifies Configured or Simulated evidence. Configured means a rule was installed through the declared backend, not that a packet probe passed. In-memory behavior never proves OS/CNI isolation. Raw dropped packets are not fabricated tool calls.
@@ -83,6 +92,16 @@ Historical records without network enforcement evidence remain historical/unknow
   Workers cannot stamp themselves; keep service-account tokens, host networking
   and Kubernetes mutation privileges out of user images. This configuration
   does not give the control plane cluster-policy permissions or add resources.
+  Use the operator-only `deploy/production/eks/enable-work-egress.ps1` with an
+  explicit dedicated kubeconfig, reviewed policy UID and control-plane digest.
+  Its default is server dry-run; `-Execute` adds only the reviewed condition
+  under UID/version/full-old-spec guards. It refuses active allocations,
+  missing strict-CNI/default deny, policy drift and additive worker allows.
+  This quiet-window preflight is not a distributed lock against another
+  cluster administrator. Do not apply the raw manifest to skip its checks.
+  The paired TCP verifier requires separate offline and approved workers;
+  it is not startup, TLS, UDP DNS or expiry certification. Actual original-
+  process positive/negative probes remain required before advertising support.
 - Preserve the existing worker protocol, images, authentication, model and tool configuration.
 - Drain active Work before shared rollout. Replace/drain legacy warm pools and remove only their verified obsolete allows; a new deny does not override an old additive allow.
 - Adopt the versioned isolation-generation runtime resources. Do not repoint old registered template contents or silently widen active claims.
