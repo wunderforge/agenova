@@ -30,7 +30,10 @@ func TestNetworkActivationRemoteCommandsActuallyAbortOnCallerCancellation(t *tes
 				k.claims[resourceName("claim", "run-1")].Spec.Lifecycle.ShutdownTime = time.Now().Add(200 * time.Millisecond).Format(time.RFC3339Nano)
 			}
 			r := newKubectlRunner("test", "agenova-test")
-			entered := make(chan struct{})
+			type milestone struct {
+				created, rulePresent bool
+			}
+			entered := make(chan milestone, 1)
 			created, blocked, cleaned := false, false, false
 			r.command = func(ctx context.Context, input []byte, args ...string) ([]byte, error) {
 				// Strip the production explicit context/namespace prefix.
@@ -61,7 +64,10 @@ func TestNetworkActivationRemoteCommandsActuallyAbortOnCallerCancellation(t *tes
 					(boundary == "final-pod-after-create" && isGet && resource == "pods" && !nameOnly && created)
 				if match && !blocked {
 					blocked = true
-					close(entered)
+					// Copy actual-write evidence on the transport goroutine BEFORE
+					// the deadline can unblock it and run trusted cleanup. The test
+					// must not inspect mutable fake state while expiry deletes it.
+					entered <- milestone{created: created, rulePresent: k.policy != nil}
 					<-ctx.Done() // the only release; Background/fresh-timeout fails test
 					return nil, ctx.Err()
 				}
@@ -122,13 +128,14 @@ func TestNetworkActivationRemoteCommandsActuallyAbortOnCallerCancellation(t *tes
 			}
 			done := make(chan result, 1)
 			go func() { proof, err := a.ActivateNetwork(ctx, alloc.Identity); done <- result{proof, err} }()
+			var observed milestone
 			select {
-			case <-entered:
+			case observed = <-entered:
 			case <-time.After(time.Second):
 				t.Fatal("activation never reached intended blocked transport")
 			}
 			postGrant := strings.Contains(boundary, "after-")
-			if postGrant && k.policy == nil {
+			if postGrant && (!observed.created || !observed.rulePresent) {
 				t.Fatal("post-grant regression did not start with a real simulated rule")
 			}
 			wantErr := error(context.Canceled)
