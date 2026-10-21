@@ -92,7 +92,7 @@ func TestNetworkActivationRemoteCommandsActuallyAbortOnCallerCancellation(t *tes
 					return []byte(`{}`), nil
 				case "patch":
 					var patch []map[string]string
-					if json.Unmarshal(input, &patch) != nil || len(patch) != 3 {
+					if input != nil || len(argv) != 6 || argv[3] != "--type=json" || argv[4] != "--patch" || json.Unmarshal([]byte(argv[5]), &patch) != nil || len(patch) != 3 {
 						return nil, errors.New("invalid guarded patch")
 					}
 					return nil, k.patchPodIncarnation(argv[2], patch[0]["value"], patch[1]["value"], patch[2]["value"])

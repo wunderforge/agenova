@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -834,25 +835,33 @@ func TestNetworkConcurrentActivationPinsSingleConcretePod(t *testing.T) {
 func TestNetworkPodPatchUsesAtomicUIDAndClaimTests(t *testing.T) {
 	r := newKubectlRunner("test", "work")
 	called := false
-	r.command = func(_ context.Context, stdin []byte, args ...string) ([]byte, error) {
+	r.command = func(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
 		called = true
+		wantPrefix := []string{"--context", "test", "--namespace", "work", "patch", "pods", "worker", "--type=json", "--patch"}
+		if stdin != nil || len(args) != len(wantPrefix)+1 || !reflect.DeepEqual(args[:len(wantPrefix)], wantPrefix) {
+			t.Fatalf("patch must be one direct argv value with nil stdin: %v stdin=%t", args, stdin != nil)
+		}
+		if deadline, ok := ctx.Deadline(); !ok || deadline.After(time.Now().Add(r.timeout)) {
+			t.Fatal("guarded patch lost bounded command context")
+		}
 		var patch []map[string]string
-		if err := json.Unmarshal(stdin, &patch); err != nil {
+		if err := json.Unmarshal([]byte(args[len(wantPrefix)]), &patch); err != nil {
 			t.Fatal(err)
 		}
 		if len(patch) != 3 || patch[0]["op"] != "test" || patch[0]["path"] != "/metadata/uid" || patch[0]["value"] != "original-pod" || patch[1]["op"] != "test" || patch[1]["path"] != "/metadata/labels/agents.x-k8s.io~1claim-uid" || patch[1]["value"] != "original-claim" || patch[2]["op"] != "add" || patch[2]["path"] != "/metadata/labels/agenova.io~1network-incarnation" || patch[2]["value"] != networkIncarnation("original-claim", "original-pod") {
-			t.Fatalf("unsafe patch: %s", stdin)
-		}
-		if !strings.Contains(strings.Join(args, " "), "patch pods worker --type=json --patch-file=-") {
-			t.Fatalf("wrong patch command %v", args)
+			t.Fatalf("unsafe patch: %s", args[len(wantPrefix)])
 		}
 		return nil, nil
 	}
 	if err := r.patchPodIncarnation("worker", "original-pod", "original-claim", networkIncarnation("original-claim", "original-pod")); err != nil || !called {
 		t.Fatalf("patch %v called=%v", err, called)
 	}
+	called = false
 	if err := r.patchPodIncarnation("worker", "original-pod", "original-claim", "forged"); err == nil {
 		t.Fatal("arbitrary label value accepted")
+	}
+	if called {
+		t.Fatal("forged incarnation reached command transport")
 	}
 }
 

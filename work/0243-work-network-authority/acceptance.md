@@ -167,3 +167,17 @@ Confirmed original Pod absence with its original claim still present is accepted
 for cleanup only; query failure, orphan resources and replacements remain
 unconfirmed. Focused transport, recovery, legacy and Linux race gates pass; the
 new full-source/CI gates remain a separate premerge requirement.
+
+## Post-merge Pod patch transport repair
+
+The AWS campaign reported offline Nova Micro/MCP execution and confirmed release,
+but the explicit public-network Work failed activation before provider dispatch.
+The original-Pod patch used `--patch-file=-`; the actual kubectl treats `-` as a
+filename rather than stdin. The follow-up passes the same bounded, non-secret
+UID/claim/incarnation JSON as one `--patch` argv value with nil stdin. Atomic
+identity tests, caller cancellation, deadlines and RBAC are unchanged. Mandatory
+runner-boundary and cancellation regressions validate the new argv shape. This
+follow-up passes Windows `TestNetwork*`, runtime-adapter vet, and Linux `-race`
+runner/guarded-patch/cancellation regressions repeated 20 times. This source
+repair is not a successful AWS public-network result; fresh deployment,
+independent review and cloud acceptance remain required.
