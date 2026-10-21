@@ -1,0 +1,76 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.49kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.20
+#2 ...
+
+#3 [internal] load metadata for docker.io/library/golang:1.27.2-alpine
+#3 DONE 0.5s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.20
+#2 DONE 2.0s
+
+#4 [build 1/9] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#4 resolve docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d done
+#4 DONE 0.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 188B done
+#5 DONE 0.0s
+
+#6 [stage-1 1/4] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#6 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 86.36kB done
+#7 DONE 0.0s
+
+#8 [build  5/10] COPY harness/security/scriptedworker ./harness/security/scriptedworker
+#8 CACHED
+
+#9 [build 2/9] WORKDIR /src
+#9 CACHED
+
+#10 [build  3/10] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [stage-1 3/4] COPY --from=build /agenova-demo-worker /agenova-demo-worker
+#11 CACHED
+
+#12 [build  9/10] RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-demo-worker ./harness/security/scriptedworker
+#12 CACHED
+
+#13 [build  7/10] COPY cmd/agenova-demo-worker ./cmd/agenova-demo-worker
+#13 CACHED
+
+#14 [stage-1 2/4] COPY --from=build /agenova-workerctl /agenova-workerctl
+#14 CACHED
+
+#15 [build 10/10] RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-reference-worker ./cmd/agenova-demo-worker
+#15 CACHED
+
+#16 [build  4/10] COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsandbox/testworker
+#16 CACHED
+
+#17 [build  6/10] COPY internal/workerprotocol ./internal/workerprotocol
+#17 CACHED
+
+#18 [build  8/10] RUN CGO_ENABLED=0 GOOS=linux go build -o /agenova-workerctl ./harness/integration/agentsandbox/testworker
+#18 CACHED
+
+#19 [stage-1 4/4] COPY --from=build /agenova-reference-worker /agenova-reference-worker
+#19 CACHED
+
+#20 exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:f1a953aa1360dcf643444565da8c972c7ca915192a25cd1a675106ac6d06b7aa done
+#20 exporting config sha256:c6ca528c8f34e2af1cf8b45168f537aac31a5b44b5b62116f4db94992396c1fb done
+#20 exporting attestation manifest sha256:753852eec696f40fadd01ddd09ac87dfd8d9507c335a4fdd31897651d8b5f9a7 done
+#20 exporting manifest list sha256:b808be68ced543a457335c923c6a7589260ea6c871898710a2a7deec48f4b7af done
+#20 naming to docker.io/library/agenova-e15-scriptedworker:20261022 done
+#20 unpacking to docker.io/library/agenova-e15-scriptedworker:20261022 done
+#20 DONE 0.0s

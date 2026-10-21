@@ -119,3 +119,11 @@ Out of scope:
 - [x] Probe current Policy schema: constraints are rejected before registration, active Policy unchanged; actual Policy narrowing is unimplemented in this baseline (E14 #204).
 - Evidence: [supplement/summary.md](../../docs/evidence/198/supplement/summary.md). New optional runners: `harness/security/supplement-evidence.py`, `harness/security/verify-198-ui.mjs`; UI verification reads existing installed records and makes no submissions.
 - Product implementation unchanged. Main acceptance blockers remain open; supplemental checks do not waive them.
+
+## Candidate rehearsal and evidence delivery — 22 October 2026
+
+- The user authorized a separate disposable local kind/CNI environment, the three Demo-group probes, publication of their summaries, and formal delivery of the retained evidence. This is a candidate rehearsal under #198, not the final Demo-version re-test excluded from #249's historical delivery scope.
+- Self-review: the work stays within verification/reporting; no product, policy semantics, architecture or original acceptance criterion is changed. Sequential Demo Work does not waive concurrent-claim acceptance. A quiet terminal window is not a real installed late-token replay.
+- Product paths match main `58d951c` at rehearsal HEAD `84fe4cf`. Exact configuration, origins, failed attempts, independent counters/watches and remaining gaps are in the [candidate packet](../../docs/evidence/198/candidate-20261022/summary.md).
+- The original task-local execution scripts are archived as provenance. The maintained [opt-in driver](../../harness/security/run-demo-groups.py) requires explicit owned context, installation target, new refs and verified substrate prerequisites. The [offline verifier](../../harness/security/verify-demo-evidence.py) checks raw evidence consistency without declaring acceptance.
+- Gate results belong in the packet's [validation record](../../docs/evidence/198/candidate-20261022/validation.md). #198, #204, #248 and #251 remain open; no model induction or Gateway denial is fabricated from earlier refusal.

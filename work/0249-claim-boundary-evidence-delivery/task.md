@@ -56,3 +56,7 @@ Out of scope:
 
 - Preserve `docs/product/architecture-contract.md`; do not broaden #198 or its acceptance criteria.
 - E15 reports and re-tests only; it does not fix product behavior.
+
+## Supplemental candidate routing — 22 October 2026
+
+The user-authorized candidate rehearsal is recorded under the [parent #198 packet](../0198-claim-escape-denial/task.md#candidate-rehearsal-and-evidence-delivery--22-october-2026) and [candidate evidence](../../docs/evidence/198/candidate-20261022/summary.md). It may accompany the evidence PR, but does not change #249's historical acceptance criteria, establish the final Demo baseline, or close #198. Its original executions, later driver validation and proof limits are explicitly separate.

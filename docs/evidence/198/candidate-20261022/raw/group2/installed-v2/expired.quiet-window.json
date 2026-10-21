@@ -1,0 +1,8 @@
+{
+  "phase": "Expired",
+  "factsUnchangedDuringQuietWindow": true,
+  "observationSeconds": 8,
+  "modelDelta": 0,
+  "mcpDelta": 0,
+  "scope": "Installed terminal state and quiet window; no supported post-terminal request endpoint, so not a replay acceptance"
+}

@@ -1,0 +1,55 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [stage-1 1/3] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#1 resolve gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab done
+#1 CACHED
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 863B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#3 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+#4 DONE 0.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [build 1/6] FROM docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+#6 resolve docker.io/library/golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 81B done
+#7 DONE 0.0s
+
+#8 [build 3/6] COPY go.mod go.sum ./
+#8 CACHED
+
+#9 [build 4/6] RUN go mod download && go mod verify
+#9 CACHED
+
+#10 [build 2/6] WORKDIR /src
+#10 CACHED
+
+#11 [build 6/6] RUN CGO_ENABLED=0 GOOS=linux GOTOOLCHAIN=local go build -trimpath -ldflags="-s -w" -o /out/mcpfixture .
+#11 CACHED
+
+#12 [build 5/6] COPY main.go ./
+#12 CACHED
+
+#13 [stage-1 2/2] COPY --from=build /out/mcpfixture /mcpfixture
+#13 CACHED
+
+#14 exporting to image
+#14 exporting layers done
+#14 exporting manifest sha256:969d40627941bf46a33352bf757660916eb5b6b46f1e7580049619d64a7aee21 done
+#14 exporting config sha256:7127622b7f3c534d62f9266c9d0e090a499061345de3de634e5a42b1549b0b0f done
+#14 exporting attestation manifest sha256:7d2cc7425847da08459860ee96692d10a4d08710fcef9d97d21feabb0699ddf5 done
+#14 exporting manifest list sha256:8a304c6f66c9bb40d7a4fcd1fc6ca62de6806596eb57fcafab18b5263d0f9491 done
+#14 naming to docker.io/library/agenova-e16-mcp:0.1.0 done
+#14 unpacking to docker.io/library/agenova-e16-mcp:0.1.0 done
+#14 DONE 0.0s
