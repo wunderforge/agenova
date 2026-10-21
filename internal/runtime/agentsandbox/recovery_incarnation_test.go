@@ -111,7 +111,7 @@ func TestRestoreNeverAdoptsSameNameReplacementOrOrphanPod(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			_, base, allocation := incarnationFixture(t)
 			k := &partialRecoveryKube{incarnationCleanupKube: base}
-			name := resourceName("claim", allocation.ClaimID)
+			name := allocation.Identity.WorkerID
 			var expected error = errIdentityMismatch
 			switch scenario {
 			case "foreign-claim-missing-Pod":
@@ -142,7 +142,7 @@ func TestRestoreNeverAdoptsSameNameReplacementOrOrphanPod(t *testing.T) {
 func TestRestoreFullyAbsentIncarnationRemainsReleased(t *testing.T) {
 	_, base, allocation := incarnationFixture(t)
 	k := &partialRecoveryKube{incarnationCleanupKube: base}
-	delete(k.claims, resourceName("claim", allocation.ClaimID))
+	delete(k.claims, allocation.Identity.WorkerID)
 	delete(k.sandboxes, allocation.Identity.WorkerID)
 	k.podPresent = false
 	a := restoredPartialAdapter(k)
@@ -165,7 +165,7 @@ func TestRestoreMissingPodCannotDeleteLaterSameNameReplacement(t *testing.T) {
 	if err := a.RestoreForCleanup(allocation.ClaimID, allocation.Identity); err != nil {
 		t.Fatal(err)
 	}
-	name := resourceName("claim", allocation.ClaimID)
+	name := allocation.Identity.WorkerID
 	k.beforePinned = func() { replaceIncarnation(base, name); k.podPresent = true }
 	if _, err := a.RevokeNetwork(allocation.Identity); !errors.Is(err, errIdentityMismatch) {
 		t.Fatal("recovery delete adopted a replacement between read/delete", err)

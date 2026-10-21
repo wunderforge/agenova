@@ -29,3 +29,22 @@ Use explicit networkProfiles references with bounded public-web semantics. Set a
 ## Risks and Compatibility
 
 - CNI updates are asynchronous: verify existing connections and actual release, preserving explicit failure evidence. Cluster operators remain trusted. Historical snapshots stay unknown; shared workers require drained migration. New shared RBAC needs Owner approval; do not silently restore permissive networking during rollback.
+
+## AWS follow-up: independent worker identity
+
+The 21 October cloud campaign did not pass the online positive control even
+though the Pod, grant and compiled PolicyEndpoint matched. Separately, pinned
+AWS agent source confirms that same-prefix warm-pool peers share a BPF identity
+after the last Pod-name segment is removed. This source-level incompatibility
+must be fixed without claiming it has conclusively explained every timeout.
+
+Governed allocations (including offline ones) select `warmpool: none` and a
+reserved claim-specific cold name with its digest before a fixed final marker.
+The assigned worker must be that dedicated name. Controlled template setup
+caches immutable template content without creating a shared warm pool. Preserve
+legacy spike behavior and recovery of old recorded identities; do not change
+the general naming function or auto-delete old pools. No CNI/add-on, IAM,
+Worker-contract or shared API changes. Cold-start latency is the explicit
+tradeoff. Test the AWS grouping function as an isolation oracle, plus binding,
+replacement, cancellation, deadlines and both recovery layouts; then repeat
+real AWS positive/negative controls.

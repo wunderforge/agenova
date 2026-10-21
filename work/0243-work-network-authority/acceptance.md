@@ -181,3 +181,28 @@ follow-up passes Windows `TestNetwork*`, runtime-adapter vet, and Linux `-race`
 runner/guarded-patch/cancellation regressions repeated 20 times. This source
 repair is not a successful AWS public-network result; fresh deployment,
 independent review and cloud acceptance remain required.
+
+## AWS after #245 — partial, not complete acceptance
+
+Automatic release39531617877 succeeded at e82e17c; actual EKS source/image and
+readiness were independently confirmed. The fresh deterministic offline task
+ran90s, expired, revoked and cleaned with original Pod absence and158 native
+records. Its same-template online counterpart received public-web and an exact
+Pod-bound compiled rule but produced no HTTPS/DNS positive control; the pair
+failed. A separate diagnostic confirmed expiry/cleanup, not public reachability.
+
+Two controlled invalid tool-operation tasks generated no ProviderAttempt and
+the independent MCP tools/call count stayed44. Durable diagnostics expose only
+generic execution failure: this is not proof of a specific Gateway reject code.
+An existing immutable template succeeded with4 existing-model calls,3tool calls
+and3correlated independent MCP receipts. All attempts retained; no new IAM,
+node, volume or load balancer. Temporary proxy changes were restored exactly.
+
+Pinned AWS CNI source exposes shared identity for same-prefix warm-pool peers.
+The dedicated cold-worker follow-up addresses that design defect, without yet
+attributing every observed timeout to it. Required follow-up gates: independent
+AWS grouping identities for distinct governed claims, exact cold binding,
+legacy/new recovery, unchanged lifecycle/compensation, full source/race/SDK
+checks and fresh AWS positive/negative probes. Held-connection cancellation and
+independent control-plane-outage expiry remain unverified. Model-quality work
+is deferred by the Owner; it is not retrospectively marked passed.

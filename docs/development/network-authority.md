@@ -42,6 +42,28 @@ networking merely to bypass the prerequisite.
 
 Managed templates explicitly deny network access instead of inheriting upstream public-by-default rules. Warm workers have no standing Internet grant. A running Work receives only its own temporary network rule, selected by trusted runtime identity rather than reusable template name. Native egress authority carries an absolute backend deadline. On release, a trusted substrate destroys the worker and verifies absence instead of trusting an arbitrary image's stop acknowledgment.
 
+### Dedicated governed workers
+
+Governed allocations use a dedicated cold Sandbox rather than a shared warm
+pool. Immutable AgentTemplate content is still cached; the image, Worker
+protocol and public API do not change. Cold startup can take longer.
+
+This is a backend isolation requirement, not a restriction on user images.
+[AWS network-policy agent v1.4.0](https://github.com/aws/aws-network-policy-agent/blob/v1.4.0/pkg/utils/utils.go#L164-L175)
+groups Pod identities after removing the last hyphen-delimited name segment.
+Warm-pool peers can therefore share enforcement state despite different Pod
+labels; see [AWS issue327](https://github.com/aws/aws-network-policy-agent/issues/327).
+A dedicated worker name must retain its claim-specific digest **before** that
+discarded suffix. Simply disabling pooling or appending a unique suffix does
+not establish independent identity. Unexpected upstream warm-pool adoption
+must fail closed before execution.
+
+Legacy ungoverned spike paths and historical recovery retain their existing
+identities. Do not rename old allocations, repoint templates or delete pools
+while recovering a Work. Existing idle caches are retired only through a
+separate, ownership-checked drain. Dedicated identity is not CNI certification:
+fresh positive/negative packet probes remain necessary after deployment.
+
 ## Evidence and limits
 
 Requested/effective network profiles are visible in the shared CLI/API/Portal evidence. Runtime facts distinguish activation/revocation attempts, success and failures; their reason identifies Configured or Simulated evidence. Configured means a rule was installed through the declared backend, not that a packet probe passed. In-memory behavior never proves OS/CNI isolation. Raw dropped packets are not fabricated tool calls.

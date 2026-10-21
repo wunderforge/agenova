@@ -145,7 +145,9 @@ func (a *ControlledAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTempl
 	if mode != "strict" {
 		return "", fmt.Errorf("%w: strict startup network isolation is required before configuring workers", runtime.ErrUnsupported)
 	}
-	return a.SpikeAdapter.ConfigureAgentTemplate(template)
+	// Controlled workers must not share warm-pool prefixes: some supported
+	// CNIs cache policy by Pod name with the final hyphen segment removed.
+	return a.SpikeAdapter.configureAgentTemplate(template, false)
 }
 
 func (a *SpikeAdapter) validateNetworkAllocation(n runtime.NetworkAuthority) error {

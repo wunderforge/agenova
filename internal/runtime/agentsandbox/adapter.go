@@ -39,6 +39,7 @@ type SpikeAdapter struct {
 	pools    map[string]poolEntry  // Agenova pool name -> upstream resource names
 	claims   map[string]claimEntry // claim name -> local tracking state
 	poolRefs map[string]string     // Agenova template name -> upstream sandboxtemplate name
+	coldRefs map[string]bool       // controlled templates deliberately configured without warm resources
 
 	// Reduced-contract allocation bookkeeping (see allocation.go).
 	allocations map[string]*allocationEntry // ClaimID -> allocation attempt/state
@@ -79,6 +80,7 @@ func newSpikeAdapter(kube kubeClient, namespace string) *SpikeAdapter {
 		pools:          make(map[string]poolEntry),
 		claims:         make(map[string]claimEntry),
 		poolRefs:       make(map[string]string),
+		coldRefs:       make(map[string]bool),
 		allocations:    make(map[string]*allocationEntry),
 		byWorker:       make(map[string]string),
 		bindTimeout:    defaultBindTimeout,
@@ -92,6 +94,10 @@ func newSpikeAdapter(kube kubeClient, namespace string) *SpikeAdapter {
 // Metadata.Name could repoint another project's template or reuse its warm Pod.
 // Equal content may share a warm pool, never claim identity or standing authority.
 func (a *SpikeAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) (string, error) {
+	return a.configureAgentTemplate(template, true)
+}
+
+func (a *SpikeAdapter) configureAgentTemplate(template *v1alpha1.AgentTemplate, warm bool) (string, error) {
 	if err := v1alpha1.ValidateAgentTemplate(template); err != nil {
 		return "", err
 	}
@@ -108,8 +114,14 @@ func (a *SpikeAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) 
 	if err := a.AddTemplate(v1alpha1.AgentSandboxTemplate{Metadata: v1alpha1.ObjectMeta{Name: ref}, Spec: v1alpha1.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
 		return "", err
 	}
-	if err := a.AddWarmPool(v1alpha1.SandboxWarmPool{Metadata: v1alpha1.ObjectMeta{Name: "pool-" + ref}, Spec: v1alpha1.SandboxWarmPoolSpec{TemplateRef: ref, Replicas: 1}}); err != nil {
-		return "", err
+	if warm {
+		if err := a.AddWarmPool(v1alpha1.SandboxWarmPool{Metadata: v1alpha1.ObjectMeta{Name: "pool-" + ref}, Spec: v1alpha1.SandboxWarmPoolSpec{TemplateRef: ref, Replicas: 1}}); err != nil {
+			return "", err
+		}
+	} else {
+		a.mu.Lock()
+		a.coldRefs[ref] = true
+		a.mu.Unlock()
 	}
 	return ref, nil
 }
