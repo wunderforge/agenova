@@ -206,3 +206,14 @@ legacy/new recovery, unchanged lifecycle/compensation, full source/race/SDK
 checks and fresh AWS positive/negative probes. Held-connection cancellation and
 independent control-plane-outage expiry remain unverified. Model-quality work
 is deferred by the Owner; it is not retrospectively marked passed.
+
+The next independent PR review found that loop-level deadline checks did not
+interrupt a stalled Kubernetes read. Governed creation and all cold binding/
+incarnation reads now share one absolute context bounded by Work expiry and the
+original bind budget. The production runner propagates it to the command;
+expired or late replies cannot publish an allocation. Independent compensation
+still reconciles ambiguous writes after that context expires. Actual transport
+tests block on command-context cancellation at creation, polling, post-bind
+verification and Pod pinning; legacy zero-expiry transport is retained. Fresh
+full-source/race/SDK and PR gates are required for this follow-up, not inherited
+from the earlier commit.

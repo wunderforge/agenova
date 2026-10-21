@@ -476,6 +476,13 @@ func TestNetworkLifetimeCannotDeleteSameNameForeignReplacement(t *testing.T) {
 	}
 }
 
+func (k *networkKube) createBytesContext(ctx context.Context, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return errors.Join(k.createBytes(data), ctx.Err())
+}
+
 func (k *networkKube) createBytes(data []byte) error {
 	var header struct {
 		Kind     string

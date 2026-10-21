@@ -102,6 +102,7 @@ func (a *ControlledAdapter) canceledNetworkLifetimeLocked(id v1alpha1.SandboxCla
 
 type pinnedNetworkClient interface {
 	createBytes([]byte) error
+	createBytesContext(context.Context, []byte) error
 	createNetworkPolicyBefore(context.Context, []byte, time.Time) error
 	getContext(context.Context, string, string, any) error
 	existsContext(context.Context, string, string) (bool, error)

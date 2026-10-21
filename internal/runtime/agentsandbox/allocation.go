@@ -4,6 +4,7 @@
 package agentsandbox
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -128,6 +129,18 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 	if err != nil {
 		return runtime.Allocation{}, err
 	}
+	// One absolute budget covers every governed bind/incarnation read, rather
+	// than giving each polling phase or kubectl invocation a fresh timeout.
+	var bindingContext context.Context
+	if !req.Network.ExpiresAt.IsZero() {
+		deadline := time.Now().Add(a.bindTimeout)
+		if req.Network.ExpiresAt.Before(deadline) {
+			deadline = req.Network.ExpiresAt
+		}
+		var cancel context.CancelFunc
+		bindingContext, cancel = context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+	}
 
 	manifest, err := a.claimManifest(entry.upstreamClaimName, pool, req.Network.ExpiresAt)
 	if err != nil {
@@ -152,7 +165,7 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 		if err != nil {
 			return runtime.Allocation{}, err
 		}
-		apply = client.createBytes
+		apply = func(data []byte) error { return client.createBytesContext(bindingContext, data) }
 	}
 	if err := apply(manifest); err != nil {
 		// The server may have accepted the create despite the error.
@@ -162,13 +175,13 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 	entry.applyConfirmed = true
 	a.mu.Unlock()
 
-	workerID, err := a.waitForSandboxUntil(entry.upstreamClaimName, req.Network.ExpiresAt)
+	workerID, err := a.waitForSandboxContext(entry.upstreamClaimName, bindingContext)
 	if err != nil {
 		return runtime.Allocation{}, a.compensate(entry, err)
 	}
 	if !req.Network.ExpiresAt.IsZero() {
 		var claim upstreamSandboxClaim
-		if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+		if err := a.allocationRead(bindingContext, "sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
 			return runtime.Allocation{}, a.compensate(entry, err)
 		}
 		if claim.Metadata.UID == "" || claim.Metadata.Annotations["agenova.io/allocation-attempt"] != entry.attemptID || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != workerID {
@@ -181,7 +194,10 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 		entry.networkClaimUID = claim.Metadata.UID
 		entry.workerID = workerID
 		a.mu.Unlock()
-		if err := a.pinAllocatedPod(entry); err != nil {
+		if err := a.pinAllocatedPod(entry, bindingContext); err != nil {
+			return runtime.Allocation{}, a.compensate(entry, err)
+		}
+		if err := bindingContext.Err(); err != nil {
 			return runtime.Allocation{}, a.compensate(entry, err)
 		}
 		if !time.Now().Before(req.Network.ExpiresAt) {
@@ -607,7 +623,7 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 	return nil
 }
 
-func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry) error {
+func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry, ctx context.Context) error {
 	deadline := time.Now().Add(a.bindTimeout)
 	if !entry.network.ExpiresAt.IsZero() && entry.network.ExpiresAt.Before(deadline) {
 		deadline = entry.network.ExpiresAt
@@ -619,18 +635,54 @@ func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry) error {
 				HostNetwork bool `json:"hostNetwork"`
 			} `json:"spec"`
 		}
-		if err := a.kube.get("pods", entry.workerID, &pod); err == nil {
+		if err := a.allocationRead(ctx, "pods", entry.workerID, &pod); err == nil {
 			if time.Now().Before(deadline) && pod.Metadata.Name == entry.workerID && pod.Metadata.UID != "" && pod.Metadata.Labels[claimUIDLabel] == entry.networkClaimUID && !pod.Spec.HostNetwork {
 				a.mu.Lock()
 				entry.networkPodUID = pod.Metadata.UID
 				a.mu.Unlock()
 				return nil
 			}
+		} else if ctx != nil && ctx.Err() != nil {
+			return fmt.Errorf("pin allocated worker incarnation: %w", ctx.Err())
 		}
 		if !time.Now().Before(deadline) {
 			return fmt.Errorf("pin allocated worker incarnation: %w", errIdentityMismatch)
 		}
-		time.Sleep(a.pollInterval)
+		if err := allocationPoll(ctx, a.pollInterval); err != nil {
+			return fmt.Errorf("pin allocated worker incarnation: %w", err)
+		}
+	}
+}
+
+// Legacy probes intentionally retain their old transport; governed reads must
+// propagate the absolute binding deadline into the actual kubectl process.
+func (a *SpikeAdapter) allocationRead(ctx context.Context, resource, name string, dst any) error {
+	if ctx == nil {
+		return a.kube.get(resource, name, dst)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	client, ok := a.kube.(pinnedNetworkClient)
+	if !ok {
+		return runtime.ErrUnsupported
+	}
+	err := client.getContext(ctx, resource, name, dst)
+	return errors.Join(err, ctx.Err())
+}
+
+func allocationPoll(ctx context.Context, interval time.Duration) error {
+	if ctx == nil {
+		time.Sleep(interval)
+		return nil
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -690,17 +742,19 @@ func (a *SpikeAdapter) confirmReleased(entry *allocationEntry) error {
 // waitForSandbox polls the upstream claim until the controller assigns a
 // sandbox name or the bind budget expires.
 func (a *SpikeAdapter) waitForSandbox(claimName string) (string, error) {
-	return a.waitForSandboxUntil(claimName, time.Time{})
+	return a.waitForSandboxContext(claimName, nil)
 }
 
-func (a *SpikeAdapter) waitForSandboxUntil(claimName string, expiry time.Time) (string, error) {
+func (a *SpikeAdapter) waitForSandboxContext(claimName string, ctx context.Context) (string, error) {
 	deadline := time.Now().Add(a.bindTimeout)
-	if !expiry.IsZero() && expiry.Before(deadline) {
-		deadline = expiry
+	if ctx != nil {
+		if absolute, ok := ctx.Deadline(); ok && absolute.Before(deadline) {
+			deadline = absolute
+		}
 	}
 	for {
 		var sc upstreamSandboxClaim
-		if err := a.kube.get("sandboxclaims", claimName, &sc); err != nil {
+		if err := a.allocationRead(ctx, "sandboxclaims", claimName, &sc); err != nil {
 			return "", fmt.Errorf("get claim status: %w", err)
 		}
 		if time.Now().Before(deadline) && sc.Status.Sandbox != nil && sc.Status.Sandbox.Name != "" {
@@ -709,7 +763,9 @@ func (a *SpikeAdapter) waitForSandboxUntil(claimName string, expiry time.Time) (
 		if !time.Now().Before(deadline) {
 			return "", fmt.Errorf("bind timeout after %s: claim %s not assigned a sandbox", a.bindTimeout, claimName)
 		}
-		time.Sleep(a.pollInterval)
+		if err := allocationPoll(ctx, a.pollInterval); err != nil {
+			return "", fmt.Errorf("get claim status: %w", err)
+		}
 	}
 }
 
