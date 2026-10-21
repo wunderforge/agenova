@@ -1,0 +1,11 @@
+apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: incident-demo
+  version: "1"
+spec:
+  rules:
+    - team: team-a
+      action: claim.create
+      project: payments
+      templateRef: incident-investigator-demo-v1

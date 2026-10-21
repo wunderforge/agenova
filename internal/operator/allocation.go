@@ -27,18 +27,20 @@ type workerPool interface {
 // allocation is the reference runtime's resource bookkeeping for one reduced
 // contract allocation. It never records application phase or authority.
 type allocation struct {
-	claimID    string
-	poolName   string
-	pool       workerPool
-	workerID   string
-	ready      bool
-	started    bool
-	terminated bool
-	released   bool
-	replaced   bool
-	detail     string
-	filesystem runtime.FilesystemBoundary
-	taskFiles  map[string][]byte
+	claimID       string
+	poolName      string
+	pool          workerPool
+	workerID      string
+	ready         bool
+	started       bool
+	terminated    bool
+	released      bool
+	replaced      bool
+	detail        string
+	filesystem    runtime.FilesystemBoundary
+	taskFiles     map[string][]byte
+	network       runtime.NetworkAuthority
+	networkActive bool
 }
 
 func (a *allocation) identity() v1alpha1.SandboxClaimBackendIdentity {
@@ -48,6 +50,9 @@ func (a *allocation) identity() v1alpha1.SandboxClaimBackendIdentity {
 // Allocate implements runtime.RuntimeBackend. The pool is chosen internally:
 // exactly one registered pool must reference req.TemplateRef.
 func (r *Runtime) Allocate(req runtime.AllocateRequest) (runtime.Allocation, error) {
+	if len(req.Network.Profiles) > 1 || (len(req.Network.Profiles) == 1 && req.Network.Profiles[0] != "public-web") {
+		return runtime.Allocation{}, errors.New("unsupported network authority profile")
+	}
 	if req.ClaimID == "" {
 		return runtime.Allocation{}, errors.New("claim id is required")
 	}
@@ -94,6 +99,7 @@ func (r *Runtime) Allocate(req runtime.AllocateRequest) (runtime.Allocation, err
 			EvidenceLevel:    runtime.FilesystemEvidenceSimulated,
 		},
 		taskFiles: make(map[string][]byte),
+		network:   runtime.NetworkAuthority{Profiles: append([]string(nil), req.Network.Profiles...), ExpiresAt: req.Network.ExpiresAt},
 	}
 	if held {
 		a.detail = "readiness held by control hook"

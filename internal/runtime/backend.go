@@ -10,7 +10,9 @@
 package runtime
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/wunderforge/agenova/api/v1alpha1"
 )
@@ -67,6 +69,41 @@ type AllocateRequest struct {
 	// BackendClaimSpec.Input. RunService rejects reserved provider-credential
 	// fields before this request reaches a backend.
 	Input map[string]string
+	// Network is resolved authority, never caller intent. A nonzero expiry
+	// opts into enforced Work networking and independent backend expiry.
+	Network NetworkAuthority
+}
+
+// NetworkAuthority is an immutable per-allocation network capability.
+type NetworkAuthority struct {
+	Profiles  []string
+	ExpiresAt time.Time
+}
+
+// NetworkEvidence distinguishes configured enforcement from packet-tested proof.
+// Configured is an operator-declared substrate capability, never a probe result.
+type NetworkEvidence struct {
+	ClaimID       string
+	Identity      v1alpha1.SandboxClaimBackendIdentity
+	Profiles      []string
+	ExpiresAt     time.Time
+	State         string
+	EvidenceLevel string
+}
+
+// NetworkBackend controls network authority outside the worker image. Activation
+// is called only after Running is durably recorded. Revocation must confirm
+// actual resource termination, not merely a worker's self-reported stop.
+type NetworkBackend interface {
+	// Activation must not grant or report success after caller cancellation.
+	// The context remains the grant's lifetime signal until caller teardown:
+	// a real enforcing backend must independently invoke trusted revocation on
+	// cancellation, even if application persistence or teardown is blocked.
+	// Repeated activation must retain earlier cancellation guards. Explicit
+	// revocation unregisters them. Compensating revocation deliberately does
+	// not inherit the canceled context; Simulated backends are not CNI proof.
+	ActivateNetwork(context.Context, v1alpha1.SandboxClaimBackendIdentity) (NetworkEvidence, error)
+	RevokeNetwork(v1alpha1.SandboxClaimBackendIdentity) (NetworkEvidence, error)
 }
 
 // FilesystemOutsideBoundary is the backend-neutral rule applied outside the

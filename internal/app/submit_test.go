@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -143,11 +144,13 @@ type runtimeSpy struct {
 	cleanups   int
 	claimID    string
 	identity   v1alpha1.SandboxClaimBackendIdentity
+	network    runtime.NetworkAuthority
 }
 
 func (s *runtimeSpy) Allocate(request runtime.AllocateRequest) (runtime.Allocation, error) {
 	s.allocates++
 	s.claimID = request.ClaimID
+	s.network = request.Network
 	s.identity = v1alpha1.SandboxClaimBackendIdentity{Backend: "spy", WorkerID: "worker-1"}
 	return runtime.Allocation{ClaimID: request.ClaimID, Identity: s.identity}, nil
 }
@@ -165,4 +168,15 @@ func (s *runtimeSpy) Terminate(v1alpha1.SandboxClaimBackendIdentity) error {
 func (s *runtimeSpy) Cleanup(identity v1alpha1.SandboxClaimBackendIdentity) (runtime.CleanupResult, error) {
 	s.cleanups++
 	return runtime.CleanupResult{Identity: identity, Released: true}, nil
+}
+
+func (s *runtimeSpy) ActivateNetwork(ctx context.Context, id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return runtime.NetworkEvidence{}, err
+	}
+	return runtime.NetworkEvidence{ClaimID: s.claimID, Identity: id, Profiles: append([]string(nil), s.network.Profiles...), ExpiresAt: s.network.ExpiresAt, State: "Active", EvidenceLevel: "Simulated"}, nil
+}
+
+func (s *runtimeSpy) RevokeNetwork(id v1alpha1.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	return runtime.NetworkEvidence{ClaimID: s.claimID, Identity: id, Profiles: append([]string(nil), s.network.Profiles...), ExpiresAt: s.network.ExpiresAt, State: "Revoked", EvidenceLevel: "Simulated"}, nil
 }

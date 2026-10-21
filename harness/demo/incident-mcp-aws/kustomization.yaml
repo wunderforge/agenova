@@ -1,0 +1,30 @@
+# Render-only shared-cluster overlay. Replace the image with a reviewed ECR
+# digest in a temporary copy before apply; never apply the placeholder.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../incident-mcp]
+images:
+  - name: agenova-e16-mcp
+    newName: invalid.example/replace-with-reviewed-mcp-image
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+patches:
+  - target: {group: apps, version: v1, kind: Deployment, name: e16-mcp}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target: {group: networking.k8s.io, version: v1, kind: NetworkPolicy, name: incident-evidence-gateway-only}
+    patch: |-
+      - op: replace
+        path: /spec/ingress/0/from/0
+        value:
+          namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: agenova-system}
+          podSelector:
+            matchLabels: {app: agenova-member-control-plane}
+      - op: replace
+        path: /spec/policyTypes
+        value: [Ingress, Egress]
+      - op: add
+        path: /spec/egress
+        value: []

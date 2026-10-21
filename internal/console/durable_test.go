@@ -400,7 +400,8 @@ func (*recoveryTestBackend) Allocate(runtime.AllocateRequest) (runtime.Allocatio
 func (*recoveryTestBackend) Start(v0.SandboxClaimBackendIdentity) error {
 	panic("recovery started worker")
 }
-func (*recoveryTestBackend) RestoreForCleanup(string, v0.SandboxClaimBackendIdentity) error {
+func (b *recoveryTestBackend) RestoreForCleanup(claim string, id v0.SandboxClaimBackendIdentity) error {
+	b.claim, b.identity = claim, id
 	return nil
 }
 func (b *recoveryTestBackend) Terminate(v0.SandboxClaimBackendIdentity) error {

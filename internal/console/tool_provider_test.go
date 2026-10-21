@@ -229,7 +229,14 @@ func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments
 				t.Fatalf("provider calls %d, want %d", got, tc.calls)
 			}
 			decision := ""
+			argumentRejection := false
 			for _, f := range view.Facts {
+				if f.Kind == "WorkerActivity" && f.ReasonCode == "tool-arguments-rejected" {
+					argumentRejection = true
+					if strings.Contains(f.Reason, "../private") || f.Target != "tool.invoke" {
+						t.Fatal("argument rejection exposed caller input")
+					}
+				}
 				if f.Kind == "ToolDecision" {
 					decision = string(f.Result)
 				}
@@ -243,7 +250,32 @@ func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments
 			if decision != tc.decision || view.Outcome.Status != tc.status {
 				t.Fatalf("decision %q status %q, want %q %q", decision, view.Outcome.Status, tc.decision, tc.status)
 			}
+			if (tc.name == "unconfigured argument") != argumentRejection {
+				t.Fatal("missing/unexpected safe argument-rejection fact")
+			}
 		})
+	}
+}
+
+func TestArgumentRejectionEvidenceFailureStopsWork(t *testing.T) {
+	provider := &toolDouble{}
+	service, err := NewServiceWithOptions(&verticalBackend{}, reactExecutor{artifact: "../private"}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{ToolBackend: boundTools(t, provider, "git.read", "repo:acme/payments")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	service.appendTool = func(f facts.Fact) (facts.Fact, error) {
+		if f.Operation == "ToolRequestRejected" {
+			return facts.Fact{}, errors.New("synthetic evidence sink failure")
+		}
+		return service.journal.Append(f)
+	}
+	if _, err := service.Submit(verticalRequest(t, "argument-evidence-failure")); err != nil {
+		t.Fatal(err)
+	}
+	view := awaitVertical(t, service, "argument-evidence-failure")
+	if view.Outcome.Status != "Failed" || provider.calls.Load() != 0 {
+		t.Fatal("lost rejection evidence did not fail closed")
 	}
 }
 

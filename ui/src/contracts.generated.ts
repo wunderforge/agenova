@@ -21,6 +21,7 @@ export interface AgentTemplateCapabilityCeiling {
   maxTimeout?: (string | null);
   memoryScopes?: (Array<string> | null);
   modelProfiles?: (Array<string> | null);
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   runtimeProfiles?: (Array<string> | null);
   tools?: (Array<string> | null);
@@ -65,6 +66,7 @@ export interface ClaimRequestTask {
 export interface ClaimRequestedAccess {
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   tools?: (Array<string> | null);
 }
@@ -89,6 +91,7 @@ export interface EffectiveAuthority {
   id: string;
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   runtime: EffectiveAuthorityRuntime;
   tools?: (Array<string> | null);
@@ -184,6 +187,7 @@ export interface SandboxClaim {
   templateRef: string;
 }
 export interface SandboxClaimBackendIdentity {
+  allocationID?: string;
   backend: string;
   workerId: string;
 }
@@ -282,6 +286,18 @@ export const shapes = {
         "optional": true
       },
       "modelProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "networkProfiles": {
         "shape": {
           "kind": "nullable",
           "item": {
@@ -550,6 +566,18 @@ export const shapes = {
         },
         "optional": true
       },
+      "networkProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
       "resourceScopes": {
         "shape": {
           "kind": "nullable",
@@ -677,6 +705,18 @@ export const shapes = {
       "modelProfile": {
         "shape": {
           "kind": "string"
+        },
+        "optional": true
+      },
+      "networkProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
         },
         "optional": true
       },
@@ -1194,6 +1234,12 @@ export const shapes = {
   "SandboxClaimBackendIdentity": {
     "kind": "object",
     "fields": {
+      "allocationID": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
       "backend": {
         "shape": {
           "kind": "string"

@@ -1,0 +1,7 @@
+SYNTHETIC DEMO DATA — payment client configuration and implementation notes.
+request_total_timeout = 5s
+max_attempts = 3
+retry_backoff = 2s
+attempt_deadline = now() + request_total_timeout
+remaining_total_budget_is_checked = false
+idempotency_key_is_reused = false

@@ -73,3 +73,28 @@ func (r *observedRuntime) Cleanup(id v0.SandboxClaimBackendIdentity) (runtime.Cl
 	end(err == nil)
 	return v, err
 }
+
+type observedNetworkRuntime struct {
+	*observedRuntime
+	network runtime.NetworkBackend
+}
+
+func (r *observedNetworkRuntime) ActivateNetwork(ctx context.Context, id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	end := r.start(r.claim(id), "runtime.network.activate")
+	v, err := r.network.ActivateNetwork(ctx, id)
+	end(err == nil)
+	if err == nil {
+		r.s.networkEvidence.Store(v.ClaimID, v)
+	}
+	return v, err
+}
+
+func (r *observedNetworkRuntime) RevokeNetwork(id v0.SandboxClaimBackendIdentity) (runtime.NetworkEvidence, error) {
+	end := r.start(r.claim(id), "runtime.network.revoke")
+	v, err := r.network.RevokeNetwork(id)
+	end(err == nil)
+	if err == nil {
+		r.s.networkEvidence.Store(v.ClaimID, v)
+	}
+	return v, err
+}
