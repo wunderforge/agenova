@@ -46,6 +46,7 @@ worker = read('get', 'pod', args.worker)
 spec = worker['spec']
 assert any(x['kind'] == 'Sandbox' for x in worker['metadata'].get('ownerReferences', [])), 'Not a Sandbox worker'
 assert 'agents.x-k8s.io/sandbox-name-hash' in worker['metadata']['labels'], 'Worker policy selector absent'
+assert 'agenova.io/network-incarnation' not in worker['metadata']['labels'], 'Use an ungranted worker for this offline check'
 assert spec.get('automountServiceAccountToken') is False
 assert spec.get('serviceAccountName') == 'default'
 assert not spec.get('hostNetwork', False)
@@ -65,7 +66,14 @@ policy = read('get', 'networkpolicy', 'demo-sandbox-deny-network')['spec']
 assert policy.get('egress', []) == [] and policy.get('ingress', []) == []
 assert sorted(policy['policyTypes']) == ['Egress', 'Ingress']
 admin = read('get', 'clusternetworkpolicy', 'agenova-demo-worker-egress-deny')['spec']
-assert admin['tier'] == 'Admin' and any(r['action'] == 'Deny' for r in admin['egress'])
+assert admin['tier'] == 'Admin' and admin['priority'] == 10
+assert admin['subject'] == {'pods': {
+    'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': 'agenova-system'}},
+    'podSelector': {'matchExpressions': [
+        {'key': 'agents.x-k8s.io/sandbox-name-hash', 'operator': 'Exists'},
+        {'key': 'agenova.io/network-incarnation', 'operator': 'DoesNotExist'}]}}}
+assert admin['egress'] == [{'name': 'no-direct-network-egress', 'action': 'Deny',
+                            'to': [{'networks': ['0.0.0.0/0']}]}]
 name = 'e13-network-canary-' + uuid.uuid4().hex[:8]
 manifest = {'apiVersion': 'apps/v1', 'kind': 'Deployment', 'metadata': {'name': name},
             'spec': {'replicas': 1, 'selector': {'matchLabels': {'app': name}},

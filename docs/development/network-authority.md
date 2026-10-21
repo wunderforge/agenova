@@ -72,6 +72,17 @@ Historical records without network enforcement evidence remain historical/unknow
 
 ## Upgrade and recovery
 
+- On EKS, the operator-owned Admin deny in `deploy/production/eks/worker-egress-deny.yaml`
+  selects sandbox Pods without the trusted network-incarnation stamp. A blanket
+  Admin Deny on all sandbox Pods overrides even an approved Work's namespace
+  allow. Do not delete that deny: retain it for startup, offline and replacement
+  Pods. Only the control plane's original-Pod UID/claim-guarded stamp delegates
+  a public-authorized Pod to the existing namespace default deny and exact
+  per-Work public443/DNS allow. The stamp alone allows no traffic. Verify that
+  no old additive allow selects these Pods before this operator-only change.
+  Workers cannot stamp themselves; keep service-account tokens, host networking
+  and Kubernetes mutation privileges out of user images. This configuration
+  does not give the control plane cluster-policy permissions or add resources.
 - Preserve the existing worker protocol, images, authentication, model and tool configuration.
 - Drain active Work before shared rollout. Replace/drain legacy warm pools and remove only their verified obsolete allows; a new deny does not override an old additive allow.
 - Adopt the versioned isolation-generation runtime resources. Do not repoint old registered template contents or silently widen active claims.
