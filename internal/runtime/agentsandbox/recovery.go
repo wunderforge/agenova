@@ -59,14 +59,23 @@ func (a *ControlledAdapter) RestoreForCleanup(claimID string, id v0.SandboxClaim
 			if claim.Metadata.UID != pinnedClaimUID || claim.Metadata.Annotations["agenova.io/claim-id"] != claimID {
 				return errIdentityMismatch
 			}
-			var pod struct {
-				Metadata upstreamMeta `json:"metadata"`
+			// Expiry/controller cleanup may remove the Pod before its original
+			// claim disappears. Confirmed absence is cleanup-only progress, not
+			// a failed identity read or permission to adopt a replacement Pod.
+			podPresent, err := a.kube.exists("pods", id.WorkerID)
+			if err != nil {
+				return fmt.Errorf("restore cleanup: check Pod absence: %w", err)
 			}
-			if err := a.kube.get("pods", id.WorkerID, &pod); err != nil {
-				return err
-			}
-			if pod.Metadata.Name != id.WorkerID || pod.Metadata.UID != pinnedPodUID || pod.Metadata.Labels[claimUIDLabel] != pinnedClaimUID {
-				return errIdentityMismatch
+			if podPresent {
+				var pod struct {
+					Metadata upstreamMeta `json:"metadata"`
+				}
+				if err := a.kube.get("pods", id.WorkerID, &pod); err != nil {
+					return fmt.Errorf("restore cleanup: read Pod incarnation: %w", err)
+				}
+				if pod.Metadata.Name != id.WorkerID || pod.Metadata.UID != pinnedPodUID || pod.Metadata.Labels[claimUIDLabel] != pinnedClaimUID {
+					return errIdentityMismatch
+				}
 			}
 		} else if claim.Metadata.Annotations["agenova.io/allocation-attempt"] != "" || (claim.Spec.Lifecycle != nil && claim.Spec.Lifecycle.ShutdownTime != "") {
 			return fmt.Errorf("restore cleanup: missing durable allocation incarnation; operator reconciliation required")

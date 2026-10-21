@@ -153,3 +153,17 @@ without reporting release. Genuine historical reduced-contract allocations keep
 their old behavior. These are local API/controller simulations, not atomic exec
 identity or cloud packet evidence. The updated full-source gates and independent
 review must pass before coordinated release.
+
+Further independent review extended those regressions to real transport and
+restart compatibility. Every activation read/patch now passes cancellation into
+the actual command, bounded by the earliest Work/upstream deadline; tests block
+the production runner on `ctx.Done()`, including post-grant readback and final
+binding. Recovery selects network release from durable incarnation/authority/
+lifecycle markers, not merely the adapter's optional capability. Genuine legacy
+allocations use their original stop/cleanup path without invented network facts;
+new markers cannot downgrade when support is missing. A production console ->
+ControlledAdapter -> local kubectl shim regression covers this composition.
+Confirmed original Pod absence with its original claim still present is accepted
+for cleanup only; query failure, orphan resources and replacements remain
+unconfirmed. Focused transport, recovery, legacy and Linux race gates pass; the
+new full-source/CI gates remain a separate premerge requirement.

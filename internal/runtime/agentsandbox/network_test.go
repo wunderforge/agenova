@@ -105,6 +105,26 @@ func (k *networkKube) get(resource, name string, dst any) error {
 	return json.Unmarshal(data, dst)
 }
 
+func (k *networkKube) getContext(ctx context.Context, resource, name string, dst any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return errors.Join(k.get(resource, name, dst), ctx.Err())
+}
+func (k *networkKube) existsContext(ctx context.Context, resource, name string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	present, err := k.exists(resource, name)
+	return present, errors.Join(err, ctx.Err())
+}
+func (k *networkKube) patchPodIncarnationContext(ctx context.Context, name, podUID, claimUID, value string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return errors.Join(k.patchPodIncarnation(name, podUID, claimUID, value), ctx.Err())
+}
+
 func (k *networkKube) delete(resource, name string) error {
 	if resource == "networkpolicies" {
 		if k.deleteErr != nil {

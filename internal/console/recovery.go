@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"strings"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
@@ -56,6 +57,14 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 		return ErrRecoveryRequired
 	}
 	claim := view.State.Claim
+	// Capability presence does not mean this historical allocation used it.
+	// Conversely, any durable new-contract marker forbids falling back to the
+	// legacy stop/cleanup path merely because the current adapter lost support.
+	governedNetwork := requiresRecoveryNetworkRelease(view)
+	network, supportsNetwork := backend.(runtime.NetworkBackend)
+	if governedNetwork && !supportsNetwork {
+		return ErrRecoveryRequired
+	}
 	if claim.Phase == v0.ClaimPhasePending {
 		return ErrRecoveryRequired
 	}
@@ -135,7 +144,7 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 				if writerErr := store.CheckWriter(ctx); writerErr != nil {
 					return errors.Join(err, writerErr)
 				}
-				if network, ok := backend.(runtime.NetworkBackend); ok {
+				if governedNetwork {
 					_, revokeErr := network.RevokeNetwork(*claim.BackendIdentity)
 					return errors.Join(err, revokeErr)
 				}
@@ -150,7 +159,7 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 		if err := store.CheckWriter(ctx); err != nil {
 			return err
 		}
-		if network, ok := backend.(runtime.NetworkBackend); ok {
+		if governedNetwork {
 			attemptErr := runtimeFact("NetworkRevocationAttempt")
 			result, err := network.RevokeNetwork(*claim.BackendIdentity)
 			if attemptErr != nil {
@@ -208,6 +217,37 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	}
 	view.Facts = append(view.Facts, f)
 	return store.Finish(ctx, view)
+}
+
+// A genuinely pre-network record has none of these additive markers. Missing
+// markers alone cannot prove a live Kubernetes object is legacy: the trusted
+// backend restorer must also reject new claim annotations/lifecycle metadata
+// when the original durable allocation incarnation is missing.
+func requiresRecoveryNetworkRelease(view evidence.View) bool {
+	if view.Request != nil && len(view.Request.Spec.RequestedAccess.NetworkProfiles) != 0 {
+		return true
+	}
+	if view.State != nil {
+		if view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && view.State.Claim.BackendIdentity.AllocationID != "" {
+			return true
+		}
+		if view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) != 0 {
+			return true
+		}
+		for _, event := range view.State.Evidence.RuntimeEvents {
+			if strings.HasPrefix(event.Kind, "Network") {
+				return true
+			}
+		}
+	}
+	for _, fact := range view.Facts {
+		if fact.Kind == "Runtime" && strings.HasPrefix(fact.Operation, "Network") ||
+			fact.BackendIdentity != nil && fact.BackendIdentity.AllocationID != "" ||
+			fact.Authority != nil && len(fact.Authority.NetworkProfiles) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func validNetworkRelease(result runtime.NetworkEvidence, claim string, identity v0.SandboxClaimBackendIdentity) bool {

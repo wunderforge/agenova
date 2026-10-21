@@ -140,6 +140,10 @@ func (r *kubectlRunner) createNetworkPolicyBefore(parent context.Context, manife
 // patchPodIncarnation atomically guards the original Pod's immutable identity.
 // Patching a reused name without these JSONPatch tests could authorize a peer.
 func (r *kubectlRunner) patchPodIncarnation(name, podUID, claimUID, value string) error {
+	return r.patchPodIncarnationContext(context.Background(), name, podUID, claimUID, value)
+}
+
+func (r *kubectlRunner) patchPodIncarnationContext(ctx context.Context, name, podUID, claimUID, value string) error {
 	if !isDNSLabel(name) || podUID == "" || claimUID == "" || value != networkIncarnation(claimUID, podUID) {
 		return errors.New("invalid Pod network incarnation")
 	}
@@ -151,7 +155,7 @@ func (r *kubectlRunner) patchPodIncarnation(name, podUID, claimUID, value string
 	if err != nil {
 		return err
 	}
-	_, err = r.runWithStdin(patch, "patch", "pods", name, "--type=json", "--patch-file=-")
+	_, err = r.runWithStdinContext(ctx, patch, "patch", "pods", name, "--type=json", "--patch-file=-")
 	return err
 }
 
@@ -185,6 +189,28 @@ func (r *kubectlRunner) get(resource, name string, dst any) error {
 		return err
 	}
 	return json.Unmarshal(raw, dst)
+}
+
+// Activation reads must inherit cancellation all the way into the actual
+// kubectl process. A fresh background timeout here would hold a.mu while a
+// just-created public grant remained live, delaying trusted compensation.
+func (r *kubectlRunner) getContext(ctx context.Context, resource, name string, dst any) error {
+	raw, err := r.runWithStdinContext(ctx, nil, "get", resource, name, "-o", "json")
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return errors.New("invalid activation resource response")
+	}
+	return nil
+}
+
+func (r *kubectlRunner) existsContext(ctx context.Context, resource, name string) (bool, error) {
+	raw, err := r.runWithStdinContext(ctx, nil, "get", resource, name, "--ignore-not-found=true", "-o", "name")
+	if err != nil {
+		return false, err
+	}
+	return len(strings.TrimSpace(string(raw))) > 0, nil
 }
 
 // delete deletes a resource by type and name. A missing resource is not an
@@ -273,9 +299,20 @@ func (r *kubectlRunner) run(verb string, extraArgs ...string) ([]byte, error) {
 }
 
 func (r *kubectlRunner) runWithStdin(stdin []byte, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	return r.runWithStdinContext(context.Background(), stdin, args...)
+}
+
+func (r *kubectlRunner) runWithStdinContext(parent context.Context, stdin []byte, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
-	return r.command(ctx, stdin, r.baseArgs(args...)...)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out, err := r.command(ctx, stdin, r.baseArgs(args...)...)
+	if ctx.Err() != nil {
+		return nil, errors.Join(err, ctx.Err())
+	}
+	return out, err
 }
 
 func (r *kubectlRunner) baseArgs(args ...string) []string {

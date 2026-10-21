@@ -103,6 +103,9 @@ func (a *ControlledAdapter) canceledNetworkLifetimeLocked(id v1alpha1.SandboxCla
 type pinnedNetworkClient interface {
 	createBytes([]byte) error
 	createNetworkPolicyBefore(context.Context, []byte, time.Time) error
+	getContext(context.Context, string, string, any) error
+	existsContext(context.Context, string, string) (bool, error)
+	patchPodIncarnationContext(context.Context, string, string, string, string) error
 	deletePinned(resource, name, uid, version string) error
 	patchPodIncarnation(name, podUID, claimUID, value string) error
 }
@@ -183,10 +186,14 @@ func (a *ControlledAdapter) boundNetworkClaim(entry *allocationEntry) (upstreamS
 
 func (a *ControlledAdapter) boundNetworkClaimContext(ctx context.Context, entry *allocationEntry) (upstreamSandboxClaim, error) {
 	var claim upstreamSandboxClaim
+	client, ok := a.kube.(pinnedNetworkClient)
+	if !ok {
+		return claim, runtime.ErrUnsupported
+	}
 	if err := ctx.Err(); err != nil {
 		return claim, err
 	}
-	if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+	if err := client.getContext(ctx, "sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
 		return claim, errors.Join(err, ctx.Err())
 	}
 	if err := ctx.Err(); err != nil {
@@ -204,7 +211,7 @@ func (a *ControlledAdapter) boundNetworkClaimContext(ctx context.Context, entry 
 			HostNetwork bool `json:"hostNetwork"`
 		} `json:"spec"`
 	}
-	if err := a.kube.get("pods", entry.workerID, &pod); err != nil {
+	if err := client.getContext(ctx, "pods", entry.workerID, &pod); err != nil {
 		return claim, errors.Join(err, ctx.Err())
 	}
 	if err := ctx.Err(); err != nil {
@@ -244,6 +251,11 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 	if n.ExpiresAt.IsZero() {
 		return runtime.NetworkEvidence{}, runtime.ErrUnsupported
 	}
+	// Bound every activation read/patch by both caller cancellation and the
+	// allocation deadline. This per-call child is NOT the retained lifetime
+	// signal; canceling it on return must not revoke a successfully active Work.
+	readCtx, cancelReads := context.WithDeadline(ctx, n.ExpiresAt)
+	defer cancelReads()
 	deadline := n.ExpiresAt
 	expired := func() bool { return !a.networkNow().Before(deadline) }
 	compensate := false
@@ -269,7 +281,7 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 	if expired() {
 		return runtime.NetworkEvidence{}, errors.New("network authority already expired")
 	}
-	claim, err := a.boundNetworkClaimContext(ctx, entry)
+	claim, err := a.boundNetworkClaimContext(readCtx, entry)
 	if err != nil {
 		return runtime.NetworkEvidence{}, err
 	}
@@ -281,6 +293,11 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 		return runtime.NetworkEvidence{}, errors.New("independent backend expiry does not match authority")
 	}
 	deadline = expiry
+	if expiry.Before(n.ExpiresAt) {
+		var cancelEarlier context.CancelFunc
+		readCtx, cancelEarlier = context.WithDeadline(readCtx, expiry)
+		defer cancelEarlier()
+	}
 	if expired() {
 		return runtime.NetworkEvidence{}, errors.New("independent backend expiry elapsed")
 	}
@@ -292,7 +309,7 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 		// Stamp only the original Pod, guarded atomically by its UID and claim
 		// label. Never place this label in a Sandbox/template: a replacement Pod
 		// under the same Running claim must not inherit this network capability.
-		if err := client.patchPodIncarnation(entry.workerID, entry.networkPodUID, entry.networkClaimUID, networkIncarnation(entry.networkClaimUID, entry.networkPodUID)); err != nil {
+		if err := client.patchPodIncarnationContext(readCtx, entry.workerID, entry.networkPodUID, entry.networkClaimUID, networkIncarnation(entry.networkClaimUID, entry.networkPodUID)); err != nil {
 			return runtime.NetworkEvidence{}, fmt.Errorf("pin network Pod incarnation: %w", err)
 		}
 		if err := ctx.Err(); err != nil {
@@ -304,7 +321,7 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 		}
 		// An idempotent retry may inspect an existing rule, but never overwrite
 		// it. A failed/ambiguous create is NOT converted into successful authority.
-		present, queryErr := a.kube.exists("networkpolicies", networkRuleName(entry.claimID, entry.workerID))
+		present, queryErr := client.existsContext(readCtx, "networkpolicies", networkRuleName(entry.claimID, entry.workerID))
 		if queryErr != nil {
 			return runtime.NetworkEvidence{}, queryErr
 		}
@@ -331,7 +348,7 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 			}
 		}
 		compensate = true // any failed owned readback/binding must remove the grant
-		policy, readErr := a.ownedNetworkPolicy(entry)
+		policy, readErr := a.ownedNetworkPolicyContext(readCtx, entry)
 		if readErr != nil {
 			return runtime.NetworkEvidence{}, readErr
 		}
@@ -345,7 +362,7 @@ func (a *ControlledAdapter) ActivateNetwork(ctx context.Context, id v1alpha1.San
 		if !reflect.DeepEqual(policy.Spec, desired.Spec) {
 			return runtime.NetworkEvidence{}, errors.New("existing network rule differs from resolved authority")
 		}
-		if _, err := a.boundNetworkClaimContext(ctx, entry); err != nil {
+		if _, err := a.boundNetworkClaimContext(readCtx, entry); err != nil {
 			return runtime.NetworkEvidence{}, err
 		}
 		compensate = false
@@ -383,6 +400,22 @@ func (a *ControlledAdapter) ownedNetworkPolicy(entry *allocationEntry) (networkP
 	if err := a.kube.get("networkpolicies", networkRuleName(entry.claimID, entry.workerID), &policy); err != nil {
 		return policy, err
 	}
+	return a.validateOwnedNetworkPolicy(entry, policy)
+}
+
+func (a *ControlledAdapter) ownedNetworkPolicyContext(ctx context.Context, entry *allocationEntry) (networkPolicyObject, error) {
+	var policy networkPolicyObject
+	client, ok := a.kube.(pinnedNetworkClient)
+	if !ok {
+		return policy, runtime.ErrUnsupported
+	}
+	if err := client.getContext(ctx, "networkpolicies", networkRuleName(entry.claimID, entry.workerID), &policy); err != nil {
+		return policy, err
+	}
+	return a.validateOwnedNetworkPolicy(entry, policy)
+}
+
+func (a *ControlledAdapter) validateOwnedNetworkPolicy(entry *allocationEntry, policy networkPolicyObject) (networkPolicyObject, error) {
 	a.SpikeAdapter.mu.Lock()
 	claimUID := entry.networkClaimUID
 	a.SpikeAdapter.mu.Unlock()
