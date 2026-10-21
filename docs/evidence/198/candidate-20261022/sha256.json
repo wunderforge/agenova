@@ -1,7 +1,8 @@
 {
+  "builds/README.md": "03c0ea9c61f57f2d34763a1a07b66ebaea41631522d40705821e5bf19de82f2e",
   "builds/control-plane-build.log": "2754547b639f7f00f8460731d673a3313dfe839802b4e85216309299d3ec4bef",
   "builds/mcp-build-corrected.log": "5aed5cd5f3b7263c366bd3cde12ba660d26fe869d195323e4bb7f96b5e637733",
-  "builds/mcp-build.log": "b2d3deff2e4a5e500fc2b3ec9c06ad94682d8278ef915e1e5d9107e9553d9b81",
+  "builds/mcp-build.log.base64": "9d5721cc75bd0613db85b28b758e27ddb005ae698bb9b0badca17cb14c01df34",
   "builds/worker-build.log": "2a342fc426343e4a31050ff5f255cdcbeb35e563c4c7d167b9f5fa6d1cef2ddb",
   "checks/check-all.log": "64a05de5d2669822ea931607d741394c5055e517cc9ee9f75874e6dec0b42d58",
   "checks/docs-final.log": "1af1453b2e1ff47edbba1a7857e86b7d047d8635e5b100c71026a1096998c418",
