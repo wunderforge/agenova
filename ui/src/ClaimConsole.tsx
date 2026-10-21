@@ -36,6 +36,7 @@ function AuthorityComparison({ requested, effective }: { requested?: ClaimReques
     { name: 'Tools', requested: requested?.tools, effective: effective?.tools },
     { name: 'Resource scopes', requested: requested?.resourceScopes, effective: effective?.resourceScopes },
     { name: 'Memory scopes', requested: requested?.memoryScopes, effective: effective?.memoryScopes },
+    { name: 'Network profiles', requested: requested?.networkProfiles, effective: effective?.networkProfiles },
     { name: 'Model profile', requested: requested?.modelProfile ? [requested.modelProfile] : undefined,
       effective: effective?.modelProfile ? [effective.modelProfile] : undefined },
   ];

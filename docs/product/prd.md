@@ -110,6 +110,7 @@ The trusted principal comes from an upstream authentication boundary and is not 
 
 ### 4. Claim-scoped authority
 
+- Owner-approved core extension (20 October 2026, #243): outbound public networking is an explicit per-Work authority dimension, not an image capability. Requested network profiles intersect template ceilings and explicit Policy caps; omission grants none. Supported real runtimes enforce default-deny from process startup, claim-specific activation, bounded expiry and verified release. Existing images and the execution contract remain independent. Historical evidence is not retroactively labelled network-isolated; unsupported enforcement is a visible failure.
 - Only an active `Running` claim can use governed Tool or Model interfaces.
 - The run service supplies a trusted invocation context bound to the active claim. In the reference path this may be an in-process value; it is not a caller-controlled claim ID and does not claim a production workload-identity implementation.
 - Unknown, pending, terminal, and context-mismatched claims are denied. A request is context-mismatched when its claimed target ID differs from the claim ID bound to that trusted invocation context.

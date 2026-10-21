@@ -30,6 +30,7 @@ import (
 var liveModel = flag.Bool("live-model", false, "explicit authorization for existing local Ollama inference on synthetic input")
 
 func TestUIModelCheckpoint_Kind(t *testing.T) {
+	networkMode := requireGovernedNetworkPrerequisite(t)
 	if !*liveModel || *kubeContext == "" || *namespace == "" || *namespace == "default" {
 		t.Fatal("explicit -live-model, kube-context and disposable namespace required; no model/cluster calls made")
 	}
@@ -50,6 +51,9 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 		}
 	})
 	adapter := runtimeagentsandbox.NewControlled(*kubeContext, *namespace)
+	if err := adapter.ConfigureNetworkIsolation(networkMode); err != nil {
+		t.Fatal(err)
+	}
 	if err := adapter.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: app.ReferenceRuntimeTemplateRef}, Spec: v0.AgentSandboxTemplateSpec{Image: "agenova-testworker:kind", Command: []string{"/agenova-workerctl", "serve"}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -65,8 +69,8 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 	}
 	executor := &catalogExecutor{Executor: adapter}
 	counter := &checkpointProvider{Client: provider, executor: executor, t: t}
-	recorder := &recordingRuntimeBackend{RuntimeBackend: adapter}
-	denied, err := console.NewService(recorder, executor, counter, app.ReferencePrincipalTeamB)
+	recorder, recordedBackend := newRecordingRuntimeBackend(adapter)
+	denied, err := console.NewService(recordedBackend, executor, counter, app.ReferencePrincipalTeamB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +87,7 @@ func TestUIModelCheckpoint_Kind(t *testing.T) {
 		}
 	}
 	t.Log("Team B HTTP denial: claim=absent backendCalls=0 providerCalls=0")
-	allowed, err := console.NewService(recorder, executor, counter, app.ReferencePrincipalTeamA)
+	allowed, err := console.NewService(recordedBackend, executor, counter, app.ReferencePrincipalTeamA)
 	if err != nil {
 		t.Fatal(err)
 	}

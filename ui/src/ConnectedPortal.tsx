@@ -35,8 +35,9 @@ function Heading({ title, subtitle, action }: { title: string; subtitle?: string
     <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}
   </div>;
 }
-function Access({ value, runtime }: {
+function Access({ value, runtime, networkRecorded = false, requested = false }: {
   value?: ClaimRequestedAccess | EffectiveAuthority | null; runtime?: string;
+  networkRecorded?: boolean; requested?: boolean;
 }) {
   if (!value) return <p>No authority was issued.</p>;
   return <div className="portal-access-fields">
@@ -44,6 +45,8 @@ function Access({ value, runtime }: {
     <Field label="Tools" value={<Chips values={value.tools}/>}/>
     <Field label="Model profile" value={value.modelProfile || 'None'}/>
     <Field label="Memory scope" value={<Chips values={value.memoryScopes}/>}/>
+    <Field label="Network profiles" value={value.networkProfiles?.length ? <Chips values={value.networkProfiles}/>
+      : requested ? 'No public network requested' : networkRecorded ? 'No public network granted' : 'Not recorded; runtime boundary unknown'}/>
     <Field label="Runtime" value={runtime}/>
   </div>;
 }
@@ -169,6 +172,7 @@ function WorkDetail({ work }: { work: View }) {
           ? !ended && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
         <Access value={state?.effectiveAuthority}
+          networkRecorded={work.facts.some(fact => fact.operation === 'NetworkActive')}
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
         <div className="portal-card-links">
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
@@ -209,10 +213,12 @@ function WorkAccess({ work }: { work: View }) {
     <div className="portal-comparison">
       <section className="portal-compare-side"><h2>Requested</h2>
         <Access value={work.request.spec.requestedAccess}
+          requested
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
       </section>
       <section className="portal-compare-side"><h2>Granted</h2>
         <Access value={effective}
+          networkRecorded={work.facts.some(fact => fact.operation === 'NetworkActive')}
           runtime={effective ? `${effective.runtime.profileRef} · ${effective.runtime.timeout}` : undefined}/>
       </section>
     </div>
@@ -248,6 +254,7 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
         </div>
         {fact.effectiveAuthority && <><h3>Effective authority at resolution</h3>
           <Access value={fact.effectiveAuthority}
+            networkRecorded={work.facts.some(record => record.operation === 'NetworkActive')}
             runtime={`${fact.effectiveAuthority.runtime.profileRef} · ${fact.effectiveAuthority.runtime.timeout}`}/>
         </>}
         {!!fact.authorityChanges?.length && <div className="portal-table-wrap"><table className="portal-table">
@@ -363,6 +370,7 @@ function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Set
         requestedAccess: {
           tools, resourceScopes: scopes('scopes'),
           modelProfile: String(form.get('model') || ''), memoryScopes: scopes('memory'),
+          ...(form.get('network') ? { networkProfiles: [String(form.get('network'))] } : {}),
         },
         runtime: {
           profileRef: String(form.get('runtime')),
@@ -405,6 +413,11 @@ function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Set
             </label>
           )}</fieldset>
           <label>Resource scopes<input name="scopes" defaultValue={(ceiling?.resourceScopes || []).join(', ')}/></label>
+          <label>Public network access<select name="network" defaultValue="">
+            <option value="">No public network requested</option>
+            {(ceiling?.networkProfiles || []).map(profile => <option key={profile} value={profile}>{profile}</option>)}
+          </select></label>
+          <p className="portal-muted">A network request needs Policy approval. Public-web permits public TCP 443 and DNS, not domain-specific or read-only access.</p>
           <div className="portal-field-row">
             <label>Model profile<select name="model"
               defaultValue={defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>
@@ -442,6 +455,7 @@ function Templates({ setup }: { setup: Setup }) {
       <a className="portal-button" href={link('work/new')}>Start work</a>
       <h3>Template defaults and limits</h3>
       <Field label="Model profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.modelProfiles}/>}/>
+      <Field label="Network profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.networkProfiles}/>}/>
       <Field label="Runtime profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.runtimeProfiles}/>}/>
       <Field label="Tool ceiling" value={<Chips values={setup.template.spec.capabilityCeiling?.tools}/>}/>
       <details className="portal-details"><summary>Show template</summary>

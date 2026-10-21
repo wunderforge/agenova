@@ -1,0 +1,8 @@
+SYNTHETIC DEMO DATA — billing scheduler and schema configuration.
+schedule_interval = 60s
+typical_job_duration = 80s
+concurrency_policy = allow
+distributed_cycle_lock = disabled
+invoice_unique_key = generated_invoice_id
+unique_customer_cycle_constraint = absent
+deduplication_check = absent

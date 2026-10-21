@@ -47,6 +47,7 @@ type SpikeAdapter struct {
 	bindTimeout    time.Duration
 	cleanupTimeout time.Duration
 	pollInterval   time.Duration
+	networkMode    string
 }
 
 type poolEntry struct {
@@ -98,7 +99,9 @@ func (a *SpikeAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) 
 	if err != nil {
 		return "", fmt.Errorf("encode immutable AgentTemplate: %w", err)
 	}
-	digest := sha256.Sum256(data)
+	// Isolation generation is part of runtime identity. Never adopt pre-upgrade
+	// warm Pods that may retain the previous additive public-allow policy.
+	digest := sha256.Sum256(append([]byte("agenova-work-network-v1\x00"), data...))
 	// A 160-bit base32 content key leaves room for upstream prefixes and the
 	// generated worker suffix. It is a cache key, not an authorization credential.
 	ref := "at-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest[:20]))
@@ -127,6 +130,8 @@ func (a *SpikeAdapter) AddTemplate(template v1alpha1.AgentSandboxTemplate) error
 		Kind:       kindSandboxTemplate,
 		Metadata:   upstreamMeta{Name: upstreamName, Namespace: a.namespace},
 		Spec: upstreamSandboxTemplateSpec{
+			NetworkPolicy:           &upstreamNetworkPolicy{},
+			NetworkPolicyManagement: "Managed",
 			PodTemplate: upstreamPodTemplate{
 				Spec: upstreamPodSpec{
 					Containers: []upstreamContainer{
@@ -427,7 +432,7 @@ func (a *SpikeAdapter) PoolStatus(name string) (v1alpha1.SandboxWarmPoolStatus, 
 // --- helpers ---
 
 // claimManifest renders the upstream SandboxClaim for one Agenova claim.
-func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry) ([]byte, error) {
+func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry, expiry ...time.Time) ([]byte, error) {
 	ttl := int32(300) // 5-minute spike TTL; real production would read from claim input.
 	obj := upstreamSandboxClaim{
 		APIVersion: apiVersionExtensions,
@@ -441,6 +446,9 @@ func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry) (
 				TTLSecondsAfterFinished: &ttl,
 			},
 		},
+	}
+	if len(expiry) > 0 && !expiry[0].IsZero() {
+		obj.Spec.Lifecycle.ShutdownTime = expiry[0].UTC().Format(time.RFC3339Nano)
 	}
 	manifest, err := json.Marshal(obj)
 	if err != nil {

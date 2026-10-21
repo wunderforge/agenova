@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"strings"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
@@ -56,6 +57,14 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 		return ErrRecoveryRequired
 	}
 	claim := view.State.Claim
+	// Capability presence does not mean this historical allocation used it.
+	// Conversely, any durable new-contract marker forbids falling back to the
+	// legacy stop/cleanup path merely because the current adapter lost support.
+	governedNetwork := requiresRecoveryNetworkRelease(view)
+	network, supportsNetwork := backend.(runtime.NetworkBackend)
+	if governedNetwork && !supportsNetwork {
+		return ErrRecoveryRequired
+	}
 	if claim.Phase == v0.ClaimPhasePending {
 		return ErrRecoveryRequired
 	}
@@ -69,7 +78,7 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 			continue
 		}
 		switch f.Operation {
-		case "Succeeded", "Failed", "Expired", "Cancelled", "StartFailed":
+		case "Succeeded", "Failed", "Expired", "Cancelled", "StartFailed", "NetworkActivationFailed":
 			terminal = true
 			terminalKind = f.Operation
 		case "TerminateSucceeded", "TerminateFailed":
@@ -108,9 +117,18 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	if err := journal.BindClaim(view.RequestRef, *claim); err != nil {
 		return err
 	}
+	networkLevel := ""
 	runtimeFact := func(kind string) error {
 		view.State.Evidence.RuntimeEvents = append(view.State.Evidence.RuntimeEvents, v0.EvidenceRuntimeEvent{Kind: kind})
-		f, err := journal.AppendWithCommit(facts.Fact{Kind: "Runtime", RequestRef: view.RequestRef, ClaimID: claim.ID, BackendIdentity: claim.BackendIdentity, Operation: kind, ReasonCode: "recovery-" + kind, PolicyRef: &view.State.PolicyRef}, func(f facts.Fact) error { return store.Append(ctx, f, view.State) })
+		fact := facts.Fact{Kind: "Runtime", RequestRef: view.RequestRef, ClaimID: claim.ID, BackendIdentity: claim.BackendIdentity, Operation: kind, ReasonCode: "recovery-" + kind, PolicyRef: &view.State.PolicyRef}
+		if kind == "NetworkRevocationAttempt" || kind == "NetworkRevocationFailed" || kind == "NetworkRevoked" {
+			fact.Target = "work-network"
+			fact.Reason = "Recovery network release; original grant parameters are not reconstructed. This is not a packet-level enforcement test."
+			if kind == "NetworkRevoked" {
+				fact.Reason = "Network evidence level: " + networkLevel + ". " + fact.Reason
+			}
+		}
+		f, err := journal.AppendWithCommit(fact, func(f facts.Fact) error { return store.Append(ctx, f, view.State) })
 		if err == nil {
 			view.Facts = append(view.Facts, f)
 		}
@@ -120,12 +138,43 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 		claim.Phase = v0.ClaimPhaseFailed
 		terminalKind = "Failed"
 		if err := runtimeFact("Failed"); err != nil {
+			// Failed persistence cannot leave a restored, verified allocation
+			// online. A lost writer lease still forbids acting on another writer.
+			if !cleaned {
+				if writerErr := store.CheckWriter(ctx); writerErr != nil {
+					return errors.Join(err, writerErr)
+				}
+				if governedNetwork {
+					_, revokeErr := network.RevokeNetwork(*claim.BackendIdentity)
+					return errors.Join(err, revokeErr)
+				}
+				stopErr := backend.Terminate(*claim.BackendIdentity)
+				_, cleanupErr := backend.Cleanup(*claim.BackendIdentity)
+				return errors.Join(err, stopErr, cleanupErr)
+			}
 			return err
 		}
 	}
 	if !cleaned {
 		if err := store.CheckWriter(ctx); err != nil {
 			return err
+		}
+		if governedNetwork {
+			attemptErr := runtimeFact("NetworkRevocationAttempt")
+			result, err := network.RevokeNetwork(*claim.BackendIdentity)
+			if attemptErr != nil {
+				return errors.Join(attemptErr, err)
+			}
+			if err != nil || !validNetworkRelease(result, claim.ID, *claim.BackendIdentity) {
+				if recordErr := runtimeFact("NetworkRevocationFailed"); recordErr != nil {
+					return recordErr
+				}
+				return ErrRecoveryRequired
+			}
+			networkLevel = result.EvidenceLevel
+			if err := runtimeFact("NetworkRevoked"); err != nil {
+				return err
+			}
 		}
 		stopErr := backend.Terminate(*claim.BackendIdentity)
 		if stopErr != nil && !errors.Is(stopErr, runtime.ErrReleased) {
@@ -168,4 +217,40 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	}
 	view.Facts = append(view.Facts, f)
 	return store.Finish(ctx, view)
+}
+
+// A genuinely pre-network record has none of these additive markers. Missing
+// markers alone cannot prove a live Kubernetes object is legacy: the trusted
+// backend restorer must also reject new claim annotations/lifecycle metadata
+// when the original durable allocation incarnation is missing.
+func requiresRecoveryNetworkRelease(view evidence.View) bool {
+	if view.Request != nil && len(view.Request.Spec.RequestedAccess.NetworkProfiles) != 0 {
+		return true
+	}
+	if view.State != nil {
+		if view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && view.State.Claim.BackendIdentity.AllocationID != "" {
+			return true
+		}
+		if view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) != 0 {
+			return true
+		}
+		for _, event := range view.State.Evidence.RuntimeEvents {
+			if strings.HasPrefix(event.Kind, "Network") {
+				return true
+			}
+		}
+	}
+	for _, fact := range view.Facts {
+		if fact.Kind == "Runtime" && strings.HasPrefix(fact.Operation, "Network") ||
+			fact.BackendIdentity != nil && fact.BackendIdentity.AllocationID != "" ||
+			fact.Authority != nil && len(fact.Authority.NetworkProfiles) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func validNetworkRelease(result runtime.NetworkEvidence, claim string, identity v0.SandboxClaimBackendIdentity) bool {
+	return result.ClaimID == claim && result.Identity == identity && result.State == "Revoked" &&
+		(result.EvidenceLevel == "Configured" || result.EvidenceLevel == "Simulated")
 }

@@ -86,6 +86,7 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 	if *secondImage == "" {
 		t.Skip("opt in with -second-worker-image and -incompatible-worker-image")
 	}
+	networkMode := requireGovernedNetworkPrerequisite(t)
 	if *kubeContext == "" || *namespace == "" || *namespace == "default" || *incompatibleImage == "" {
 		t.Fatal("explicit context, disposable namespace and both image flags required")
 	}
@@ -115,6 +116,9 @@ func TestIndependentAgentImages_Kind(t *testing.T) {
 		}
 	})
 	a := runtimebackend.NewControlled(*kubeContext, *namespace)
+	if err := a.ConfigureNetworkIsolation(networkMode); err != nil {
+		t.Fatal(err)
+	}
 	registries := map[string]imageRegistry{}
 	templates := map[string]*v0.AgentTemplate{}
 	bundle := app.ReferencePolicy()

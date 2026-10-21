@@ -1,0 +1,22 @@
+apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata:
+  name: investigate-duplicate-invoices
+spec:
+  templateRef: incident-investigator-demo-v1
+  projectRef: payments
+  task:
+    type: investigation
+    input:
+      objective: >-
+        Investigate duplicate invoice incident INC-B2081. Read both available
+        files billing/INC-B2081/logs.txt and billing/INC-B2081/job-config.txt.
+        Explain the evidence, likely cause and a concise proposed fix. Cite file
+        names. This is read-only investigation; do not change or deploy anything.
+  requestedAccess:
+    tools: [repo.read]
+    resourceScopes: [repo:demo/billing]
+    modelProfile: coding-standard
+  runtime:
+    profileRef: standard-isolated
+    timeout: 3m

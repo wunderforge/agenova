@@ -5,6 +5,12 @@ import type { Fact } from './contracts.generated';
 import { category, recordStatus, recordTitle } from './record-presentation';
 const fact: Fact = {id:'action',sequence:1,timestamp:'2026-09-16T02:00:00Z',kind:'WorkerActivity',requestRef:'work-1',target:'Turn 4',operation:'ActionValidated',reasonCode:'agent-action-invalid'};
 describe('evidence presentation independent of React and transport',()=>{
+  it('keeps network configuration evidence distinct from packet or tool observations',()=>{
+    expect(recordTitle({...fact,kind:'Runtime',operation:'NetworkActive'})).toBe('Network rules activated');
+    expect(recordTitle({...fact,kind:'Runtime',operation:'NetworkRevocationFailed'})).toBe('Network withdrawal failed');
+    expect(recordStatus({...fact,kind:'Runtime',operation:'NetworkRevocationFailed'})).toBe('Failed');
+    expect(category({...fact,kind:'Runtime',operation:'NetworkActive'})).not.toBe('Tool Gateway');
+  });
   it('distinguishes successful inference, format retry and failed work',()=>{
     expect(recordStatus({...fact,kind:'ProviderOutcome',providerStatus:'Succeeded',operation:'model.invoke'})).toBe('Succeeded');
     expect(recordStatus(fact)).toBe('Retry required');

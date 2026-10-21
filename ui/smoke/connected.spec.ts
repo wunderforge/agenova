@@ -24,11 +24,35 @@ return route.fulfill({status:202,json:current()[0]});
 }
   if(path==='/api/requests')return route.fulfill({json:current()});
   const ref=decodeURIComponent(path.split('/')[3]||'');
-const found=current().find(w=>w.requestRef===ref);
-return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
+  const found=current().find(w=>w.requestRef===ref);
+  return found?route.fulfill({json:found}):route.fulfill({status:404,json:{code:'not_found',message:'Not found'}});
  });
 }
 
+for (const online of [false, true]) {
+ test(`network access is explicit intent, never inherited from template: online=${online}`, async ({page}, info) => {
+  const configured=structuredClone(setup);
+  configured.template!.spec.capabilityCeiling!.networkProfiles=['public-web'];
+  let submitted:ClaimRequest|undefined;
+  let current=work('Succeeded');
+  await api(page,()=>[current],request=>{
+   submitted=request;
+   current={...current,request,requestRef:request.metadata.name};
+   current.state!.effectiveAuthority!.networkProfiles=request.spec.requestedAccess?.networkProfiles;
+  },configured);
+  await page.goto('/?mode=connected#/work/new');
+  await expect(page.getByLabel('Public network access')).toHaveValue('');
+  if(online) await page.getByLabel('Public network access').selectOption('public-web');
+  await page.getByLabel('What should it do?').fill('Investigate using the explicitly requested access only.');
+  await page.getByRole('button',{name:'Start work',exact:true}).click();
+  await expect.poll(()=>submitted?.spec.task?.input?.objective).toBe('Investigate using the explicitly requested access only.');
+  expect(submitted?.spec.requestedAccess?.networkProfiles).toEqual(online?['public-web']:undefined);
+  await page.getByText('Access & limits',{exact:true}).click();
+  await expect(page.getByText('Network profiles',{exact:true}).first()).toBeVisible();
+  if(online) await expect(page.locator('code').filter({hasText:'public-web'}).first()).toBeVisible();
+  await page.screenshot({path:info.outputPath(`network-authority-${online?'online':'offline'}.png`),fullPage:true});
+ });
+}
 test('connected chart and profile use only current API records, and clear on connection failure', async ({ page }, info) => {
  const current=work('Succeeded');
  // A later provider call must not become another request or move its start hour.
@@ -49,6 +73,15 @@ test('connected chart and profile use only current API records, and clear on con
  await expect(account).toContainText('Not connected');
  await expect(account).not.toContainText(setup.principal.subject);
  await expect(page.getByRole('img')).toHaveCount(0);
+});
+
+test('historical missing network evidence stays unknown rather than retroactively offline', async ({page}) => {
+ const historical=work('Succeeded');
+ await api(page,()=>[historical]);
+ await page.goto(`/?mode=connected#/work/${encodeURIComponent(historical.requestRef)}`);
+ await page.getByText('Access & limits',{exact:true}).click();
+ await expect(page.getByText('Not recorded; runtime boundary unknown',{exact:true})).toBeVisible();
+ await expect(page.getByText('No public network granted',{exact:true})).toHaveCount(0);
 });
 test('work name is separate from full instructions and identity', async({page},info)=>{
  let current=work();

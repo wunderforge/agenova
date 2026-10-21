@@ -115,6 +115,73 @@ func (r *kubectlRunner) applyBytes(manifest []byte) error {
 	return nil
 }
 
+func (r *kubectlRunner) createBytes(manifest []byte) error {
+	_, err := r.runWithStdin(manifest, "create", "-f", "-")
+	return err
+}
+
+// Bound the grant write itself, not just the checks preceding it. A canceled
+// API request may still have committed; activation always performs owned
+// readback/revocation compensation rather than treating cancellation as absence.
+func (r *kubectlRunner) createNetworkPolicyBefore(parent context.Context, manifest []byte, expiry time.Time) error {
+	deadline := time.Now().Add(r.timeout)
+	if expiry.Before(deadline) {
+		deadline = expiry
+	}
+	ctx, cancel := context.WithDeadline(parent, deadline)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := r.command(ctx, manifest, r.baseArgs("create", "-f", "-")...)
+	return err
+}
+
+// patchPodIncarnation atomically guards the original Pod's immutable identity.
+// Patching a reused name without these JSONPatch tests could authorize a peer.
+func (r *kubectlRunner) patchPodIncarnation(name, podUID, claimUID, value string) error {
+	return r.patchPodIncarnationContext(context.Background(), name, podUID, claimUID, value)
+}
+
+func (r *kubectlRunner) patchPodIncarnationContext(ctx context.Context, name, podUID, claimUID, value string) error {
+	if !isDNSLabel(name) || podUID == "" || claimUID == "" || value != networkIncarnation(claimUID, podUID) {
+		return errors.New("invalid Pod network incarnation")
+	}
+	patch, err := json.Marshal([]map[string]string{
+		{"op": "test", "path": "/metadata/uid", "value": podUID},
+		{"op": "test", "path": "/metadata/labels/agents.x-k8s.io~1claim-uid", "value": claimUID},
+		{"op": "add", "path": "/metadata/labels/agenova.io~1network-incarnation", "value": value},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = r.runWithStdinContext(ctx, patch, "patch", "pods", name, "--type=json", "--patch-file=-")
+	return err
+}
+
+// deletePinned uses API DeleteOptions preconditions. kubectl's ordinary delete
+// can otherwise destroy a same-name replacement between verification/deletion.
+func (r *kubectlRunner) deletePinned(resource, name, uid, version string) error {
+	if !isDNSLabel(name) || uid == "" || version == "" {
+		return errors.New("pinned delete requires full resource identity")
+	}
+	var prefix string
+	switch resource {
+	case "sandboxclaims":
+		prefix = "/apis/extensions.agents.x-k8s.io/v1alpha1/namespaces/"
+	case "networkpolicies":
+		prefix = "/apis/networking.k8s.io/v1/namespaces/"
+	default:
+		return errors.New("unsupported pinned deletion resource")
+	}
+	if !isDNSLabel(r.namespace) {
+		return errors.New("invalid pinned deletion namespace")
+	}
+	payload, _ := json.Marshal(map[string]any{"apiVersion": "v1", "kind": "DeleteOptions", "preconditions": map[string]string{"uid": uid, "resourceVersion": version}})
+	_, err := r.runWithStdin(payload, "delete", "--raw", prefix+r.namespace+"/"+resource+"/"+name, "-f", "-")
+	return err
+}
+
 // get fetches a resource by type and name, unmarshaling into dst.
 func (r *kubectlRunner) get(resource, name string, dst any) error {
 	raw, err := r.run("get", resource, name, "-o", "json")
@@ -122,6 +189,28 @@ func (r *kubectlRunner) get(resource, name string, dst any) error {
 		return err
 	}
 	return json.Unmarshal(raw, dst)
+}
+
+// Activation reads must inherit cancellation all the way into the actual
+// kubectl process. A fresh background timeout here would hold a.mu while a
+// just-created public grant remained live, delaying trusted compensation.
+func (r *kubectlRunner) getContext(ctx context.Context, resource, name string, dst any) error {
+	raw, err := r.runWithStdinContext(ctx, nil, "get", resource, name, "-o", "json")
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return errors.New("invalid activation resource response")
+	}
+	return nil
+}
+
+func (r *kubectlRunner) existsContext(ctx context.Context, resource, name string) (bool, error) {
+	raw, err := r.runWithStdinContext(ctx, nil, "get", resource, name, "--ignore-not-found=true", "-o", "name")
+	if err != nil {
+		return false, err
+	}
+	return len(strings.TrimSpace(string(raw))) > 0, nil
 }
 
 // delete deletes a resource by type and name. A missing resource is not an
@@ -210,9 +299,20 @@ func (r *kubectlRunner) run(verb string, extraArgs ...string) ([]byte, error) {
 }
 
 func (r *kubectlRunner) runWithStdin(stdin []byte, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	return r.runWithStdinContext(context.Background(), stdin, args...)
+}
+
+func (r *kubectlRunner) runWithStdinContext(parent context.Context, stdin []byte, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
-	return r.command(ctx, stdin, r.baseArgs(args...)...)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out, err := r.command(ctx, stdin, r.baseArgs(args...)...)
+	if ctx.Err() != nil {
+		return nil, errors.Join(err, ctx.Err())
+	}
+	return out, err
 }
 
 func (r *kubectlRunner) baseArgs(args ...string) []string {

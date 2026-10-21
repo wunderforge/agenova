@@ -24,9 +24,12 @@ const (
 )
 
 type upstreamMeta struct {
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace,omitempty"`
-	Labels    map[string]string `json:"labels,omitempty"`
+	Name            string            `json:"name"`
+	Namespace       string            `json:"namespace,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	UID             string            `json:"uid,omitempty"`
+	ResourceVersion string            `json:"resourceVersion,omitempty"`
+	Annotations     map[string]string `json:"annotations,omitempty"`
 }
 
 // upstreamSandboxTemplate matches extensions.agents.x-k8s.io/v1alpha1 SandboxTemplate.
@@ -38,7 +41,14 @@ type upstreamSandboxTemplate struct {
 }
 
 type upstreamSandboxTemplateSpec struct {
-	PodTemplate upstreamPodTemplate `json:"podTemplate"`
+	PodTemplate             upstreamPodTemplate    `json:"podTemplate"`
+	NetworkPolicy           *upstreamNetworkPolicy `json:"networkPolicy,omitempty"`
+	NetworkPolicyManagement string                 `json:"networkPolicyManagement,omitempty"`
+}
+
+type upstreamNetworkPolicy struct {
+	Ingress []any `json:"ingress,omitempty"`
+	Egress  []any `json:"egress,omitempty"`
 }
 
 type upstreamPodTemplate struct {
@@ -96,6 +106,7 @@ type upstreamSandboxClaimSpec struct {
 type upstreamSandboxClaimLifecycle struct {
 	ShutdownPolicy          string `json:"shutdownPolicy,omitempty"`
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+	ShutdownTime            string `json:"shutdownTime,omitempty"`
 }
 
 type upstreamSandboxClaimStatus struct {

@@ -4,6 +4,9 @@
 package agentsandbox
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -76,12 +79,22 @@ type allocationEntry struct {
 	// belongs to another claim. It is never used to delete anything.
 	conflictWorkerID string
 	// recovering guards one in-flight recovery per ClaimID.
-	recovering bool
-	detail     string
+	recovering      bool
+	detail          string
+	network         runtime.NetworkAuthority
+	networkActive   bool
+	networkRevoked  bool
+	networkClaimUID string
+	networkPodUID   string
+	attemptID       string
 }
 
 func (e *allocationEntry) identity() v1alpha1.SandboxClaimBackendIdentity {
-	return v1alpha1.SandboxClaimBackendIdentity{Backend: BackendName, WorkerID: e.workerID}
+	id := v1alpha1.SandboxClaimBackendIdentity{Backend: BackendName, WorkerID: e.workerID}
+	if e.networkClaimUID != "" && e.networkPodUID != "" {
+		id.AllocationID = e.networkClaimUID + "/" + e.networkPodUID
+	}
+	return id
 }
 
 // Allocate implements runtime.RuntimeBackend.
@@ -99,6 +112,9 @@ func (e *allocationEntry) identity() v1alpha1.SandboxClaimBackendIdentity {
 // removed without ever being seen. Such a record is retried, never silently
 // reused.
 func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation, error) {
+	if err := a.validateNetworkAllocation(req.Network); err != nil {
+		return runtime.Allocation{}, err
+	}
 	if req.ClaimID == "" {
 		return runtime.Allocation{}, fmt.Errorf("claim id is required")
 	}
@@ -111,14 +127,32 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 		return runtime.Allocation{}, err
 	}
 
-	manifest, err := a.claimManifest(entry.upstreamClaimName, pool)
+	manifest, err := a.claimManifest(entry.upstreamClaimName, pool, req.Network.ExpiresAt)
 	if err != nil {
 		a.mu.Lock()
 		delete(a.allocations, req.ClaimID)
 		a.mu.Unlock()
 		return runtime.Allocation{}, err
 	}
-	if err := a.kube.applyBytes(manifest); err != nil {
+	apply := a.kube.applyBytes
+	if !req.Network.ExpiresAt.IsZero() {
+		client, ok := a.kube.(pinnedNetworkClient)
+		if !ok {
+			return runtime.Allocation{}, runtime.ErrUnsupported
+		}
+		var object upstreamSandboxClaim
+		if err := json.Unmarshal(manifest, &object); err != nil {
+			return runtime.Allocation{}, err
+		}
+		object.Metadata.Labels = map[string]string{"app.kubernetes.io/managed-by": "agenova"}
+		object.Metadata.Annotations = map[string]string{"agenova.io/claim-id": entry.claimID, "agenova.io/allocation-attempt": entry.attemptID}
+		manifest, err = json.Marshal(object)
+		if err != nil {
+			return runtime.Allocation{}, err
+		}
+		apply = client.createBytes
+	}
+	if err := apply(manifest); err != nil {
 		// The server may have accepted the create despite the error.
 		return runtime.Allocation{}, a.compensate(entry, fmt.Errorf("apply sandbox claim %q: %w", entry.upstreamClaimName, err))
 	}
@@ -129,6 +163,22 @@ func (a *SpikeAdapter) Allocate(req runtime.AllocateRequest) (runtime.Allocation
 	workerID, err := a.waitForSandbox(entry.upstreamClaimName)
 	if err != nil {
 		return runtime.Allocation{}, a.compensate(entry, err)
+	}
+	if !req.Network.ExpiresAt.IsZero() {
+		var claim upstreamSandboxClaim
+		if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &claim); err != nil {
+			return runtime.Allocation{}, a.compensate(entry, err)
+		}
+		if claim.Metadata.UID == "" || claim.Metadata.Annotations["agenova.io/allocation-attempt"] != entry.attemptID || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != workerID {
+			return runtime.Allocation{}, a.compensate(entry, errIdentityMismatch)
+		}
+		a.mu.Lock()
+		entry.networkClaimUID = claim.Metadata.UID
+		entry.workerID = workerID
+		a.mu.Unlock()
+		if err := a.pinAllocatedPod(entry); err != nil {
+			return runtime.Allocation{}, a.compensate(entry, err)
+		}
 	}
 
 	a.mu.Lock()
@@ -203,6 +253,15 @@ func (a *SpikeAdapter) beginAttempt(req runtime.AllocateRequest) (*allocationEnt
 		claimID:           req.ClaimID,
 		upstreamClaimName: resourceName("claim", req.ClaimID),
 		state:             allocPending,
+		network:           runtime.NetworkAuthority{Profiles: append([]string(nil), req.Network.Profiles...), ExpiresAt: req.Network.ExpiresAt},
+	}
+	if !req.Network.ExpiresAt.IsZero() {
+		var nonce [16]byte
+		if _, err := rand.Read(nonce[:]); err != nil {
+			a.mu.Unlock()
+			return nil, poolEntry{}, err
+		}
+		entry.attemptID = hex.EncodeToString(nonce[:])
 	}
 	a.allocations[req.ClaimID] = entry
 	a.mu.Unlock()
@@ -257,6 +316,9 @@ func (a *SpikeAdapter) Observe(id v1alpha1.SandboxClaimBackendIdentity) (runtime
 		return runtime.Observation{}, fmt.Errorf("observe %s: %w: upstream claim %s carries no worker, recorded %s", entry.claimID, errIdentityMismatch, claimName, workerID)
 	case sc.Status.Sandbox.Name != workerID:
 		return runtime.Observation{}, fmt.Errorf("observe %s: %w: upstream claim %s carries worker %s, recorded %s", entry.claimID, errIdentityMismatch, claimName, sc.Status.Sandbox.Name, workerID)
+	}
+	if _, _, err := a.verifyAllocationIncarnation(entry, id, sc, false); err != nil {
+		return runtime.Observation{}, fmt.Errorf("observe %s: %w", entry.claimID, err)
 	}
 	obs.Ready = hasCondition(sc.Status.Conditions, conditionTypeReady, conditionStatusTrue)
 	if !obs.Ready {
@@ -318,15 +380,33 @@ func (a *SpikeAdapter) Cleanup(id v1alpha1.SandboxClaimBackendIdentity) (runtime
 	if err != nil {
 		return result, fmt.Errorf("cleanup %s: check claim: %w", entry.claimID, err)
 	}
+	var sc upstreamSandboxClaim
 	if present {
-		var sc upstreamSandboxClaim
 		if err := a.kube.get("sandboxclaims", entry.upstreamClaimName, &sc); err != nil {
 			return result, fmt.Errorf("cleanup %s: read claim binding: %w", entry.claimID, err)
 		}
 		if sc.Status.Sandbox == nil || sc.Status.Sandbox.Name != id.WorkerID {
 			return result, fmt.Errorf("cleanup %s: %w: refusing to delete claim %s without its recorded worker %s", entry.claimID, errIdentityMismatch, entry.upstreamClaimName, id.WorkerID)
 		}
-		if err := a.kube.delete("sandboxclaims", entry.upstreamClaimName); err != nil {
+		claimUID, guarded, err := a.verifyAllocationIncarnation(entry, id, sc, true)
+		if err != nil {
+			return result, fmt.Errorf("cleanup %s: %w", entry.claimID, err)
+		}
+		deleteClaim := func() error { return a.kube.delete("sandboxclaims", entry.upstreamClaimName) }
+		if guarded {
+			// Revoke/Terminate failure must not fall through to a weaker cleanup
+			// path. Names and a same-name worker binding are not an incarnation.
+			// Restored entries have the durable UID pair but no original attempt
+			// string, so require its presence without inventing a historical value.
+			client, ok := a.kube.(pinnedNetworkClient)
+			if !ok {
+				return result, fmt.Errorf("cleanup %s: %w: pinned deletion unavailable", entry.claimID, runtime.ErrUnsupported)
+			}
+			deleteClaim = func() error {
+				return client.deletePinned("sandboxclaims", entry.upstreamClaimName, claimUID, sc.Metadata.ResourceVersion)
+			}
+		}
+		if err := deleteClaim(); err != nil {
 			return result, fmt.Errorf("cleanup %s: delete claim: %w", entry.claimID, err)
 		}
 	}
@@ -335,12 +415,71 @@ func (a *SpikeAdapter) Cleanup(id v1alpha1.SandboxClaimBackendIdentity) (runtime
 	if err := a.confirmReleased(entry); err != nil {
 		return result, fmt.Errorf("cleanup %s: %w", entry.claimID, err)
 	}
+	if id.AllocationID != "" {
+		// Governed cleanup cannot weaken RevokeNetwork's release criterion:
+		// controller object deletion alone does not prove the original Pod gone.
+		deadline := time.Now().Add(a.cleanupTimeout)
+		for {
+			present, err := a.kube.exists("pods", id.WorkerID)
+			if err != nil {
+				return result, fmt.Errorf("cleanup %s: confirm Pod absence: %w", entry.claimID, err)
+			}
+			if !present {
+				break
+			}
+			if !time.Now().Before(deadline) {
+				return result, fmt.Errorf("cleanup %s: %w: Pod remains", entry.claimID, errCleanupUnconfirmed)
+			}
+			time.Sleep(a.pollInterval)
+		}
+	}
 	a.mu.Lock()
 	entry.state = allocReleased
 	entry.detail = "upstream claim and sandbox confirmed absent"
 	a.mu.Unlock()
 	result.Released = true
 	return result, nil
+}
+
+// verifyAllocationIncarnation is shared by readiness and final cleanup so a
+// failed strong revocation cannot fall through to a weaker name-only path.
+// It validates observed bindings, not atomic kubectl-exec-to-Pod identity.
+func (a *SpikeAdapter) verifyAllocationIncarnation(entry *allocationEntry, id v1alpha1.SandboxClaimBackendIdentity, claim upstreamSandboxClaim, allowMissingPod bool) (string, bool, error) {
+	a.mu.Lock()
+	claimUID, podUID, attemptID := entry.networkClaimUID, entry.networkPodUID, entry.attemptID
+	a.mu.Unlock()
+	guarded := id.AllocationID != "" || claimUID != "" || podUID != "" || attemptID != ""
+	if !guarded {
+		if claim.Metadata.Annotations["agenova.io/allocation-attempt"] != "" || claim.Metadata.Annotations["agenova.io/claim-id"] != "" || (claim.Spec.Lifecycle != nil && claim.Spec.Lifecycle.ShutdownTime != "") {
+			return "", false, fmt.Errorf("%w: missing original allocation incarnation", errIdentityMismatch)
+		}
+		return "", false, nil // explicitly legacy reduced-contract observation
+	}
+	if claimUID == "" || podUID == "" || claim.Metadata.Name != entry.upstreamClaimName || claim.Metadata.UID != claimUID || claim.Metadata.ResourceVersion == "" || claim.Status.Sandbox == nil || claim.Status.Sandbox.Name != id.WorkerID ||
+		claim.Metadata.Annotations["agenova.io/claim-id"] != entry.claimID || claim.Metadata.Annotations["agenova.io/allocation-attempt"] == "" ||
+		(attemptID != "" && claim.Metadata.Annotations["agenova.io/allocation-attempt"] != attemptID) {
+		return "", true, fmt.Errorf("%w: refusing changed allocation incarnation", errIdentityMismatch)
+	}
+	present, err := a.kube.exists("pods", id.WorkerID)
+	if err != nil {
+		return "", true, err
+	}
+	if !present {
+		if !allowMissingPod {
+			return "", true, runtime.ErrNotReady
+		}
+		return claimUID, true, nil
+	}
+	var pod struct {
+		Metadata upstreamMeta `json:"metadata"`
+	}
+	if err := a.kube.get("pods", id.WorkerID, &pod); err != nil {
+		return "", true, err
+	}
+	if pod.Metadata.Name != id.WorkerID || pod.Metadata.UID != podUID || pod.Metadata.Labels[claimUIDLabel] != claimUID {
+		return "", true, fmt.Errorf("%w: refusing changed worker incarnation", errIdentityMismatch)
+	}
+	return claimUID, true, nil
 }
 
 // --- compensation and confirmation ---
@@ -386,10 +525,13 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 	if err != nil {
 		return fail("check upstream claim", err)
 	}
+	var sc upstreamSandboxClaim
 	if present {
-		var sc upstreamSandboxClaim
 		if err := a.kube.get("sandboxclaims", claimName, &sc); err != nil {
 			return fail("read upstream claim for worker identity", err)
+		}
+		if entry.attemptID != "" && (sc.Metadata.Annotations["agenova.io/allocation-attempt"] != entry.attemptID || sc.Metadata.Annotations["agenova.io/claim-id"] != entry.claimID || sc.Metadata.UID == "" || (entry.networkClaimUID != "" && entry.networkClaimUID != sc.Metadata.UID)) {
+			return fail("refuse foreign allocation compensation", errIdentityMismatch)
 		}
 		if sc.Status.Sandbox == nil || sc.Status.Sandbox.Name == "" {
 			// Keep the claim so a later retry can learn its binding. Deleting
@@ -416,7 +558,13 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 		return fmt.Errorf("recovery refused for %s: %w", entry.claimID, err)
 	}
 	if present {
-		if err := a.kube.delete("sandboxclaims", claimName); err != nil {
+		deleteClaim := func() error { return a.kube.delete("sandboxclaims", claimName) }
+		if entry.attemptID != "" {
+			deleteClaim = func() error {
+				return a.kube.(pinnedNetworkClient).deletePinned("sandboxclaims", claimName, sc.Metadata.UID, sc.Metadata.ResourceVersion)
+			}
+		}
+		if err := deleteClaim(); err != nil {
 			return fail("delete upstream claim", err)
 		}
 	}
@@ -431,6 +579,30 @@ func (a *SpikeAdapter) recoverAttempt(entry *allocationEntry) error {
 	}
 	a.mu.Unlock()
 	return nil
+}
+
+func (a *SpikeAdapter) pinAllocatedPod(entry *allocationEntry) error {
+	deadline := time.Now().Add(a.bindTimeout)
+	for {
+		var pod struct {
+			Metadata upstreamMeta `json:"metadata"`
+			Spec     struct {
+				HostNetwork bool `json:"hostNetwork"`
+			} `json:"spec"`
+		}
+		if err := a.kube.get("pods", entry.workerID, &pod); err == nil {
+			if pod.Metadata.Name == entry.workerID && pod.Metadata.UID != "" && pod.Metadata.Labels[claimUIDLabel] == entry.networkClaimUID && !pod.Spec.HostNetwork {
+				a.mu.Lock()
+				entry.networkPodUID = pod.Metadata.UID
+				a.mu.Unlock()
+				return nil
+			}
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("pin allocated worker incarnation: %w", errIdentityMismatch)
+		}
+		time.Sleep(a.pollInterval)
+	}
 }
 
 // confirmReleased polls until the upstream claim and the recorded worker are
@@ -523,6 +695,9 @@ func (a *SpikeAdapter) entryFor(id v1alpha1.SandboxClaimBackendIdentity) (*alloc
 	entry, ok := a.allocations[claimID]
 	if !ok || entry == nil || entry.workerID != id.WorkerID || (entry.state != allocBound && entry.state != allocReleased) {
 		return nil, fmt.Errorf("%w: %s/%s", runtime.ErrUnknownIdentity, id.Backend, id.WorkerID)
+	}
+	if entry.identity().AllocationID != id.AllocationID {
+		return nil, errIdentityMismatch
 	}
 	return entry, nil
 }

@@ -91,6 +91,7 @@ type AuthorityConstraints struct {
 	ModelProfiles   *StringSetConstraint `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
 	MemoryScopes    *StringSetConstraint `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
 	RuntimeProfiles *StringSetConstraint `json:"runtimeProfiles,omitempty" yaml:"runtimeProfiles,omitempty"`
+	NetworkProfiles *StringSetConstraint `json:"networkProfiles,omitempty" yaml:"networkProfiles,omitempty"`
 	MaxTimeout      *time.Duration       `json:"maxTimeout,omitempty" yaml:"maxTimeout,omitempty"`
 }
 
@@ -252,6 +253,7 @@ func validateConstraints(constraints *AuthorityConstraints) error {
 		{"modelProfiles", constraints.ModelProfiles},
 		{"memoryScopes", constraints.MemoryScopes},
 		{"runtimeProfiles", constraints.RuntimeProfiles},
+		{"networkProfiles", constraints.NetworkProfiles},
 	}
 	for _, item := range sets {
 		if item.set == nil {
@@ -262,6 +264,9 @@ func validateConstraints(constraints *AuthorityConstraints) error {
 		}
 		seen := make(map[string]struct{}, len(item.set.Values))
 		for index, value := range item.set.Values {
+			if item.name == "networkProfiles" && value != "public-web" {
+				return fmt.Errorf("authority constraint networkProfiles[%d] is unsupported", index)
+			}
 			if strings.TrimSpace(value) == "" {
 				return fmt.Errorf("authority constraint %s[%d] is blank", item.name, index)
 			}
@@ -305,6 +310,7 @@ func cloneConstraints(constraints *AuthorityConstraints) *AuthorityConstraints {
 	copy.ModelProfiles = cloneSet(constraints.ModelProfiles)
 	copy.MemoryScopes = cloneSet(constraints.MemoryScopes)
 	copy.RuntimeProfiles = cloneSet(constraints.RuntimeProfiles)
+	copy.NetworkProfiles = cloneSet(constraints.NetworkProfiles)
 	if constraints.MaxTimeout != nil {
 		value := *constraints.MaxTimeout
 		copy.MaxTimeout = &value

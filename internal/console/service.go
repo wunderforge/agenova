@@ -59,29 +59,30 @@ type Service struct {
 	onClose    func()
 	tools      *toolbackend.Set
 	// appendTool uses the durable journal; tagged acceptance probes can replace it.
-	appendTool    func(facts.Fact) (facts.Fact, error)
-	durable       DurableWork
-	persisted     sync.Map
-	storageFailed atomic.Bool
-	access        AccessAuthorizer
-	mu            sync.RWMutex
-	executeMu     chan struct{}
-	preset        app.ReferencePrincipalPreset
-	setup         func() (Setup, error)
-	setupFor      func(context.Context, v0.Principal, string, string) (Setup, error)
-	prepare       func([]byte) (app.PreparedAssignment, error)
-	prepareFor    func([]byte, v0.Principal) (app.PreparedAssignment, error)
-	configure     func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
-	runner        *app.RunService
-	executor      Executor
-	provider      modelprovider.Client
-	journal       *facts.Journal
-	store         *facts.Store
-	records       map[string]*record
-	order         []string
-	closed        bool
-	wg            sync.WaitGroup
-	workload      *workloadidentity.Service
+	appendTool      func(facts.Fact) (facts.Fact, error)
+	durable         DurableWork
+	persisted       sync.Map
+	networkEvidence sync.Map
+	storageFailed   atomic.Bool
+	access          AccessAuthorizer
+	mu              sync.RWMutex
+	executeMu       chan struct{}
+	preset          app.ReferencePrincipalPreset
+	setup           func() (Setup, error)
+	setupFor        func(context.Context, v0.Principal, string, string) (Setup, error)
+	prepare         func([]byte) (app.PreparedAssignment, error)
+	prepareFor      func([]byte, v0.Principal) (app.PreparedAssignment, error)
+	configure       func(*v0.AgentTemplate) (app.ResolvedLaunch, error)
+	runner          *app.RunService
+	executor        Executor
+	provider        modelprovider.Client
+	journal         *facts.Journal
+	store           *facts.Store
+	records         map[string]*record
+	order           []string
+	closed          bool
+	wg              sync.WaitGroup
+	workload        *workloadidentity.Service
 }
 
 // AccessAuthorizer checks current server-owned project roles; it cannot grant
@@ -163,7 +164,12 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 	}
 	s.workload = workload
 	s.repository, s.revision, s.telemetry, s.onClose = options.Repository, options.Revision, options.Telemetry, options.OnClose
-	runner, err := app.NewRunService(&observedRuntime{RuntimeBackend: backend, s: s, claims: map[v0.SandboxClaimBackendIdentity]string{}}, app.RunServiceOptions{OnEvent: s.runtimeEvent})
+	observed := &observedRuntime{RuntimeBackend: backend, s: s, claims: map[v0.SandboxClaimBackendIdentity]string{}}
+	var tracked runtime.RuntimeBackend = observed
+	if network, ok := backend.(runtime.NetworkBackend); ok {
+		tracked = &observedNetworkRuntime{observedRuntime: observed, network: network}
+	}
+	runner, err := app.NewRunService(tracked, app.RunServiceOptions{OnEvent: s.runtimeEvent})
 	if err != nil {
 		return nil, err
 	}
@@ -416,6 +422,19 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 
 func (s *Service) runtimeEvent(state *v0.IssuedState, event string) error {
 	fact := facts.Fact{Kind: "Runtime", RequestRef: state.RequestRef, ClaimID: state.Claim.ID, BackendIdentity: state.Claim.BackendIdentity, Operation: event, ReasonCode: "runtime-" + event, PolicyRef: &state.PolicyRef}
+	if strings.HasPrefix(event, "Network") {
+		fact.Target = "work-network"
+		fact.Reason = "Network lifecycle configuration event; packet-level enforcement requires independent backend verification."
+		if value, ok := s.networkEvidence.Load(state.Claim.ID); ok && (event == app.EventNetworkActive || event == app.EventNetworkRevoked) {
+			if proof, ok := value.(runtime.NetworkEvidence); ok && proof.ClaimID == state.Claim.ID && state.Claim.BackendIdentity != nil && proof.Identity == *state.Claim.BackendIdentity {
+				level := "Unverified"
+				if proof.EvidenceLevel == "Configured" || proof.EvidenceLevel == "Simulated" {
+					level = proof.EvidenceLevel
+				}
+				fact.Reason = "Network evidence level: " + level + "; state: " + proof.State + ". This is not a packet-level enforcement test."
+			}
+		}
+	}
 	var err error
 	if s.repository != nil {
 		_, err = s.journal.AppendWithCommit(fact, func(f facts.Fact) error {
@@ -536,6 +555,12 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			if op.Kind == "tool" {
 				parameter, err := s.toolParameter(op)
 				if err != nil {
+					// Schema rejection precedes Gateway invocation: record only the
+					// bounded category, never worker-provided arguments or tokens.
+					if _, writeErr := s.appendTool(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: "ToolRequestRejected", Target: "tool.invoke", ReasonCode: "tool-arguments-rejected", Reason: "Tool parameters do not match an installed route; no provider call was made."}); writeErr != nil {
+						toolEvidenceFailed = true
+						return workerprotocol.Reply{}, errToolEvidence
+					}
 					return workerprotocol.Reply{}, err
 				}
 				tool, action := toolbackend.SplitOperation(op.Tool)
