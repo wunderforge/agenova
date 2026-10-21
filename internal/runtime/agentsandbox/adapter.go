@@ -5,6 +5,7 @@ package agentsandbox
 
 import (
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -38,6 +39,7 @@ type SpikeAdapter struct {
 	pools    map[string]poolEntry  // Agenova pool name -> upstream resource names
 	claims   map[string]claimEntry // claim name -> local tracking state
 	poolRefs map[string]string     // Agenova template name -> upstream sandboxtemplate name
+	coldRefs map[string]bool       // controlled templates deliberately configured without warm resources
 
 	// Reduced-contract allocation bookkeeping (see allocation.go).
 	allocations map[string]*allocationEntry // ClaimID -> allocation attempt/state
@@ -46,6 +48,7 @@ type SpikeAdapter struct {
 	bindTimeout    time.Duration
 	cleanupTimeout time.Duration
 	pollInterval   time.Duration
+	networkMode    string
 }
 
 type poolEntry struct {
@@ -77,12 +80,50 @@ func newSpikeAdapter(kube kubeClient, namespace string) *SpikeAdapter {
 		pools:          make(map[string]poolEntry),
 		claims:         make(map[string]claimEntry),
 		poolRefs:       make(map[string]string),
+		coldRefs:       make(map[string]bool),
 		allocations:    make(map[string]*allocationEntry),
 		byWorker:       make(map[string]string),
 		bindTimeout:    defaultBindTimeout,
 		cleanupTimeout: defaultCleanupTimeout,
 		pollInterval:   pollInterval,
 	}
+}
+
+// ConfigureAgentTemplate gives the immutable resolved content its own runtime
+// resources. Project-local display names are not globally unique: using only
+// Metadata.Name could repoint another project's template or reuse its warm Pod.
+// Equal content may share a warm pool, never claim identity or standing authority.
+func (a *SpikeAdapter) ConfigureAgentTemplate(template *v1alpha1.AgentTemplate) (string, error) {
+	return a.configureAgentTemplate(template, true)
+}
+
+func (a *SpikeAdapter) configureAgentTemplate(template *v1alpha1.AgentTemplate, warm bool) (string, error) {
+	if err := v1alpha1.ValidateAgentTemplate(template); err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(template)
+	if err != nil {
+		return "", fmt.Errorf("encode immutable AgentTemplate: %w", err)
+	}
+	// Isolation generation is part of runtime identity. Never adopt pre-upgrade
+	// warm Pods that may retain the previous additive public-allow policy.
+	digest := sha256.Sum256(append([]byte("agenova-work-network-v1\x00"), data...))
+	// A 160-bit base32 content key leaves room for upstream prefixes and the
+	// generated worker suffix. It is a cache key, not an authorization credential.
+	ref := "at-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest[:20]))
+	if err := a.AddTemplate(v1alpha1.AgentSandboxTemplate{Metadata: v1alpha1.ObjectMeta{Name: ref}, Spec: v1alpha1.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
+		return "", err
+	}
+	if warm {
+		if err := a.AddWarmPool(v1alpha1.SandboxWarmPool{Metadata: v1alpha1.ObjectMeta{Name: "pool-" + ref}, Spec: v1alpha1.SandboxWarmPoolSpec{TemplateRef: ref, Replicas: 1}}); err != nil {
+			return "", err
+		}
+	} else {
+		a.mu.Lock()
+		a.coldRefs[ref] = true
+		a.mu.Unlock()
+	}
+	return ref, nil
 }
 
 // AddTemplate creates an upstream SandboxTemplate CRD from an Agenova template.
@@ -101,6 +142,8 @@ func (a *SpikeAdapter) AddTemplate(template v1alpha1.AgentSandboxTemplate) error
 		Kind:       kindSandboxTemplate,
 		Metadata:   upstreamMeta{Name: upstreamName, Namespace: a.namespace},
 		Spec: upstreamSandboxTemplateSpec{
+			NetworkPolicy:           &upstreamNetworkPolicy{},
+			NetworkPolicyManagement: "Managed",
 			PodTemplate: upstreamPodTemplate{
 				Spec: upstreamPodSpec{
 					Containers: []upstreamContainer{
@@ -401,7 +444,7 @@ func (a *SpikeAdapter) PoolStatus(name string) (v1alpha1.SandboxWarmPoolStatus, 
 // --- helpers ---
 
 // claimManifest renders the upstream SandboxClaim for one Agenova claim.
-func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry) ([]byte, error) {
+func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry, expiry ...time.Time) ([]byte, error) {
 	ttl := int32(300) // 5-minute spike TTL; real production would read from claim input.
 	obj := upstreamSandboxClaim{
 		APIVersion: apiVersionExtensions,
@@ -415,6 +458,9 @@ func (a *SpikeAdapter) claimManifest(upstreamClaimName string, pool poolEntry) (
 				TTLSecondsAfterFinished: &ttl,
 			},
 		},
+	}
+	if len(expiry) > 0 && !expiry[0].IsZero() {
+		obj.Spec.Lifecycle.ShutdownTime = expiry[0].UTC().Format(time.RFC3339Nano)
 	}
 	manifest, err := json.Marshal(obj)
 	if err != nil {

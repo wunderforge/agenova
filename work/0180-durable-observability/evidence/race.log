@@ -1,0 +1,6 @@
+?   	github.com/wunderforge/agenova/internal/history	[no test files]
+ok  	github.com/wunderforge/agenova/internal/history/sqlite	(cached)
+ok  	github.com/wunderforge/agenova/internal/facts	(cached)
+ok  	github.com/wunderforge/agenova/internal/console	(cached)
+ok  	github.com/wunderforge/agenova/internal/telemetry	(cached)
+ok  	github.com/wunderforge/agenova/internal/connectedclient	(cached)

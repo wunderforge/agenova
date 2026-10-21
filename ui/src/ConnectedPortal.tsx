@@ -1,8 +1,8 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation } from './contracts.generated';
-import { connectedSource, suggestedProjects, workStatus, workTitle, type Setup, type View } from './connected-source';
+import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
+import { connectedSource, suggestedProjects, workStatus, workTitle, traceURL, type HistoryPage, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions } from './worker-activity-model';
@@ -11,6 +11,8 @@ import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { maxWorkName } from './work-name';
+import { WorkOverview } from './WorkOverview';
+import { WorkActivityChart } from './WorkActivityChart';
 
 const link = (path: string) => `#/${path}`;
 const workLink = (work: View) => `work/${encodeURIComponent(work.requestRef)}`;
@@ -33,8 +35,9 @@ function Heading({ title, subtitle, action }: { title: string; subtitle?: string
     <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}
   </div>;
 }
-function Access({ value, runtime }: {
+function Access({ value, runtime, networkRecorded = false, requested = false }: {
   value?: ClaimRequestedAccess | EffectiveAuthority | null; runtime?: string;
+  networkRecorded?: boolean; requested?: boolean;
 }) {
   if (!value) return <p>No authority was issued.</p>;
   return <div className="portal-access-fields">
@@ -42,6 +45,8 @@ function Access({ value, runtime }: {
     <Field label="Tools" value={<Chips values={value.tools}/>}/>
     <Field label="Model profile" value={value.modelProfile || 'None'}/>
     <Field label="Memory scope" value={<Chips values={value.memoryScopes}/>}/>
+    <Field label="Network profiles" value={value.networkProfiles?.length ? <Chips values={value.networkProfiles}/>
+      : requested ? 'No public network requested' : networkRecorded ? 'No public network granted' : 'Not recorded; runtime boundary unknown'}/>
     <Field label="Runtime" value={runtime}/>
   </div>;
 }
@@ -75,8 +80,11 @@ function WorkList({ works }: { works: View[] }) {
   const shown = works.filter(work => (filter === 'All' || workStatus(work) === filter) &&
     `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
-    <Heading title="Work" subtitle="Current-session requests and results."
+    <Heading title="Work" subtitle="Requests, outcomes, and the evidence behind them."
       action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
+    <a href={link('history')}>Browse durable history</a>
+    <WorkOverview statuses={works.map(workStatus)}/>
+    <WorkActivityChart entries={works.map(work => ({ timestamp: work.facts.find(fact => ['RequestReceived', 'RequestResolution'].includes(fact.kind))?.timestamp, status: workStatus(work) }))}/>
     <div className="portal-toolbar">
       <Filters values={['All', 'Running', 'Succeeded', 'Denied', 'Failed', 'Pending']}
         selected={filter} choose={setFilter}/>
@@ -84,31 +92,50 @@ function WorkList({ works }: { works: View[] }) {
         onChange={event => setSearch(event.target.value)}/>
     </div>
     <div className="portal-table-wrap"><table className="portal-table">
-      <thead><tr><th>Work</th><th>Agent</th><th>Last update</th><th>Status</th></tr></thead>
+      <thead><tr><th>Work</th><th>Agent</th><th>Requested by</th><th>Decision</th><th>Last update</th><th>Status</th></tr></thead>
       <tbody>{shown.map(work =>
         <tr key={work.requestRef}>
           <td><a className="portal-work-title" href={link(workLink(work))}>{workTitle(work)}</a>
             <small>{work.state?.principal.team || 'Identity not recorded'}</small></td>
-          <td>{work.request.spec.templateRef}</td><td>{time(work.facts.at(-1)?.timestamp)}</td>
+          <td>{work.request.spec.templateRef}</td><td>{work.state?.principal.subject || 'Not recorded'}</td>
+          <td><Badge value={work.state?.decision.result || 'Pending'}/></td><td>{time(work.facts.at(-1)?.timestamp)}</td>
           <td><Badge value={workStatus(work)}/></td>
         </tr>
       )}</tbody>
     </table>{!shown.length && <p className="portal-empty">
-      {works.length ? 'No work matches this filter.' : 'No work started in this session.'}
+      {works.length ? 'No work matches this filter.' : 'No work recorded yet.'}
     </p>}</div>
   </>;
+}
+function History() {
+ const [cursor, setCursor] = useState('');
+ const [page, setPage] = useState<HistoryPage>();
+ const [error, setError] = useState('');
+ useEffect(() => {
+  const controller = new AbortController(); setPage(undefined); setError('');
+  connectedSource.history(cursor, controller.signal).then(setPage).catch(() => { if (!controller.signal.aborted) setError('History is unavailable.'); });
+  return () => controller.abort();
+ }, [cursor]);
+ return <><Heading title="Work history" subtitle="Stored governance evidence"/>
+  {error && <p role="alert">{error}</p>}
+  <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Status</th><th>Last update</th><th>Diagnosis</th></tr></thead>
+   <tbody>{page?.items.map(item => <tr key={item.requestRef}><td><a href={link(`work/${encodeURIComponent(item.requestRef)}`)}>{item.requestRef}</a></td><td>{item.status === 'Deny' ? 'Denied' : item.status}</td><td>{time(item.updated)}</td><td>{item.status === 'Succeeded' ? '—' : item.diagnosis?.code || '—'}</td></tr>)}</tbody></table></div>
+  {page?.nextCursor && <button className="portal-button" onClick={() => setCursor(page.nextCursor!)}>Next page</button>}
+  {cursor && <button className="portal-button" onClick={() => setCursor('')}>Newest work</button>}
+ </>;
 }
 function WorkDetail({ work }: { work: View }) {
   const state = work.state;
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
-  const ended = !!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase);
+  const ended = !!work.recovery || (!!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase));
+ const correlation = traceURL(work.traceId);
   const latestFacts = [...work.facts].reverse();
   const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
     !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
-  const summary = status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
+  const summary = work.recovery ? 'Execution interrupted by service restart' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
   return <>
@@ -122,7 +149,7 @@ function WorkDetail({ work }: { work: View }) {
       <Field label="Requested by" value={state?.principal.subject}/>
     </div>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
-    <WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
+    {work.diagnosis && <p role="status">{work.diagnosis.stage}: {work.diagnosis.code}</p>}{correlation ? <a href={correlation} target="_blank" rel="noreferrer">Open trace in Grafana</a> : <p className="portal-source-note">Trace unavailable</p>}<WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
       authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
@@ -142,9 +169,10 @@ function WorkDetail({ work }: { work: View }) {
           href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
         } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
-          ? state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
+          ? !ended && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
         <Access value={state?.effectiveAuthority}
+          networkRecorded={work.facts.some(fact => fact.operation === 'NetworkActive')}
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
         <div className="portal-card-links">
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
@@ -185,10 +213,12 @@ function WorkAccess({ work }: { work: View }) {
     <div className="portal-comparison">
       <section className="portal-compare-side"><h2>Requested</h2>
         <Access value={work.request.spec.requestedAccess}
+          requested
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
       </section>
       <section className="portal-compare-side"><h2>Granted</h2>
         <Access value={effective}
+          networkRecorded={work.facts.some(fact => fact.operation === 'NetworkActive')}
           runtime={effective ? `${effective.runtime.profileRef} · ${effective.runtime.timeout}` : undefined}/>
       </section>
     </div>
@@ -224,6 +254,7 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
         </div>
         {fact.effectiveAuthority && <><h3>Effective authority at resolution</h3>
           <Access value={fact.effectiveAuthority}
+            networkRecorded={work.facts.some(record => record.operation === 'NetworkActive')}
             runtime={`${fact.effectiveAuthority.runtime.profileRef} · ${fact.effectiveAuthority.runtime.timeout}`}/>
         </>}
         {!!fact.authorityChanges?.length && <div className="portal-table-wrap"><table className="portal-table">
@@ -339,6 +370,7 @@ function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Set
         requestedAccess: {
           tools, resourceScopes: scopes('scopes'),
           modelProfile: String(form.get('model') || ''), memoryScopes: scopes('memory'),
+          ...(form.get('network') ? { networkProfiles: [String(form.get('network'))] } : {}),
         },
         runtime: {
           profileRef: String(form.get('runtime')),
@@ -381,6 +413,11 @@ function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Set
             </label>
           )}</fieldset>
           <label>Resource scopes<input name="scopes" defaultValue={(ceiling?.resourceScopes || []).join(', ')}/></label>
+          <label>Public network access<select name="network" defaultValue="">
+            <option value="">No public network requested</option>
+            {(ceiling?.networkProfiles || []).map(profile => <option key={profile} value={profile}>{profile}</option>)}
+          </select></label>
+          <p className="portal-muted">A network request needs Policy approval. Public-web permits public TCP 443 and DNS, not domain-specific or read-only access.</p>
           <div className="portal-field-row">
             <label>Model profile<select name="model"
               defaultValue={defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>
@@ -418,6 +455,7 @@ function Templates({ setup }: { setup: Setup }) {
       <a className="portal-button" href={link('work/new')}>Start work</a>
       <h3>Template defaults and limits</h3>
       <Field label="Model profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.modelProfiles}/>}/>
+      <Field label="Network profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.networkProfiles}/>}/>
       <Field label="Runtime profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.runtimeProfiles}/>}/>
       <Field label="Tool ceiling" value={<Chips values={setup.template.spec.capabilityCeiling?.tools}/>}/>
       <details className="portal-details"><summary>Show template</summary>
@@ -453,9 +491,10 @@ function Identity({ setup }: { setup: Setup }) {
     </div>
   </section></>;
 }
-export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: () => void }) {
+export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[]; onDemo: () => void; onPrincipal?: (principal: Principal | undefined) => void }) {
   const [revision, setRevision] = useState(0);
   const data = useConnection(parts, revision);
+  useEffect(() => { onPrincipal?.(data.error ? undefined : data.setup?.principal); }, [data.error, data.setup, onPrincipal]);
   const retry = () => setRevision(value => value + 1);
   const section = parts[0] || 'work';
   if (data.loading) {
@@ -485,7 +524,9 @@ export function ConnectedPortal({ parts, onDemo }: { parts: string[]; onDemo: ()
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
       : <WorkDetail key={data.current.requestRef} work={data.current}/>;
-  } else if (section === 'platform') {
+  } else if (section === 'history') {
+ content=<History/>;
+ } else if (section === 'platform') {
     content = <Platform setup={setup} works={data.works} activity={parts[1] === 'activity'}/>;
   } else if (section === 'agents') content = <Templates setup={setup}/>;
   else if (section === 'policy') content = <Policy setup={setup}/>;

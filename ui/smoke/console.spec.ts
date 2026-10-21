@@ -97,6 +97,7 @@ test('console keyboard, focus, semantic structure and source announcements', asy
   // type-ahead for the named option instead of assuming a popup cursor index.
   await page.keyboard.press('l');
   await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\?scenario=loading$/);
   await expect(select).toHaveValue('loading');
   await expect(page.getByRole('heading', { name: 'Loading evidence' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"][aria-busy="true"]')).toHaveCount(1);

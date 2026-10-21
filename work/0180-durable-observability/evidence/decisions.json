@@ -1,0 +1,22 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "__name__": "agenova_governance_decisions_total",
+          "component": "admission",
+          "decision": "Deny",
+          "exported_job": "agenova-control-plane",
+          "instance": "agenova-otel:8889",
+          "job": "agenova"
+        },
+        "value": [
+          1792460516.337,
+          "1"
+        ]
+      }
+    ]
+  }
+}

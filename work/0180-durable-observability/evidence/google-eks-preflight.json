@@ -1,0 +1,25 @@
+{
+  "capturedAtUTC": "2026-10-20T04:14:28.976270+00:00",
+  "cluster": "agenova-demo",
+  "currentApprovedAccounts": {
+    "owner": 1,
+    "platformAdmins": 4
+  },
+  "grafanaInstalled": false,
+  "storageClasses": [
+    "gp2"
+  ],
+  "installedCSIDrivers": [
+    "efs.csi.aws.com"
+  ],
+  "vpcCNI": {
+    "networkPolicyEnabled": true,
+    "enforcingMode": "strict"
+  },
+  "requestedEntry": "https://app.agenova.app/grafana/",
+  "deploymentApplied": false,
+  "blocker": "supported persistent volume provisioning and explicit budget/permissions required",
+  "newOAuthClientRequired": false,
+  "newLoadBalancerRequired": false,
+  "plannedGrafanaVolumeGiB": 2
+}

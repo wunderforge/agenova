@@ -3,7 +3,10 @@
 
 package policy
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseEmptyDefaultDenyRulesAsCollection(t *testing.T) {
 	bundle, err := ParseDocumentYAML([]byte("apiVersion: agenova.io/v1alpha1\nkind: PolicyBundle\nmetadata:\n  name: empty\n  version: '1'\nspec:\n  rules: []\n"))
@@ -37,5 +40,75 @@ spec:
 		if _, err := ParseDocumentYAML(invalid); err == nil {
 			t.Fatalf("invalid PolicyBundle accepted: %q", invalid)
 		}
+	}
+}
+
+func TestReferencePolicySelectsUserSpecificCaps(t *testing.T) {
+	bundle, err := ParseDocumentYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: demo
+  version: "2"
+spec:
+  rules:
+    - subject: user:alice
+      team: team-a
+      action: claim.create
+      project: payments
+      templateRef: engineer
+      constraints:
+        tools:
+          values: [git.read]
+    - subject: user:bob
+      team: team-a
+      action: claim.create
+      project: payments
+      templateRef: engineer
+      constraints:
+        tools:
+          values: [git.read, git.write]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluator, err := NewReferenceEvaluator(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	context := validEvaluationContext()
+	for subject, want := range map[string]int{"user:alice": 1, "user:bob": 2} {
+		context.Principal.Subject = subject
+		result, err := evaluator.Evaluate(context)
+		if err != nil || result.Decision != DecisionAllow || result.Constraints == nil || len(result.Constraints.Tools.Values) != want {
+			t.Fatalf("%s: %+v, %v", subject, result, err)
+		}
+	}
+	context.Principal.Subject = "user:other"
+	result, err := evaluator.Evaluate(context)
+	if err != nil || result.Decision != DecisionDeny {
+		t.Fatalf("unmatched subject: %+v, %v", result, err)
+	}
+}
+
+func TestParsePolicyTimeoutCap(t *testing.T) {
+	bundle, err := ParseDocumentYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata:
+  name: demo
+  version: "3"
+spec:
+  rules:
+    - team: team-a
+      action: claim.create
+      project: payments
+      templateRef: engineer
+      constraints:
+        maxTimeout: 5m
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bundle.Rules[0].Constraints == nil || bundle.Rules[0].Constraints.MaxTimeout == nil || *bundle.Rules[0].Constraints.MaxTimeout != 5*time.Minute {
+		t.Fatalf("timeout cap = %+v", bundle.Rules[0].Constraints)
 	}
 }

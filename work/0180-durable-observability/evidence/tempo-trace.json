@@ -1,0 +1,327 @@
+{
+  "batches": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agenova-control-plane"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agenova"
+          },
+          "spans": [
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "waX5MJ83QQE=",
+              "name": "work",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460461721125964",
+              "endTimeUnixNano": "1792460483001871640",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "HJZqff+R6p0=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "worker.execute",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460462346927798",
+              "endTimeUnixNano": "1792460482608327098",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "DnzWrfXowHs=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "model.invoke",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460475676448971",
+              "endTimeUnixNano": "1792460482586450516",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                },
+                {
+                  "key": "agenova.invocation.id",
+                  "value": {
+                    "stringValue": "inv-12c20438ca1e555dc224b1818d951f01"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "bFBOWJ0i2E0=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "runtime.terminate",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460482611028251",
+              "endTimeUnixNano": "1792460482844732585",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "sd4cGKVaEoU=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "runtime.cleanup",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460482846312668",
+              "endTimeUnixNano": "1792460482996836168",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agenova-control-plane"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agenova"
+          },
+          "spans": [
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "AZbki6vIMYs=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "admission",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460461721135881",
+              "endTimeUnixNano": "1792460461801057006",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "uNo+VVBwAxU=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "runtime.allocate",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460461964759172",
+              "endTimeUnixNano": "1792460462030986964",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "jCQs7hmpGWs=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "runtime.observe",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460462032220131",
+              "endTimeUnixNano": "1792460462089147881",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agenova-control-plane"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agenova"
+          },
+          "spans": [
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "5DALif/9BsE=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "runtime.start",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460462090530047",
+              "endTimeUnixNano": "1792460462345423881",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agenova-control-plane"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agenova"
+          },
+          "spans": [
+            {
+              "traceId": "MPPrq+ljcX6gI7T07+A3+w==",
+              "spanId": "aLWKhaADPOk=",
+              "parentSpanId": "waX5MJ83QQE=",
+              "name": "model.invoke",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1792460462459460714",
+              "endTimeUnixNano": "1792460475659878512",
+              "attributes": [
+                {
+                  "key": "agenova.request.ref",
+                  "value": {
+                    "stringValue": "obs-success-mvg0ofx1"
+                  }
+                },
+                {
+                  "key": "agenova.claim.id",
+                  "value": {
+                    "stringValue": "claim:obs-success-mvg0ofx1:issuance:cf652fa4003cae91d822613ce015579a"
+                  }
+                },
+                {
+                  "key": "agenova.invocation.id",
+                  "value": {
+                    "stringValue": "inv-0a0170bc00c44b5d1d141c718916e4f0"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -27,10 +27,13 @@ import (
 	"github.com/wunderforge/agenova/internal/app"
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/history"
+	sqlstore "github.com/wunderforge/agenova/internal/history/sqlite"
 	"github.com/wunderforge/agenova/internal/platform"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime/agentsandbox"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"github.com/wunderforge/agenova/internal/workstore"
@@ -88,7 +91,11 @@ func serve() error {
 	}
 	defer configured.Close()
 	var workHandler http.Handler = console.Handler(configured)
-	statusHandler := handler()
+	if members == nil && os.Getenv("AGENOVA_EVIDENCE_PATH") != "" {
+		source, _ := app.NewReferencePrincipalSource(app.ReferencePrincipalTeamA)
+		workHandler = console.HandlerWithReadBoundary(configured, console.ReadBoundary{Viewer: func(*http.Request) (v0.Principal, error) { return source.Principal(), nil }, Authorizer: history.AuthorizerFunc(func(_ context.Context, p v0.Principal, a history.Admission) bool { return p == a.Principal })})
+	}
+	var statusHandler http.Handler = handler()
 	if members != nil {
 		workHandler, err = members.handler(configured)
 		if err != nil {
@@ -96,6 +103,14 @@ func serve() error {
 		}
 		statusHandler = memberStatusHandler() // Kubelet readiness stays reachable; metadata is loopback-only.
 	}
+	baseStatus := statusHandler
+	statusHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" && !configured.Ready() {
+			http.Error(w, "evidence storage unavailable", 503)
+			return
+		}
+		baseStatus.ServeHTTP(w, r)
+	})
 	// The authenticated listener is behind a same-host TLS reverse proxy. Neither
 	// the reference API nor an unauthenticated private-command bypass is started.
 	private := &http.Server{Addr: "127.0.0.1:8081", Handler: workHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
@@ -187,15 +202,12 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	if tools != nil {
 		toolStatus = "configured"
 	}
-	compatibleWorkerImage := strings.TrimSpace(os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE"))
-	if compatibleWorkerImage == "" {
-		return nil, fmt.Errorf("installed runtime compatible worker image is missing")
-	}
 	if err := setInClusterKubeconfig(); err != nil {
 		return nil, err
 	}
 	store := registration.KubernetesStore{Namespace: namespace}
 	runtimeNamespace := ""
+	networkPolicyMode := ""
 	adapterIDs := map[string]string{}
 	for _, adapter := range resolved.Adapters {
 		adapterIDs[adapter.Name] = adapter.ID
@@ -214,6 +226,7 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			return nil, fmt.Errorf("unsupported runtime connection")
 		}
 		runtimeNamespace, _ = connection["namespace"].(string)
+		networkPolicyMode, _ = instance.Config["network-policy-mode"].(string)
 	}
 	if runtimeCount != 1 || runtimeNamespace == "" || runtimeNamespace == "default" {
 		return nil, fmt.Errorf("installed runtime namespace is invalid")
@@ -222,6 +235,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 		return nil, fmt.Errorf("reference runtime namespace must match the installed Control Plane namespace")
 	}
 	adapter := agentsandbox.NewControlled("", runtimeNamespace)
+	if networkPolicyMode != "" {
+		if err := adapter.ConfigureNetworkIsolation(networkPolicyMode); err != nil {
+			return nil, fmt.Errorf("runtime network policy mode is unsupported: %w", err)
+		}
+	}
 	modelProfiles := map[string]string{}
 	for _, profile := range resolved.Profiles {
 		if profile.Capability == platform.CapabilityModel {
@@ -250,7 +268,42 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	} else {
 		preset = "" // Authenticated mode cannot select a fixed reference identity.
 	}
+	var repository history.Repository
+	if path := os.Getenv("AGENOVA_EVIDENCE_PATH"); path != "" && durable == nil && access == nil {
+		repository, err = sqlstore.Open(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	endpoint := ""
+	for _, instance := range resolved.Instances {
+		if instance.Category == platform.CapabilityTelemetry {
+			if adapterIDs[instance.AdapterRef] != bundled.OTLPAdapterID {
+				if repository != nil {
+					repository.Close()
+				}
+				return nil, errors.New("unsupported telemetry adapter")
+			}
+			endpoint, _ = instance.Config["endpoint"].(string)
+		}
+	}
+	diagnostic, err := telemetry.New(context.Background(), endpoint)
+	if err != nil {
+		if repository != nil {
+			repository.Close()
+		}
+		return nil, err
+	}
+	closeResources := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		diagnostic.Shutdown(ctx)
+		if repository != nil {
+			repository.Close()
+		}
+	}
 	options := console.Options{
+		Repository: repository, Revision: resolved.Revision, Telemetry: diagnostic, OnClose: closeResources,
 		ToolBackend: tools,
 		Setup: func() (console.Setup, error) {
 			bundle, err := store.ActivePolicy()
@@ -307,23 +360,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			return prepared, nil
 		},
 		Configure: func(template *v0.AgentTemplate) (app.ResolvedLaunch, error) {
-			if template == nil || template.Spec.Artifact == nil || template.Spec.Entrypoint == nil {
-				return app.ResolvedLaunch{}, fmt.Errorf("registered template is incomplete")
-			}
-			if err := requireCompatibleWorkerImage(template.Spec.Artifact.Image, compatibleWorkerImage); err != nil {
+			if err := app.ValidateControlledTemplate(template); err != nil {
 				return app.ResolvedLaunch{}, err
 			}
-			if len(template.Spec.Entrypoint.Command) != 2 || template.Spec.Entrypoint.Command[0] != "/agenova-workerctl" || template.Spec.Entrypoint.Command[1] != "serve" {
-				return app.ResolvedLaunch{}, fmt.Errorf("reference runtime requires a controlled-worker entrypoint")
-			}
-			name := template.Metadata.Name
-			if err := adapter.AddTemplate(v0.AgentSandboxTemplate{Metadata: v0.ObjectMeta{Name: name}, Spec: v0.AgentSandboxTemplateSpec{Image: template.Spec.Artifact.Image, Command: template.Spec.Entrypoint.Command}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			if err := adapter.AddWarmPool(v0.SandboxWarmPool{Metadata: v0.ObjectMeta{Name: "pool-" + name}, Spec: v0.SandboxWarmPoolSpec{TemplateRef: name, Replicas: 1}}); err != nil {
-				return app.ResolvedLaunch{}, err
-			}
-			return app.ResolvedLaunch{TemplateRef: name}, nil
+			ref, err := adapter.ConfigureAgentTemplate(template)
+			return app.ResolvedLaunch{TemplateRef: ref}, err
 		},
 	}
 	if memberStore, ok := access.(identitydb.Store); ok {
@@ -395,7 +436,11 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 		options.PrepareFor = nil
 		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return prepare(data, setupPrincipal) }
 	}
-	return console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
+	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
+	if err != nil {
+		closeResources()
+	}
+	return configured, err
 }
 
 type requestPrincipal struct{ value v0.Principal }
@@ -428,19 +473,6 @@ func validateInstalledAuthority(authority *v0.EffectiveAuthority, models map[str
 	}
 	if len(authority.MemoryScopes) != 0 {
 		return &console.SubmissionError{Code: "memory_unsupported", Message: "Granted memory scope is not supported by the installed Memory Interface; narrow the template or install a compatible interface."}
-	}
-	return nil
-}
-
-// The installed runtime declares one worker artifact implementing the
-// controlled-worker protocol. A template cannot redirect that protocol to an
-// arbitrary image merely by declaring the expected entrypoint command.
-func requireCompatibleWorkerImage(image, allowed string) error {
-	if allowed == "" {
-		return fmt.Errorf("installed runtime compatible worker image is missing")
-	}
-	if image != allowed {
-		return fmt.Errorf("registered template image does not match the installed runtime compatible worker image")
 	}
 	return nil
 }

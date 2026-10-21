@@ -1,0 +1,1 @@
+SYNTHETIC MOCK: attempt 1 upstream latency=4s; retry backoff=2s; attempt 2 started after total deadline=5s; final timeout at 10s. No idempotency key was reused.

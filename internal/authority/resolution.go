@@ -13,6 +13,7 @@ import (
 
 	v1alpha1 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authorization"
+	"github.com/wunderforge/agenova/internal/policy"
 )
 
 // Resolution is an internal proof that #28 resolved authority for one full
@@ -45,22 +46,33 @@ func ResolveForIssuance(request *v1alpha1.ClaimRequest, template *v1alpha1.Agent
 		return nil, invalid("$", "request could not be losslessly encoded for authority binding")
 	}
 	changes := []Change{}
+	caps := admission.Constraints()
 	for _, dimension := range []struct {
 		field                string
 		requested, effective []string
+		cap                  *policy.StringSetConstraint
 	}{
-		{"tools", request.Spec.RequestedAccess.Tools, resolved.Tools},
-		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, resolved.ResourceScopes},
-		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, resolved.MemoryScopes},
+		{"tools", request.Spec.RequestedAccess.Tools, resolved.Tools, capSet(caps, "tools")},
+		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, resolved.ResourceScopes, capSet(caps, "resources")},
+		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, resolved.MemoryScopes, capSet(caps, "memory")},
+		{"networkProfiles", request.Spec.RequestedAccess.NetworkProfiles, resolved.NetworkProfiles, capSet(caps, "network")},
 	} {
 		for _, value := range dimension.requested {
 			if !contains(dimension.effective, value) {
-				changes = append(changes, Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+				reason := "outside-template-ceiling"
+				if dimension.cap != nil && !contains(dimension.cap.Values, value) {
+					reason = "outside-policy-constraint"
+				}
+				changes = append(changes, Change{Field: dimension.field, Requested: value, ReasonCode: reason})
 			}
 		}
 	}
 	if *request.Spec.Runtime.Timeout != resolved.Runtime.Timeout {
-		changes = append(changes, Change{Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(), Effective: time.Duration(resolved.Runtime.Timeout).String(), ReasonCode: "template-timeout-cap"})
+		reason := "template-timeout-cap"
+		if caps != nil && caps.MaxTimeout != nil && *caps.MaxTimeout <= time.Duration(resolved.Runtime.Timeout) {
+			reason = "policy-timeout-cap"
+		}
+		changes = append(changes, Change{Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(), Effective: time.Duration(resolved.Runtime.Timeout).String(), ReasonCode: reason})
 	}
 	return &Resolution{requestDigest: digest, authority: resolved, changes: changes}, nil
 }
@@ -87,6 +99,7 @@ func (r *Resolution) AuthorityFor(request *v1alpha1.ClaimRequest) (*v1alpha1.Eff
 	copy.Tools = append([]string(nil), r.authority.Tools...)
 	copy.ResourceScopes = append([]string(nil), r.authority.ResourceScopes...)
 	copy.MemoryScopes = append([]string(nil), r.authority.MemoryScopes...)
+	copy.NetworkProfiles = append([]string(nil), r.authority.NetworkProfiles...)
 	return &copy, true
 }
 

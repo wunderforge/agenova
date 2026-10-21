@@ -2,6 +2,14 @@
 
 This guide covers the reference CLI flow and the optional local React view. The same installed service stores and returns Work; it does not start a separate `agenova-console`.
 
+> Network-authority upgrade (#243): the historical kind flow below is not proof
+> of startup isolation. Governed Work now requires a verified startup-isolating
+> CNI and an explicit runtime `network-policy-mode: strict` declaration. Plain
+> kind networking must not be assumed to enforce NetworkPolicy. Installation
+> may still succeed while Work fails closed on this missing prerequisite; see
+> [network authority and upgrade requirements](development/network-authority.md).
+> Do not add the declaration just to bypass the check.
+
 ## One-command macOS path
 
 On an Intel or Apple Silicon Mac, run these commands from the repository root:

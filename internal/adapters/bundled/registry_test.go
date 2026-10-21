@@ -112,8 +112,7 @@ func TestBundledCanonicalizersFailClosed(t *testing.T) {
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://user:secret@example.invalid/v1"}, "invalid-endpoint"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "https://models.example/v1?api_key=hidden"}, "invalid-endpoint"},
 		{OpenAICompatibleModelID, platform.CapabilityModel, map[string]any{"endpoint": "http://ollama.agenova-models.svc.cluster.local:11434/v1"}, "unsupported-endpoint"},
-		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}}, "compatible-worker-image"},
-		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}, "compatible-worker-image": "busybox:latest"}, "unsupported-worker-image"},
+		{AgentSandboxRuntimeID, platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}, "compatible-worker-protocol": "unknown"}, "unsupported-worker-protocol"},
 	}
 	for _, test := range tests {
 		descriptor, ok := registry.Lookup(test.id, ReferenceVersion)
@@ -165,7 +164,7 @@ func mustInit(t *testing.T, lifecycle *adapterregistry.Lifecycle, id, name strin
 	return fragment
 }
 
-func TestRemoteWorkerRequiresDigestAndExplicitProtocol(t *testing.T) {
+func TestLegacyWorkerImageDoesNotConstrainTemplates(t *testing.T) {
 	image := "registry.example/agenova/worker@sha256:" + strings.Repeat("a", 64)
 	for _, tc := range []struct {
 		image    string
@@ -173,10 +172,9 @@ func TestRemoteWorkerRequiresDigestAndExplicitProtocol(t *testing.T) {
 		valid    bool
 	}{
 		{image, "controlled-v1", true},
-		{image, nil, false},
+		{image, nil, true},
 		{image, "arbitrary-v1", false},
-		{"registry.example/agenova/worker:latest", "controlled-v1", false},
-		{"https://registry.example/worker@sha256:" + strings.Repeat("a", 64), "controlled-v1", false},
+		{"registry.example/agenova/worker:latest", "controlled-v1", true},
 		{referenceControlledWorkerImage, nil, true},
 	} {
 		config := map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "agenova-system"}, "compatible-worker-image": tc.image}
@@ -190,6 +188,9 @@ func TestRemoteWorkerRequiresDigestAndExplicitProtocol(t *testing.T) {
 		if tc.valid && got["compatible-worker-image"] != tc.image {
 			t.Fatal("image binding changed")
 		}
+	}
+	if _, err := canonicalizeAgentSandboxInstance(platform.CapabilityRuntime, map[string]any{"connection": map[string]any{"mode": "in-cluster", "namespace": "workers"}}); err != nil {
+		t.Fatalf("image-independent installation rejected: %v", err)
 	}
 }
 

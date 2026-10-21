@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/authority"
 )
+
+func TestClientAcceptsOnlyBoundedPolicyNarrowingReasons(t *testing.T) {
+	request, err := v0.ParseClaimRequestYAML([]byte(`apiVersion: agenova.io/v1alpha1
+kind: ClaimRequest
+metadata: {name: policy-narrowed}
+spec:
+  templateRef: engineer
+  projectRef: payments
+  task: {type: investigation, input: {objective: Inspect payment retries}}
+  requestedAccess: {tools: [git.read, git.write], modelProfile: coding-standard}
+  runtime: {profileRef: standard-isolated, timeout: 5m}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	granted := v0.EffectiveAuthority{Tools: []string{"git.read"}, ModelProfile: "coding-standard", Runtime: v0.EffectiveAuthorityRuntime{ProfileRef: "standard-isolated", Timeout: v0.Duration(2 * time.Minute)}}
+	changes := []authority.Change{{Field: "tools", Requested: "git.write", ReasonCode: "outside-policy-constraint"}, {Field: "runtime.timeout", Requested: "5m0s", Effective: "2m0s", ReasonCode: "policy-timeout-cap"}}
+	if !validAuthorityChanges(request, granted, changes) {
+		t.Fatal("valid Policy-bounded authority provenance was rejected")
+	}
+	for _, mutate := range []func([]authority.Change){
+		func(c []authority.Change) { c[0].ReasonCode = "grant-by-request" },
+		func(c []authority.Change) { c[1].Effective = "5m0s" },
+		func(c []authority.Change) { c[1].ReasonCode = "outside-policy-constraint" },
+	} {
+		bad := append([]authority.Change(nil), changes...)
+		mutate(bad)
+		if validAuthorityChanges(request, granted, bad) {
+			t.Fatalf("invalid authority provenance accepted: %+v", bad)
+		}
+	}
+}
 
 func workFile(t *testing.T, ref string) string {
 	t.Helper()
@@ -1387,6 +1423,26 @@ func TestInstalledAPIDoesNotFollowRedirects(t *testing.T) {
 	}
 }
 
+func TestRecoveredAdmissionIsReadableWithoutInventingResolvedFacts(t *testing.T) {
+	source := withEvidenceFacts(pendingEvidenceJSON("interrupted"), receivedFact("interrupted"), resolutionFact("interrupted", "Allow"))
+	var view evidence.View
+	if err := json.Unmarshal([]byte(source), &view); err != nil {
+		t.Fatal(err)
+	}
+	view.State.Evidence.RuntimeEvents = nil
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted missing authority proof for active Work")
+	}
+	view.Recovery = &evidence.Recovery{Code: "service-restarted", Cleanup: "Unknown"}
+	if !validEvidenceView(view, "interrupted") {
+		t.Fatal("rejected conservative early crash recovery")
+	}
+	view.Recovery.Code = "caller-supplied"
+	if validEvidenceView(view, "interrupted") {
+		t.Fatal("accepted unknown recovery marker")
+	}
+}
+
 func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.T) {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"tools":["repo.read"],"resourceScopes":["repo:agenova/e16-fixture"]},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
@@ -1429,5 +1485,32 @@ func TestToolInvocationEvidenceKeepsTargetStableAndResultRefSeparate(t *testing.
 		if _, err := decodeView([]byte(invalid), "demo"); err == nil {
 			t.Errorf("%s accepted", name)
 		}
+	}
+}
+
+func TestAuthenticatedHistoryUsesTokenAndNeverFollowsRedirect(t *testing.T) {
+	calls := 0
+	redirected := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("history token followed redirect") }))
+	defer redirected.Close()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer history-test-token" || r.URL.Path != "/api/history" || r.URL.Query().Get("limit") != "20" {
+			t.Error("history bypassed authenticated API")
+		}
+		if calls == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"items":[],"nextCursor":"%s"}`, strings.Repeat("a", 300))
+			return
+		}
+		http.Redirect(w, r, redirected.URL, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	client := Client{Server: server.URL, HTTPClient: server.Client(), AccessToken: func(context.Context) (string, error) { return "history-test-token", nil }}
+	page, err := client.History(20, "")
+	if err != nil || len(page.NextCursor) != 300 {
+		t.Fatal("authenticated cursor rejected", err)
+	}
+	if _, err := client.History(20, page.NextCursor); err == nil {
+		t.Fatal("history redirect accepted")
 	}
 }

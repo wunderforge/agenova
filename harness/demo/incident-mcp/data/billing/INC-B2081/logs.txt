@@ -1,0 +1,5 @@
+SYNTHETIC DEMO DATA — not customer or production records.
+2026-10-20T09:00:00Z incident=INC-B2081 service=billing job=demo-run-1 cycle=2026-10 customer=demo-c7 state=started
+2026-10-20T09:01:00Z incident=INC-B2081 job=demo-run-2 cycle=2026-10 customer=demo-c7 state=started previous_job=running
+2026-10-20T09:01:20Z incident=INC-B2081 job=demo-run-1 invoice=demo-inv-a cycle=2026-10 customer=demo-c7 state=inserted
+2026-10-20T09:02:20Z incident=INC-B2081 job=demo-run-2 invoice=demo-inv-b cycle=2026-10 customer=demo-c7 state=inserted

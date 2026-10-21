@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,18 +19,24 @@ import (
 // lifecycle and resource operations without turning backend readiness or
 // cleanup into a claim outcome.
 const (
-	EventAllocationFailed = "AllocationFailed"
-	EventBound            = "Bound"
-	EventBackendReady     = "BackendReady"
-	EventStartFailed      = "StartFailed"
-	EventRunning          = "Running"
-	EventSucceeded        = "Succeeded"
-	EventFailed           = "Failed"
-	EventExpired          = "Expired"
-	EventTerminateOK      = "TerminateSucceeded"
-	EventTerminateFailed  = "TerminateFailed"
-	EventCleanupOK        = "CleanupSucceeded"
-	EventCleanupFailed    = "CleanupFailed"
+	EventAllocationFailed         = "AllocationFailed"
+	EventBound                    = "Bound"
+	EventBackendReady             = "BackendReady"
+	EventStartFailed              = "StartFailed"
+	EventRunning                  = "Running"
+	EventSucceeded                = "Succeeded"
+	EventFailed                   = "Failed"
+	EventExpired                  = "Expired"
+	EventTerminateOK              = "TerminateSucceeded"
+	EventTerminateFailed          = "TerminateFailed"
+	EventCleanupOK                = "CleanupSucceeded"
+	EventCleanupFailed            = "CleanupFailed"
+	EventNetworkActivationAttempt = "NetworkActivationAttempt"
+	EventNetworkActive            = "NetworkActive"
+	EventNetworkActivationFailed  = "NetworkActivationFailed"
+	EventNetworkRevocationAttempt = "NetworkRevocationAttempt"
+	EventNetworkRevoked           = "NetworkRevoked"
+	EventNetworkRevocationFailed  = "NetworkRevocationFailed"
 )
 
 var (
@@ -47,6 +54,18 @@ var (
 // RunService revokes authority immediately on interruption, then joins work
 // before cleanup and final outcome publication.
 type WorkFunc func(context.Context) error
+
+type runDeadlineKey struct{}
+
+// WorkDeadline is the authoritative deadline supplied only to the trusted
+// in-process work callback. It is not a caller-supplied claim field.
+func WorkDeadline(ctx context.Context) (time.Time, bool) {
+	if ctx == nil {
+		return time.Time{}, false
+	}
+	deadline, ok := ctx.Value(runDeadlineKey{}).(time.Time)
+	return deadline, ok && !deadline.IsZero()
+}
 
 // ClaimReader is the application-owned lifecycle view used by governed
 // interfaces. Implementations return defensive public claim snapshots; they
@@ -141,10 +160,12 @@ type RunService struct {
 	poll    time.Duration
 	onEvent func(*v1alpha1.IssuedState, string) error
 
-	runMu         sync.Mutex
-	mu            sync.RWMutex
-	state         map[string]*v1alpha1.IssuedState
-	identityOwner map[v1alpha1.SandboxClaimBackendIdentity]string
+	runMu            sync.Mutex
+	mu               sync.RWMutex
+	state            map[string]*v1alpha1.IssuedState
+	identityOwner    map[v1alpha1.SandboxClaimBackendIdentity]string
+	networkAuthority map[string]runtime.NetworkAuthority
+	networkRevoked   map[string]bool
 }
 
 var _ ClaimReader = (*RunService)(nil)
@@ -172,14 +193,16 @@ func NewRunService(backend runtime.RuntimeBackend, options RunServiceOptions) (*
 		poll = 10 * time.Millisecond
 	}
 	return &RunService{
-		backend:       backend,
-		now:           now,
-		wait:          wait,
-		after:         after,
-		poll:          poll,
-		onEvent:       options.OnEvent,
-		state:         make(map[string]*v1alpha1.IssuedState),
-		identityOwner: make(map[v1alpha1.SandboxClaimBackendIdentity]string),
+		backend:          backend,
+		now:              now,
+		wait:             wait,
+		after:            after,
+		poll:             poll,
+		onEvent:          options.OnEvent,
+		state:            make(map[string]*v1alpha1.IssuedState),
+		identityOwner:    make(map[v1alpha1.SandboxClaimBackendIdentity]string),
+		networkAuthority: make(map[string]runtime.NetworkAuthority),
+		networkRevoked:   make(map[string]bool),
 	}, nil
 }
 
@@ -271,6 +294,12 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		return s.current(claimID), err
 	}
 	deadline := s.now().Add(time.Duration(initial.EffectiveAuthority.Runtime.Timeout))
+	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
+		deadline = callerDeadline
+	}
+	s.mu.Lock()
+	s.networkAuthority[claimID] = runtime.NetworkAuthority{Profiles: append([]string(nil), initial.EffectiveAuthority.NetworkProfiles...), ExpiresAt: deadline}
+	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return interrupted()
 	}
@@ -282,6 +311,10 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		ClaimID:     claimID,
 		TemplateRef: launch.TemplateRef,
 		Input:       cloneStringMap(launch.Input),
+		Network:     runtime.NetworkAuthority{Profiles: append([]string(nil), initial.EffectiveAuthority.NetworkProfiles...), ExpiresAt: deadline},
+	}
+	if _, supported := s.backend.(runtime.NetworkBackend); !supported {
+		return s.finishWithoutIdentity(claimID, v1alpha1.ClaimPhaseFailed, EventAllocationFailed, fmt.Errorf("%w: network enforcement unavailable", runtime.ErrUnsupported))
 	}
 	allocation, allocateErr := s.backend.Allocate(allocateRequest)
 	if s.deadlineReached(deadline) {
@@ -314,6 +347,21 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		}
 		state, err := s.finish(claimID, v1alpha1.ClaimPhaseFailed, "Cancelled", ctx.Err())
 		return s.teardown(state, identity, err)
+	}
+	// Durable callbacks may block long enough for the request to be revoked or
+	// expire. Successful persistence is not a fresh eligibility check: recheck
+	// immediately after those writes and before granting or dispatching work.
+	stopIfInterrupted := func() (*v1alpha1.IssuedState, error, bool) {
+		if ctx.Err() != nil {
+			state, err := cancelled()
+			return state, err, true
+		}
+		if s.deadlineReached(deadline) {
+			state, err := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+			state, err = s.teardown(state, identity, err)
+			return state, err, true
+		}
+		return nil, nil, false
 	}
 
 	for {
@@ -373,9 +421,58 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 		state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventFailed, err)
 		return s.teardown(state, identity, transitionErr)
 	}
+	if state, err, interrupted := stopIfInterrupted(); interrupted {
+		return state, err
+	}
+	if network, ok := s.backend.(runtime.NetworkBackend); ok {
+		// Commit the attempt before the side effect. Failure cannot grant even
+		// one connection; cleanup still runs after any ambiguous backend result.
+		err := s.recordEvent(claimID, EventNetworkActivationAttempt)
+		if err == nil {
+			if state, err, interrupted := stopIfInterrupted(); interrupted {
+				return state, err
+			}
+			// Cancellation must reach the side effect itself, not merely a check
+			// before entering an adapter that may block. Bound activation to the
+			// same remaining Work lifetime; revocation deliberately uses no such
+			// context so an expired caller cannot disable safety cleanup.
+			activationCtx, cancelActivation := context.WithTimeout(ctx, deadline.Sub(s.now()))
+			// The real runtime retains this lifetime signal after activation so
+			// cancellation can revoke an already-started process even while a
+			// later durable write is blocked. End it only after Run's teardown.
+			defer cancelActivation()
+			var evidence runtime.NetworkEvidence
+			evidence, err = network.ActivateNetwork(activationCtx, identity)
+			activationContextErr := activationCtx.Err()
+			if state, err, interrupted := stopIfInterrupted(); interrupted {
+				return state, err
+			}
+			if errors.Is(activationContextErr, context.DeadlineExceeded) {
+				state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseExpired, EventExpired, ErrRunDeadline)
+				return s.teardown(state, identity, transitionErr)
+			}
+			if err == nil {
+				err = validateNetworkEvidence(evidence, claimID, identity, "Active", allocateRequest.Network)
+			}
+		}
+		if err == nil {
+			err = s.recordEvent(claimID, EventNetworkActive)
+		}
+		if state, err, interrupted := stopIfInterrupted(); interrupted {
+			return state, err
+		}
+		if err != nil {
+			state, transitionErr := s.finish(claimID, v1alpha1.ClaimPhaseFailed, EventNetworkActivationFailed, err)
+			return s.teardown(state, identity, transitionErr)
+		}
+	}
+	if state, err, interrupted := stopIfInterrupted(); interrupted {
+		return state, err
+	}
 
 	workCtx, cancelWork := context.WithCancel(ctx)
 	defer cancelWork()
+	workCtx = context.WithValue(workCtx, runDeadlineKey{}, deadline)
 	workDone := make(chan error, 1)
 	go func() {
 		workDone <- work(workCtx)
@@ -383,6 +480,9 @@ func (s *RunService) RunContext(ctx context.Context, issued *v1alpha1.IssuedStat
 	stopWork := func(phase v1alpha1.ClaimPhase, event string, cause error) (*v1alpha1.IssuedState, error) {
 		cancelWork()
 		state, transitionErr := s.finish(claimID, phase, event, cause)
+		// Revoke native network authority immediately; cancellation-aware work
+		// may still be waiting on a provider. Joining it is not revocation.
+		transitionErr = errors.Join(transitionErr, s.revokeNetwork(claimID, identity))
 		// A revoked claim cannot authorize more calls. Join cancellation-aware
 		// work so all observed provider outcomes precede cleanup/final outcome.
 		<-workDone
@@ -519,6 +619,9 @@ func (s *RunService) finish(claimID string, phase v1alpha1.ClaimPhase, event str
 func (s *RunService) teardown(state *v1alpha1.IssuedState, identity v1alpha1.SandboxClaimBackendIdentity, cause error) (*v1alpha1.IssuedState, error) {
 	claimID := state.Claim.ID
 	var teardownErrs []error
+	if err := s.revokeNetwork(claimID, identity); err != nil {
+		teardownErrs = append(teardownErrs, err)
+	}
 	if err := s.backend.Terminate(identity); err != nil {
 		teardownErrs = append(teardownErrs, fmt.Errorf("terminate runtime: %w", err))
 		if recordErr := s.recordEvent(claimID, EventTerminateFailed); recordErr != nil {
@@ -546,6 +649,46 @@ func (s *RunService) teardown(state *v1alpha1.IssuedState, identity v1alpha1.San
 		}
 	}
 	return s.current(claimID), errors.Join(append([]error{cause}, teardownErrs...)...)
+}
+
+func (s *RunService) revokeNetwork(claimID string, identity v1alpha1.SandboxClaimBackendIdentity) error {
+	network, ok := s.backend.(runtime.NetworkBackend)
+	if !ok {
+		return nil
+	}
+	s.mu.RLock()
+	alreadyRevoked := s.networkRevoked[claimID]
+	s.mu.RUnlock()
+	if alreadyRevoked {
+		return nil
+	}
+	// A failed evidence write must NOT prevent revocation. Required writes gate
+	// grants, never safety actions.
+	attemptErr := s.recordEvent(claimID, EventNetworkRevocationAttempt)
+	evidence, err := network.RevokeNetwork(identity)
+	s.mu.RLock()
+	expected := s.networkAuthority[claimID]
+	s.mu.RUnlock()
+	if err == nil {
+		err = validateNetworkEvidence(evidence, claimID, identity, "Revoked", expected)
+	}
+	if err == nil {
+		s.mu.Lock()
+		s.networkRevoked[claimID] = true
+		s.mu.Unlock()
+	}
+	event := EventNetworkRevoked
+	if err != nil {
+		event = EventNetworkRevocationFailed
+	}
+	return errors.Join(attemptErr, err, s.recordEvent(claimID, event))
+}
+
+func validateNetworkEvidence(e runtime.NetworkEvidence, claimID string, id v1alpha1.SandboxClaimBackendIdentity, state string, expected runtime.NetworkAuthority) error {
+	if e.ClaimID != claimID || e.Identity != id || e.State != state || !slices.Equal(e.Profiles, expected.Profiles) || !e.ExpiresAt.Equal(expected.ExpiresAt) || (e.EvidenceLevel != "Configured" && e.EvidenceLevel != "Simulated") {
+		return fmt.Errorf("%w: network evidence does not match resolved authority", ErrInvalidRun)
+	}
+	return nil
 }
 
 func (s *RunService) transition(claimID string, to v1alpha1.ClaimPhase, event string, identity *v1alpha1.SandboxClaimBackendIdentity) error {
@@ -666,6 +809,7 @@ func cloneEffectiveAuthority(source v1alpha1.EffectiveAuthority) v1alpha1.Effect
 	copy.Tools = append([]string(nil), source.Tools...)
 	copy.ResourceScopes = append([]string(nil), source.ResourceScopes...)
 	copy.MemoryScopes = append([]string(nil), source.MemoryScopes...)
+	copy.NetworkProfiles = append([]string(nil), source.NetworkProfiles...)
 	return copy
 }
 

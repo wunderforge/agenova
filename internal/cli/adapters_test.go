@@ -26,7 +26,7 @@ func TestAdapterCommandsStableJSONLifecycle(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Adapters) != 5 || catalog.Adapters[0].ID != bundled.KubernetesDeploymentID || catalog.Adapters[1].ID != bundled.BedrockModelID || catalog.Adapters[2].ID != bundled.OpenAICompatibleModelID || catalog.Adapters[3].ID != bundled.AgentSandboxRuntimeID || catalog.Adapters[4].ID != bundled.MCPHTTPToolID {
+	if len(catalog.Adapters) != 6 || catalog.Adapters[0].ID != bundled.KubernetesDeploymentID || catalog.Adapters[1].ID != bundled.BedrockModelID || catalog.Adapters[2].ID != bundled.OpenAICompatibleModelID || catalog.Adapters[3].ID != bundled.AgentSandboxRuntimeID || catalog.Adapters[4].ID != bundled.OTLPAdapterID || catalog.Adapters[5].ID != bundled.MCPHTTPToolID {
 		t.Fatalf("catalog = %#v", catalog.Adapters)
 	}
 
@@ -65,7 +65,6 @@ func TestAdapterInitYAMLIsReviewablePlatformFragment(t *testing.T) {
             - name: primary-runtime
               adapterRef: primary-runtime
               config:
-                compatible-worker-image: agenova-testworker:kind
                 connection:
                     mode: in-cluster
                     namespace: agenova-system

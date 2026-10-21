@@ -19,12 +19,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/authentication/cognito"
 	"github.com/wunderforge/agenova/internal/authentication/googleoidc"
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
 	"github.com/wunderforge/agenova/internal/console"
 	"github.com/wunderforge/agenova/internal/invitations"
+	"github.com/wunderforge/agenova/internal/landing"
 	"github.com/wunderforge/agenova/internal/login"
 	"github.com/wunderforge/agenova/internal/websession"
 	"golang.org/x/oauth2"
@@ -33,17 +35,19 @@ import (
 // Operator configuration contains file references, never plaintext credentials.
 // Its presence selects authenticated mode. Invalid or partial config is fatal.
 type memberConfig struct {
-	RegistrationTeam string `json:"registrationTeam,omitempty"`
-	GoogleOAuthFile  string `json:"googleOAuthFile"`
-	Origin           string `json:"origin"`
-	Issuer           string `json:"issuer"`
-	OAuthOrigin      string `json:"oauthOrigin"`
-	NativeClientID   string `json:"nativeClientId"`
-	WebClientID      string `json:"webClientId"`
-	Scope            string `json:"scope"`
-	DatabaseURLFile  string `json:"databaseUrlFile"`
-	SessionKeyFile   string `json:"sessionKeyFile"`
-	PortalDirectory  string `json:"portalDirectory"`
+	GrafanaURL              string `json:"grafanaURL,omitempty"`
+	TrustLocalProxyClientIP bool   `json:"trustLocalProxyClientIP,omitempty"`
+	RegistrationTeam        string `json:"registrationTeam,omitempty"`
+	GoogleOAuthFile         string `json:"googleOAuthFile"`
+	Origin                  string `json:"origin"`
+	Issuer                  string `json:"issuer"`
+	OAuthOrigin             string `json:"oauthOrigin"`
+	NativeClientID          string `json:"nativeClientId"`
+	WebClientID             string `json:"webClientId"`
+	Scope                   string `json:"scope"`
+	DatabaseURLFile         string `json:"databaseUrlFile"`
+	SessionKeyFile          string `json:"sessionKeyFile"`
+	PortalDirectory         string `json:"portalDirectory"`
 }
 
 func readBoundedFile(path string, limit int64) ([]byte, error) {
@@ -184,7 +188,7 @@ func checkMemberSchema(ctx context.Context, db *sql.DB) error {
 		"SELECT team,project FROM agenova_projects LIMIT 0",
 		"SELECT principal,team,project,role FROM agenova_project_grants LIMIT 0",
 		"SELECT id_hash,payload,expires_at,version FROM agenova_browser_sessions LIMIT 0",
-		"SELECT id_hash,payload,expires_at FROM agenova_login_attempts LIMIT 0",
+		"SELECT id_hash,payload,expires_at,attempt_kind,source_hash FROM agenova_login_attempts LIMIT 0",
 		"SELECT actor,operation,principal FROM agenova_identity_audit LIMIT 0",
 	} {
 		rows, err := db.QueryContext(ctx, query)
@@ -272,6 +276,18 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		return nil, err
 	}
 	mux := http.NewServeMux()
+	if d.config.GrafanaURL != "" {
+		proxy, err := console.GrafanaProxy(d.config.GrafanaURL, d.config.Origin, d.boundary, func(r *http.Request, p v0.Principal) (string, error) {
+			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
+			return d.store.GrafanaRole(r.Context(), p, installation)
+		})
+		if err != nil {
+			return nil, err
+		}
+		mux.Handle("/grafana", proxy)
+		mux.Handle("/grafana/", proxy)
+	}
+
 	invitationService := invitations.Service{Registration: d.config.RegistrationTeam != "", Issuer: d.config.Issuer, Directory: d.directory, Store: d.store, Google: d.google != nil, Origin: d.config.Origin}
 	mux.Handle("/admin", invitations.Page(invitationService, d.boundary))
 	mux.HandleFunc("/members", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin", http.StatusSeeOther) })
@@ -328,11 +344,11 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 		if c.RegistrationTeam != "" {
 			registrar = d.store
 		}
-		return websession.New(websession.Config{Registration: registrar, RegistrationTeam: c.RegistrationTeam, Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+		return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Registration: registrar, RegistrationTeam: c.RegistrationTeam, Origin: c.Origin, Google: d.google, ApplicationSessions: d.store, Invitations: d.store, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux, Landing: landing.New(c.PortalDirectory)})
 	}
 	scopes := []string{"openid", "email", c.Scope}
 	native := login.Config{Issuer: c.Issuer, ClientID: c.NativeClientID, AuthorizationEndpoint: c.OAuthOrigin + "/oauth2/authorize", TokenEndpoint: c.OAuthOrigin + "/oauth2/token", Scopes: scopes, RedirectURI: login.Callback}
-	return websession.New(websession.Config{Origin: c.Origin, Native: native, Web: oauth2.Config{ClientID: c.WebClientID, RedirectURL: c.Origin + "/auth/callback", Scopes: scopes, Endpoint: oauth2.Endpoint{AuthURL: native.AuthorizationEndpoint, TokenURL: native.TokenEndpoint, AuthStyle: oauth2.AuthStyleInParams}}, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux})
+	return websession.New(websession.Config{TrustLocalProxyClientIP: c.TrustLocalProxyClientIP, Origin: c.Origin, Native: native, Web: oauth2.Config{ClientID: c.WebClientID, RedirectURL: c.Origin + "/auth/callback", Scopes: scopes, Endpoint: oauth2.Endpoint{AuthURL: native.AuthorizationEndpoint, TokenURL: native.TokenEndpoint, AuthStyle: oauth2.AuthStyleInParams}}, Store: d.sessions, Boundary: d.boundary, Revoker: d.store, Next: mux, Landing: landing.New(c.PortalDirectory)})
 }
 
 func bootstrapOwnerCommand(args []string) error {
@@ -359,20 +375,15 @@ func bootstrapOwnerCommand(args []string) error {
 	}
 	defer d.db.Close()
 	if d.google != nil {
-		_, proof, err := d.store.ReserveGoogleOwner(context.Background(), owner.Team, invitations.Request{Email: owner.Email, Project: owner.Project, Role: "admin"})
-		if err != nil {
+		if err := validateBootstrapTeam(d.config.RegistrationTeam, owner.Team); err != nil {
 			return err
 		}
-		// Invitation proof goes to a new protected operator file, never stdout/logs.
 		output := args[4] + ".invitation"
-		f, err := os.OpenFile(output, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		err := d.store.DeliverGoogleOwner(context.Background(), owner.Team, invitations.Request{Email: owner.Email, Project: owner.Project, Role: "admin"}, func(proof string) error {
+			return writeOwnerInvitation(output, d.config.Origin+"/login#invite="+proof+"\n")
+		})
 		if err != nil {
-			return errors.New("invitation output unavailable; inspect pending bootstrap before retrying")
-		}
-		_, err = f.WriteString(d.config.Origin + "/login#invite=" + proof + "\n")
-		closeErr := f.Close()
-		if err != nil || closeErr != nil {
-			return errors.New("invitation write failed; inspect pending bootstrap")
+			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "pending", "invitationFile": output})
 	}
@@ -383,4 +394,30 @@ func bootstrapOwnerCommand(args []string) error {
 	}
 	// No email, directory subject, temporary password or credential is printed.
 	return json.NewEncoder(os.Stdout).Encode(map[string]string{"invitationId": invite.ID, "status": invite.Status})
+}
+
+func validateBootstrapTeam(configured, requested string) error {
+	if configured != "" && configured != requested {
+		return errors.New("owner team must match registrationTeam")
+	}
+	return nil
+}
+
+func writeOwnerInvitation(path, link string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return errors.New("invitation output unavailable; preserve existing files and retry with a new private owner-file path")
+	}
+	_, writeErr := f.WriteString(link)
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	dir, dirErr := os.Open(filepath.Dir(path))
+	if dirErr == nil {
+		dirErr = dir.Sync()
+		_ = dir.Close()
+	}
+	if writeErr != nil || syncErr != nil || closeErr != nil || dirErr != nil {
+		return errors.New("invitation delivery failed; preserve partial output and retry bootstrap using a new private owner-file path")
+	}
+	return nil
 }

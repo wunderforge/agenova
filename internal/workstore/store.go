@@ -7,6 +7,7 @@ package workstore
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
@@ -20,6 +21,7 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/history"
 )
 
 // Schema is migration 005; only the explicit operator migration applies it.
@@ -32,6 +34,7 @@ var ErrNotFound = errors.New("Work not found")
 var ErrCapacity = errors.New("durable Work capacity reached")
 
 type Snapshot struct {
+	Admission    *history.Admission
 	Owner        v0.Principal
 	InputName    string
 	InputDigest  string
@@ -44,10 +47,11 @@ type Snapshot struct {
 // connection, fencing a disconnected writer; there is no automatic reacquisition.
 // A second control-plane process must not dispatch while this writer owns it.
 type Store struct {
-	db     *sql.DB
-	mu     sync.Mutex
-	writer *sql.Conn
-	closed bool
+	cursorKey [32]byte
+	db        *sql.DB
+	mu        sync.Mutex
+	writer    *sql.Conn
+	closed    bool
 }
 
 func Acquire(ctx context.Context, db *sql.DB) (*Store, error) {
@@ -66,7 +70,12 @@ func Acquire(ctx context.Context, db *sql.DB) (*Store, error) {
 		conn.Close()
 		return nil, ErrUnavailable
 	}
-	return &Store{db: db, writer: conn}, nil
+	store := &Store{db: db, writer: conn}
+	if _, err := rand.Read(store.cursorKey[:]); err != nil {
+		store.Close()
+		return nil, ErrUnavailable
+	}
+	return store, nil
 }
 func (s *Store) Close() error {
 	s.mu.Lock()
@@ -138,6 +147,19 @@ func (s *Store) Reserve(ctx context.Context, snapshot Snapshot) (bool, error) {
 		return false, ErrUnavailable
 	}
 	raw, err := snapshotJSON(v)
+	if err == nil && snapshot.Admission != nil {
+		var record map[string]json.RawMessage
+		if json.Unmarshal(raw, &record) != nil {
+			return false, ErrUnavailable
+		}
+		record["admissionSnapshot"], err = json.Marshal(snapshot.Admission)
+		if err == nil {
+			raw, err = json.Marshal(record)
+		}
+		if len(raw) > 1<<20 {
+			return false, ErrUnavailable
+		}
+	}
 	if err != nil {
 		return false, err
 	}
@@ -246,7 +268,7 @@ func (s *Store) Finish(ctx context.Context, view evidence.View) error {
 		return err
 	}
 	return s.transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		r, err := tx.ExecContext(ctx, `UPDATE agenova_work SET view=$2,complete=true,staged_result=NULL,updated_at=now() WHERE ref=$1 AND NOT complete
+		r, err := tx.ExecContext(ctx, `UPDATE agenova_work SET view=CASE WHEN view ? 'admissionSnapshot' THEN $2::jsonb || jsonb_build_object('admissionSnapshot',view->'admissionSnapshot') ELSE $2::jsonb END,complete=true,staged_result=NULL,updated_at=now() WHERE ref=$1 AND NOT complete
  AND view->'request'=$2::jsonb->'request'
  AND view#>'{state,principal}'=$2::jsonb#>'{state,principal}'
  AND view#>'{state,action}'=$2::jsonb#>'{state,action}'

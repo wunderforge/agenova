@@ -15,25 +15,27 @@ import (
 	"github.com/wunderforge/agenova/internal/cli"
 	"github.com/wunderforge/agenova/internal/connectedclient"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/runtime"
 )
 
 func main() {
 	os.Exit(cli.MainWithServices(os.Args, os.Stdout, os.Stderr, cli.Services{
-		DefaultServer:   login.DefaultServer,
-		Login:           memberLogin,
-		Logout:          memberLogout,
-		HTTPS:           memberServices,
-		NewRuntime:      app.NewRuntime,
-		Run:             submitClaimRequest,
-		RunConnected:    submitConnected,
-		ShowConnected:   showConnected,
-		ListConnected:   listConnected,
-		ConnectAPI:      connectAPI,
-		NewAdapters:     app.NewAdapterLifecycle,
-		NewPlatform:     app.NewPlatformService,
-		NewRegistration: app.NewRegistrationService,
-		Input:           os.Stdin,
+		DefaultServer:    login.DefaultServer,
+		Login:            memberLogin,
+		Logout:           memberLogout,
+		HTTPS:            memberServices,
+		NewRuntime:       app.NewRuntime,
+		Run:              submitClaimRequest,
+		RunConnected:     submitConnected,
+		ShowConnected:    showConnected,
+		ListConnected:    listConnected,
+		HistoryConnected: historyConnected,
+		ConnectAPI:       connectAPI,
+		NewAdapters:      app.NewAdapterLifecycle,
+		NewPlatform:      app.NewPlatformService,
+		NewRegistration:  app.NewRegistrationService,
+		Input:            os.Stdin,
 	}))
 }
 
@@ -184,7 +186,16 @@ func memberServices(server string) (cli.Services, error) {
 			}
 			return connectedReport(v), err
 		},
-		ShowConnected: func(ref, _ string) (evidence.View, error) { return client.Show(ref) },
-		ListConnected: func(_ string) ([]evidence.View, error) { return client.List() },
+		ShowConnected:    func(ref, _ string) (evidence.View, error) { return client.Show(ref) },
+		ListConnected:    func(_ string) ([]evidence.View, error) { return client.List() },
+		HistoryConnected: func(_ string, cursor string) (history.Page, error) { return client.History(20, cursor) },
 	}, nil
+}
+
+func historyConnected(stateDirectory, cursor string) (history.Page, error) {
+	client, err := installedClient(stateDirectory)
+	if err != nil {
+		return history.Page{}, err
+	}
+	return client.History(20, cursor)
 }

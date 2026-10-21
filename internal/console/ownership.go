@@ -10,16 +10,28 @@ import (
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/workstore"
 )
 
 // QueryFor checks ownership before observing any Work or runtime evidence.
 // Foreign and nonexistent references return the same error.
 func (s *Service) QueryFor(p v0.Principal, ref string, claim bool) (evidence.View, error) {
 	if s.durable != nil {
-		if claim {
-			return s.durable.GetClaimFor(context.Background(), p, ref)
+		if s.storageFailed.Load() {
+			return evidence.View{}, workstore.ErrUnavailable
 		}
-		return s.durable.GetFor(context.Background(), p, ref)
+		var view evidence.View
+		var err error
+		if claim {
+			view, err = s.durable.GetClaimFor(context.Background(), p, ref)
+		} else {
+			view, err = s.durable.GetFor(context.Background(), p, ref)
+		}
+		// A failed terminal commit must not look like indefinitely pending Work.
+		if s.storageFailed.Load() {
+			return evidence.View{}, workstore.ErrUnavailable
+		}
+		return view, err
 	}
 	if p.Subject == "" || p.Team == "" || p.AuthenticationContext != "oidc" || s.access == nil {
 		return evidence.View{}, errors.New("record not found")

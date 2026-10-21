@@ -21,6 +21,7 @@ export interface AgentTemplateCapabilityCeiling {
   maxTimeout?: (string | null);
   memoryScopes?: (Array<string> | null);
   modelProfiles?: (Array<string> | null);
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   runtimeProfiles?: (Array<string> | null);
   tools?: (Array<string> | null);
@@ -65,6 +66,7 @@ export interface ClaimRequestTask {
 export interface ClaimRequestedAccess {
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   tools?: (Array<string> | null);
 }
@@ -81,10 +83,15 @@ export interface Decision {
   result: DecisionResult;
 }
 export type DecisionResult = "Allow" | "Deny" | "ApprovalRequired";
+export interface Diagnosis {
+  code: string;
+  stage: string;
+}
 export interface EffectiveAuthority {
   id: string;
   memoryScopes?: (Array<string> | null);
   modelProfile?: string;
+  networkProfiles?: (Array<string> | null);
   resourceScopes?: (Array<string> | null);
   runtime: EffectiveAuthorityRuntime;
   tools?: (Array<string> | null);
@@ -167,6 +174,10 @@ export interface Principal {
   subject: string;
   team: string;
 }
+export interface Recovery {
+  cleanup: string;
+  code: string;
+}
 export interface SandboxClaim {
   authorityRef: string;
   backendIdentity?: (SandboxClaimBackendIdentity | null);
@@ -176,15 +187,19 @@ export interface SandboxClaim {
   templateRef: string;
 }
 export interface SandboxClaimBackendIdentity {
+  allocationID?: string;
   backend: string;
   workerId: string;
 }
 export interface View {
+  diagnosis?: (Diagnosis | null);
   facts: (Array<Fact> | null);
   outcome?: (Outcome | null);
+  recovery?: (Recovery | null);
   request: (ClaimRequest | null);
   requestRef: string;
   state?: (IssuedState | null);
+  traceId?: string;
   version: string;
 }
 
@@ -271,6 +286,18 @@ export const shapes = {
         "optional": true
       },
       "modelProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
+      "networkProfiles": {
         "shape": {
           "kind": "nullable",
           "item": {
@@ -539,6 +566,18 @@ export const shapes = {
         },
         "optional": true
       },
+      "networkProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
+        },
+        "optional": true
+      },
       "resourceScopes": {
         "shape": {
           "kind": "nullable",
@@ -628,6 +667,21 @@ export const shapes = {
       "ApprovalRequired"
     ]
   },
+  "Diagnosis": {
+    "kind": "object",
+    "fields": {
+      "code": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "stage": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "EffectiveAuthority": {
     "kind": "object",
     "fields": {
@@ -651,6 +705,18 @@ export const shapes = {
       "modelProfile": {
         "shape": {
           "kind": "string"
+        },
+        "optional": true
+      },
+      "networkProfiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "string"
+            }
+          }
         },
         "optional": true
       },
@@ -1109,6 +1175,21 @@ export const shapes = {
       }
     }
   },
+  "Recovery": {
+    "kind": "object",
+    "fields": {
+      "cleanup": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "code": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "SandboxClaim": {
     "kind": "object",
     "fields": {
@@ -1153,6 +1234,12 @@ export const shapes = {
   "SandboxClaimBackendIdentity": {
     "kind": "object",
     "fields": {
+      "allocationID": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
       "backend": {
         "shape": {
           "kind": "string"
@@ -1168,6 +1255,16 @@ export const shapes = {
   "View": {
     "kind": "object",
     "fields": {
+      "diagnosis": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Diagnosis"
+          }
+        },
+        "optional": true
+      },
       "facts": {
         "shape": {
           "kind": "nullable",
@@ -1186,6 +1283,16 @@ export const shapes = {
           "item": {
             "kind": "ref",
             "ref": "Outcome"
+          }
+        },
+        "optional": true
+      },
+      "recovery": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Recovery"
           }
         },
         "optional": true
@@ -1211,6 +1318,12 @@ export const shapes = {
             "kind": "ref",
             "ref": "IssuedState"
           }
+        },
+        "optional": true
+      },
+      "traceId": {
+        "shape": {
+          "kind": "string"
         },
         "optional": true
       },

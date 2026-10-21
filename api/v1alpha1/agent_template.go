@@ -89,6 +89,7 @@ type AgentTemplateCapabilityCeiling struct {
 	ModelProfiles   []string  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
 	MemoryScopes    []string  `json:"memoryScopes,omitempty" yaml:"memoryScopes,omitempty"`
 	RuntimeProfiles []string  `json:"runtimeProfiles,omitempty" yaml:"runtimeProfiles,omitempty"`
+	NetworkProfiles []string  `json:"networkProfiles,omitempty" yaml:"networkProfiles,omitempty"`
 	MaxTimeout      *Duration `json:"maxTimeout,omitempty" yaml:"maxTimeout,omitempty"`
 }
 
@@ -206,6 +207,9 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 			return err
 		}
 	}
+	if err := validateNetworkProfiles("spec.capabilityCeiling.networkProfiles", ceiling.NetworkProfiles, ValidationCategoryInvalidCapabilityCeiling); err != nil {
+		return err
+	}
 	if ceiling.MaxTimeout != nil && time.Duration(*ceiling.MaxTimeout) <= 0 {
 		return validationError(ValidationCategoryInvalidCapabilityCeiling, "spec.capabilityCeiling.maxTimeout", "duration must be positive")
 	}
@@ -308,6 +312,7 @@ func validateCapabilityCeilingShape(node *yaml.Node, path string) *ValidationErr
 		"modelProfiles":   validateCapabilitySequence,
 		"memoryScopes":    validateCapabilitySequence,
 		"runtimeProfiles": validateCapabilitySequence,
+		"networkProfiles": validateCapabilitySequence,
 		"maxTimeout":      validatePositiveDurationScalar,
 	}, nil)
 }

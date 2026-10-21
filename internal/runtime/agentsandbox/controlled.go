@@ -57,14 +57,16 @@ type cleanupOperation struct {
 // to report ErrUnsupported for Start/Terminate on ordinary images.
 type ControlledAdapter struct {
 	*SpikeAdapter
-	control   workerControl
-	mu        sync.Mutex
-	changed   *sync.Cond
-	phases    map[string]controlPhase // keyed by the observed worker identity
-	stops     map[string]*terminateOperation
-	cleanups  map[string]*cleanupOperation
-	recovered map[string]string // worker -> claim, attached only for cleanup
-	releases  map[string]runtime.CleanupResult
+	control          workerControl
+	mu               sync.Mutex
+	changed          *sync.Cond
+	phases           map[string]controlPhase // keyed by the observed worker identity
+	stops            map[string]*terminateOperation
+	cleanups         map[string]*cleanupOperation
+	recovered        map[string]string // worker -> claim, attached only for cleanup
+	releases         map[string]runtime.CleanupResult
+	networkNow       func() time.Time // adapter-local test seam; production is wall clock
+	networkLifetimes map[string]map[<-chan struct{}]*networkLifetime
 }
 
 var _ runtime.RuntimeBackend = (*ControlledAdapter)(nil)
@@ -78,13 +80,15 @@ func NewControlled(kubeContext, namespace string) *ControlledAdapter {
 
 func newControlledAdapter(base *SpikeAdapter, control workerControl) *ControlledAdapter {
 	adapter := &ControlledAdapter{
-		SpikeAdapter: base,
-		control:      control,
-		phases:       make(map[string]controlPhase),
-		stops:        make(map[string]*terminateOperation),
-		cleanups:     make(map[string]*cleanupOperation),
-		releases:     make(map[string]runtime.CleanupResult),
-		recovered:    make(map[string]string),
+		SpikeAdapter:     base,
+		control:          control,
+		phases:           make(map[string]controlPhase),
+		stops:            make(map[string]*terminateOperation),
+		cleanups:         make(map[string]*cleanupOperation),
+		releases:         make(map[string]runtime.CleanupResult),
+		recovered:        make(map[string]string),
+		networkNow:       time.Now,
+		networkLifetimes: make(map[string]map[<-chan struct{}]*networkLifetime),
 	}
 	adapter.changed = sync.NewCond(&adapter.mu)
 	return adapter
@@ -106,6 +110,11 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 	entry, err := a.entryFor(id)
 	if err != nil {
 		return err
+	}
+	if !entry.network.ExpiresAt.IsZero() {
+		if _, err := a.boundNetworkClaim(entry); err != nil {
+			return err
+		}
 	}
 	if err := a.checkStartPhase(id.WorkerID, entry.claimID); err != nil {
 		return err
@@ -138,7 +147,7 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		var ok bool
 		startResult, ok = workerAckResult(out, "started", claimToken)
 		if !ok {
-			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+			err = runtime.ErrWorkerProtocol
 		}
 	}
 	if err == nil {
@@ -146,9 +155,9 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 		if err == nil {
 			runningResult, ok := workerAckResult(out, "running", claimToken)
 			if !ok {
-				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+				err = runtime.ErrWorkerProtocol
 			} else if runningResult != startResult {
-				err = fmt.Errorf("worker result changed from %q to %q", startResult, runningResult)
+				err = runtime.ErrWorkerProtocol
 			}
 		}
 	}
@@ -168,7 +177,6 @@ func (a *ControlledAdapter) Start(id v1alpha1.SandboxClaimBackendIdentity) error
 
 func (a *ControlledAdapter) waitWorkerControl(workerID, claimToken string) error {
 	deadline := time.Now().Add(10 * time.Second)
-	var lastErr error
 	for {
 		out, err := a.control.execWorker(workerID, "status", claimToken)
 		if err == nil {
@@ -176,11 +184,10 @@ func (a *ControlledAdapter) waitWorkerControl(workerID, claimToken string) error
 			if ok && result == "none" {
 				return nil
 			}
-			return fmt.Errorf("unexpected pre-start status %q", strings.TrimSpace(out))
+			return runtime.ErrWorkerProtocol
 		}
-		lastErr = err
 		if !time.Now().Before(deadline) {
-			return lastErr
+			return runtime.ErrWorkerControlUnavailable
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -213,6 +220,10 @@ func startPhaseError(phase controlPhase, claimID string) error {
 func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) error {
 	entry, err := a.entryFor(id)
 	if err != nil {
+		return err
+	}
+	if !entry.network.ExpiresAt.IsZero() {
+		_, err := a.RevokeNetwork(id)
 		return err
 	}
 	var operation *terminateOperation
@@ -279,7 +290,7 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		var ok bool
 		stopResult, ok = workerAckResult(out, "stopped", claimToken)
 		if !ok {
-			err = fmt.Errorf("unexpected worker acknowledgement %q", strings.TrimSpace(out))
+			err = runtime.ErrWorkerProtocol
 		}
 	}
 	if err == nil {
@@ -287,9 +298,9 @@ func (a *ControlledAdapter) Terminate(id v1alpha1.SandboxClaimBackendIdentity) e
 		if err == nil {
 			statusResult, ok := workerAckResult(out, "stopped", claimToken)
 			if !ok {
-				err = fmt.Errorf("unexpected worker status %q", strings.TrimSpace(out))
+				err = runtime.ErrWorkerProtocol
 			} else if statusResult != stopResult {
-				err = fmt.Errorf("worker result changed from %q to %q", stopResult, statusResult)
+				err = runtime.ErrWorkerProtocol
 			}
 		}
 	}

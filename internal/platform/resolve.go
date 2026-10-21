@@ -28,6 +28,7 @@ const (
 	CapabilityDeployment Capability = "deployment"
 	CapabilityRuntime    Capability = "runtime"
 	CapabilityModel      Capability = "model"
+	CapabilityTelemetry  Capability = "telemetry"
 	CapabilityTool       Capability = "tool"
 )
 
@@ -193,6 +194,11 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 	}
 	for i, instance := range input.Spec.Services.ModelBackends {
 		if failure := resolveInstance(CapabilityModel, fmt.Sprintf("spec.services.modelBackends[%d]", i), instance, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
+			return nil, nil, failure
+		}
+	}
+	for i, instance := range input.Spec.Services.Observability {
+		if failure := resolveInstance(CapabilityTelemetry, fmt.Sprintf("spec.services.observability[%d]", i), instance, requirements, &instances, instanceByKey, descriptorByKey); failure != nil {
 			return nil, nil, failure
 		}
 	}

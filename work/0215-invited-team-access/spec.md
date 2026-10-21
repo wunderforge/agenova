@@ -27,7 +27,7 @@ An invited member operates Agenova over HTTPS with a personal application identi
 7. Database persists membership, invitation state, policy references, idempotency keys, Work ownership/lifecycle/facts and session revocation. Concurrent operations enforce ownership in the data query/transaction, not merely UI filtering. Request-name collisions across users never return another user's evidence.
 8. Admission, durable acceptance and work dispatch use explicit transactional/idempotency boundaries. A crash with an uncertain provider result must not automatically repeat inference. Restore cannot reactivate terminal authority. Restart recovery records uncertainty and remains fail-closed until reconciled.
 9. Membership removal denies new requests immediately at the authorization read boundary; already-running claim termination/revocation and concurrent reads require a specified, tested bounded mechanism. Production release cannot claim instant revocation from JWT signature validation alone.
-10. Every protected management, submission and read surface is inventoried, including setup/configuration/provider diagnostics. Anonymous access is limited to health and explicit authentication flow endpoints; detailed health is private.
+10. Every protected management, submission and read surface is inventoried, including setup/configuration/provider diagnostics. Anonymous access is limited to health, explicit authentication flow endpoints, and the Owner-approved public product landing with its finite static asset allowlist; detailed health and all application data remain private.
 11. Migration/rollback, audit retention, incident handling, usage/concurrency ceilings and observability have concrete ownership and recovery tests before release.
 
 ## Negative Cases

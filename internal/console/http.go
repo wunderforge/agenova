@@ -17,8 +17,10 @@ import (
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/history"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/workstore"
+	"strconv"
 )
 
 const maxSubmissionBytes = 128 << 10
@@ -161,6 +163,40 @@ func handler(service *Service, auth Authenticator) http.Handler {
 				setup.Policy.Rules = []policy.Rule{}
 			}
 			writeJSON(w, 200, setup)
+		case "/api/history":
+			if !requireMethod(w, r, http.MethodGet) {
+				return
+			}
+			if auth == nil {
+				writeError(w, 401, "viewer_required", "Verified viewer required.")
+				return
+			}
+			limit := 20
+			var err error
+			if raw := r.URL.Query().Get("limit"); raw != "" {
+				limit, err = strconv.Atoi(raw)
+			}
+			if err != nil || limit < 1 || limit > 100 {
+				writeError(w, 400, "invalid_cursor", "Invalid history page.")
+				return
+			}
+			var page history.Page
+			if source, ok := service.durable.(interface {
+				HistoryFor(context.Context, v0.Principal, int, string) (history.Page, error)
+			}); ok && !service.storageFailed.Load() {
+				page, err = source.HistoryFor(r.Context(), principal, limit, r.URL.Query().Get("cursor"))
+			} else {
+				err = history.ErrUnavailable
+			}
+			if err != nil {
+				if errors.Is(err, history.ErrCursor) {
+					writeError(w, 400, "invalid_cursor", "Invalid history page.")
+				} else {
+					writeError(w, 503, "history_unavailable", "History is unavailable.")
+				}
+				return
+			}
+			writeJSON(w, 200, page)
 		case "/api/requests":
 			switch r.Method {
 			case http.MethodGet:

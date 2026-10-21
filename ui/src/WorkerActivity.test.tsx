@@ -1,11 +1,25 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { Fact } from './contracts.generated';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions, demoWorkerActions, groupWorkerTurns } from './worker-activity-model';
 afterEach(cleanup);
+it('inspects selected evidence and follows updated facts without inventing completion', () => {
+  const actions = workerActions([
+    {...fact('read',1,'ProviderAttempt','r'),operation:'tool.invoke',target:'repo.read'},
+    {...fact('deny',2,'ToolDecision'),target:'repo.write',result:'Deny'},
+  ], 'Running', '#/activity');
+  const view = render(<WorkerActivity actions={actions} status="Running" activityHref="#/activity"/>);
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect Tool call: repo.read' }));
+  const inspector = screen.getByRole('complementary', { name: 'Selected activity' });
+  expect(inspector.textContent).toContain('Waiting for response');
+  expect(within(inspector).getByRole('link').getAttribute('href')).toBe('#/activity/read');
+  view.rerender(<WorkerActivity actions={actions.map(a => ({...a,active:false,state:'Outcome unknown'}))} status="Failed" activityHref="#/activity"/>);
+  expect(inspector.textContent).toContain('Outcome unknown');
+  expect(inspector.textContent).not.toContain('Succeeded');
+});
 const fact=(id:string,sequence:number,kind:Fact['kind'],invocationId?:string,providerStatus?:string):Fact=>({id,sequence,kind,invocationId,providerStatus,requestRef:'work-1',timestamp:'2026-09-15T02:00:00Z'});
 describe('recorded worker calls',()=>{
   it('retains format-retry evidence without marking successful inference as failed',()=>{

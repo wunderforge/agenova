@@ -1,0 +1,135 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from grafana-proxy.Dockerfile
+#1 transferring dockerfile: 683B done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 1.4s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+#3 resolve docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e done
+#3 CACHED
+
+#4 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot
+#4 ...
+
+#5 [internal] load metadata for docker.io/library/golang:1.27.2-alpine
+#5 DONE 1.9s
+
+#4 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot
+#4 DONE 2.1s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 225B done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 1.49MB 0.0s done
+#7 DONE 0.1s
+
+#8 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#8 resolve gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab done
+#8 DONE 0.1s
+
+#9 [build 1/8] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#9 resolve docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d done
+#9 sha256:6ff05f868da7888e9c1d6b4967ff0892cf86b51d23c81149794e72c001604803 0B / 126B 0.2s
+#9 sha256:6ff05f868da7888e9c1d6b4967ff0892cf86b51d23c81149794e72c001604803 126B / 126B 0.3s done
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 0B / 71.15MB 0.2s
+#9 sha256:e2443a591f6296d5e94b53e785f358049a0c73d97e9e0941fcf48cf482f385b8 0B / 247.53kB 0.2s
+#9 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 0B / 3.85MB 0.2s
+#9 sha256:e2443a591f6296d5e94b53e785f358049a0c73d97e9e0941fcf48cf482f385b8 247.53kB / 247.53kB 0.9s done
+#9 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 1.05MB / 3.85MB 1.5s
+#9 ...
+
+#8 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#8 sha256:96ed2737ae312e0bc637b40783f7c2f23416cb72ca957aa01855f1614278e64b 143.35kB / 143.35kB 1.6s done
+#8 sha256:a5789fc40e828c4e7467626e3f69ec5dea8e5da22fe660db8ae6d16f777b0bbf 83.90kB / 83.90kB 2.0s done
+#8 extracting sha256:a5789fc40e828c4e7467626e3f69ec5dea8e5da22fe660db8ae6d16f777b0bbf 0.0s done
+#8 extracting sha256:990a9c434e5e0f11549a8d4a41a1991e621b04e30cd63269adbc97b1dc38fd7e done
+#8 extracting sha256:39dc083afc39bd8dc43d456fe7ff7d39292e593bb2769972c11bb2e5f9119386 0.1s done
+#8 DONE 2.2s
+
+#9 [build 1/8] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#9 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 2.10MB / 3.85MB 2.0s
+#9 ...
+
+#8 [stage-1 1/2] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#8 extracting sha256:bf7a4185f01524837d19abde915ffde84e64368b250f5b5e9f6f75aea62a11d4 done
+#8 extracting sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a done
+#8 extracting sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212 done
+#8 extracting sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4 done
+#8 extracting sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296 done
+#8 extracting sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112 done
+#8 extracting sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a done
+#8 extracting sha256:dcaa5a89b0ccda4b283e16d0b4d0891cd93d5fe05c6798f7806781a6a2d84354 done
+#8 extracting sha256:96ed2737ae312e0bc637b40783f7c2f23416cb72ca957aa01855f1614278e64b done
+#8 DONE 2.2s
+
+#9 [build 1/8] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#9 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 3.15MB / 3.85MB 2.6s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 4.19MB / 71.15MB 3.0s
+#9 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 3.85MB / 3.85MB 2.9s done
+#9 extracting sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 0.1s done
+#9 extracting sha256:e2443a591f6296d5e94b53e785f358049a0c73d97e9e0941fcf48cf482f385b8 0.0s done
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 8.39MB / 71.15MB 4.1s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 12.58MB / 71.15MB 5.1s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 16.78MB / 71.15MB 6.2s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 20.97MB / 71.15MB 7.2s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 25.17MB / 71.15MB 8.3s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 29.36MB / 71.15MB 9.6s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 33.55MB / 71.15MB 11.0s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 37.75MB / 71.15MB 12.0s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 41.94MB / 71.15MB 13.5s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 46.14MB / 71.15MB 14.7s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 50.33MB / 71.15MB 15.8s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 54.53MB / 71.15MB 16.8s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 58.72MB / 71.15MB 17.9s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 62.91MB / 71.15MB 18.9s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 67.11MB / 71.15MB 20.0s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 71.15MB / 71.15MB 21.3s
+#9 sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 71.15MB / 71.15MB 21.3s done
+#9 extracting sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2
+#9 extracting sha256:b2b6413ae8f393d11d32262c8dc6bd053dbaea3d074f95edd5605d3eb116e3c2 1.4s done
+#9 DONE 22.8s
+
+#9 [build 1/8] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#9 extracting sha256:6ff05f868da7888e9c1d6b4967ff0892cf86b51d23c81149794e72c001604803 done
+#9 extracting sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 done
+#9 DONE 22.8s
+
+#10 [build 2/8] WORKDIR /src
+#10 DONE 0.3s
+
+#11 [build 3/8] COPY go.mod go.sum ./
+#11 DONE 0.0s
+
+#12 [build 4/8] RUN go mod download
+#12 DONE 36.5s
+
+#13 [build 5/8] COPY api ./api
+#13 DONE 0.1s
+
+#14 [build 6/8] COPY internal ./internal
+#14 DONE 0.0s
+
+#15 [build 7/8] COPY cmd/agenova-grafana-proxy ./cmd/agenova-grafana-proxy
+#15 DONE 0.0s
+
+#16 [build 8/8] RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/agenova-grafana-proxy ./cmd/agenova-grafana-proxy
+#16 DONE 42.7s
+
+#17 [stage-1 2/2] COPY --from=build /out/agenova-grafana-proxy /agenova-grafana-proxy
+#17 DONE 0.0s
+
+#18 exporting to image
+#18 exporting layers
+#18 exporting layers 0.4s done
+#18 exporting manifest sha256:cce3cdc3aa30c4af0469cbce71fa28b653c39507754533bb00b93f2d78c7ce77
+#18 exporting manifest sha256:cce3cdc3aa30c4af0469cbce71fa28b653c39507754533bb00b93f2d78c7ce77 done
+#18 exporting config sha256:add67099b31df23f83ae5af2132321c9078f9327557819f6d0e0192371755707 done
+#18 exporting attestation manifest sha256:58b42a16d0814d73384bb6f8283524991f9aa7dc87da381e7cd63220c5a8f7fb done
+#18 exporting manifest list sha256:388d25b82bbbd339ef61f4772d4c50dffc592485f7583569b66af0c304c65e3d done
+#18 naming to docker.io/library/agenova-grafana-proxy:google-session done
+#18 DONE 0.4s

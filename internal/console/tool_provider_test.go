@@ -229,7 +229,14 @@ func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments
 				t.Fatalf("provider calls %d, want %d", got, tc.calls)
 			}
 			decision := ""
+			argumentRejection := false
 			for _, f := range view.Facts {
+				if f.Kind == "WorkerActivity" && f.ReasonCode == "tool-arguments-rejected" {
+					argumentRejection = true
+					if strings.Contains(f.Reason, "../private") || f.Target != "tool.invoke" {
+						t.Fatal("argument rejection exposed caller input")
+					}
+				}
 				if f.Kind == "ToolDecision" {
 					decision = string(f.Result)
 				}
@@ -243,7 +250,32 @@ func TestConfiguredServiceAdvertisesGrantedRoutesAndRejectsUnconfiguredArguments
 			if decision != tc.decision || view.Outcome.Status != tc.status {
 				t.Fatalf("decision %q status %q, want %q %q", decision, view.Outcome.Status, tc.decision, tc.status)
 			}
+			if (tc.name == "unconfigured argument") != argumentRejection {
+				t.Fatal("missing/unexpected safe argument-rejection fact")
+			}
 		})
+	}
+}
+
+func TestArgumentRejectionEvidenceFailureStopsWork(t *testing.T) {
+	provider := &toolDouble{}
+	service, err := NewServiceWithOptions(&verticalBackend{}, reactExecutor{artifact: "../private"}, &verticalProvider{}, app.ReferencePrincipalTeamA, Options{ToolBackend: boundTools(t, provider, "git.read", "repo:acme/payments")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	service.appendTool = func(f facts.Fact) (facts.Fact, error) {
+		if f.Operation == "ToolRequestRejected" {
+			return facts.Fact{}, errors.New("synthetic evidence sink failure")
+		}
+		return service.journal.Append(f)
+	}
+	if _, err := service.Submit(verticalRequest(t, "argument-evidence-failure")); err != nil {
+		t.Fatal(err)
+	}
+	view := awaitVertical(t, service, "argument-evidence-failure")
+	if view.Outcome.Status != "Failed" || provider.calls.Load() != 0 {
+		t.Fatal("lost rejection evidence did not fail closed")
 	}
 }
 
@@ -364,18 +396,18 @@ type followingExecutor struct {
 
 func (e followingExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
 	*e.tools = task.Tools
-	model := workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
+	model := workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")}
 	if _, err := h(ctx, model); err != nil {
 		return "", err
 	}
-	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "logs/timeout.log"})
+	reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:acme/payments", Input: "logs/timeout.log"})
 	if err != nil {
 		return "", err
 	}
 	*e.observed = reply
 	for _, op := range []workerprotocol.Operation{
-		{ClaimID: task.ClaimID, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "logs/timeout.log"},
-		{ClaimID: task.ClaimID, Kind: "tool", Tool: "shell.exec", ResourceScope: "repo:acme/payments", Input: "id"},
+		{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "git.read", ResourceScope: "repo:other/private", Input: "logs/timeout.log"},
+		{ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Kind: "tool", Tool: "shell.exec", ResourceScope: "repo:acme/payments", Input: "id"},
 	} {
 		forged, err := h(ctx, op)
 		*e.forged = append(*e.forged, forged)

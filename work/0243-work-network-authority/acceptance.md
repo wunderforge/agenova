@@ -1,0 +1,219 @@
+# Integrated acceptance — 20 October 2026
+
+Scope: [#243](https://github.com/wunderforge/agenova/issues/243), jointly released
+with [MCP #242](../0242-mcp-incident-demo/acceptance.md). These are distinct layers:
+Policy computes authority; the runtime enforces socket boundaries; the trusted
+Tool Gateway enforces MCP scope. A model's refusal is not an enforcement test.
+
+## Local evidence
+
+- API, Policy, authority and issuance tests pass, including repeated execution,
+  unknown/duplicate profile rejection, explicit request/template/Policy
+  intersection and omitted-request default-none behavior.
+- Runtime/application tests pass: activation after Running, original claim and
+  Pod incarnation, guarded Pod patch, create-only rule ownership, replacement
+  and concurrent-activation races, cancellation/deadline release, and cleanup
+  despite evidence-write or rule-removal failure.
+- Console tests pass, including initial recovery `Failed` append failure:
+  verified revocation still runs. Telemetry preserves optional backend
+  capabilities and labels configuration/simulation rather than packet proof.
+- Frontend contracts/types/build pass; 136 unit tests and all 72 browser smokes
+  pass. The offline/online request and historical-unknown screenshots were
+  inspected. Historical missing network evidence is not retroactively offline.
+- Actual local SDK/Worker MCP composition passes. Inference is scripted and
+  allocation simulated in this harness; see #242's precise evidence.
+- Independent review has no remaining known major integration defect. Live
+  enforcement is still a separate gate, not inferred from this review.
+
+The pinned Linux campaign completed successfully (read-only source mount, no
+cloud credentials, D:-scoped cache/temp and automatic owned-container removal):
+
+| Command | Result |
+| --- | --- |
+| `go test -p 2 -count=1 -timeout 5m ./...` | pass |
+| `go test -p 2 -race -count=1 -timeout 5m ./internal/app ./internal/runtime/... ./internal/operator ./internal/console ./internal/authority ./internal/policy ./internal/adapters/bundled ./internal/toolgateway` | pass |
+| `go test -p 2 -race -tags integration -run '^TestIncidentDemo' -count=1 -timeout 5m ./cmd/agenova-control-plane` | pass, 47.342s |
+| `go vet ./...` | pass |
+| `./scripts/check.ps1 -Docs` | pass |
+| `./scripts/check.ps1 -Profile Fast -ChangedOnly` | pass |
+
+Pinned image:
+`golang@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8`.
+Windows has an existing unrelated owner-invitation file synchronization test
+failure; it is not skipped or changed. The Linux source gate includes that test.
+The test-only native observer was also tested/vetted separately, and its exact
+Worker-derived image retains the original control handshake; #242 records this
+local image evidence without claiming AWS enforcement.
+
+Final rollout compatibility review found that installing a nonempty Tool backend
+removes the old in-process synthetic `git.read` catalog. The MCP configuration
+therefore includes an explicit compatibility route for `repo:acme/payments` and
+the same three labelled sample files. No implicit fallback, template rewrite or
+new service was added. Exact sample-content and installed-authority regressions
+pass; the actual SDK/Worker incident integration was rerun successfully (19.366s)
+and the AWS overlay still renders five objects. The two incident task grants
+remain unchanged and cannot access the compatibility route.
+
+## Approved deployment boundary
+
+The Owner approved existing-cluster deployment and repairs after joint local
+acceptance, namespace-local NetworkPolicy get/create/patch/delete, and guarded
+Pod patch. No new Secret/IAM/cross-namespace privileges or paid infrastructure are
+authorized by these RBAC approvals. Existing exec permissions are unchanged.
+
+Use the existing CNI, nodes, model and image repositories. Drain Work before
+rollout, preserve member login/proxy/model configuration, and remove only
+verified obsolete runtime allows/pools. Never recover availability by restoring
+open egress. A normal PR/CI gate still applies; branch-protection bypass needs its
+own explicit authorization.
+
+## AWS campaign — pending
+
+Do not describe this section as passed until actual retained receipts exist:
+
+1. Independent positive controls for the same public TLS/DNS targets.
+2. Worker-first-process probes, idle/offline deny, explicitly granted public-web
+   success, no direct MCP/private/metadata access, and same-template peer isolation.
+3. Terminal and deadline release with original Pod absence; existing connection
+   termination and control-plane-interruption expiry measured separately.
+4. Admission denial before allocation and provider dispatch, with independent
+   observations wherever available. HTTP rejection alone is not a call counter.
+5. Real-model payments/billing tasks, same user/template/Policy and disjoint task
+   scopes, independent MCP receipts and factual answer review. Retain failed
+   attempts and distinguish business reliability from security acceptance.
+6. Login, durable history, observability and independently selected compatible
+   Worker-image regressions. No credentials in arbitrary Worker Pods.
+
+There is currently no public Work-cancel API. Closing a CLI/polling connection is
+not cancellation evidence. Any live cancellation claim requires an actual
+trusted cancellation path; source-level cancellation tests remain labelled local.
+
+## Premerge review follow-up — 21 October 2026
+
+The later independent PR review found three P1 gaps despite the prior passing
+source gate. Merge was held; no shared configuration was changed.
+
+- The controlled real-backend recorder now preserves `NetworkBackend` only when
+  its wrapped backend supports it. Cluster-free application/wrapper regressions
+  pass, including unsupported-before-allocation behavior and exact forwarding.
+  Live-tag package compilation passes; governed cluster runs now require the
+  explicit verified-CNI prerequisite instead of assuming ordinary kind is safe.
+- Recovery recognizes a committed `NetworkActivationFailed` terminal state.
+  Tests recreate that crash window, verify cleanup without execution replay,
+  reject unknown terminal operations and confirm idempotent completion.
+- Cancellation and deadline are rechecked after durable Running/activation
+  writes, immediately before a grant and before dispatching work. Nine write-hook
+  cases pass, including repeated and Linux race checks; pre-grant interruption
+  activates nothing and post-grant interruption revokes without starting work.
+- The review led to an additional integration repair: the connected CLI now
+  validates the new network lifecycle and authority fields and bounded argument
+  rejection records. Actual Service -> TLS API -> CLI regressions pass for
+  success, activation failure and recovered failure. Unknown/forged lifecycle,
+  expanded profiles, mismatched allocation and invented invocations are rejected;
+  historical no-network evidence remains readable.
+
+Focused app/console/connected-client tests, vet, cluster-free controlled/live-tag
+tests and compilation passed. Full updated-source CI and independent rereview
+are required before merge; the earlier CI result alone does not cover these fixes.
+
+A second independent review identified three additional gaps; merge remained
+held. The standalone incident Platform now explicitly declares strict isolation
+and its resolved configuration is regression-tested. Connected evidence with an
+explicit public network grant cannot omit all network lifecycle facts and still
+claim execution or success; ordinary startup polling and historical snapshots
+remain supported. Runtime activation now rechecks expiry across remote binding,
+Pod patch and rule creation, bounds the grant-write deadline, and compensates
+expired or ambiguous writes through trusted owned-resource revocation. Slow-call,
+missing-evidence and compatibility regressions accompany these changes. Updated
+full gates and independent rereview are required for this new source as well.
+The follow-up missing-lifecycle matrix also covers Failed, Cancelled and Expired:
+every final allocated explicit-network outcome requires release evidence, even
+when interrupted before activation. Unallocated failures and terminal-phase
+polling before final cleanup remain readable.
+
+Cloud preparation on 21 October created only the approved internal MCP workload
+and its namespace, ClusterIP, synthetic-data ConfigMap and ingress/egress policy
+on existing nodes. The control plane and installed Platform remain unchanged at
+this checkpoint. Native amd64 image manifests were published to the existing
+immutable ECR repository; this is not AWS Work or network-enforcement acceptance.
+
+The next review exposed an in-flight activation cancellation gap and a weaker
+generic cleanup path. Activation now receives the caller context and remaining
+Work deadline through telemetry and recorder wrappers; cancellation or ambiguous
+writes use context-independent compensation. The context remains live through
+Run teardown so the real runtime can revoke independently of blocked application
+persistence. Local application tests explicitly hold the Active write while
+cancelling and require the safety action before that write resumes.
+
+Observe and generic Cleanup also validate the recorded claim/Pod incarnation,
+allocation annotations and binding. Governed deletion uses UID/resourceVersion
+preconditions; restored allocations retain their durable UID pair. Same-name
+replacement, read/delete swap, missing binding and retained-Pod cases reject
+without reporting release. Genuine historical reduced-contract allocations keep
+their old behavior. These are local API/controller simulations, not atomic exec
+identity or cloud packet evidence. The updated full-source gates and independent
+review must pass before coordinated release.
+
+Further independent review extended those regressions to real transport and
+restart compatibility. Every activation read/patch now passes cancellation into
+the actual command, bounded by the earliest Work/upstream deadline; tests block
+the production runner on `ctx.Done()`, including post-grant readback and final
+binding. Recovery selects network release from durable incarnation/authority/
+lifecycle markers, not merely the adapter's optional capability. Genuine legacy
+allocations use their original stop/cleanup path without invented network facts;
+new markers cannot downgrade when support is missing. A production console ->
+ControlledAdapter -> local kubectl shim regression covers this composition.
+Confirmed original Pod absence with its original claim still present is accepted
+for cleanup only; query failure, orphan resources and replacements remain
+unconfirmed. Focused transport, recovery, legacy and Linux race gates pass; the
+new full-source/CI gates remain a separate premerge requirement.
+
+## Post-merge Pod patch transport repair
+
+The AWS campaign reported offline Nova Micro/MCP execution and confirmed release,
+but the explicit public-network Work failed activation before provider dispatch.
+The original-Pod patch used `--patch-file=-`; the actual kubectl treats `-` as a
+filename rather than stdin. The follow-up passes the same bounded, non-secret
+UID/claim/incarnation JSON as one `--patch` argv value with nil stdin. Atomic
+identity tests, caller cancellation, deadlines and RBAC are unchanged. Mandatory
+runner-boundary and cancellation regressions validate the new argv shape. This
+follow-up passes Windows `TestNetwork*`, runtime-adapter vet, and Linux `-race`
+runner/guarded-patch/cancellation regressions repeated 20 times. This source
+repair is not a successful AWS public-network result; fresh deployment,
+independent review and cloud acceptance remain required.
+
+## AWS after #245 — partial, not complete acceptance
+
+Automatic release39531617877 succeeded at e82e17c; actual EKS source/image and
+readiness were independently confirmed. The fresh deterministic offline task
+ran90s, expired, revoked and cleaned with original Pod absence and158 native
+records. Its same-template online counterpart received public-web and an exact
+Pod-bound compiled rule but produced no HTTPS/DNS positive control; the pair
+failed. A separate diagnostic confirmed expiry/cleanup, not public reachability.
+
+Two controlled invalid tool-operation tasks generated no ProviderAttempt and
+the independent MCP tools/call count stayed44. Durable diagnostics expose only
+generic execution failure: this is not proof of a specific Gateway reject code.
+An existing immutable template succeeded with4 existing-model calls,3tool calls
+and3correlated independent MCP receipts. All attempts retained; no new IAM,
+node, volume or load balancer. Temporary proxy changes were restored exactly.
+
+Pinned AWS CNI source exposes shared identity for same-prefix warm-pool peers.
+The dedicated cold-worker follow-up addresses that design defect, without yet
+attributing every observed timeout to it. Required follow-up gates: independent
+AWS grouping identities for distinct governed claims, exact cold binding,
+legacy/new recovery, unchanged lifecycle/compensation, full source/race/SDK
+checks and fresh AWS positive/negative probes. Held-connection cancellation and
+independent control-plane-outage expiry remain unverified. Model-quality work
+is deferred by the Owner; it is not retrospectively marked passed.
+
+The next independent PR review found that loop-level deadline checks did not
+interrupt a stalled Kubernetes read. Governed creation and all cold binding/
+incarnation reads now share one absolute context bounded by Work expiry and the
+original bind budget. The production runner propagates it to the command;
+expired or late replies cannot publish an allocation. Independent compensation
+still reconciles ambiguous writes after that context expires. Actual transport
+tests block on command-context cancellation at creation, polling, post-bind
+verification and Pod pinning; legacy zero-expiry transport is retained. Fresh
+full-source/race/SDK and PR gates are required for this follow-up, not inherited
+from the earlier commit.

@@ -19,6 +19,7 @@ only public build output. Configure `AGENOVA_AUTH_MODE=member` and
 ```json
 {
   "origin": "https://app.agenova.app",
+  "trustLocalProxyClientIP": true,
   "googleOAuthFile": "/run/agenova-secrets/google-oauth.json",
   "databaseUrlFile": "/run/agenova-secrets/database-url",
   "sessionKeyFile": "/run/agenova-secrets/session-key",
@@ -322,3 +323,43 @@ schema-compatible previous image. Never restore an older database or delete data
 as an application rollback. Missing application authorization is denied even if
 local Kubernetes credentials are administrative; direct Kubernetes administration
 remains governed separately by IAM/RBAC.
+
+## Login capacity and migration 009
+
+Before deploying the login-capacity fix, apply migration 009 using the migration
+operator, update the same-Pod nginx configuration and enable
+`trustLocalProxyClientIP` in the member configuration, then roll out the new control
+plane image. Worker images/protocols are unchanged. Runtime credentials still
+need only existing table DML, not DDL. Do not rewrite old migrations. Older binaries
+reject schema 009: rollback requires a schema-compatible binary; never drop data
+to roll back. This is not an image-only upgrade.
+
+The bundled nginx trusts forwarding information only from the deployment VPC
+`10.82.0.0/16`; NodePort ingress must remain restricted to the ALB security group,
+and the ALB must retain its append-mode X-Forwarded-For behavior. Change this CIDR
+when deploying in another network; never use a public catch-all trusted proxy.
+Nginx overwrites `X-Agenova-Client-IP` with the resolved source and clears XFF.
+The application accepts that private header only on explicitly configured plaintext
+loopback proxy connections. Direct TLS clients cannot choose their source through
+forwarding headers. Missing/invalid proxy source fails closed. Direct TLS deployments
+leave `trustLocalProxyClientIP` false and use the socket peer.
+
+PostgreSQL limits pending anonymous attempts to eight per IPv4 address or IPv6 /64
+and 128 overall, for five minutes. Browser/native starts share the source limit.
+Verified native callback codes have a separate 128-entry pool; pending requests
+cannot exhaust it. Source keys are hashed, never stored as raw IP addresses.
+Consumption and expiry release slots; restart does not reset outstanding counts.
+Shared NAT users share a limit and may need to complete an existing login or wait
+five minutes. This bounds single-source exhaustion, not distributed denial of
+service; large public deployments still need perimeter traffic protection.
+
+Owner bootstrap validates the private Owner team against `registrationTeam` before
+reserving any invitation. If link delivery fails, rerun `identity-bootstrap` with
+the same email/team/project and a **new private owner-file path**. It may rotate
+only that still-unaccepted Owner reservation; it cannot replace an active Owner.
+The protected link file is synced before the proof hash transaction commits. Keep
+output files after commit uncertainty; do not delete database rows. A successful
+retry invalidates the earlier link. Existing output files are never overwritten.
+
+The proxy permits governance payloads up to 1 MiB + 4096 bytes, matching the
+authenticated handler/client; other routes keep the 128 KiB limit.

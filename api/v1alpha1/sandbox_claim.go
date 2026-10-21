@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // DecisionResult is the typed outcome vocabulary for one authorization
@@ -44,12 +45,13 @@ type PolicyReference struct {
 // EffectiveAuthority is the system-issued grant distinct from any requested
 // access. It is never caller-suppliable.
 type EffectiveAuthority struct {
-	ID             string                    `json:"id"`
-	Tools          []string                  `json:"tools,omitempty"`
-	ResourceScopes []string                  `json:"resourceScopes,omitempty"`
-	ModelProfile   string                    `json:"modelProfile,omitempty"`
-	MemoryScopes   []string                  `json:"memoryScopes,omitempty"`
-	Runtime        EffectiveAuthorityRuntime `json:"runtime"`
+	ID              string                    `json:"id"`
+	Tools           []string                  `json:"tools,omitempty"`
+	ResourceScopes  []string                  `json:"resourceScopes,omitempty"`
+	ModelProfile    string                    `json:"modelProfile,omitempty"`
+	MemoryScopes    []string                  `json:"memoryScopes,omitempty"`
+	NetworkProfiles []string                  `json:"networkProfiles,omitempty"`
+	Runtime         EffectiveAuthorityRuntime `json:"runtime"`
 }
 
 type EffectiveAuthorityRuntime struct {
@@ -63,6 +65,10 @@ type EffectiveAuthorityRuntime struct {
 type SandboxClaimBackendIdentity struct {
 	Backend  string `json:"backend"`
 	WorkerID string `json:"workerId"`
+	// AllocationID is an optional opaque backend-issued incarnation binding.
+	// Historical snapshots may omit it; absence is not evidence that a current
+	// same-name worker is the original allocation.
+	AllocationID string `json:"allocationID,omitempty"`
 }
 
 // SandboxClaim is the v0 backend-neutral issued-state claim: one immutable
@@ -235,6 +241,9 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 		if strings.TrimSpace(state.EffectiveAuthority.Runtime.ProfileRef) == "" {
 			return validationError(ValidationCategoryRequiredField, "effectiveAuthority.runtime.profileRef", "value is required")
 		}
+		if err := validateNetworkProfiles("effectiveAuthority.networkProfiles", state.EffectiveAuthority.NetworkProfiles, ValidationCategoryInvalidValue); err != nil {
+			return err
+		}
 		switch state.Claim.Phase {
 		case ClaimPhasePending, ClaimPhaseBound, ClaimPhaseRunning, ClaimPhaseSucceeded, ClaimPhaseFailed, ClaimPhaseExpired:
 		default:
@@ -258,6 +267,9 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 			}
 			if strings.TrimSpace(state.Claim.BackendIdentity.WorkerID) == "" {
 				return validationError(ValidationCategoryRequiredField, "claim.backendIdentity.workerId", "value is required")
+			}
+			if id := state.Claim.BackendIdentity.AllocationID; id != "" && (strings.TrimSpace(id) != id || !utf8.ValidString(id) || len(id) > 256) {
+				return validationError(ValidationCategoryInvalidValue, "claim.backendIdentity.allocationID", "allocation identity must be bounded opaque UTF-8 without surrounding whitespace")
 			}
 		}
 		if time.Duration(state.EffectiveAuthority.Runtime.Timeout) <= 0 {

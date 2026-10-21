@@ -5,7 +5,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/registration"
 	"io"
@@ -41,19 +41,7 @@ func (d *memberDependencies) governanceHandler() http.Handler {
 			http.Error(w, "Invalid request", 400)
 			return
 		}
-		result, err := d.store.ApplyGovernance(r.Context(), p, request.Project, request.Kind, []byte(request.Document), func(t *v0.AgentTemplate) error {
-			if t.Spec.Artifact == nil || t.Spec.Entrypoint == nil {
-				return errors.New("controlled worker required")
-			}
-			if err := requireCompatibleWorkerImage(t.Spec.Artifact.Image, os.Getenv("AGENOVA_ALLOWED_WORKER_IMAGE")); err != nil {
-				return err
-			}
-			c := t.Spec.Entrypoint.Command
-			if len(c) != 2 || c[0] != "/agenova-workerctl" || c[1] != "serve" {
-				return errors.New("controlled worker required")
-			}
-			return nil
-		})
+		result, err := d.store.ApplyGovernance(r.Context(), p, request.Project, request.Kind, []byte(request.Document), app.ValidateControlledTemplate)
 		if err != nil {
 			status := 400
 			if errors.Is(err, authentication.ErrForbidden) {
@@ -94,6 +82,21 @@ func (d *memberDependencies) platformAuthorizationHandler() http.Handler {
 		decoder.DisallowUnknownFields()
 		if decoder.Decode(&input) != nil || decoder.Decode(new(any)) != io.EOF {
 			http.Error(w, "Invalid request", 400)
+			return
+		}
+		if input.Action == "grafana" {
+			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
+			if installation == "" || input.Installation != installation {
+				http.Error(w, "Installation access denied", 403)
+				return
+			}
+			role, err := d.store.GrafanaRole(r.Context(), p, installation)
+			if err != nil {
+				http.Error(w, "Diagnostics access denied", 403)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"role": role})
 			return
 		}
 		action := ""

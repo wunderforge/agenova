@@ -35,8 +35,10 @@ agenova policy apply -f POLICY.yaml --server https://app.agenova.app --project p
 ```
 
 Do not overwrite names/versions, expand another team's policy or upload secrets.
-New image references must match the installed compatible Worker. These commands
-do not grant AWS IAM/RBAC or deploy external MCP/Collector services.
+On that historical release, new image references must match the installed Worker.
+The [independent image guide](agent-images.md) describes the #240 replacement;
+it applies only after upgrading the control plane. These commands do not grant
+AWS IAM/RBAC or deploy external MCP/Collector services.
 
 Release source is `44dc383c9d8cb1ed5679677d78ed6a289a1944bc`; subsequent evidence
 and release-provenance-only changes do not imply another image rollout. See

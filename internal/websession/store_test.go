@@ -7,11 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -83,7 +86,7 @@ func TestEncryptedDurableSessionAndConcurrentLogout(t *testing.T) {
 		t.Fatal("concurrent refresh resurrected logout")
 	}
 	attemptHandle, _ := randomHandle()
-	if s.PutAttempt(ctx, attemptHandle, value) != nil {
+	if s.PutLoginAttempt(ctx, attemptHandle, value, "192.0.2.1") != nil {
 		t.Fatal("attempt save")
 	}
 	if s.TakeAttempt(ctx, attemptHandle, &loaded) != nil {
@@ -183,5 +186,84 @@ func TestWebLoginCookieCSRFAndLogout(t *testing.T) {
 	}
 	if call("GET", "/api/requests", "", sessionCookieValue).Code != 401 {
 		t.Fatal("logged-out session usable")
+	}
+}
+
+// A single source cannot occupy all pending slots, and anonymous attempts cannot
+// consume verified handoff capacity. Limits survive a new Store (process restart).
+func TestLoginAttemptCapacityIsolation(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	put := func(store *Store, source string) error {
+		h, _ := randomHandle()
+		return store.PutLoginAttempt(ctx, h, map[string]string{"state": "test"}, source)
+	}
+	for i := 0; i < 8; i++ {
+		if err := put(s, "192.0.2.1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	restarted, err := NewStore(s.DB, []byte(strings.Repeat("x", 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 128; i++ {
+		if put(restarted, "192.0.2.1") == nil {
+			t.Fatal("source exceeded capacity")
+		}
+	}
+	if err := put(restarted, "192.0.2.2"); err != nil {
+		t.Fatal("other source blocked", err)
+	}
+	// Fill the remaining anonymous capacity from separate sources.
+	for i := 9; i < 128; i++ {
+		if err := put(s, fmt.Sprintf("source-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if put(s, "another-source") == nil {
+		t.Fatal("global pending cap bypassed")
+	}
+	code, _ := randomHandle()
+	if err := s.PutCode(ctx, "code:"+code, nativeCode{Kind: "cli-code"}); err != nil {
+		t.Fatal("anonymous attempts blocked verified code", err)
+	}
+	var grant nativeCode
+	if err := s.TakeAttempt(ctx, "code:"+code, &grant); err != nil || grant.Kind != "cli-code" {
+		t.Fatal("verified code unavailable", err)
+	}
+	if s.TakeAttempt(ctx, "code:"+code, &grant) == nil {
+		t.Fatal("code replay")
+	}
+	var rawSource int
+	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_login_attempts WHERE source_hash='192.0.2.1'`).Scan(&rawSource); err != nil || rawSource != 0 {
+		t.Fatal("raw source persisted")
+	}
+	if _, err := s.DB.Exec(`UPDATE agenova_login_attempts SET expires_at=now()-interval '1 second'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := put(s, "192.0.2.1"); err != nil {
+		t.Fatal("expired slots not reclaimed", err)
+	}
+}
+
+func TestConcurrentLoginAttemptSourceCap(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	var accepted atomic.Int32
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			h, _ := randomHandle()
+			if s.PutLoginAttempt(ctx, h, attempt{}, "192.0.2.1") == nil {
+				accepted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if accepted.Load() != 8 {
+		t.Fatalf("accepted %d", accepted.Load())
 	}
 }

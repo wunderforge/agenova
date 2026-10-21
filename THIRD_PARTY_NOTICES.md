@@ -24,3 +24,16 @@ Vite and Vitest (MIT), TypeScript and Playwright (Apache-2.0), Testing Library
 recorded in `ui/package-lock.json`; installed packages retain their upstream
 license notices. The application build is local and no browser binaries are
 committed or distributed by this repository.
+
+## OpenTelemetry and SQLite
+
+The control plane uses official OpenTelemetry Go APIs, SDKs and OTLP/HTTP
+exporters (Apache-2.0) and the modernc.org SQLite Go adapter (BSD-3-Clause).
+SQLite itself is public domain. Exact direct and transitive versions/checksums
+are pinned in `go.mod` and `go.sum`; upstream dependencies retain their notices.
+
+The optional reference observability deployment selects independently operated
+Collector (Apache-2.0), Grafana, Tempo and Loki (AGPL-3.0), and Prometheus
+(Apache-2.0) container images. Agenova does not vendor those servers into its
+source tree. Image pins are in the bundled deployment adapter; operators are
+responsible for the selected distributions' applicable license terms.

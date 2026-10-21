@@ -9,6 +9,7 @@ import (
 
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolbackend"
 	"github.com/wunderforge/agenova/internal/toolgateway"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
@@ -17,6 +18,7 @@ import (
 // providerToolAdapter is a consumer of the neutral provider contract. Only
 // the Tool Gateway calls it, after successful decision recording.
 type providerToolAdapter struct {
+	telemetry    *telemetry.Telemetry
 	ctx          context.Context
 	claims       app.ClaimAuthorityReader
 	appendFact   func(facts.Fact) (facts.Fact, error)
@@ -66,7 +68,9 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 	if _, err := a.appendFact(fact); err != nil {
 		return errToolEvidence
 	}
-	result, invokeErr := a.tools.Invoke(a.ctx, toolbackend.Invocation{ID: id, ClaimID: a.claimID, Operation: operation, ResourceScope: req.ResourceScope, Parameters: req.Parameters})
+	providerCtx, endProvider := a.telemetry.Start(a.ctx, "tool.invoke", a.ref, a.claimID, id)
+	result, invokeErr := a.tools.Invoke(providerCtx, toolbackend.Invocation{ID: id, ClaimID: a.claimID, Operation: operation, ResourceScope: req.ResourceScope, Parameters: req.Parameters})
+	endProvider(invokeErr == nil)
 	fact.Kind = "ProviderOutcome"
 	fact.ProviderStatus = "Succeeded"
 	if invokeErr == nil && facts.ValidResultRef(result.ResultRef) {

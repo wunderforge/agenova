@@ -28,11 +28,13 @@ type httpBackend struct {
 	calls    atomic.Int32
 	released atomic.Bool
 	claim    string
+	network  runtime.NetworkAuthority
 }
 
 func (b *httpBackend) Allocate(r runtime.AllocateRequest) (runtime.Allocation, error) {
 	b.calls.Add(1)
 	b.claim = r.ClaimID
+	b.network = r.Network
 	return runtime.Allocation{ClaimID: r.ClaimID, Identity: v0.SandboxClaimBackendIdentity{Backend: "synthetic", WorkerID: "worker:1"}}, nil
 }
 func (b *httpBackend) Observe(id v0.SandboxClaimBackendIdentity) (runtime.Observation, error) {
@@ -50,7 +52,7 @@ func (b *httpBackend) Cleanup(id v0.SandboxClaimBackendIdentity) (runtime.Cleanu
 type httpExecutor struct{}
 
 func (httpExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, handler workerprotocol.Handler) (string, error) {
-	reply, err := handler(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective})
+	reply, err := handler(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: task.Objective})
 	if err != nil {
 		return "", err
 	}

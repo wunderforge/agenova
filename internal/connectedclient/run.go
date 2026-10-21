@@ -28,6 +28,7 @@ import (
 	"github.com/wunderforge/agenova/internal/authority"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
+	"github.com/wunderforge/agenova/internal/history"
 	"gopkg.in/yaml.v3"
 )
 
@@ -270,6 +271,12 @@ func decodeStrictJSON(data []byte, value any) bool {
 }
 
 func validEvidenceView(view evidence.View, ref string) bool {
+	if view.TraceID != "" && !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(view.TraceID) {
+		return false
+	}
+	if view.Recovery != nil && (view.Recovery.Code != "service-restarted" || (view.Recovery.Cleanup != "Unknown" && view.Recovery.Cleanup != "Succeeded" && view.Recovery.Cleanup != "Failed") || view.Outcome != nil) {
+		return false
+	}
 	if view.Version != "agenova.evidence/v0" || view.RequestRef != ref || view.Request == nil || view.State == nil ||
 		view.Request.Metadata.Name != ref || v0.ValidateClaimRequest(view.Request) != nil || view.Facts == nil {
 		return false
@@ -319,6 +326,16 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	runtimeTerminalOperation := ""
 	terminationRecorded := false
 	cleanupRecorded := false
+	networkActivationPending := false
+	networkActivationRecorded := false
+	networkActive := false
+	networkReleaseStarted := false
+	networkReleasePending := false
+	networkReleased := false
+	// Network profiles did not exist in historical evidence. An explicit grant
+	// is therefore a new-contract snapshot: successful execution or dispatch
+	// cannot silently fall back to historical handling by omitting every event.
+	requiresNetworkLifecycle := view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) > 0
 	runOutcomeReasonCode := ""
 	lastSucceededModelInvocation := ""
 	runtimeEvents := make([]string, 0)
@@ -405,7 +422,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.Kind == "AuthorityResolved" {
 			if view.State == nil || view.State.EffectiveAuthority == nil || fact.Authority == nil ||
 				!sameAuthority(*fact.Authority, *view.State.EffectiveAuthority) || fact.PolicyRef == nil ||
-				*fact.PolicyRef != view.State.PolicyRef || !slices.Equal(fact.AuthorityChanges, expectedAuthorityChanges(view.Request, *view.State.EffectiveAuthority)) ||
+				*fact.PolicyRef != view.State.PolicyRef || !validAuthorityChanges(view.Request, *view.State.EffectiveAuthority, fact.AuthorityChanges) ||
 				fact.BackendIdentity != nil || fact.InvocationID != "" || fact.ProviderStatus != "" || fact.Operation != "" || fact.Target != "" || fact.Decision != nil || fact.Result != "" {
 				return false
 			}
@@ -420,6 +437,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "Runtime" {
+			if fact.Operation == "Succeeded" && requiresNetworkLifecycle && !networkActive {
+				return false
+			}
 			// Pending is the initial journal insertion, not a transition
 			// appended to IssuedState.Evidence.RuntimeEvents.
 			if fact.Operation != "Pending" {
@@ -432,8 +452,42 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			if runtimeTerminal && !isRuntimeTeardownOperation(fact.Operation) {
 				return false
 			}
-			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal {
+			if isRuntimeTeardownOperation(fact.Operation) && !runtimeTerminal && !isNetworkRevocationOperation(fact.Operation) {
 				return false
+			}
+			if isNetworkOperation(fact.Operation) {
+				// These are configuration/lifecycle facts, never packet-level proof.
+				// Require the original allocation incarnation, not merely a worker name.
+				recoveryRelease := isNetworkRevocationOperation(fact.Operation) && fact.ReasonCode == "recovery-"+fact.Operation
+				if !boundRecorded || (terminationRecorded || cleanupRecorded) && !recoveryRelease || !validNetworkFact(fact, view.State) {
+					return false
+				}
+				switch fact.Operation {
+				case "NetworkActivationAttempt":
+					if !runningRecorded || networkActivationRecorded || networkReleaseStarted {
+						return false
+					}
+					networkActivationRecorded, networkActivationPending = true, true
+				case "NetworkActive", "NetworkActivationFailed":
+					if !networkActivationPending || networkReleaseStarted {
+						return false
+					}
+					networkActivationPending = false
+					networkActive = fact.Operation == "NetworkActive"
+				case "NetworkRevocationAttempt":
+					// Recovery can retry an interrupted release whose result was never
+					// committed. Only the explicitly labelled recovery path may do so.
+					if (networkReleasePending || networkReleased) && fact.ReasonCode != "recovery-NetworkRevocationAttempt" {
+						return false
+					}
+					networkReleaseStarted, networkReleasePending = true, true
+				case "NetworkRevoked", "NetworkRevocationFailed":
+					if !networkReleasePending {
+						return false
+					}
+					networkReleasePending = false
+					networkReleased = fact.Operation == "NetworkRevoked"
+				}
 			}
 			if fact.Operation == "Pending" {
 				if pendingRecorded || boundRecorded || backendReadyRecorded || runningRecorded {
@@ -477,9 +531,18 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			}
 		}
 		if fact.Kind == "WorkerActivity" || fact.InvocationID != "" {
+			if requiresNetworkLifecycle && !networkActive {
+				return false
+			}
 			if !runningRecorded || runtimeTerminal &&
 				(fact.Kind != "ProviderOutcome" || fact.ProviderStatus != "Cancelled" ||
 					(runtimeTerminalOperation != "Cancelled" && runtimeTerminalOperation != "Expired")) {
+				return false
+			}
+			// An in-flight call may finish during cancellation/release. No new
+			// activity or dispatch can begin once release has started. Historical
+			// views without network facts retain their pre-extension semantics.
+			if networkReleaseStarted && fact.Kind != "ProviderOutcome" || networkActivationRecorded && !networkActive && !networkReleaseStarted {
 				return false
 			}
 		}
@@ -494,6 +557,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		switch fact.Kind {
 		case "WorkerActivity":
 			switch fact.Operation {
+			case "ToolRequestRejected":
+				if fact.InvocationID != "" || fact.Target != "tool.invoke" || fact.ReasonCode != "tool-arguments-rejected" ||
+					fact.Reason != "Tool parameters do not match an installed route; no provider call was made." ||
+					fact.Decision != nil || fact.Result != "" || fact.Authority != nil || len(fact.AuthorityChanges) != 0 ||
+					fact.ProviderStatus != "" || fact.PolicyRef != nil || fact.BackendIdentity != nil {
+					return false
+				}
 			case "TurnStarted", "ActionReceived", "ObservationReceived", "FinalAnswer":
 				if fact.InvocationID != "" {
 					return false
@@ -611,11 +681,26 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 	}
+	// A crash can occur immediately after the atomic admission commit, before
+	// AuthorityResolved is observed. This exception is read-only and permits no
+	// runtime/provider activity or restored authority without its normal proof.
+	earlyInterruption := view.Recovery != nil && authorityResolved == 0 && view.State.Claim != nil && view.State.Claim.Phase == v0.ClaimPhasePending && view.State.Claim.BackendIdentity == nil && len(runtimeEvents) == 0 && len(invocations) == 0
 	if view.State.Decision.Result == v0.DecisionResultAllow && view.State.EffectiveAuthority != nil &&
-		authorityResolved != 1 && runOutcomeReasonCode != "runtime-template-configuration-failed" {
+		authorityResolved != 1 && runOutcomeReasonCode != "runtime-template-configuration-failed" && !earlyInterruption {
 		return false
 	}
 	if view.Outcome != nil {
+		// A completed allocated Work with explicit network authority must record
+		// its release even if cancellation/failure won before activation. While
+		// teardown is in progress there is no Outcome, so terminal-phase polling
+		// still does not demand facts that the service has not committed yet.
+		if requiresNetworkLifecycle && view.State.Claim != nil && view.State.Claim.BackendIdentity != nil && !networkReleaseStarted {
+			return false
+		}
+		if networkReleasePending || networkActivationRecorded && !networkReleaseStarted ||
+			view.Outcome.Status == "Succeeded" && networkActivationRecorded && !networkActive {
+			return false
+		}
 		if view.State == nil || !validOutcomeState(view.Outcome.Status, view.State) {
 			return false
 		}
@@ -681,7 +766,7 @@ func runtimeProvesAllocation(fact facts.Fact) bool {
 	case "Bound", "BackendReady", "Running", "StartFailed", "Succeeded", "CleanupSucceeded", "CleanupFailed", "TerminateSucceeded", "TerminateFailed":
 		return true
 	default:
-		return false
+		return isNetworkOperation(fact.Operation)
 	}
 }
 
@@ -700,11 +785,27 @@ func validRunOutcomeOperation(operation string, phase v0.ClaimPhase) bool {
 
 func isRuntimeTerminalOperation(operation string) bool {
 	switch operation {
-	case "AllocationFailed", "StartFailed", "Succeeded", "Failed", "Expired", "Cancelled":
+	case "AllocationFailed", "StartFailed", "Succeeded", "Failed", "Expired", "Cancelled", "NetworkActivationFailed":
 		return true
 	default:
 		return false
 	}
+}
+
+func isNetworkRevocationOperation(operation string) bool {
+	return operation == "NetworkRevocationAttempt" || operation == "NetworkRevoked" || operation == "NetworkRevocationFailed"
+}
+
+func isNetworkOperation(operation string) bool {
+	return operation == "NetworkActivationAttempt" || operation == "NetworkActive" || operation == "NetworkActivationFailed" || isNetworkRevocationOperation(operation)
+}
+
+func validNetworkFact(fact facts.Fact, state *v0.IssuedState) bool {
+	return fact.BackendIdentity != nil && state.Claim.BackendIdentity != nil && *fact.BackendIdentity == *state.Claim.BackendIdentity &&
+		fact.PolicyRef != nil && *fact.PolicyRef == state.PolicyRef && fact.Target == "work-network" &&
+		(fact.ReasonCode == "runtime-"+fact.Operation || isNetworkRevocationOperation(fact.Operation) && fact.ReasonCode == "recovery-"+fact.Operation) &&
+		strings.TrimSpace(fact.Reason) != "" && len(fact.Reason) <= 4096 && !strings.ContainsFunc(fact.Reason, unicode.IsControl) &&
+		fact.InvocationID == "" && fact.Decision == nil && fact.Result == "" && fact.Authority == nil && len(fact.AuthorityChanges) == 0 && fact.ProviderStatus == ""
 }
 
 func isRuntimeTeardownOperation(operation string) bool {
@@ -712,7 +813,7 @@ func isRuntimeTeardownOperation(operation string) bool {
 	case "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
 		return true
 	default:
-		return false
+		return isNetworkRevocationOperation(operation)
 	}
 }
 
@@ -722,7 +823,7 @@ func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase, identi
 		case "Pending", "Bound", "BackendReady", "Running", "TerminateSucceeded", "TerminateFailed", "CleanupSucceeded", "CleanupFailed":
 			return true
 		default:
-			return false
+			return isNetworkOperation(operation)
 		}
 	}
 	switch operation {
@@ -730,6 +831,8 @@ func validRuntimeTerminalOperation(operation string, phase v0.ClaimPhase, identi
 		return phase == v0.ClaimPhaseFailed && !identity && pending && !bound && !ready && !running
 	case "StartFailed":
 		return phase == v0.ClaimPhaseFailed && identity && bound && ready && !running
+	case "NetworkActivationFailed":
+		return phase == v0.ClaimPhaseFailed && identity && bound && ready && running
 	case "Succeeded":
 		return phase == v0.ClaimPhaseSucceeded && identity && running
 	case "Failed":
@@ -749,6 +852,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		{granted.Tools, wanted.Tools},
 		{granted.ResourceScopes, wanted.ResourceScopes},
 		{granted.MemoryScopes, wanted.MemoryScopes},
+		{granted.NetworkProfiles, wanted.NetworkProfiles},
 	} {
 		if len(pair.requested) > 0 && len(pair.granted) == 0 {
 			return false
@@ -763,7 +867,7 @@ func authorityWithinRequest(granted v0.EffectiveAuthority, request *v0.ClaimRequ
 		time.Duration(granted.Runtime.Timeout) <= time.Duration(*request.Spec.Runtime.Timeout)
 }
 
-func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthority) []authority.Change {
+func validAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuthority, actual []authority.Change) bool {
 	var changes []authority.Change
 	for _, dimension := range []struct {
 		field                string
@@ -772,25 +876,42 @@ func expectedAuthorityChanges(request *v0.ClaimRequest, granted v0.EffectiveAuth
 		{"tools", request.Spec.RequestedAccess.Tools, granted.Tools},
 		{"resourceScopes", request.Spec.RequestedAccess.ResourceScopes, granted.ResourceScopes},
 		{"memoryScopes", request.Spec.RequestedAccess.MemoryScopes, granted.MemoryScopes},
+		{"networkProfiles", request.Spec.RequestedAccess.NetworkProfiles, granted.NetworkProfiles},
 	} {
 		for _, value := range dimension.requested {
 			if !slices.Contains(dimension.effective, value) {
-				changes = append(changes, authority.Change{Field: dimension.field, Requested: value, ReasonCode: "outside-template-ceiling"})
+				changes = append(changes, authority.Change{Field: dimension.field, Requested: value})
 			}
 		}
 	}
 	if *request.Spec.Runtime.Timeout != granted.Runtime.Timeout {
 		changes = append(changes, authority.Change{
 			Field: "runtime.timeout", Requested: time.Duration(*request.Spec.Runtime.Timeout).String(),
-			Effective: time.Duration(granted.Runtime.Timeout).String(), ReasonCode: "template-timeout-cap",
+			Effective: time.Duration(granted.Runtime.Timeout).String(),
 		})
 	}
-	return changes
+	if len(actual) != len(changes) {
+		return false
+	}
+	for index, expected := range changes {
+		got := actual[index]
+		if got.Field != expected.Field || got.Requested != expected.Requested || got.Effective != expected.Effective {
+			return false
+		}
+		if expected.Field == "runtime.timeout" {
+			if got.ReasonCode != "template-timeout-cap" && got.ReasonCode != "policy-timeout-cap" {
+				return false
+			}
+		} else if got.ReasonCode != "outside-template-ceiling" && got.ReasonCode != "outside-policy-constraint" {
+			return false
+		}
+	}
+	return true
 }
 
 func sameAuthority(a, b v0.EffectiveAuthority) bool {
 	return a.ID == b.ID && slices.Equal(a.Tools, b.Tools) && slices.Equal(a.ResourceScopes, b.ResourceScopes) &&
-		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && a.Runtime == b.Runtime
+		a.ModelProfile == b.ModelProfile && slices.Equal(a.MemoryScopes, b.MemoryScopes) && slices.Equal(a.NetworkProfiles, b.NetworkProfiles) && a.Runtime == b.Runtime
 }
 
 func hasSuccessfulModelInvocation(recorded []facts.Fact, invocationID, grantedProfile string) bool {
@@ -1064,4 +1185,63 @@ func (c Client) startPortForward(ctx context.Context) (string, func(), error) {
 
 func (c Client) portForwardArgs() []string {
 	return []string{"--context", c.Context, "--namespace", c.Namespace, "port-forward", "deployment/agenova-control-plane", ":8081", "--address", "127.0.0.1"}
+}
+
+// History reads one bounded authorized page. Cursor grants no authority.
+func (c Client) History(limit int, cursor string) (history.Page, error) {
+	if limit < 1 || limit > 100 || len(cursor) > 512 {
+		return history.Page{}, errors.New("invalid history page")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	endpoint, closeTunnel, err := c.openTunnel(ctx)
+	if err != nil {
+		return history.Page{}, err
+	}
+	defer closeTunnel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/api/history?limit="+strconv.Itoa(limit)+"&cursor="+url.QueryEscape(cursor), nil)
+	if err != nil {
+		return history.Page{}, err
+	}
+	if c.Server != "" {
+		if endpoint != c.Server || !validServerOrigin(endpoint) || c.AccessToken == nil {
+			return history.Page{}, errors.New("authenticated HTTPS connection is invalid")
+		}
+		token, tokenErr := c.AccessToken(ctx)
+		if tokenErr != nil || token == "" || len(token) > 16<<10 || strings.ContainsAny(token, " \t\r\n") {
+			return history.Page{}, errors.New("login credentials are unavailable; sign in again")
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		defer req.Header.Del("Authorization")
+	}
+	client := c.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 15 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	}
+	clientCopy := *client
+	clientCopy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := clientCopy.Do(req)
+	if err != nil {
+		return history.Page{}, errors.New("installed history API unavailable")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		return history.Page{}, errors.New("installed history query rejected")
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxEvidenceBytes+1))
+	if err != nil || len(data) > maxEvidenceBytes {
+		return history.Page{}, errors.New("invalid history response")
+	}
+	var page history.Page
+	if !decodeStrictJSON(data, &page) || page.Items == nil || len(page.Items) > limit || len(page.NextCursor) > 512 {
+		return history.Page{}, errors.New("invalid history response")
+	}
+	seen := map[string]bool{}
+	for _, item := range page.Items {
+		if !validRequestRef(item.RequestRef) || seen[item.RequestRef] {
+			return history.Page{}, errors.New("invalid history response")
+		}
+		seen[item.RequestRef] = true
+	}
+	return page, nil
 }

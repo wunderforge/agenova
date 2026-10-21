@@ -16,6 +16,9 @@ const operationLabels: Record<string, string> = {
   Succeeded: 'Work completed', Failed: 'Work failed', Cancelled: 'Work cancelled',
   TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
   TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
+  NetworkActivationAttempt: 'Network activation requested', NetworkActive: 'Network rules activated',
+  NetworkActivationFailed: 'Network activation failed', NetworkRevocationAttempt: 'Network withdrawal requested',
+  NetworkRevoked: 'Network rules withdrawn', NetworkRevocationFailed: 'Network withdrawal failed',
 };
 export const category = (fact: Observation) => fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
 export function recordTitle(fact: Observation): string {

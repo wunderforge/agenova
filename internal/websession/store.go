@@ -125,12 +125,27 @@ func (s *Store) Delete(ctx context.Context, handle string) error {
 	}
 	return nil
 }
-func (s *Store) PutAttempt(ctx context.Context, handle string, value any) error {
+
+// PutLoginAttempt limits outstanding anonymous attempts per trusted source.
+// Source is only an abuse-control key, never an authentication identity.
+func (s *Store) PutLoginAttempt(ctx context.Context, handle string, value any, source string) error {
+	if source == "" || len(source) > 128 {
+		return errSession
+	}
+	return s.putAttempt(ctx, handle, value, "pending", hash(source))
+}
+
+// PutCode has capacity reserved for handoffs after successful IdP verification.
+func (s *Store) PutCode(ctx context.Context, handle string, value any) error {
+	return s.putAttempt(ctx, handle, value, "verified", "")
+}
+
+func (s *Store) putAttempt(ctx context.Context, handle string, value any, kind, source string) error {
 	b, err := s.seal(handle, value)
 	if err != nil {
 		return err
 	}
-	// A hard shared cap prevents anonymous login-start requests growing storage.
+	// Serialize capacity checks across replicas, including source limits.
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return errSession
@@ -143,10 +158,15 @@ func (s *Store) PutAttempt(ctx context.Context, handle string, value any) error 
 		return errSession
 	}
 	var n int
-	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM agenova_login_attempts`).Scan(&n); err != nil || n >= 128 {
+	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM agenova_login_attempts WHERE attempt_kind=$1`, kind).Scan(&n); err != nil || n >= 128 {
 		return errSession
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_login_attempts(id_hash,payload,expires_at) VALUES($1,$2,now()+interval '5 minutes')`, hash(handle), b); err != nil {
+	if kind == "pending" {
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM agenova_login_attempts WHERE attempt_kind='pending' AND source_hash=$1`, source).Scan(&n); err != nil || n >= 8 {
+			return errSession
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_login_attempts(id_hash,payload,expires_at,attempt_kind,source_hash) VALUES($1,$2,now()+interval '5 minutes',$3,$4)`, hash(handle), b, kind, source); err != nil {
 		return errSession
 	}
 	if tx.Commit() != nil {

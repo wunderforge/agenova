@@ -57,19 +57,23 @@ type AccessRegistrar interface {
 	RegisterGoogleAccess(context.Context, googleoidc.LoginIdentity, string) (string, error)
 }
 type Config struct {
-	Registration        AccessRegistrar
-	RegistrationTeam    string
-	Invitations         InvitationAcceptor
-	Google              GoogleLogin
-	ApplicationSessions ApplicationSessions
-	Origin              string
-	Native              login.Config
-	Web                 oauth2.Config
-	Store               *Store
-	Boundary            *authentication.Boundary
-	Revoker             Revoker
-	Next                http.Handler
-	HTTPClient          *http.Client
+	TrustLocalProxyClientIP bool
+	Registration            AccessRegistrar
+	RegistrationTeam        string
+	Invitations             InvitationAcceptor
+	Google                  GoogleLogin
+	ApplicationSessions     ApplicationSessions
+	Origin                  string
+	Native                  login.Config
+	Web                     oauth2.Config
+	Store                   *Store
+	Boundary                *authentication.Boundary
+	Revoker                 Revoker
+	Next                    http.Handler
+	// Landing is explicitly public product material, not a second Portal/API.
+	// Only anonymous root and the /landing/ asset namespace may reach it.
+	Landing    http.Handler
+	HTTPClient *http.Client
 }
 type session struct {
 	Token    oauth2.Token
@@ -149,6 +153,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(requestContext, 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
+	if h.c.Landing != nil && strings.HasPrefix(r.URL.Path, "/landing/") {
+		h.c.Landing.ServeHTTP(w, r)
+		return
+	}
 	switch r.URL.Path {
 	case "/auth/cli-config":
 
@@ -191,7 +199,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		styleHash := sha256.Sum256([]byte(loginCSS))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'sha256-"+base64.StdEncoding.EncodeToString(styleHash[:])+"'; frame-ancestors 'none'")
-		_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+title+" | Agenova</title><style>"+loginCSS+"</style><main><p>Agenova</p><h1>"+title+"</h1><p>"+message+"</p><a href=\"/login\">Back to sign in</a></main></html>")
+		_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"color-scheme\" content=\"only light\"><meta name=\"darkreader-lock\"><meta name=\"theme-color\" content=\"#faf9fc\"><title>"+title+" | Agenova</title><style>"+loginCSS+"</style><main><p>Agenova</p><h1>"+title+"</h1><p>"+message+"</p><a href=\"/login\">Back to sign in</a></main></html>")
 		return
 	case "/login":
 		if r.Method == "GET" {
@@ -266,7 +274,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				cookie(w, nativeCookie, "", -1)
 			}
 		}
-		if h.c.Store.PutAttempt(ctx, handle, a) != nil {
+		source, sourceErr := h.loginSource(r)
+		if sourceErr != nil || h.c.Store.PutLoginAttempt(ctx, handle, a, source) != nil {
 			failure(w, 429)
 			return
 		}
@@ -374,6 +383,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.c.Next.ServeHTTP(w, authenticated.WithContext(requestContext))
 }
 func (h *Handler) unauthorized(w http.ResponseWriter, r *http.Request) {
+	if h.c.Landing != nil && (r.URL.Path == "/" || r.URL.Path == "/index.html") && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		h.c.Landing.ServeHTTP(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/auth/") {
 		failure(w, 401)
 		return
@@ -451,7 +464,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			grant := nativeCode{Kind: "cli-code", Issuer: id.Issuer, Subject: id.Subject, Challenge: a.Native.Challenge}
-			if h.c.Store.PutAttempt(r.Context(), "code:"+code, grant) != nil {
+			if h.c.Store.PutCode(r.Context(), "code:"+code, grant) != nil {
 				callbackFailure(w, 503, "native_code_storage")
 				return
 			}

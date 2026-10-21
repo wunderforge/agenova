@@ -71,6 +71,12 @@ func configFixture(t *testing.T) memberConfig {
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>Portal</html>"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(dir, "landing"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "landing", "index.html"), []byte(`<html>Public Agenova homepage <a href="/login">Sign in</a></html>`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	return memberConfig{Origin: "https://app.example", Issuer: "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_Test", OAuthOrigin: "https://team.auth.ap-southeast-2.amazoncognito.com", NativeClientID: "native", WebClientID: "web", Scope: "agenova/api", DatabaseURLFile: filepath.Join(dir, "db"), SessionKeyFile: filepath.Join(dir, "key"), PortalDirectory: dir}
 }
 func TestStrictMemberConfig(t *testing.T) {
@@ -180,8 +186,8 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w
 	}
-	if w := call("/", ""); w.Code != 303 || w.Header().Get("Location") != "/login" {
-		t.Fatal("root did not require login")
+	if w := call("/", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "Public Agenova homepage") || strings.Contains(w.Body.String(), "<html>Portal") {
+		t.Fatal("anonymous root did not show only the public landing")
 	}
 	if w := call("/api/requests", ""); w.Code != 401 {
 		t.Fatal("anonymous API exposed")
@@ -205,6 +211,17 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w.Code
 	}
+	checkGrafana := func(wantCode int, role string) {
+		r := httptest.NewRequest("POST", c.Origin+"/api/platform/authorize", strings.NewReader(`{"installation":"sydney","action":"grafana"}`))
+		r.Header.Set("Authorization", "Bearer valid")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != wantCode || (role != "" && !strings.Contains(w.Body.String(), `"role":"`+role+`"`)) {
+			t.Fatal("Grafana role endpoint", w.Code, w.Body.String())
+		}
+	}
+	checkGrafana(403, "")
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
 		t.Fatal("implicit platform access", code)
 	}
@@ -214,6 +231,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
 		t.Fatal("scoped platform authorization", code)
 	}
+	checkGrafana(200, "Viewer")
 	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
 		t.Fatal("foreign installation", code)
 	}
@@ -232,6 +250,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 204 {
 		t.Fatal("team admin deployment", code)
 	}
+	checkGrafana(200, "Editor")
 	if code := post("/api/platform/authorize", `{"installation":"other","action":"apply"}`); code != 403 {
 		t.Fatal("team admin installation escape", code)
 	}
@@ -241,6 +260,7 @@ func TestMemberCompositionProtectsPortalAndAPI(t *testing.T) {
 	if code := post("/api/platform/authorize", `{"installation":"sydney","action":"apply"}`); code != 403 {
 		t.Fatal("demoted admin deployment", code)
 	}
+	checkGrafana(403, "")
 	m.Active = false
 	if err = store.PutMember(context.Background(), "operator", m); err != nil {
 		t.Fatal(err)
@@ -310,5 +330,25 @@ func TestGoogleMemberConfigRejectsMixedProviders(t *testing.T) {
 	os.WriteFile(c.GoogleOAuthFile, data, 0600)
 	if _, err := loadMemberConfig(f); err == nil || strings.Contains(err.Error(), "test-only-secret") {
 		t.Fatal("wrong callback or secret disclosure")
+	}
+}
+
+func TestOwnerBootstrapDeliveryGuards(t *testing.T) {
+	if validateBootstrapTeam("pinned", "other") == nil {
+		t.Fatal("mismatched bootstrap team accepted")
+	}
+	if validateBootstrapTeam("pinned", "pinned") != nil || validateBootstrapTeam("", "team") != nil {
+		t.Fatal("valid bootstrap team rejected")
+	}
+	path := filepath.Join(t.TempDir(), "owner.invitation")
+	if err := writeOwnerInvitation(path, "private-link"); err != nil {
+		t.Fatal(err)
+	}
+	if writeOwnerInvitation(path, "replacement") == nil {
+		t.Fatal("existing proof overwritten")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "private-link" {
+		t.Fatal("proof lost")
 	}
 }
