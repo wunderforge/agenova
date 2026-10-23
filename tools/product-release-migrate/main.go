@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 	if err := run(*apply, *role); err != nil {
 		// Deliberately never format database, URL, provider or file errors.
-		fmt.Fprintln(os.Stderr, "operator check/migration failed; no credential details logged")
+		fmt.Fprintln(os.Stderr, "operator failed: "+err.Error()) // run returns only fixed developer-authored categories.
 		os.Exit(1)
 	}
 }
@@ -86,7 +86,17 @@ func run(apply bool, role string) error {
 		return errors.New("runtime role inspection failed")
 	}
 	if !apply {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"mode": "inspect", "schema": before, "runtimeRoles": roles})
+		checks := map[string]bool{}
+		var value bool
+		checks["runtimeRoleSafeQuery"] = db.QueryRowContext(ctx, `SELECT NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole FROM pg_roles WHERE rolname='agenova_runtime' AND rolcanlogin`).Scan(&value) == nil
+		checks["runtimeRoleSafe"] = value
+		value = false
+		checks["existingReadQuery"] = db.QueryRowContext(ctx, `SELECT has_table_privilege('agenova_runtime','agenova_members','SELECT') AND has_table_privilege('agenova_runtime','agenova_project_policies','SELECT')`).Scan(&value) == nil
+		checks["existingReads"] = value
+		var count int
+		checks["membersCountAvailable"] = db.QueryRowContext(ctx, "SELECT count(*) FROM agenova_members").Scan(&count) == nil
+		checks["projectsCountAvailable"] = db.QueryRowContext(ctx, "SELECT count(*) FROM agenova_projects").Scan(&count) == nil
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"mode": "inspect", "schema": before, "runtimeRoles": roles, "checks": checks})
 	}
 	statements, err := grantSQL(role)
 	if err != nil {

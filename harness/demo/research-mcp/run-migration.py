@@ -61,7 +61,7 @@ def main():
         logs = command(kube + ["logs", "job/" + name])
         # The trusted image emits only this schema/grant summary; validate it.
         summary = json.loads(logs)
-        allowed = {"mode", "schema", "runtimeRoles", "schemaBefore", "schemaAfter", "runtimeRole", "minimalGrantsVerified", "memberAndProjectCountsUnchanged"}
+        allowed = {"mode", "schema", "runtimeRoles", "checks", "schemaBefore", "schemaAfter", "runtimeRole", "minimalGrantsVerified", "memberAndProjectCountsUnchanged"}
         if set(summary) - allowed:
             raise RuntimeError("Unexpected operator output; raw logs suppressed")
         print(json.dumps(summary))
