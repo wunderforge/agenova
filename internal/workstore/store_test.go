@@ -138,8 +138,8 @@ func TestDurableAdmissionIsolationAndWriterFencing(t *testing.T) {
 	if _, err := s.GetFor(ctx, people["bob"], alice.View.RequestRef); err != workstore.ErrNotFound {
 		t.Fatal("foreign Work disclosure")
 	}
-	if _, err := s.GetFor(ctx, people["admin"], alice.View.RequestRef); err != workstore.ErrNotFound {
-		t.Fatal("account admin bypassed project grants")
+	if _, err := s.GetFor(ctx, people["admin"], alice.View.RequestRef); err != nil {
+		t.Fatal("account admin cannot inspect organization Work", err)
 	}
 	if _, err := s.GetFor(ctx, people["viewer"], alice.View.RequestRef); err != nil {
 		t.Fatal("project viewer read failed", err)
@@ -274,8 +274,8 @@ func TestHistoryFiltersBeforePagingAndReauthorizes(t *testing.T) {
 		}
 	}
 	admin, err := store.HistoryFor(ctx, people["admin"], 100, "")
-	if err != nil || len(admin.Items) != 0 {
-		t.Fatal("account admin gained project reads", err)
+	if err != nil || len(admin.Items) != 6 {
+		t.Fatal("account admin missing organization Work", err)
 	}
 	viewer, err := store.HistoryFor(ctx, people["viewer"], 100, "")
 	if err != nil || len(viewer.Items) != 6 {

@@ -1,0 +1,7 @@
+[
+ {"id":"C001","name":"Northstar","inactive_days":14,"usage_drop_percent":62,"renewal_in_days":12},
+ {"id":"C002","name":"Fern Studio","inactive_days":21,"usage_drop_percent":45,"renewal_in_days":18},
+ {"id":"C003","name":"Meridian","inactive_days":7,"usage_drop_percent":38,"renewal_in_days":25},
+ {"id":"C004","name":"Harbor Labs","inactive_days":1,"usage_drop_percent":4,"renewal_in_days":90},
+ {"id":"C005","name":"Orchard","inactive_days":2,"usage_drop_percent":8,"renewal_in_days":60}
+]

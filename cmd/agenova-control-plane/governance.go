@@ -4,10 +4,10 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
+
 	"github.com/wunderforge/agenova/internal/app"
-	"github.com/wunderforge/agenova/internal/authentication"
-	"github.com/wunderforge/agenova/internal/registration"
+
+	"github.com/wunderforge/agenova/internal/management"
 	"io"
 	"mime"
 	"net/http"
@@ -15,47 +15,10 @@ import (
 )
 
 func (d *memberDependencies) governanceHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := d.boundary.Authenticate(r)
-		if err != nil {
-			http.Error(w, "Sign in required", 401)
-			return
-		}
-		if r.Method != "POST" {
-			http.Error(w, "Use POST", 405)
-			return
-		}
-		media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-		if err != nil || media != "application/json" {
-			http.Error(w, "Use JSON", 415)
-			return
-		}
-		var request struct {
-			Project  string `json:"project"`
-			Kind     string `json:"kind"`
-			Document string `json:"document"`
-		}
-		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, (1<<20)+4096))
-		decoder.DisallowUnknownFields()
-		if decoder.Decode(&request) != nil || decoder.Decode(new(any)) != io.EOF {
-			http.Error(w, "Invalid request", 400)
-			return
-		}
-		result, err := d.store.ApplyGovernance(r.Context(), p, request.Project, request.Kind, []byte(request.Document), app.ValidateControlledTemplate)
-		if err != nil {
-			status := 400
-			if errors.Is(err, authentication.ErrForbidden) {
-				status = 403
-			}
-			if errors.Is(err, registration.ErrConflict) {
-				status = 409
-			}
-			http.Error(w, "Governance operation rejected", status)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
-	})
+	return management.Governance(d.store, d.boundary, app.ValidateControlledTemplate)
+}
+func (d *memberDependencies) organizationHandler() http.Handler {
+	return management.Organization(d.store, d.boundary)
 }
 
 func (d *memberDependencies) platformAuthorizationHandler() http.Handler {

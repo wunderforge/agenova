@@ -1,10 +1,22 @@
 # Implementation Evidence Snapshot
 
-Updated: 2026-10-20
+Updated: 2026-10-23
 
 This records what the repository currently proves, not the target architecture or mutable ticket priority. It does not track ticket owners, readiness or sequence. Product requirements live in the [PRD](product/prd.md); ticket status and dependencies live in GitHub. See the [AIDLC source-of-truth map](development/AIDLC.md).
 
 ## Verified Shared Member Trial
+
+Local-only owner acceptance follow-up (23 October 2026, uncommitted): the
+permission-first Work detail and deterministic Researcher missing-tool correction
+are implemented on `codex/final-demo-product-local`. UI/SQL/Gateway/MCP checks
+remain separate from shared EKS, real Google/model and native network evidence.
+See [local acceptance](development/local-product-acceptance.md). This does not
+change the deployed-version claims below.
+
+Local display follow-up: failed Work now puts its recorded refusal above
+Permissions as a compact amber `<target> blocked` / `Evidence` banner. Build,
+161 UI unit tests, 83 browser smoke tests and nine local API/MCP journeys passed;
+owner acceptance remains pending. No commit, merge or deployment.
 
 The 19 October shared EKS trial ran the integrated member/Tool/diagnosis candidate, delivered by real GitHub Actions OIDC/ECR paired rollout, at source `44dc383c9d8cb1ed5679677d78ed6a289a1944bc`. Personal Google application identity, approved project membership, role checks, project-scoped immutable registration and SQL-backed Work/evidence are present in this mode.
 

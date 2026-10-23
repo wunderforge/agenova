@@ -42,9 +42,9 @@ func (s Store) Authorize(ctx context.Context, p v0.Principal, action, project st
 	allowed := false
 	switch action {
 	case SubmitWork, ReadOwnWork:
-		allowed = account == Owner || role == Admin || role == MemberRole
+		allowed = account == Owner || account == Admin || role == Admin || role == MemberRole
 	case ReadProjectWork:
-		allowed = account == Owner || role == Admin || role == Viewer
+		allowed = account == Owner || account == Admin || role == Admin || role == Viewer
 	case ManageMembers:
 		allowed = account == Owner || account == Admin || role == Admin
 	}
@@ -55,7 +55,7 @@ func (s Store) Authorize(ctx context.Context, p v0.Principal, action, project st
 }
 
 // GrantProject serializes administrative edits and records their actor. Project
-// admins may grant Member/Viewer only; granting Admin requires the account Owner.
+// admins may grant Member/Viewer only; account Owner/Admin can manage all grants.
 // No method here writes cloud IAM/RBAC or changes the governance PolicyBundle.
 func (s Store) GrantProject(ctx context.Context, actor v0.Principal, target, project, role string) error {
 	if s.DB == nil || actor.AuthenticationContext != "oidc" || target == "" || project == "" || (role != Admin && role != MemberRole && role != Viewer && role != "") {
@@ -103,15 +103,15 @@ func (s Store) GrantProject(ctx context.Context, actor v0.Principal, target, pro
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND project=$3 AND role='admin')`, actor.Subject, actor.Team, project).Scan(&projectAdmin); err != nil {
 		return errors.New("membership transaction unavailable")
 	}
-	if actorRole != Owner && (role == Admin || !projectAdmin) {
+	if actorRole != Owner && actorRole != Admin && (role == Admin || !projectAdmin) {
 		return authentication.ErrForbidden
 	}
 	var old string
-	// Prevent ordinary admins demoting an existing project admin.
+	// A project-only administrator cannot demote another project administrator.
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT role FROM agenova_project_grants WHERE principal=$1 AND project=$2),'')`, target, project).Scan(&old); err != nil {
 		return errors.New("membership transaction unavailable")
 	}
-	if actorRole != Owner && old == Admin {
+	if actorRole != Owner && actorRole != Admin && old == Admin {
 		return authentication.ErrForbidden
 	}
 	if role == "" {

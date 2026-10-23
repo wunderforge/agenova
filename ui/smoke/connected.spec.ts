@@ -16,6 +16,7 @@ copy.effectiveAuthority!.runtime.timeout='15m';
  const facts:Fact[]=[{id:'f1',sequence:1,timestamp:'2026-09-15T02:00:00Z',kind:'RequestResolution',requestRef:copy.requestRef,decision:copy.decision,result:'Allow',reasonCode:'assignment-allow'},{id:'f2',sequence:2,timestamp:'2026-09-15T02:00:01Z',kind:'AuthorityResolved',requestRef:copy.requestRef,claimId:copy.claim!.id,effectiveAuthority:copy.effectiveAuthority,reasonCode:'template-policy-intersection'},{id:'f3',sequence:3,timestamp:'2026-09-15T02:00:02Z',kind:'Runtime',requestRef:copy.requestRef,claimId:copy.claim!.id,operation:phase}];
  return{version:'agenova.evidence/v0',requestRef:copy.requestRef,request:structuredClone(request),state:copy,facts,...(phase==='Succeeded'?{outcome:{status:'Succeeded',text:'Use a bounded retry with exponential backoff.',model:{invocationId:'model-1',model:'local-test-model',inputTokens:12,outputTokens:20}}}:{})};
 }
+async function inspectActivity(page:Page){const details=page.locator('.portal-work-evidence');if(await details.getAttribute('open')===null)await details.locator(':scope > summary').click();}
 async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest)=>void,configured:Setup=setup){
  await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;
   if(path==='/api/setup')return route.fulfill({json:configured});
@@ -47,12 +48,56 @@ for (const online of [false, true]) {
   await page.getByRole('button',{name:'Start work',exact:true}).click();
   await expect.poll(()=>submitted?.spec.task?.input?.objective).toBe('Investigate using the explicitly requested access only.');
   expect(submitted?.spec.requestedAccess?.networkProfiles).toEqual(online?['public-web']:undefined);
-  await page.getByText('Access & limits',{exact:true}).click();
+  await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
   await expect(page.getByText('Network profiles',{exact:true}).first()).toBeVisible();
   if(online) await expect(page.locator('code').filter({hasText:'public-web'}).first()).toBeVisible();
   await page.screenshot({path:info.outputPath(`network-authority-${online?'online':'offline'}.png`),fullPage:true});
  });
 }
+test('Work details shows requested permissions first; only ungranted requests are gray',async({page},info)=>{
+ const current=work('Succeeded');current.request.spec.requestedAccess={tools:['git.read','git.write'],resourceScopes:['repo:acme/payments'],modelProfile:'approved-coding-model'};
+ current.state!.effectiveAuthority!.memoryScopes=['unrequested-memory'];current.state!.effectiveAuthority!.networkProfiles=['unrequested-network'];
+ await api(page,()=>[current]);await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ const table=page.getByRole('table',{name:'Requested and granted task permissions'});await expect(table).toBeVisible();
+ await expect(table.locator('tbody tr')).toHaveCount(6);await expect(table).not.toContainText('unrequested');await expect(table).not.toContainText('Memory');await expect(table).not.toContainText('Network');
+ const denied=table.locator('tr[data-permission="tools:git.write"]');await expect(denied.locator('td').last()).toHaveText('Not granted');
+ await expect(denied.locator('td').first()).toHaveCSS('color','rgb(36, 35, 53)');await expect(denied.locator('td').last()).toHaveCSS('color','rgb(116, 109, 133)');
+ const allowed=table.locator('tr[data-permission-state=granted] td');for(const value of await allowed.all()){await expect(value).toHaveCSS('color','rgb(36, 35, 53)');await expect(value).toHaveCSS('font-weight','400');}
+ await expect(page.locator('.portal-work-evidence')).not.toHaveAttribute('open');await expect(page.getByText('Public web access goes through the Tool Gateway.',{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'Work details'})).toContainText(state.policyRef.id);await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible();
+ await page.screenshot({path:info.outputPath('work-permissions-focused.png'),fullPage:true});
+ await inspectActivity(page);await expect(page.getByRole('heading',{name:'Work status',exact:true})).toBeVisible();
+});
+for(const failed of [true,false]){
+ test(`recorded refusal highlights above permissions only for failed Work: failed=${failed}`,async({page},info)=>{
+  const current=work('Succeeded');
+  if(failed){current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'Tool invocation denied.'};}
+  current.facts.push({id:'refused-tool',sequence:4,timestamp:'2026-10-23T00:00:00Z',kind:'ToolDecision',requestRef:current.requestRef,target:'web.read',result:'Deny',reason:'Tool not granted to this Work.'});
+  await api(page,()=>[current]);await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+  const refusal=page.locator('.portal-work-refusals');await expect(refusal).toHaveCount(1);
+  const before=await refusal.evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('.portal-work-permissions')!)&Node.DOCUMENT_POSITION_FOLLOWING));
+  expect(before).toBe(failed);await expect(refusal.locator('.portal-blocked-event')).toHaveCount(1);
+  if(failed){
+   await expect(refusal).toHaveAttribute('role','alert');await expect(refusal).toHaveText('web.read blockedEvidence');
+   await expect(refusal.locator('.portal-blocked-event')).toHaveCSS('background-color','rgb(255, 247, 230)');
+   await expect(refusal.locator('span')).toHaveCSS('font-weight','500');
+   await expect(refusal.locator('svg')).toHaveCount(0);
+   await expect(refusal.getByRole('link',{name:'Evidence',exact:true})).toHaveAttribute('href',`#/work/${encodeURIComponent(current.requestRef)}/activity/refused-tool`);
+   for(const width of [1100,390,320]){await page.setViewportSize({width,height:1000});expect(await refusal.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);await expect(refusal.getByRole('link',{name:'Evidence',exact:true})).toBeVisible();}
+   await page.setViewportSize({width:1100,height:1000});await page.screenshot({path:info.outputPath('failed-refusal-banner.png'),fullPage:true});
+   await refusal.getByRole('link',{name:'Evidence',exact:true}).click();await expect(page.getByRole('heading',{name:'What this record says',exact:true})).toBeVisible();
+  }else{
+   await expect(page.locator('.portal-work-refusals-highlight')).toHaveCount(0);await expect(refusal).toHaveText('Blocked · web.readView evidence');
+   await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible();
+  }
+ });
+}
+test('ordinary execution failure without a refusal never fabricates a blocked banner',async({page})=>{
+ const current=work();current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'Provider unavailable.'};
+ await api(page,()=>[current]);await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await expect(page.locator('.portal-work-failure')).toContainText('Provider unavailable.');
+ await expect(page.locator('.portal-work-refusals')).toHaveCount(0);
+});
 test('connected chart and profile use only current API records, and clear on connection failure', async ({ page }, info) => {
  const current=work('Succeeded');
  // A later provider call must not become another request or move its start hour.
@@ -79,7 +124,7 @@ test('historical missing network evidence stays unknown rather than retroactivel
  const historical=work('Succeeded');
  await api(page,()=>[historical]);
  await page.goto(`/?mode=connected#/work/${encodeURIComponent(historical.requestRef)}`);
- await page.getByText('Access & limits',{exact:true}).click();
+ await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
  await expect(page.getByText('Not recorded; runtime boundary unknown',{exact:true})).toBeVisible();
  await expect(page.getByText('No public network granted',{exact:true})).toHaveCount(0);
 });
@@ -104,7 +149,7 @@ test('work name is separate from full instructions and identity', async({page},i
  await instructions.getByText('Task instructions',{exact:true}).click();
  await expect(instructions.locator('pre')).toHaveText(objective);
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
- await page.getByText('Execution details',{exact:true}).click();
+ await inspectActivity(page);await page.getByText('Execution details',{exact:true}).click();
  await page.getByRole('button',{name:'Copy request ID',exact:true}).click();
  await expect(page.locator('.portal-copy-reference')).toContainText('Copied');
  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(current.requestRef);
@@ -183,7 +228,7 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  );
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await expect(page.locator('.portal-agent-failure')).toContainText(reason);
+ await inspectActivity(page);await expect(page.locator('.portal-agent-failure')).toContainText(reason);
  await expect(page.locator('.portal-agent-failure strong')).toHaveCSS('color','rgb(177, 65, 83)');
  await expect(page.locator('.portal-worker-state.positive')).toHaveText('Succeeded');
  await expect(page.locator('.portal-worker-state.negative')).toHaveCount(0);
@@ -210,7 +255,7 @@ test('connected June explorer and inspector use only loaded API evidence', async
  await expect(row).toContainText('Allow');
  await page.screenshot({path:info.outputPath('june-connected-list.png'),fullPage:true});
  await page.locator('.portal-work-title').click();
- const inspect=page.getByRole('button',{name:'Inspect Model request: approved-coding-model'});
+ await inspectActivity(page);const inspect=page.getByRole('button',{name:'Inspect Model request: approved-coding-model'});
  await inspect.click();
  const inspector=page.getByRole('complementary',{name:'Selected activity'});
  await expect(inspector).toContainText('Waiting for response');
@@ -222,7 +267,7 @@ test('connected June explorer and inspector use only loaded API evidence', async
  await expect(inspector.getByRole('link')).toHaveAttribute('href',new RegExp(`/activity/completion$`));
  await expect(inspect).toHaveAttribute('aria-pressed','true');
  await inspector.getByRole('link').click();
- await expect(page.locator('.portal-head')).toContainText('Model request finished');
+ await expect(page.getByRole('heading',{name:'Model request finished',exact:true})).toBeVisible();
 });
 
 test('format retry explains the failing turn without counting checks as calls',async({page},info)=>{
@@ -240,6 +285,7 @@ test('format retry explains the failing turn without counting checks as calls',a
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
  await expect(page.getByRole('alert')).toHaveCount(1);
+ await inspectActivity(page);
  await expect(page.locator('.portal-turn summary')).toContainText('1 call');
  await expect(page.locator('.portal-turn summary')).toContainText('Format retry');
  await expect(page.locator('li[data-retry=true]')).toContainText(issue);
@@ -266,7 +312,7 @@ test('connected motion follows provider and cleanup evidence without resetting D
  current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'call-1',providerStatus:'Attempted'});
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await expect(page.locator('.portal-flow-node.active')).toContainText('Agent');
+ await inspectActivity(page);await expect(page.locator('.portal-flow-node.active')).toContainText('Agent');
  await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(1);
  await page.screenshot({path:info.outputPath('connected-worker-waiting.png'),fullPage:true});
@@ -302,9 +348,10 @@ test('June feedback locates real pending calls and separates success from failur
  const cdp=await page.context().newCDPSession(page);
  await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await inspectActivity(page);
  await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
  expect(await page.locator('.portal-shell').evaluate(el=>getComputedStyle(el).getPropertyValue('--portal-paper').trim())).toBe('#faf9fc');
- await expect(page.locator('.portal-head .portal-badge')).toHaveCSS('color','rgb(99, 66, 199)');
+ await expect(page.locator('.portal-page > .portal-head .portal-badge')).toHaveCSS('color','rgb(99, 66, 199)');
  const row=page.locator('.portal-worker-actions li[data-active=true]');
  await expect(row).toHaveAttribute('data-kind','model');
  await expect(row.locator('.portal-worker-lamp')).toHaveCount(1);
@@ -363,6 +410,7 @@ test('worker follows recorded ReAct turns, tool observation and final model resp
  add('ProviderAttempt',{invocationId:'m1',operation:'model.invoke'});
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ await inspectActivity(page);
  await expect(page.locator('.portal-worker-current')).toContainText('Turn 1 · Waiting for a model response');
  add('ProviderOutcome',{invocationId:'m1',operation:'model.invoke',providerStatus:'Succeeded'});
  add('ToolDecision',{invocationId:'t1',operation:'tool.invoke',result:'Allow'});
@@ -415,6 +463,9 @@ first.facts.forEach(f=>f.requestRef=body.metadata.name);
 await expect(page.getByText('No work recorded yet.')).toBeVisible();
  await page.getByRole('link',{name:'New work',exact:true}).click();
 await expect(page.getByLabel('Model profile')).toHaveValue('approved-coding-model');
+await page.getByRole('checkbox',{name:'git.read',exact:true}).check();
+await page.getByRole('checkbox',{name:'git.write',exact:true}).check();
+await page.getByLabel('Resource scopes',{exact:true}).fill('repo:acme/payments');
 await page.getByLabel('What should it do?').fill('Explain a safe retry strategy');
 await page.getByRole('button',{name:'Start work',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Explain a safe retry strategy',exact:true})).toBeVisible();
@@ -422,8 +473,8 @@ expect(observed?.spec.projectRef).toBe('payments');
 expect(observed).not.toHaveProperty('principal');
 expect(observed?.spec.requestedAccess?.tools).toEqual(['git.read','git.write']);
 expect(observed?.spec.requestedAccess?.resourceScopes).toEqual(['repo:acme/payments']);
- await page.getByText('Access & limits',{exact:true}).click();
- await page.getByRole('link',{name:'Compare requested and granted'}).click();
+ await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
+ await page.getByRole('link',{name:'Compare requested and granted',exact:true}).click();
 await expect(page.locator('.portal-compare-side').last().getByText('git.write',{exact:true})).toHaveCount(0);
 await expect(page.getByText('standard-isolated · 15m')).toBeVisible();
  expect(first).toBeDefined();
@@ -455,7 +506,7 @@ delete denied.state!.effectiveAuthority;
 denied.facts=[{id:'denied-1',sequence:1,timestamp:'2026-09-15T02:00:00Z',kind:'RequestResolution',requestRef:denied.requestRef,decision:denied.state!.decision,result:'Deny',reasonCode:'assignment-deny'}];
  await api(page,()=>[denied]);
 await page.goto(`/?mode=connected#/work/${denied.requestRef}`);
-await page.getByText('Access & limits',{exact:true}).click();
+await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
 await expect(page.getByText('No authority was issued.')).toBeVisible();
 await expect(page.getByRole('heading',{name:'Result',exact:true})).toHaveCount(0);
 await page.getByText('Execution details').click();
@@ -465,7 +516,7 @@ test('pending live request never invents grant or result and malformed response 
  const pending:View={version:'agenova.evidence/v0',requestRef:request.metadata.name,request,facts:[]};
 await api(page,()=>[pending]);
 await page.goto(`/?mode=connected#/work/${pending.requestRef}`);
-await expect(page.getByText('Request received; waiting for authorization.')).toBeVisible();
+await inspectActivity(page);await expect(page.getByText('Request received; waiting for authorization.')).toBeVisible();
 await expect(page.getByRole('heading',{name:'Result'})).toHaveCount(0);
 await expect(page.getByText('Update invoice retry tests')).toHaveCount(0);
  await page.unroute('**/api/**');
@@ -482,8 +533,8 @@ await page.goto(`/?mode=connected#/work/${completed.requestRef}`);
 await expect(page.getByText('Task completed; cleanup needs attention')).toBeVisible();
 await expect(page.getByText(completed.outcome!.text!)).toBeVisible();
 await page.goto('/?mode=connected#/platform');
-await expect(page.getByRole('row',{name:/Tool Gateway/})).toContainText('Not connected');
-await expect(page.getByText('Configuration is not a health check.',{exact:false})).toBeVisible();
+await expect(page.locator('.product-config-card').filter({hasText:'Tool Gateway'})).toContainText('Not configured');
+await expect(page.getByText('Configuration ≠ verified availability',{exact:true}).first()).toBeVisible();
 await page.screenshot({path:info.outputPath('connected-platform.png'),fullPage:true});
 });
 
@@ -492,6 +543,7 @@ test('terminal authority keeps refreshing until final result and cleanup report 
   delete finishing.outcome;
   await api(page, () => [finishing]);
   await page.goto(`/?mode=connected#/work/${finishing.requestRef}`);
+  await inspectActivity(page);
   await expect(page.getByText('Waiting for the final result and cleanup evidence.')).toBeVisible();
   await expect(page.getByRole('heading', {name:'Result',exact:true})).toHaveCount(0);
   finishing.outcome = {status:'Succeeded',text:'Final observed task result.'};
@@ -547,7 +599,7 @@ test('recovered interrupted work shows unknown model outcome without fabricated 
  await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
 });
 
-test('scoped configuration remains readable without global selectors',async({page},info)=>{
+test('scoped configuration uses server-owned project and template selectors',async({page},info)=>{
  await api(page,()=>[]);
  await page.route('**/api/setup*',route=>{
   const query=new URL(route.request().url()).searchParams;
@@ -557,11 +609,11 @@ test('scoped configuration remains readable without global selectors',async({pag
  });
  await page.goto('/?mode=connected#/policy');
  await expect(page.getByText('payments-policy',{exact:true})).toBeVisible();
- await expect(page.getByLabel('Configuration project')).toHaveCount(0);
+ await expect(page.getByLabel('Configuration project')).toHaveValue('payments');
  await expect(page.getByLabel('Configuration template')).toHaveCount(0);
  await page.goto('/?mode=connected&project=analytics&template=reviewer#/policy');
  await expect(page.getByText('analytics-policy',{exact:true})).toBeVisible();
- await expect(page.locator('tbody')).toContainText('reviewer');
+ await expect(page.locator('.portal-rule')).toContainText('reviewer');
  await page.screenshot({path:info.outputPath('scoped-policy.png'),fullPage:true});
 });
 
@@ -571,7 +623,7 @@ test('member without a template can still read permitted Work evidence',async({p
  await expect(page.locator('.portal-work-title')).toHaveCount(1);
  await page.goto('/?mode=connected#/work/new');
  await expect(page.getByText('No approved template is available in this project.',{exact:true})).toBeVisible();
- await expect(page.getByRole('button',{name:'Start work',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Start work',exact:true})).toBeDisabled();
 });
 
 test('durable history paginates server summaries and keeps the Work navigation active', async ({page}) => {
@@ -595,12 +647,12 @@ test('restart-interrupted evidence never renders historical Running authority as
  const interrupted:View={...work(),recovery:{code:'service-restarted',cleanup:'Unknown'},diagnosis:{stage:'recovery',code:'provider-outcome-unknown'}};
  await api(page,()=>[interrupted]);
  await page.goto(`/?mode=connected#/work/${interrupted.requestRef}`);
- await expect(page.getByText('Execution interrupted by service restart',{exact:true})).toBeVisible();
+ await inspectActivity(page);await expect(page.getByText('Execution interrupted by service restart',{exact:true})).toBeVisible();
  await expect(page.locator('.portal-head').getByText('Interrupted',{exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Active access',exact:true})).toHaveCount(0);
  await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
- await page.getByText('Access & limits',{exact:true}).click();
+ await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
  await expect(page.getByRole('heading',{name:'Issued access',exact:true})).toBeVisible();
- await expect(page.getByText('Authority is inactive after this claim ended.',{exact:true})).toBeVisible();
- await expect(page.getByText('Trace unavailable',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Active access',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('link',{name:'Open configured trace',exact:true})).toHaveCount(0);
 });

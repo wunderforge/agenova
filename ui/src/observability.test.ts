@@ -6,9 +6,13 @@ it('keeps interrupted authority inactive even when its last persisted phase was 
  const work = { recovery: { code:'service-restarted', cleanup:'Unknown' }, state:{claim:{phase:'Running'}} } as unknown as View;
  expect(workStatus(work)).toBe('Interrupted'); expect(isTerminal(work)).toBe(true);
 });
-it('accepts only validated trace IDs and loopback Grafana destinations', () => {
+it('accepts validated trace IDs and explicitly configured safe diagnostic destinations', () => {
  expect(traceURL('http://malicious')).toBeUndefined(); expect(traceURL('abc')).toBeUndefined();
- const target = traceURL('0123456789abcdef0123456789abcdef');
+ expect(traceURL('0123456789abcdef0123456789abcdef')).toBeUndefined();
+ const target = traceURL('0123456789abcdef0123456789abcdef','http://127.0.0.1:3000');
+ expect(traceURL('0123456789abcdef0123456789abcdef','https://grafana.example.test/grafana')).toContain('/grafana/explore');
+ expect(traceURL('0123456789abcdef0123456789abcdef','https://user:password@bad.example.test')).toBeUndefined();
+ expect(traceURL('0123456789abcdef0123456789abcdef','https://grafana.example.test?token=abc')).toBeUndefined();
  expect(new URL(target!).hostname).toBe('127.0.0.1'); expect(target).toContain('tempo');
  expect(JSON.parse(new URL(target!).searchParams.get('panes')!).work.queries[0].datasource.uid).toBe('tempo');
 });

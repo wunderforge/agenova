@@ -27,14 +27,31 @@ const maxSubmissionBytes = 128 << 10
 
 // Setup describes operator configuration, not a live health assessment.
 type Setup struct {
-	Project      string               `json:"project,omitempty"`
-	Projects     []string             `json:"projects,omitempty"`
-	Templates    []string             `json:"templates,omitempty"`
-	Principal    v0.Principal         `json:"principal"`
-	Template     *v0.AgentTemplate    `json:"template"`
-	Policy       policy.PolicyBundle  `json:"policy"`
-	Capabilities map[string]string    `json:"capabilities"`
-	Installation InstallationIdentity `json:"installation"`
+	PlatformInfo       *PlatformInfo        `json:"platformInfo,omitempty"`
+	SubmissionProjects *[]string            `json:"submissionProjects,omitempty"`
+	Organization       *OrganizationInfo    `json:"organization,omitempty"`
+	Observability      *ObservabilityInfo   `json:"observability,omitempty"`
+	Project            string               `json:"project,omitempty"`
+	Projects           []string             `json:"projects,omitempty"`
+	Templates          []string             `json:"templates,omitempty"`
+	Principal          v0.Principal         `json:"principal"`
+	Template           *v0.AgentTemplate    `json:"template"`
+	Policy             policy.PolicyBundle  `json:"policy"`
+	Capabilities       map[string]string    `json:"capabilities"`
+	Installation       InstallationIdentity `json:"installation"`
+}
+
+type OrganizationInfo struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description,omitempty"`
+}
+type ObservabilityInfo struct {
+	Enabled        bool   `json:"enabled"`
+	Endpoint       string `json:"endpoint,omitempty"`
+	ExportFailures int64  `json:"exportFailures"`
+	Ingestion      string `json:"ingestion"`
+	DiagnosticURL  string `json:"diagnosticURL,omitempty"`
 }
 
 type InstallationIdentity struct {
@@ -107,6 +124,24 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			}
 		}
 		switch r.URL.Path {
+		case "/api/agents":
+			if !requireMethod(w, r, http.MethodGet) {
+				return
+			}
+			if auth == nil {
+				writeError(w, 401, "viewer_required", "Verified viewer required.")
+				return
+			}
+			entries, err := service.catalog(r.Context(), principal)
+			if err != nil {
+				writeError(w, 503, "catalog_unavailable", "Authorized agent catalog is unavailable.")
+				return
+			}
+			if sessionCheck != nil && sessionCheck(r.Context()) != nil {
+				writeError(w, 403, "access_denied", "Current access could not be confirmed.")
+				return
+			}
+			writeJSON(w, 200, entries)
 		case "/api/provider-observations":
 			if auth != nil {
 				writeError(w, 403, "access_denied", "Operator diagnostics are not a member capability.")
@@ -217,6 +252,35 @@ func handler(service *Service, auth Authenticator) http.Handler {
 				writeError(w, 405, "method_not_allowed", "This method is not supported.")
 			}
 		default:
+			if strings.HasPrefix(r.URL.Path, "/api/submissions/") && strings.HasSuffix(r.URL.Path, "/evidence") {
+				if !requireMethod(w, r, http.MethodGet) {
+					return
+				}
+				if auth == nil {
+					writeError(w, 401, "viewer_required", "Verified viewer required.")
+					return
+				}
+				name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/submissions/"), "/evidence")
+				if !validReference(name) || len(name) > 256 {
+					writeError(w, 400, "invalid_reference", "Provide a bounded submission name.")
+					return
+				}
+				ref := name
+				if service.durable != nil {
+					ref = workstore.Reference(principal, name)
+				}
+				view, err := service.QueryFor(principal, ref, false)
+				if err != nil {
+					if errors.Is(err, workstore.ErrUnavailable) {
+						writeError(w, 503, "storage_unavailable", "Work storage is unavailable; the submission result remains unknown.")
+						return
+					}
+					writeError(w, 404, "not_found", "No visible submission record yet.")
+					return
+				}
+				writeJSON(w, 200, view)
+				return
+			}
 			for _, route := range []struct {
 				prefix string
 				claim  bool
@@ -296,6 +360,7 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, princi
 	}
 	if err != nil {
 		var submission *SubmissionError
+		var authorityValidation *v0.ValidationError
 		switch {
 		case errors.Is(err, authentication.ErrForbidden):
 			writeError(w, 403, "access_denied", "This project operation is not permitted.")
@@ -307,6 +372,8 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, princi
 			writeError(w, 429, "capacity_reached", "The local console has reached its record limit.")
 		case errors.As(err, &submission):
 			writeError(w, 422, submission.Code, submission.Message)
+		case errors.As(err, &authorityValidation):
+			writeError(w, 422, "authority_request_rejected", "The requested authority does not fit the registered template or active Policy.")
 		default:
 			writeError(w, 500, "submission_failed", "Submission failed. Check the active policy, registered AgentTemplate, installed profiles and gateway capabilities.")
 		}

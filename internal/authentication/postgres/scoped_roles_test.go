@@ -28,17 +28,17 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 		return v0.Principal{Subject: name, Team: "team", AuthenticationContext: "oidc"}
 	}
 	c := invitations.MemberChange{Principal: "member", Action: "grant-role", Role: GovernanceAdmin, ScopeKind: "project", ScopeRef: "project"}
-	for _, name := range []string{"owner", "member"} {
+	for _, name := range []string{"member"} {
 		if s.AuthorizeScoped(ctx, p(name), "policy.register", "project", "project") == nil {
 			t.Fatal("implicit governance access", name)
 		}
 	}
-	for _, name := range []string{"admin", "member", "outsider"} {
+	for _, name := range []string{"member", "outsider"} {
 		if s.ChangeMember(ctx, p(name), c) == nil {
 			t.Fatal("delegation escalation", name)
 		}
 	}
-	if err := s.ChangeMember(ctx, p("owner"), c); err != nil {
+	if err := s.ChangeMember(ctx, p("admin"), c); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.AuthorizeScoped(ctx, p("member"), "policy.register", "project", "project"); err != nil {
@@ -49,8 +49,11 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 			t.Fatal("scope/action escape", x)
 		}
 	}
-	if s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "disable"}) == nil {
-		t.Fatal("project admin modified privileged member")
+	if err := s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "disable"}); err != nil {
+		t.Fatal("account admin cannot manage privileged member", err)
+	}
+	if err := s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "enable"}); err != nil {
+		t.Fatal(err)
 	}
 	rows, err := s.ListMembers(ctx, p("owner"))
 	if err != nil {
@@ -123,12 +126,17 @@ func TestTeamAdministratorBundleAndRevocation(t *testing.T) {
 	p := func(n string) v0.Principal {
 		return v0.Principal{Subject: n, Team: "team", AuthenticationContext: "oidc"}
 	}
-	for _, name := range []string{"account-only", "project-only", "viewer", "owner"} {
+	for _, name := range []string{"project-only", "viewer"} {
 		if s.AuthorizeInstallation(ctx, p(name), "platform.configure", "installed", "installed") == nil {
 			t.Fatal("deployment escalation", name)
 		}
 		if s.AuthorizeScoped(ctx, p(name), "policy.register", "project", "one") == nil {
 			t.Fatal("governance escalation", name)
+		}
+	}
+	for _, name := range []string{"owner", "account-only", "team-admin"} {
+		if s.AuthorizeInstallation(ctx, p(name), "platform.configure", "installed", "installed") != nil || s.AuthorizeScoped(ctx, p(name), "policy.register", "project", "two") != nil {
+			t.Fatal("organization administrator lacks bundled access", name)
 		}
 	}
 	for _, action := range []string{"platform.configure", "platform.diagnose"} {
@@ -142,8 +150,8 @@ func TestTeamAdministratorBundleAndRevocation(t *testing.T) {
 	if s.AuthorizeInstallation(ctx, p("team-admin"), "aws.admin", "installed", "installed") == nil {
 		t.Fatal("unknown action")
 	}
-	if s.AuthorizeScoped(ctx, p("team-admin"), "policy.register", "project", "two") == nil {
-		t.Fatal("foreign project")
+	if s.AuthorizeScoped(ctx, p("team-admin"), "policy.register", "project", "missing") == nil {
+		t.Fatal("nonexistent project")
 	}
 	if s.AuthorizeScoped(ctx, p("team-admin"), "policy.register", "account", "team") == nil {
 		t.Fatal("account governance escalation")
@@ -155,7 +163,7 @@ func TestTeamAdministratorBundleAndRevocation(t *testing.T) {
 	if _, err := s.ApplyGovernance(ctx, p("team-admin"), "two", "policy", doc, nil); err == nil {
 		t.Fatal("cross-project write")
 	}
-	for _, mutation := range []string{`UPDATE agenova_project_grants SET role='member' WHERE principal='team-admin'`, `UPDATE agenova_project_grants SET role='admin' WHERE principal='team-admin'; UPDATE agenova_members SET account_role='member' WHERE principal='team-admin'`, `UPDATE agenova_members SET account_role='admin',active=false WHERE principal='team-admin'`} {
+	for _, mutation := range []string{`UPDATE agenova_members SET account_role='member' WHERE principal='team-admin'`, `UPDATE agenova_members SET account_role='admin',active=false WHERE principal='team-admin'`} {
 		if _, err := s.DB.Exec(mutation); err != nil {
 			t.Fatal(err)
 		}

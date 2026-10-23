@@ -7,9 +7,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const ReAct = "react"
@@ -63,7 +66,9 @@ func ActionSchema(tools []Tool) ([]byte, error) {
 		return nil, err
 	}
 	operations, scopes, inputs := []string{""}, []string{""}, []string{""}
+	hasText := false
 	for _, tool := range tools {
+		hasText = hasText || tool.InputMode == "text"
 		operations = appendUnique(operations, tool.Operation)
 		scopes = appendUnique(scopes, tool.ResourceScope)
 		for _, value := range tool.AllowedValues {
@@ -75,7 +80,7 @@ func ActionSchema(tools []Tool) ([]byte, error) {
 	sort.Strings(inputs)
 	for _, withInputs := range []bool{true, false} {
 		input := stringSchema{Type: "string"}
-		if withInputs {
+		if withInputs && !hasText {
 			input.Enum = inputs
 		}
 		schema, err := json.Marshal(actionSchema{
@@ -105,7 +110,7 @@ func ValidateTools(tools []Tool) error {
 	for _, tool := range tools {
 		key := tool.Operation + "\x00" + tool.ResourceScope
 		if !field(tool.Operation, 128) || !field(tool.ResourceScope, 256) || !field(tool.Parameter, 64) || !field(tool.Description, 256) ||
-			len(tool.AllowedValues) == 0 || len(tool.AllowedValues) > 64 || seen[key] {
+			len(tool.AllowedValues) > 64 || seen[key] || (tool.InputMode != "" && tool.InputMode != "text") || (tool.InputMode == "" && len(tool.AllowedValues) == 0) || (tool.InputMode == "text" && (len(tool.AllowedValues) != 0 || tool.MaxBytes < 1 || tool.MaxBytes > MaxInputBytes)) {
 			return ErrToolCatalog
 		}
 		seen[key] = true
@@ -175,6 +180,25 @@ func FindTool(tools []Tool, operation, scope, input string) (Tool, bool) {
 		if tool.Operation != operation || tool.ResourceScope != scope {
 			continue
 		}
+		if tool.InputMode == "text" {
+			if tool.MaxBytes < 1 || tool.MaxBytes > MaxInputBytes || len(tool.AllowedValues) != 0 || !field(input, tool.MaxBytes) || !utf8.ValidString(input) || strings.TrimSpace(input) == "" {
+				continue
+			}
+			valid := true
+			for _, r := range input {
+				if unicode.IsControl(r) {
+					valid = false
+					break
+				}
+			}
+			if valid {
+				return tool, true
+			}
+			continue
+		}
+		if tool.InputMode != "" {
+			continue
+		}
 		for _, value := range tool.AllowedValues {
 			if value == input {
 				return tool, true
@@ -189,7 +213,11 @@ func FindTool(tools []Tool, operation, scope, input string) (Tool, bool) {
 func ToolInputs(tools []Tool) int {
 	n := 0
 	for _, tool := range tools {
-		n += len(tool.AllowedValues)
+		if tool.InputMode == "text" {
+			n += MaxTurns
+		} else {
+			n += len(tool.AllowedValues)
+		}
 	}
 	return n
 }
@@ -209,7 +237,11 @@ func LoopPrompt(task Task, transcript string) string {
 			if tool.Synthetic {
 				label = " [synthetic mock artifacts, not a live repository]"
 			}
-			b.WriteString("- tool=" + tool.Operation + " resource=" + tool.ResourceScope + label + ": " + tool.Description + " Allowed input: " + strings.Join(tool.AllowedValues, ", ") + ".\n")
+			input := "Allowed input: " + strings.Join(tool.AllowedValues, ", ")
+			if tool.InputMode == "text" {
+				input = fmt.Sprintf("Input: nonempty single-line text, at most %d UTF-8 bytes; do not include credentials or unrelated private data", tool.MaxBytes)
+			}
+			b.WriteString("- tool=" + tool.Operation + " resource=" + tool.ResourceScope + label + ": " + tool.Description + " " + input + ".\n")
 		}
 		first := task.Tools[0]
 		operation, _ := json.Marshal(first.Operation)

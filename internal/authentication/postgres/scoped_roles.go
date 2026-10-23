@@ -16,7 +16,7 @@ import (
 const GovernanceAdmin = "governance-admin"
 const PlatformOperator = "platform-operator"
 
-// ChangeScopedRole assigns additive duties. Only the active account Owner can
+// ChangeScopedRole assigns additive duties. Active account Owner/Admin can
 // delegate them. It never writes IAM/RBAC, PolicyBundle or claim authority.
 func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invitations.MemberChange) error {
 	if s.DB == nil || actor.AuthenticationContext != "oidc" || actor.Team == "" || actor.Subject == "" {
@@ -41,7 +41,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	if err != nil {
 		return invitations.ErrUnavailable
 	}
-	owner, target := false, false
+	administrator, target := false, false
 	for rows.Next() {
 		var id, role string
 		var active bool
@@ -50,10 +50,10 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 			return invitations.ErrUnavailable
 		}
 		if id == actor.Subject {
-			owner = active && role == Owner
+			administrator = active && (role == Owner || role == Admin)
 		}
 		if id == c.Principal {
-			target = active
+			target = active && role != Owner
 		}
 	}
 	err = rows.Err()
@@ -61,7 +61,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	if err != nil {
 		return invitations.ErrUnavailable
 	}
-	if !owner || !target {
+	if !administrator || !target || actor.Subject == c.Principal {
 		return authentication.ErrForbidden
 	}
 	if c.ScopeKind == "project" {
@@ -90,7 +90,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	return nil
 }
 
-// AuthorizeScoped checks explicit duties or the project-scoped Team administrator bundle.
+// AuthorizeScoped checks explicit duties or organization-wide Owner/Admin access.
 // A successful platform check is not cluster authorization. IAM/RBAC must still
 // independently authorize deployment. Unknown operations always fail closed.
 func (s Store) AuthorizeScoped(ctx context.Context, p v0.Principal, action, kind, ref string) error {
@@ -140,7 +140,7 @@ func (s Store) AuthorizeInstallation(ctx context.Context, p v0.Principal, action
 	return s.AuthorizeScoped(ctx, p, action, "installation", requested)
 }
 
-// Team administrator means BOTH Account Admin and an existing Project Admin grant.
+// Account Owner/Admin administer every existing project in their own organization.
 // An empty project is used only for the server-pinned installation authorization.
 func (s Store) authorizeTeamAdministrator(ctx context.Context, p v0.Principal, project string) error {
 	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" {
@@ -149,7 +149,7 @@ func (s Store) authorizeTeamAdministrator(ctx context.Context, p v0.Principal, p
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var allowed bool
-	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team JOIN agenova_projects p ON p.team=g.team AND p.project=g.project WHERE m.principal=$1 AND m.team=$2 AND m.active AND m.account_role='admin' AND g.role='admin' AND ($3='' OR g.project=$3))`, p.Subject, p.Team, project).Scan(&allowed)
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND m.account_role IN ('owner','admin') AND ($3='' OR EXISTS(SELECT 1 FROM agenova_projects p WHERE p.team=m.team AND p.project=$3)))`, p.Subject, p.Team, project).Scan(&allowed)
 	if err != nil || !allowed {
 		return authentication.ErrForbidden
 	}
@@ -165,7 +165,7 @@ func (s Store) GrafanaRole(ctx context.Context, p v0.Principal, installation str
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var editor bool
-	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role='owner' OR (m.account_role='admin' AND EXISTS(SELECT 1 FROM agenova_project_grants g JOIN agenova_projects p ON p.team=g.team AND p.project=g.project WHERE g.principal=m.principal AND g.team=m.team AND g.role='admin'))))`, p.Subject, p.Team).Scan(&editor)
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND m.account_role IN ('owner','admin'))`, p.Subject, p.Team).Scan(&editor)
 	if err != nil {
 		return "", authentication.ErrForbidden
 	}

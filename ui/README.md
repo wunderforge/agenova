@@ -15,6 +15,19 @@ shows this React UI with labelled illustrative data, not hosted member records.
 
 ## Run the frontend locally
 
+For the integrated local product review (real Go APIs/PostgreSQL, explicitly
+synthetic sign-in/runtime/provider), follow the
+[local acceptance walkthrough](../docs/development/local-product-acceptance.md).
+This is a separate loopback-only tool, never a production authentication fallback.
+
+The connected Portal now supports server-owned project/template selection,
+explicit task access, uncertain-submission recovery, side-by-side Work comparison,
+and readable Policy constraints/history. Administration edits display-only
+organization metadata and project grants individually, and previews immutable
+Policy activation with a concurrency precondition. Platform distinguishes
+telemetry configuration from downstream verification. Existing Work authority
+is not changed by editing a template or activating another Policy.
+
 The local development server's default **Demo** mode is an illustrative Work/Platform story, not live
 evidence. **Connected** mode (`/?mode=connected#/work`) reads and submits through
 the Agenova `/api` contract. Its source is selected by the Vite development

@@ -1,8 +1,8 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type { ClaimRequest, ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
-import { connectedSource, suggestedProjects, workStatus, workTitle, traceURL, type HistoryPage, type Setup, type View } from './connected-source';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
+import { connectedSource, workStatus, workTitle, type HistoryPage, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions } from './worker-activity-model';
@@ -10,7 +10,10 @@ import { category, recordTitle, recordReason, recordStatus, outcomeReason } from
 import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
-import { maxWorkName } from './work-name';
+import { WorkSubmissionCopy } from './WorkSubmission';
+import { ConfigurationContext, WorkComparison, PolicyRules, PolicyHistory } from './PresenterViews';
+import { WorkPermissions, WorkContext, WorkRefusals } from './WorkAuthority';
+import {AgentDirectory,PlatformOverview} from './ProductPages';
 import { WorkOverview } from './WorkOverview';
 import { WorkActivityChart } from './WorkActivityChart';
 
@@ -81,7 +84,7 @@ function WorkList({ works }: { works: View[] }) {
     `${workTitle(work)} ${work.request.spec.task?.input?.objective || ''} ${work.requestRef} ${work.state?.principal.team || ''}`.toLowerCase().includes(search.toLowerCase()));
   return <>
     <Heading title="Work" subtitle="Requests, outcomes, and the evidence behind them."
-      action={<a className="portal-button primary" href={link('work/new')}>New work</a>}/>
+      action={<><a className="portal-button" href={link('compare')}>Compare two Work</a><a className="portal-button primary" href={link('work/new')}>New work</a></>}/>
     <a href={link('history')}>Browse durable history</a>
     <WorkOverview statuses={works.map(workStatus)}/>
     <WorkActivityChart entries={works.map(work => ({ timestamp: work.facts.find(fact => ['RequestReceived', 'RequestResolution'].includes(fact.kind))?.timestamp, status: workStatus(work) }))}/>
@@ -129,7 +132,6 @@ function WorkDetail({ work }: { work: View }) {
   const runtime = state?.effectiveAuthority?.runtime;
   const status = workStatus(work);
   const ended = !!work.recovery || (!!state?.claim && !['Pending', 'Bound', 'Running'].includes(state.claim.phase));
- const correlation = traceURL(work.traceId);
   const latestFacts = [...work.facts].reverse();
   const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
@@ -142,14 +144,13 @@ function WorkDetail({ work }: { work: View }) {
     <nav className="portal-crumbs" aria-label="Breadcrumb">
       <a href={link('work')}>Work</a> / Details
     </nav>
-    <Heading title={workTitle(work)} action={<Badge value={status}/>}/>
-    <div className="portal-top-facts">
-      <Field label="Team" value={state?.principal.team}/>
-      <Field label="Agent" value={work.request.spec.templateRef}/>
-      <Field label="Requested by" value={state?.principal.subject}/>
-    </div>
+    <Heading title={workTitle(work)} action={<><a className="portal-button" href={link(`work/new?copy=${encodeURIComponent(work.requestRef)}`)}>Copy as new Work</a><Badge value={status}/></>}/>
+    {status === 'Failed' && <WorkRefusals work={work} highlight/>}
+    <WorkPermissions work={work}/>
+    {status !== 'Failed' && <WorkRefusals work={work}/>}
+    <WorkContext work={work}/>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
-    {work.diagnosis && <p role="status">{work.diagnosis.stage}: {work.diagnosis.code}</p>}{correlation ? <a href={correlation} target="_blank" rel="noreferrer">Open trace in Grafana</a> : <p className="portal-source-note">Trace unavailable</p>}<WorkDetailLayout activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
+    <WorkDetailLayout compact activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
       status,
       received: work.facts.some(fact => fact.kind === 'RequestReceived'),
       authorized: state?.decision.result === 'Allow' && !!state.effectiveAuthority,
@@ -160,7 +161,7 @@ function WorkDetail({ work }: { work: View }) {
         : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
         : ['Failed', 'Expired', 'Cancelled'].includes(status)
           ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
-    }}/>} failure={work.outcome?.failure && status !== 'Failed' && <div className="portal-state failed" role="alert">
+    }}/>} failure={work.outcome?.failure && <div className="portal-work-failure" role="alert">
           <strong>{work.outcome.status === 'Succeeded'
             ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
           <p>{outcomeReason(work)}</p>
@@ -170,21 +171,22 @@ function WorkDetail({ work }: { work: View }) {
         } : undefined}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
           ? !ended && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
-        <p>{ended ? 'Authority is inactive after this claim ended.' : state?.decision.reason}</p>
         <Access value={state?.effectiveAuthority}
           networkRecorded={work.facts.some(fact => fact.operation === 'NetworkActive')}
           runtime={runtime ? `${runtime.profileRef} · ${runtime.timeout}` : undefined}/>
         <div className="portal-card-links">
           <a href={link(`${workLink(work)}/access`)}>Compare requested and granted</a>
-          <a href={link('policy')}>View policy</a>
+          <a href={link(`policy?project=${encodeURIComponent(work.request.spec.projectRef || '')}&id=${encodeURIComponent(state?.policyRef.id || '')}&version=${encodeURIComponent(state?.policyRef.version || '')}`)}>View policy at authorization</a>
         </div>
       </aside>} result={work.outcome?.text && <section className="portal-result">
       <h2>Result</h2><pre>{work.outcome.text}</pre>
+      <details className="portal-details"><summary>Related call evidence</summary>{work.facts.filter(fact=>fact.kind==='ProviderOutcome' && fact.providerStatus==='Succeeded').map(fact=><p key={fact.id}><a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{category(fact)} · {fact.target || fact.invocationId}</a>{fact.resultRef && <code> {fact.resultRef}</code>}</p>)}</details>
       {work.outcome.model && <p className="portal-source-note">
         Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
         {' '}{work.outcome.model.outputTokens} output tokens
       </p>}
     </section>} details={<>
+      {work.traceId && <div className="portal-trace-reference"><span>Trace ID: <code>{work.traceId}</code></span><button className="portal-button" onClick={() => void navigator.clipboard.writeText(work.traceId!)}>Copy trace ID</button></div>}
       <small className="portal-source-note">{time(work.facts.at(-1)?.timestamp)} last update</small>
       <ol className="portal-timeline">{progress.map(fact =>
         <li key={fact.id} data-negative={recordStatus(fact) === 'Failed'}>
@@ -303,184 +305,15 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
       )}{!records.length && <p className="portal-empty">No governance activity recorded yet.</p>}</div>
     </>;
   }
-  const observed = (kinds: string[], key: string) => works.flatMap(work => work.facts)
-    .some(fact => kinds.includes(fact.kind) && (key !== 'model' || category(fact) === 'Model Gateway'));
-  const capabilities: [string, string, string[]][] = [
-    ['Task submission', 'taskSubmission', ['RequestReceived']],
-    ['Runtime', 'runtime', ['Runtime']],
-    ['Model Gateway', 'model', ['ModelDecision', 'ProviderAttempt', 'ProviderOutcome']],
-    ['Tool Gateway', 'tool', ['ToolDecision']],
-    ['Memory Interface', 'memory', ['Memory']],
-  ];
-  return <>
-    <Heading title="Platform" subtitle={`${setup.installation.platform} · ${setup.installation.revision.slice(0, 19)} · configured capabilities and recorded use.`}/>
-    <div className="portal-table-wrap"><table className="portal-table portal-platform-table">
-      <thead><tr><th>Capability</th><th>Configuration</th><th>Recorded use</th><th>Open</th></tr></thead>
-      <tbody>{capabilities.map(([name, key, kinds]) => <tr key={name}>
-        <td>{name}</td>
-        <td><Badge value={setup.capabilities[key] === 'notConnected'
-          ? 'Not connected' : setup.capabilities[key] || 'Not connected'}/></td>
-        <td>{observed(kinds, key) ? 'Activity recorded' : 'No activity recorded'}</td>
-        <td><a href={link('platform/activity')}>View activity</a></td>
-      </tr>)}</tbody>
-    </table></div>
-    <p className="portal-source-note">Configuration is not a health check. Activity records show permissions
-      and outcomes, not service availability.</p>
-  </>;
-}
-function NewWork({ setup, created }: { setup: Setup; created: (work: View) => void }) {
-  if (!setup.template) return <p>No approved template is available in this project.</p>;
-  return <ConfiguredWork setup={{...setup,template:setup.template}} created={created}/>;
-}
-function ConfiguredWork({setup,created}:{setup:Setup & {template:NonNullable<Setup['template']>};created:(work:View)=>void}) {
-  const template = setup.template;
-  const ceiling = template.spec.capabilityCeiling;
-  const defaults = template.spec.defaults;
-  const projects = suggestedProjects(setup);
-  const defaultScope = ceiling?.resourceScopes?.find(scope => scope.startsWith('repo:'));
-  const defaultRepository = defaultScope?.slice('repo:'.length) || '';
-  const [tools, setTools] = useState<string[]>(ceiling?.tools || []);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const objective = String(form.get('objective') || '').trim();
-    const workName = String(form.get('workName') || '').trim();
-    if (!objective) { setError('Describe the task.'); return; }
-    const project = String(form.get('project') || '').trim();
-    if (!project) { setError('Choose a project.'); return; }
-    const repository = String(form.get('repository') || '').trim();
-    const scopes = (name: string) => String(form.get(name) || '')
-      .split(',').map(value => value.trim()).filter(Boolean);
-    const request: ClaimRequest = {
-      apiVersion: 'agenova.io/v1alpha1', kind: 'ClaimRequest',
-      metadata: { name: `work-${crypto.randomUUID()}` },
-      spec: {
-        templateRef: template.metadata.name,
-        projectRef: project,
-        task: {
-          type: 'repository-change',
-          input: {
-            objective,
-            ...(workName ? { workName } : {}),
-            ...(repository ? { repository, baseBranch: String(form.get('branch') || 'main') } : {}),
-          },
-        },
-        requestedAccess: {
-          tools, resourceScopes: scopes('scopes'),
-          modelProfile: String(form.get('model') || ''), memoryScopes: scopes('memory'),
-          ...(form.get('network') ? { networkProfiles: [String(form.get('network'))] } : {}),
-        },
-        runtime: {
-          profileRef: String(form.get('runtime')),
-          timeout: `${Number(form.get('timeout'))}m`,
-        },
-      },
-    };
-    setBusy(true); setError('');
-    try { created(await connectedSource.submit(request)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'The request could not be started.'); }
-    finally { setBusy(false); }
-  }
-  return <>
-    <nav className="portal-crumbs"><a href={link('work')}>Work</a> / New work</nav>
-    <Heading title="New work"/>
-    <form className="portal-form" onSubmit={event => void submit(event)}>
-      <div>
-        <section>
-          <h2>Task</h2>
-          <label>Agent<select name="agent" defaultValue={template.metadata.name}>
-            <option>{template.metadata.name}</option>
-          </select></label>
-          <label>Project<input name="project" list="policy-projects" defaultValue={projects[0] || ''} required/>
-            <datalist id="policy-projects">{projects.map(project => <option key={project} value={project}/>)}</datalist>
-          </label>
-          <label>Work name (optional)<input name="workName" maxLength={maxWorkName} placeholder="Payment retry investigation"/></label>
-          <label>What should it do?<textarea name="objective" required/></label>
-          <div className="portal-field-row">
-            <label>Repository<input name="repository" defaultValue={defaultRepository}/></label>
-            <label>Base branch<input name="branch" defaultValue="main"/></label>
-          </div>
-        </section>
-        <section>
-          <h2>Requested access</h2>
-          <fieldset><legend>Tools</legend>{(ceiling?.tools || []).map(tool =>
-            <label className="portal-check" key={tool}>
-              <input type="checkbox" checked={tools.includes(tool)} onChange={event =>
-                setTools(current => event.target.checked
-                  ? [...current, tool] : current.filter(value => value !== tool))}/>{tool}
-            </label>
-          )}</fieldset>
-          <label>Resource scopes<input name="scopes" defaultValue={(ceiling?.resourceScopes || []).join(', ')}/></label>
-          <label>Public network access<select name="network" defaultValue="">
-            <option value="">No public network requested</option>
-            {(ceiling?.networkProfiles || []).map(profile => <option key={profile} value={profile}>{profile}</option>)}
-          </select></label>
-          <p className="portal-muted">A network request needs Policy approval. Public-web permits public TCP 443 and DNS, not domain-specific or read-only access.</p>
-          <div className="portal-field-row">
-            <label>Model profile<select name="model"
-              defaultValue={defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>
-              {(ceiling?.modelProfiles || []).map(profile => <option key={profile}>{profile}</option>)}
-            </select></label>
-            <label>Memory scope<input name="memory" defaultValue={(defaults?.memoryScopes || []).join(', ')}/></label>
-          </div>
-        </section>
-        <section>
-          <h2>Runtime request</h2>
-          <div className="portal-field-row">
-            <label>Runtime profile<select name="runtime">
-              {(ceiling?.runtimeProfiles || []).map(profile => <option key={profile}>{profile}</option>)}
-            </select></label>
-            <label>Time limit (minutes)<input name="timeout" type="number" min="1" max="120"
-              defaultValue="20" required/></label>
-          </div>
-        </section>
-        {error && <p role="alert" className="portal-form-error">{error}</p>}
-        <div className="portal-form-actions">
-          <button type="submit" className="portal-button primary" disabled={busy}>
-            {busy ? 'Starting…' : 'Start work'}
-          </button>
-          <a href={link('work')}>Cancel</a>
-        </div>
-      </div>
-    </form>
-  </>;
-}
-function Templates({ setup }: { setup: Setup }) {
-  if (!setup.template) return <p>No approved template is available in this project.</p>;
-  return <><Heading title="Agents"/>
-    <section className="portal-panel">
-      <h2>{setup.template.metadata.name}</h2>
-      <a className="portal-button" href={link('work/new')}>Start work</a>
-      <h3>Template defaults and limits</h3>
-      <Field label="Model profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.modelProfiles}/>}/>
-      <Field label="Network profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.networkProfiles}/>}/>
-      <Field label="Runtime profiles" value={<Chips values={setup.template.spec.capabilityCeiling?.runtimeProfiles}/>}/>
-      <Field label="Tool ceiling" value={<Chips values={setup.template.spec.capabilityCeiling?.tools}/>}/>
-      <details className="portal-details"><summary>Show template</summary>
-        <pre>{JSON.stringify(setup.template, null, 2)}</pre>
-      </details>
-    </section>
-  </>;
+  return <PlatformOverview setup={setup}/>;
 }
 function Policy({ setup }: { setup: Setup }) {
-  return <><Heading title="Policy"/>
-    <section className="portal-panel">
-      <h2>Active reference policy</h2>
-      <div className="portal-fact-grid">
-        <Field label="Policy ID" value={setup.policy.ID}/>
-        <Field label="Version" value={setup.policy.Version}/>
-        <Field label="Default decision" value="Deny"/>
-      </div>
-      <div className="portal-table-wrap"><table className="portal-table">
-        <thead><tr><th>Team</th><th>Action</th><th>Project</th><th>Template</th></tr></thead>
-        <tbody>{setup.policy.Rules.map((rule, index) => <tr key={index}>
-          <td>{rule.team}</td><td>{rule.action}</td><td>{rule.project}</td><td>{rule.templateRef}</td>
-        </tr>)}</tbody>
-      </table></div>
-    </section>
-  </>;
+ const query=new URLSearchParams(window.location.hash.split('?')[1]||'');
+ const historical=query.has('id')||query.has('version');
+ if(historical)return <><Heading title="Policy" subtitle="Historical authorization document"/><PolicyHistory setup={setup}/></>;
+ return <><Heading title="Policy" subtitle="Versioned rules. Explicit limits. Default deny."/>
+ <section className="portal-panel"><div className="portal-head"><div><h2>{setup.policy.ID}</h2><p>Version {setup.policy.Version} · current configuration context</p></div><a className="portal-button" href="/admin#governance">Manage versions</a></div><p>Rules cap a request; they do not grant the template's full capabilities. Unmatched operations are denied.</p></section>
+ <PolicyRules setup={setup}/><PolicyHistory setup={setup}/></>;
 }
 function Identity({ setup }: { setup: Setup }) {
   return <><Heading title="Identity"/><section className="portal-panel">
@@ -496,7 +329,7 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
   const data = useConnection(parts, revision);
   useEffect(() => { onPrincipal?.(data.error ? undefined : data.setup?.principal); }, [data.error, data.setup, onPrincipal]);
   const retry = () => setRevision(value => value + 1);
-  const section = parts[0] || 'work';
+  const section = (parts[0] || 'work').split('?')[0];
   if (data.loading) {
     return <div role="status" className="portal-connected-empty"><h2>Connecting…</h2></div>;
   }
@@ -514,10 +347,13 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
   }
   const setup = data.setup;
   let content: ReactNode;
-  if (section === 'work' && parts[1] === 'new') {
-    content = <NewWork setup={setup} created={work => {
+  if (section === 'work' && parts[1]?.split('?')[0] === 'new') {
+    const copyRef = new URLSearchParams(window.location.hash.split('?')[1] || '').get('copy');
+    content = <WorkSubmissionCopy setup={setup} reference={copyRef} created={work => {
       window.location.hash = link(workLink(work)); retry();
     }}/>;
+  } else if (section === 'compare') {
+    content = <WorkComparison works={data.works}/>;
   } else if (section === 'work' && !parts[1]) {
     content = <WorkList works={data.works}/>;
   } else if (section === 'work' && data.current) {
@@ -528,14 +364,16 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
  content=<History/>;
  } else if (section === 'platform') {
     content = <Platform setup={setup} works={data.works} activity={parts[1] === 'activity'}/>;
-  } else if (section === 'agents') content = <Templates setup={setup}/>;
+ } else if (section === 'agents') content = <AgentDirectory/>;
   else if (section === 'policy') content = <Policy setup={setup}/>;
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
+    {setup.installation.platform.startsWith('LOCAL ACCEPTANCE') && <p role="status" className="portal-local-warning">Local acceptance · synthetic identity/runtime/model · real Go authorization / PostgreSQL · MCP and source status shown in Platform · not AWS or infrastructure verification</p>}
     {data.paused && <p role="status" className="portal-source-note">
       Automatic refresh paused. <button className="portal-button" onClick={retry}>Refresh progress</button>
     </p>}
+    {!['work','history','compare','agents','platform'].includes(section) && <ConfigurationContext setup={setup}/>}
     {content}
   </>;
 }

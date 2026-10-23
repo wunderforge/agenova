@@ -138,23 +138,17 @@ func TestAccessApprovalAdminScopeAndAuditAtomicity(t *testing.T) {
 	}
 	rows, _ := s.ListAccessRequests(ctx, owner)
 	c := invitations.AccessReview{ID: rows[0].ID, Action: "approve", AccountRole: Admin, Project: "project", Role: MemberRole}
+	c.Project = "missing"
 	if s.ReviewAccessRequest(ctx, admin, c) == nil {
-		t.Fatal("admin appointed account admin")
+		t.Fatal("unknown project approval")
 	}
-	c.AccountRole = MemberRole
-	c.Role = Admin
-	if s.ReviewAccessRequest(ctx, admin, c) == nil {
-		t.Fatal("admin appointed project admin")
-	}
-	c.Role = MemberRole
 	c.Project = "other"
 	if _, err := s.DB.Exec(`INSERT INTO agenova_projects(team,project) VALUES('team','other')`); err != nil {
 		t.Fatal(err)
 	}
-	if s.ReviewAccessRequest(ctx, admin, c) == nil {
-		t.Fatal("cross project approval")
-	}
-	c.Project = "project"
+	// Account Admin can approve another Admin in any existing organization
+	// project, without a project grant. Audit failure must still roll it back.
+	c.Role = Admin
 	if _, err := s.DB.Exec(`CREATE FUNCTION reject_access_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.operation LIKE 'access.approved%' THEN RAISE EXCEPTION 'test failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_access_audit BEFORE INSERT ON agenova_identity_audit FOR EACH ROW EXECUTE FUNCTION reject_access_audit()`); err != nil {
 		t.Fatal(err)
 	}

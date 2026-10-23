@@ -225,7 +225,26 @@ SELECT/INSERT/UPDATE on `agenova_project_policy_active`. Older binaries reject
 schema 007; retain data and use a compatible rollback build. Do not rerun Owner
 bootstrap, rotate sessions or grant database superuser rights during this upgrade.
 
-### Google registration with administrator approval
+### Local product-journey extension: schema 010/011
+
+The product-review branch adds display-only organization metadata (010) and
+structured Policy activation history (011), without changing tenant identity or
+previous migrations. Apply the explicit operator migration before starting that
+binary; install runtime SELECT/INSERT/UPDATE on
+`agenova_organization_metadata`, SELECT/INSERT on `agenova_policy_activations`,
+and USAGE on `agenova_policy_activations_event_id_seq`. Do not grant DELETE or DDL.
+Startup probes both new tables. Old binaries reject the newer schema: prepare a
+schema-compatible rollback image, preserve the data, and coordinate the single
+writer replacement. This document does not authorize a live migration.
+
+`AGENOVA_DIAGNOSTICS_URL` optionally supplies a navigation destination, not an
+exporter configuration. Use operator-owned HTTPS or the existing `/grafana`
+authenticated proxy; loopback HTTP is for local development only. Credentials,
+query parameters and fragments are rejected. Configured OTLP is not proof of
+downstream logs/metrics/traces receipt. See the
+[local walkthrough and acceptance limits](../../docs/development/local-product-acceptance.md).
+
+### Google registration with administrator approval (existing behavior)
 
 Set `registrationTeam` to the existing account/team identifier in the private
 member-service JSON to enable reviewed registration. Omit it to retain the

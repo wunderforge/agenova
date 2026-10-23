@@ -15,3 +15,4 @@ configMapGenerator:
       - legacy-readme=data/README.md
       - legacy-timeout=data/logs/timeout.log
       - legacy-retry=data/src/retry.txt
+      - research-customers=data/crm/customers.json

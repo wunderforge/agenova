@@ -10,28 +10,50 @@ export type View = Omit<CanonicalView, 'request' | 'facts'> & {
   facts: Fact[];
 };
 export interface Setup {
+  platformInfo?: { operator:boolean; connections: ConnectionInfo[] };
   installation: { kind: 'installed'; platform: string; revision: string };
   principal: Principal;
   template: AgentTemplate | null;
   project?: string;
   projects?: string[];
   templates?: string[];
+  submissionProjects?: string[];
+  organization?: { id: string; displayName: string; description?: string };
+  observability?: { enabled: boolean; endpoint?: string; exportFailures: number; ingestion: string; diagnosticURL?: string };
   policy: {
     ID: string;
     Version: string;
-    Rules: { team: string; action: string; project: string; templateRef: string }[];
+    Rules: PolicyRule[];
   };
   capabilities: Record<string, string>;
 }
+export interface ConnectionInfo {category:string;name:string;backend?:string;adapter?:string;model?:string;operation?:string;scope?:string;tool?:string;endpoint?:string;status?:string}
+export interface AgentEntry {project:string;template:AgentTemplate;canSubmit:boolean}
+export interface PolicyRule {
+  subject?: string; team: string; action: string; project: string; templateRef: string;
+  constraints?: { tools?: { values: string[] | null }; resourceScopes?: { values: string[] | null }; networkProfiles?: { values: string[] | null }; memoryScopes?: { values: string[] | null }; modelProfiles?: { values: string[] | null }; runtimeProfiles?: { values: string[] | null }; maxTimeout?: string | number };
+}
+// Display-shape validation only; the Go policy engine remains the authority.
+export function validPolicyRule(value: unknown): value is PolicyRule {
+ if(!value || typeof value!=='object')return false;
+ const rule=value as PolicyRule;
+ if(![rule.team,rule.action,rule.project,rule.templateRef].every(item=>typeof item==='string') || rule.subject!==undefined&&typeof rule.subject!=='string')return false;
+ if(rule.constraints===undefined)return true;
+ if(!rule.constraints || typeof rule.constraints!=='object' || Array.isArray(rule.constraints))return false;
+ return Object.entries(rule.constraints).every(([key,cap])=>key==='maxTimeout'
+  ? typeof cap==='string'||typeof cap==='number'&&Number.isFinite(cap)
+  : !!cap && typeof cap==='object' && 'values' in cap && (cap.values===null || Array.isArray(cap.values) && cap.values.every((item:unknown)=>typeof item==='string')));
+}
 // Suggestions only: the installed service remains the authority for admission.
 export function suggestedProjects(setup: Setup): string[] {
+  if (setup.submissionProjects !== undefined) return setup.submissionProjects;
   return [...new Set(setup.policy.Rules
     .filter(rule => rule.team === setup.principal.team && rule.action === 'claim.create' &&
       rule.templateRef === setup.template?.metadata.name)
     .map(rule => rule.project))];
 }
 export class SourceError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly uncertain = false) {
     super(message);
   }
 }
@@ -41,7 +63,8 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
   // acknowledging submission. Reads remain short; writes share the server's
   // bounded setup window so a Work is not launched after the UI reports fail.
   const timeout = AbortSignal.timeout(body ? 240_000 : 8_000);
-  const response = await fetch(path, {
+  let response: Response;
+  try { response = await fetch(path, {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     cache: 'no-store',
     ...(body ? {
@@ -49,15 +72,22 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     } : {}),
-  });
+  }); } catch { throw new SourceError(0, body ? 'Submission result is not confirmed. Check this request before creating another.' : 'The connection is unavailable. Try again.', !!body); }
   if (!response.ok) {
-    const message = response.status === 404 ? 'This work was not found.'
-      : body ? 'The request could not be started. Check the connection and try again.'
-      : 'The connection is unavailable. Try again.';
-    throw new SourceError(response.status, message);
+    // Never echo raw upstream errors, which can contain infrastructure details.
+    const messages: Record<number, string> = {
+      400: 'Request validation failed. Review the task and requested access.',
+      401: 'Your session has expired. Sign in again to continue.',
+      403: 'Access denied. Your identity does not permit this project operation.',
+      404: 'This work was not found.', 409: 'This request reference already exists with different content.',
+      422: 'The request could not be admitted. Review Policy, template limits and installed capabilities.',
+      429: 'Capacity is currently limited. Check the existing request before retrying.',
+    };
+    const uncertain = !!body && (response.status >= 500 || response.status === 409);
+    throw new SourceError(response.status, messages[response.status] || (uncertain ? 'Submission result is not confirmed. Check the existing request before retrying.' : 'The connection is unavailable. Try again.'), uncertain);
   }
   try { return await response.json(); }
-  catch { throw new SourceError(502, 'The connection returned an incomplete response.'); }
+  catch { throw new SourceError(502, 'The connection returned an incomplete response.', !!body); }
 }
 
 function view(data: unknown): View {
@@ -72,6 +102,11 @@ export interface HistoryPage {
  nextCursor?: string;
 }
 export const connectedSource = {
+ async agents(signal?:AbortSignal):Promise<AgentEntry[]> {
+  const data=await json('/api/agents',signal);
+  if(!Array.isArray(data)||data.length>200||!data.every(e=>e&&typeof e.project==='string'&&e.project.length<=128&&typeof e.canSubmit==='boolean'&&!shapeDiagnostics('AgentTemplate',e.template).length))throw new SourceError(502,'Agent catalog is incomplete.');
+  return data;
+ },
  async history(cursor = '', signal?: AbortSignal): Promise<HistoryPage> {
   const data = await json(`/api/history?limit=20&cursor=${encodeURIComponent(cursor)}`, signal) as HistoryPage;
   if (!data || !Array.isArray(data.items) || data.items.length > 20 ||
@@ -81,25 +116,28 @@ export const connectedSource = {
   }
   return data;
  },
-  async setup(signal?: AbortSignal): Promise<Setup> {
+  async setup(signal?: AbortSignal, context?: { project?: string; template?: string }): Promise<Setup> {
     const params = new URLSearchParams();
-    for (const key of ['project','template']) { const value = new URLSearchParams(window.location.search).get(key); if (value) params.set(key,value); }
+    for (const key of ['project','template'] as const) { const value = context ? context[key] : new URLSearchParams(window.location.search).get(key); if (value) params.set(key,value); }
     const data = await json('/api/setup' + (params.size ? '?' + params.toString() : ''), signal);
     if (!data || typeof data !== 'object') throw new SourceError(502, 'Platform setup is unavailable.');
     const setup = data as Setup;
+    if(setup.policy?.Rules===null)setup.policy.Rules=[]; // Go nil slice is an empty deny-all rule collection.
     if (shapeDiagnostics('Principal', setup.principal).length ||
         setup.installation?.kind !== 'installed' || !setup.installation.platform ||
         !/^sha256:[a-f0-9]{64}$/.test(setup.installation.revision) ||
         (setup.template !== null && shapeDiagnostics('AgentTemplate', setup.template).length > 0) ||
-        [setup.projects, setup.templates].some(list => list !== undefined && (!Array.isArray(list) || list.length > 100 || !list.every(value => typeof value === 'string'))) ||
+        [setup.projects, setup.templates, setup.submissionProjects].some(list => list !== undefined && (!Array.isArray(list) || list.length > 100 || !list.every(value => typeof value === 'string'))) ||
         !setup.policy || typeof setup.policy.ID !== 'string' ||
         typeof setup.policy.Version !== 'string' || !Array.isArray(setup.policy.Rules) ||
-        !setup.policy.Rules.every(rule => rule &&
-          [rule.team, rule.action, rule.project, rule.templateRef].every(value => typeof value === 'string')) ||
+        !setup.policy.Rules.every(validPolicyRule) ||
+        (setup.organization!==undefined && (!setup.organization || typeof setup.organization.id!=='string' || typeof setup.organization.displayName!=='string' || setup.organization.description!==undefined&&typeof setup.organization.description!=='string')) ||
+        (setup.observability!==undefined && (!setup.observability || typeof setup.observability.enabled!=='boolean' || typeof setup.observability.exportFailures!=='number' || !Number.isFinite(setup.observability.exportFailures) || typeof setup.observability.ingestion!=='string' || [setup.observability.endpoint,setup.observability.diagnosticURL].some(value=>value!==undefined&&typeof value!=='string'))) ||
         !setup.capabilities || typeof setup.capabilities !== 'object' ||
         !Object.values(setup.capabilities).every(value => typeof value === 'string')) {
       throw new SourceError(502, 'This connection is not an installed Agenova Platform, or its setup is incomplete.');
     }
+    if(setup.platformInfo && (typeof setup.platformInfo.operator!=='boolean'||!Array.isArray(setup.platformInfo.connections)||setup.platformInfo.connections.length>400||!setup.platformInfo.connections.every(c=>c&&typeof c.category==='string'&&typeof c.name==='string'&&Object.values(c).every(v=>typeof v==='string'&&v.length<=512))))throw new SourceError(502,'Platform configuration summary is incomplete.');
     return setup;
   },
   async list(signal?: AbortSignal): Promise<View[]> {
@@ -111,7 +149,11 @@ export const connectedSource = {
     return view(await json(`/api/requests/${encodeURIComponent(ref)}/evidence`, signal));
   },
   async submit(request: ClaimRequest, signal?: AbortSignal): Promise<View> {
-    return view(await json('/api/requests', signal, request));
+    const result = await json('/api/requests', signal, request);
+    try { return view(result); } catch { throw new SourceError(502, 'Submission result is not confirmed. The response was incomplete; check the existing request.', true); }
+  },
+  async submission(name: string, signal?: AbortSignal): Promise<View> {
+    return view(await json(`/api/submissions/${encodeURIComponent(name)}/evidence`, signal));
   },
 };
 
@@ -136,9 +178,10 @@ export function isTerminal(work: View): boolean {
   return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled', 'Interrupted'].includes(workStatus(work));
 }
 
-export function traceURL(traceId?: string): string | undefined {
+export function traceURL(traceId?: string, destination?: string): string | undefined {
  if (!traceId || !/^[a-f0-9]{32}$/.test(traceId)) return undefined;
- let base: URL; try { base = new URL(import.meta.env.VITE_GRAFANA_URL || 'http://127.0.0.1:3000'); } catch { return undefined; }
- if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname) || base.username || base.password || !['http:', 'https:'].includes(base.protocol)) return undefined;
- return new URL('/explore?schemaVersion=1&panes=' + encodeURIComponent(JSON.stringify({ work: { datasource: 'tempo', queries: [{ datasource: { type: 'tempo', uid: 'tempo' }, query: traceId, queryType: 'traceql', refId: 'A' }], range: { from: 'now-7d', to: 'now' } } })), base).href;
+ if (!destination && !import.meta.env.VITE_GRAFANA_URL) return undefined;
+ let base: URL; try { base = new URL(destination || import.meta.env.VITE_GRAFANA_URL, window.location.origin); } catch { return undefined; }
+ if (base.username || base.password || base.search || base.hash || !(base.protocol === 'https:' || base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))) return undefined;
+ return new URL(base.pathname.replace(/\/$/, '') + '/explore?schemaVersion=1&panes=' + encodeURIComponent(JSON.stringify({ work: { datasource: 'tempo', queries: [{ datasource: { type: 'tempo', uid: 'tempo' }, query: traceId, queryType: 'traceql', refId: 'A' }], range: { from: 'now-7d', to: 'now' } } })), base).href;
 }

@@ -64,8 +64,11 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 			t.Fatal("missing member description")
 		}
 	}
-	if err := change(admin, "member", "account-role", Admin); err == nil {
-		t.Fatal("admin appointed admin")
+	if err := change(admin, "member", "account-role", Admin); err != nil {
+		t.Fatal("admin cannot appoint admin", err)
+	}
+	if err := change(admin, "member", "account-role", MemberRole); err != nil {
+		t.Fatal(err)
 	}
 	if err := change(owner, "owner", "disable", ""); err == nil {
 		t.Fatal("owner disabled")
@@ -95,8 +98,11 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if err := change(owner, "member", "account-role", Admin); err != nil {
 		t.Fatal(err)
 	}
-	if err := change(admin, "member", "disable", ""); err == nil {
-		t.Fatal("admin disabled new admin")
+	if err := change(admin, "member", "disable", ""); err != nil {
+		t.Fatal("admin cannot disable another admin", err)
+	}
+	if err := change(admin, "member", "enable", ""); err != nil {
+		t.Fatal(err)
 	}
 	if err := change(owner, "member", "account-role", MemberRole); err != nil {
 		t.Fatal(err)
@@ -119,17 +125,20 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if _, err := s.DB.Exec(`INSERT INTO agenova_projects VALUES('team','private')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ChangeMember(ctx, admin, invitations.MemberChange{Principal: member.Subject, Action: "project-role", Project: "private", Role: MemberRole}); err == nil {
-		t.Fatal("admin granted outside its project")
+	if err := s.ChangeMember(ctx, admin, invitations.MemberChange{Principal: member.Subject, Action: "project-role", Project: "private", Role: MemberRole}); err != nil {
+		t.Fatal("account admin cannot administer organization project", err)
 	}
-	if _, _, err := s.ReserveGoogleInvitation(ctx, admin, invitations.Request{Email: "foreign@gmail.com", Project: "private", Role: MemberRole}); err == nil {
-		t.Fatal("admin invited outside its project")
+	if _, _, err := s.ReserveGoogleInvitation(ctx, admin, invitations.Request{Email: "foreign@gmail.com", Project: "private", Role: MemberRole}); err != nil {
+		t.Fatal("account admin cannot invite to organization project", err)
 	}
 	if err := s.GrantProject(ctx, owner, member.Subject, "private", Viewer); err != nil {
 		t.Fatal(err)
 	}
-	if err := change(admin, "member", "disable", ""); err == nil {
-		t.Fatal("admin disabled membership spanning another project")
+	if err := change(admin, "member", "disable", ""); err != nil {
+		t.Fatal("account admin cannot manage ordinary organization member", err)
+	}
+	if err := change(admin, "member", "enable", ""); err != nil {
+		t.Fatal(err)
 	}
 	if err := s.GrantProject(ctx, owner, member.Subject, "private", ""); err != nil {
 		t.Fatal(err)
@@ -137,8 +146,8 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if err := s.GrantProject(ctx, owner, member.Subject, "project", Admin); err != nil {
 		t.Fatal(err)
 	}
-	if err := change(admin, "member", "disable", ""); err == nil {
-		t.Fatal("admin disabled project administrator")
+	if err := change(admin, "member", "disable", ""); err != nil {
+		t.Fatal("admin cannot disable project administrator", err)
 	}
 
 	_, pendingProof, err := s.ReserveGoogleInvitation(ctx, admin, invitations.Request{Email: "pending@gmail.com", Project: "project", Role: MemberRole})
@@ -148,11 +157,14 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if err := s.GrantProject(ctx, owner, admin.Subject, "project", Viewer); err != nil {
 		t.Fatal(err)
 	}
+	if err := change(owner, "admin", "account-role", MemberRole); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.AcceptGoogleInvitation(ctx, googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "pending", Email: "pending@gmail.com", EmailAuthoritative: true}, pendingProof); err == nil {
-		t.Fatal("removed project administrator's invite accepted")
+		t.Fatal("revoked account/project administrator's invite accepted")
 	}
 	var count int
-	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_identity_audit WHERE operation LIKE 'member.%'`).Scan(&count); err != nil || count != 4 {
+	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_identity_audit WHERE operation LIKE 'member.%'`).Scan(&count); err != nil || count != 12 {
 		t.Fatalf("audit: %d %v", count, err)
 	}
 }
