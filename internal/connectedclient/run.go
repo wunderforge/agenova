@@ -29,6 +29,7 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/history"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"gopkg.in/yaml.v3"
 )
 
@@ -338,6 +339,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	requiresNetworkLifecycle := view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) > 0
 	runOutcomeReasonCode := ""
 	lastSucceededModelInvocation := ""
+	nativeSelected, nativeStarted, nativeObserved := false, false, false
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
@@ -557,6 +559,24 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		switch fact.Kind {
 		case "WorkerActivity":
 			switch fact.Operation {
+			case "NativeHTTPSAttempt", "NativeHTTPSObservation":
+				if fact.InvocationID != "" || fact.Target != "direct-https" || fact.BackendIdentity == nil ||
+					fact.Decision != nil || fact.Result != "" || fact.Authority != nil || len(fact.AuthorityChanges) != 0 || fact.ProviderStatus != "" || fact.PolicyRef != nil {
+					return false
+				}
+				if fact.Operation == "NativeHTTPSAttempt" {
+					if !nativeSelected || nativeStarted || fact.ReasonCode != "worker-native-attempt" || fact.Reason != "The original worker session selected a local HTTPS attempt; this record precedes the network request." {
+						return false
+					}
+					nativeSelected, nativeStarted = false, true
+				} else {
+					report, ok := strings.CutPrefix(fact.Reason, "Worker-reported native HTTPS observation (not independently verified CNI enforcement): ")
+					var observation workerprotocol.NativeObservation
+					if !nativeStarted || nativeObserved || !ok || len(report) > 512 || !decodeStrictJSON([]byte(report), &observation) || !workerprotocol.ValidNative(&observation) || fact.ReasonCode != "worker-native-"+observation.Phase+"-"+observation.Result {
+						return false
+					}
+					nativeObserved = true
+				}
 			case "ToolRequestRejected":
 				if fact.InvocationID != "" || fact.Target != "tool.invoke" || fact.ReasonCode != "tool-arguments-rejected" ||
 					fact.Reason != "Tool parameters do not match an installed route; no provider call was made." ||
@@ -583,6 +603,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				}
 				previous.stage = 4
 				invocations[fact.InvocationID] = previous
+				nativeSelected = fact.ReasonCode == "agent-action-native"
 			}
 		case "ModelDecision", "ToolDecision":
 			expected := "model.invoke"

@@ -61,6 +61,28 @@ func TestResearcherPromptCallExamplesDoNotCarryCompletion(t *testing.T) {
 	}
 }
 
+func TestResearcherPrioritizesObservedEvidenceBeforeMoreCalls(t *testing.T) {
+	marker := "Successful observation: synthetic format-test evidence."
+	prompt := researcherV1Prompt(workerprotocol.Task{}, marker)
+	_, tail, ok := strings.Cut(prompt, marker)
+	if !ok || !strings.Contains(tail, "If relevant observations answer the objective, FINISH now") || !strings.Contains(tail, "Do not call a tool or native_https again") || !strings.Contains(tail, "does not invalidate a successful observation") {
+		t.Fatal("missing post-observation finish priority")
+	}
+	_, example, ok := strings.Cut(tail, "Finish example: ")
+	if !ok {
+		t.Fatal("missing complete finish example")
+	}
+	var fields map[string]string
+	if err := json.NewDecoder(strings.NewReader(example)).Decode(&fields); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(fields)
+	a, err := workerprotocol.ParseAgentAction(string(b), nil, workerprotocol.ResearchProtocol)
+	if len(fields) != 8 || err != nil || a.Action != "finish" || a.Completion != "completed" {
+		t.Fatal("finish example violates protocol")
+	}
+}
+
 func TestResearcherDoesNotCompleteWithoutToolEvidence(t *testing.T) {
 	researcherRole(t)
 	var input, output bytes.Buffer
