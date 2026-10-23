@@ -118,7 +118,7 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 		return out, authentication.ErrForbidden
 	}
 	var allowed bool
-	if tx.QueryRowContext(ctx, `SELECT (EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 AND role='governance-admin' AND ((scope_kind='project' AND scope_ref=$3) OR (scope_kind='account' AND scope_ref=$2))) OR EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.principal=$1 AND m.team=$2 AND m.account_role='admin' AND g.project=$3 AND g.role='admin')) AND EXISTS(SELECT 1 FROM agenova_projects WHERE team=$2 AND project=$3)`, p.Subject, p.Team, project).Scan(&allowed) != nil || !allowed {
+	if tx.QueryRowContext(ctx, `SELECT (EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 AND role='governance-admin' AND ((scope_kind='project' AND scope_ref=$3) OR (scope_kind='account' AND scope_ref=$2))) OR EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.account_role IN ('owner','admin'))) AND EXISTS(SELECT 1 FROM agenova_projects WHERE team=$2 AND project=$3)`, p.Subject, p.Team, project).Scan(&allowed) != nil || !allowed {
 		return out, authentication.ErrForbidden
 	}
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,215007))`, p.Team+":"+project); err != nil {
@@ -193,7 +193,7 @@ func (s Store) ConfigurationProjects(ctx context.Context, p v0.Principal) ([]str
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	rows, err := s.DB.QueryContext(ctx, `SELECT p.project FROM agenova_projects p JOIN agenova_members m ON m.team=p.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))) ORDER BY p.project LIMIT 101`, p.Subject, p.Team)
+	rows, err := s.DB.QueryContext(ctx, `SELECT p.project FROM agenova_projects p JOIN agenova_members m ON m.team=p.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role IN ('owner','admin') OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))) ORDER BY p.project LIMIT 101`, p.Subject, p.Team)
 	if err != nil {
 		return nil, errors.New("project configuration unavailable")
 	}

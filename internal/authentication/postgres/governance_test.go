@@ -35,7 +35,7 @@ func TestProjectGovernanceIsolationRevocationAndAtomicActivation(t *testing.T) {
 		_, err := s.ApplyGovernance(ctx, p(actor), project, "policy", doc(project, version), nil)
 		return err
 	}
-	for _, n := range []string{"owner", "governor", "member"} {
+	for _, n := range []string{"governor", "member"} {
 		if apply(n, "one", "1") == nil {
 			t.Fatal("implicit governance access", n)
 		}

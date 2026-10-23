@@ -137,3 +137,38 @@ func Organization(store identitydb.Store, auth Authenticator) http.Handler {
 		w.WriteHeader(204)
 	})
 }
+
+// Projects creates organization-scoped projects through the same authenticated
+// application boundary as governance writes. It never accepts a team or grants.
+func Projects(store identitydb.Store, auth Authenticator) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if auth == nil || store.DB == nil {
+			http.Error(w, "Unavailable", 503)
+			return
+		}
+		p, err := auth.Authenticate(r)
+		if err != nil {
+			http.Error(w, "Sign in required", 401)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		var in struct {
+			Project string `json:"project"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		changed, err := store.CreateProject(r.Context(), p, in.Project)
+		if err != nil {
+			reject(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"project": in.Project, "changed": changed})
+	})
+}

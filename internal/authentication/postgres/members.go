@@ -146,9 +146,9 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 			return authentication.ErrForbidden
 		}
 		var scoped bool
-		// An account Admin may not disable a person with authority in projects
-		// that the Admin does not administer, or any existing project Admin.
-		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2) AND NOT EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=$1 AND g.team=$2 AND (g.role='admin' OR NOT EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$3 AND a.team=g.team AND a.project=g.project AND a.role='admin')))`, c.Principal, p.Team, p.Subject).Scan(&scoped)
+		// Account Admin covers all organization projects, but cannot disable a
+		// privileged project administrator. Owner-only delegation stays separate.
+		err = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND role='admin')`, c.Principal, p.Team).Scan(&scoped)
 		if err != nil || !scoped {
 			return authentication.ErrForbidden
 		}

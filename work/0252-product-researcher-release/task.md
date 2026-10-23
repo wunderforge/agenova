@@ -73,5 +73,10 @@ Out of scope:
 
 ## Decisions and Blockers
 
+- 23 October Owner decision: no one-off project/user SQL bootstrap. Account
+  Admin and Owner cover all organization projects; keep per-Work governance and
+  cross-team denial. Add authenticated audited project creation, test revocation
+  and Owner invariants, and create research through that API after release.
+
 - AWS and personal CLI login refreshed. Owner approved 010/011 and minimal grants. Existing model is Nova Micro; real answer quality remains pending. Do not expand model IAM to pass tests. See linked release sequence.
 

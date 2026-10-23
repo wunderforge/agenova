@@ -42,9 +42,9 @@ func (s Store) Authorize(ctx context.Context, p v0.Principal, action, project st
 	allowed := false
 	switch action {
 	case SubmitWork, ReadOwnWork:
-		allowed = account == Owner || role == Admin || role == MemberRole
+		allowed = account == Owner || account == Admin || role == Admin || role == MemberRole
 	case ReadProjectWork:
-		allowed = account == Owner || role == Admin || role == Viewer
+		allowed = account == Owner || account == Admin || role == Admin || role == Viewer
 	case ManageMembers:
 		allowed = account == Owner || account == Admin || role == Admin
 	}
@@ -103,7 +103,7 @@ func (s Store) GrantProject(ctx context.Context, actor v0.Principal, target, pro
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND project=$3 AND role='admin')`, actor.Subject, actor.Team, project).Scan(&projectAdmin); err != nil {
 		return errors.New("membership transaction unavailable")
 	}
-	if actorRole != Owner && (role == Admin || !projectAdmin) {
+	if actorRole != Owner && (role == Admin || actorRole != Admin && !projectAdmin) {
 		return authentication.ErrForbidden
 	}
 	var old string

@@ -16,12 +16,37 @@ import (
 
 type rejectingAuth struct{}
 
+type projectAuth struct{}
+
+func (projectAuth) Authenticate(*http.Request) (v0.Principal, error) {
+	return v0.Principal{Subject: "test-admin", Team: "test-team", AuthenticationContext: "oidc"}, nil
+}
+
+func TestProjectCreationRejectsIdentityGrantsAndWrongMethods(t *testing.T) {
+	h := Projects(identitydb.Store{DB: &sql.DB{}}, projectAuth{})
+	for _, body := range []string{`{"project":"research","team":"foreign"}`, `{"project":"research","role":"admin"}`, `{"project":"research","grants":[]}`, `{} {}`} {
+		r := httptest.NewRequest("POST", "/api/projects", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 400 {
+			t.Fatal("untrusted project fields accepted", w.Code)
+		}
+	}
+	r := httptest.NewRequest("GET", "/api/projects", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 405 || w.Header().Get("Allow") != "POST" {
+		t.Fatal("method guard", w.Code)
+	}
+}
+
 func (rejectingAuth) Authenticate(*http.Request) (v0.Principal, error) {
 	return v0.Principal{}, errors.New("private authentication detail")
 }
 
 func TestManagementRequiresAuthentication(t *testing.T) {
-	for _, h := range []http.Handler{Governance(identitydb.Store{DB: &sql.DB{}}, rejectingAuth{}, nil), Organization(identitydb.Store{DB: &sql.DB{}}, rejectingAuth{})} {
+	for _, h := range []http.Handler{Governance(identitydb.Store{DB: &sql.DB{}}, rejectingAuth{}, nil), Organization(identitydb.Store{DB: &sql.DB{}}, rejectingAuth{}), Projects(identitydb.Store{DB: &sql.DB{}}, rejectingAuth{})} {
 		for _, method := range []string{"GET", "POST", "DELETE"} {
 			r := httptest.NewRequest(method, "/", strings.NewReader(`{}`))
 			w := httptest.NewRecorder()

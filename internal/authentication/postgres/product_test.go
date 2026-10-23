@@ -105,13 +105,6 @@ func TestProductMetadataPolicyCASAndProjectIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreign := []byte(`{"apiVersion":"agenova.io/v1alpha1","kind":"PolicyBundle","metadata":{"name":"foreign","version":"private-version"},"spec":{"rules":[]}}`)
-	if _, err = s.ApplyGovernance(ctx, p("owner"), "payments/other", "policy", foreign, nil); err == nil {
-		// Owner is deliberately not implicitly governance-admin in this store.
-		t.Fatal("owner unexpectedly bypassed scoped governance authorization")
-	}
-	if _, err = s.DB.Exec(`INSERT INTO agenova_scoped_roles VALUES('owner','team-a','governance-admin','project','payments/other')`); err != nil {
-		t.Fatal(err)
-	}
 	if _, err = s.ApplyGovernance(ctx, p("owner"), "payments/other", "policy", foreign, nil); err != nil {
 		t.Fatal(err)
 	}

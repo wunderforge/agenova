@@ -82,7 +82,7 @@ func (s Store) reserve(ctx context.Context, p v0.Principal, issuer string, r inv
 			return invitations.Invitation{}, err
 		}
 		var permitted bool
-		if tx.QueryRowContext(ctx, `SELECT m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, p.Subject, p.Team, r.Project).Scan(&permitted) != nil || !permitted {
+		if tx.QueryRowContext(ctx, `SELECT m.account_role IN ('owner','admin') OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=$3 AND g.role='admin') FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND active`, p.Subject, p.Team, r.Project).Scan(&permitted) != nil || !permitted {
 			return invitations.Invitation{}, authentication.ErrForbidden
 		}
 	}

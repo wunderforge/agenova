@@ -107,7 +107,7 @@ func (s Store) PolicyHistoryFor(ctx context.Context, p v0.Principal, project str
 	}
 	defer tx.Rollback()
 	var allowedNow bool
-	if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_projects p ON p.team=m.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND p.project=$3 AND (m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))))`, p.Subject, p.Team, project).Scan(&allowedNow) != nil || !allowedNow {
+	if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_projects p ON p.team=m.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND p.project=$3 AND (m.account_role IN ('owner','admin') OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))))`, p.Subject, p.Team, project).Scan(&allowedNow) != nil || !allowedNow {
 		return out, authentication.ErrForbidden
 	}
 	var ref v0.PolicyReference

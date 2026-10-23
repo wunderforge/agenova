@@ -86,6 +86,10 @@ func run(apply bool, role string) error {
 		return errors.New("runtime role inspection failed")
 	}
 	if !apply {
+		baseline, err := identitydb.MigrationBaseline(ctx, db)
+		if err != nil {
+			return err
+		}
 		checks := map[string]bool{}
 		var value bool
 		checks["runtimeRoleSafeQuery"] = db.QueryRowContext(ctx, `SELECT NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole FROM pg_roles WHERE rolname='agenova_runtime' AND rolcanlogin`).Scan(&value) == nil
@@ -105,7 +109,7 @@ func run(apply bool, role string) error {
 			checks[name+"Query"] = db.QueryRowContext(ctx, query).Scan(&value) == nil
 			checks[name] = value
 		}
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"mode": "inspect", "schema": before, "runtimeRoles": roles, "checks": checks})
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"mode": "inspect", "schema": before, "runtimeRoles": roles, "checks": checks, "migrationBaseline": baseline})
 	}
 	statements, err := grantSQL(role)
 	if err != nil {

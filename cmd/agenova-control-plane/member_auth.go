@@ -28,6 +28,7 @@ import (
 	"github.com/wunderforge/agenova/internal/invitations"
 	"github.com/wunderforge/agenova/internal/landing"
 	"github.com/wunderforge/agenova/internal/login"
+	"github.com/wunderforge/agenova/internal/management"
 	"github.com/wunderforge/agenova/internal/websession"
 	"golang.org/x/oauth2"
 )
@@ -297,6 +298,7 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	mux.Handle("/api/platform/authorize", d.platformAuthorizationHandler())
 	mux.Handle("/api/governance", d.governanceHandler())
 	mux.Handle("/api/organization", d.organizationHandler())
+	mux.Handle("/api/projects", management.Projects(d.store, d.boundary))
 	if d.config.RegistrationTeam != "" {
 		mux.Handle("/api/access-requests", invitations.AccessRequestHandler(d.store, d.boundary, os.Getenv("AGENOVA_PLATFORM_NAME")))
 	}

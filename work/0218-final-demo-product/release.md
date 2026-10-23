@@ -56,7 +56,21 @@ branch-protection bypass, new model IAM permissions or credential access.
 - Windows full gate still fails the original invitation directory-sync case;
   Linux CI must pass before merge. Existing UI 161 unit / 83 smoke and nine
   actual local API/SQL/MCP journeys passed; not real-model cloud acceptance.
-- No blanket administrator merge authorization for the upcoming PR.
+- Owner approved administrator merge only for #253 after all gates. New commits
+  must rerun CI before that approval is exercised.
+- Formal environment has an active Neo Owner; no ownership reassignment is
+  needed. Owner rejected one-off project/user SQL provisioning. Account Admin /
+  Owner now cover all organization projects through live application checks;
+  audited idempotent `POST /api/projects` will create research after release.
+  See [role contract](../../docs/development/organization-project-access.md).
+- Real local PostgreSQL identity/Work/management/operator tests passed after the
+  role correction, including ordinary project isolation, creation audit rollback,
+  demotion/disable revocation and Owner transfer/last-Owner guards.
+- First controlled migration attempt failed before commit. Verified database is
+  still schema 9 and original service was restored healthy; owned temporary
+  migration Jobs/Secrets removed. Read-only checks confirm DDL/minimal runtime
+  preconditions; checksum-baseline diagnostics are next. No merged product or
+  real-model cloud success is claimed yet.
 
 ## Evidence boundaries
 

@@ -6,6 +6,7 @@ import base64
 import json
 import re
 import subprocess
+import time
 import uuid
 
 SECRET = "arn:aws:secretsmanager:ap-southeast-2:931228356546:secret:rds!db-16fd8654-0050-42b0-a6df-12ec85ea7c74-poYtb1"
@@ -57,11 +58,23 @@ def main():
         job = {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": name, "labels": labels}, "spec": {"backoffLimit": 0, "activeDeadlineSeconds": 120, "ttlSecondsAfterFinished": 3600, "template": {"metadata": {"labels": labels}, "spec": {"restartPolicy": "Never", "automountServiceAccountToken": False, "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "fsGroup": 65532, "seccompProfile": {"type": "RuntimeDefault"}}, "containers": [{"name": "migrate", "image": args.image, "args": (["-apply", "-role", args.role] if args.apply else []), "resources": {"requests": {"cpu": "20m", "memory": "48Mi"}, "limits": {"cpu": "100m", "memory": "128Mi"}}, "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}, "volumeMounts": [{"name": "operator", "mountPath": "/run/operator", "readOnly": True}, {"name": "rds", "mountPath": "/etc/rds", "readOnly": True}]}], "volumes": [{"name": "operator", "secret": {"secretName": name, "defaultMode": 288}}, {"name": "rds", "configMap": {"name": "agenova-member-config", "items": [{"key": "rds-ca.pem", "path": "rds-ca.pem"}]}}]}}}}
         command(kube + ["create", "-f", "-"], json.dumps(job))
         created.append("job")
-        command(kube + ["wait", "--for=condition=complete", "job/" + name, "--timeout=130s"])
+        # Fail fast on a terminal error rather than keeping the shared writer
+        # stopped until a wait-for-success timeout expires.
+        deadline = time.monotonic() + 130
+        while True:
+            status = json.loads(command(kube + ["get", "job", name, "-o", "json"]))
+            conditions = {c.get("type") for c in status.get("status", {}).get("conditions", []) if c.get("status") == "True"}
+            if "Complete" in conditions:
+                break
+            if "Failed" in conditions:
+                raise RuntimeError("Trusted operator Job failed")
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Trusted operator Job timed out")
+            time.sleep(2)
         logs = command(kube + ["logs", "job/" + name])
         # The trusted image emits only this schema/grant summary; validate it.
         summary = json.loads(logs)
-        allowed = {"mode", "schema", "runtimeRoles", "checks", "schemaBefore", "schemaAfter", "runtimeRole", "minimalGrantsVerified", "memberAndProjectCountsUnchanged"}
+        allowed = {"mode", "schema", "runtimeRoles", "checks", "migrationBaseline", "schemaBefore", "schemaAfter", "runtimeRole", "minimalGrantsVerified", "memberAndProjectCountsUnchanged"}
         if set(summary) - allowed:
             raise RuntimeError("Unexpected operator output; raw logs suppressed")
         print(json.dumps(summary))
