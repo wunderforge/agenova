@@ -96,6 +96,15 @@ func run(apply bool, role string) error {
 		var count int
 		checks["membersCountAvailable"] = db.QueryRowContext(ctx, "SELECT count(*) FROM agenova_members").Scan(&count) == nil
 		checks["projectsCountAvailable"] = db.QueryRowContext(ctx, "SELECT count(*) FROM agenova_projects").Scan(&count) == nil
+		for name, query := range map[string]string{
+			"operatorSchemaCreate":     `SELECT has_schema_privilege(current_user,'public','CREATE')`,
+			"operatorMigrationInsert":  `SELECT has_table_privilege(current_user,'agenova_schema_migrations','INSERT')`,
+			"operatorPolicyReferences": `SELECT has_table_privilege(current_user,'agenova_project_policies','REFERENCES')`,
+		} {
+			value = false
+			checks[name+"Query"] = db.QueryRowContext(ctx, query).Scan(&value) == nil
+			checks[name] = value
+		}
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"mode": "inspect", "schema": before, "runtimeRoles": roles, "checks": checks})
 	}
 	statements, err := grantSQL(role)
@@ -111,7 +120,7 @@ func run(apply bool, role string) error {
 		return errors.New("baseline counts unavailable")
 	}
 	if err = identitydb.Migrate(ctx, db); err != nil {
-		return errors.New("schema migration failed")
+		return err // Migrate exposes only fixed categories, never database errors.
 	}
 	if _, err = db.ExecContext(ctx, statements); err != nil {
 		return errors.New("runtime grants failed")
