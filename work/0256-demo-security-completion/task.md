@@ -33,7 +33,7 @@ No tool/no observation must not become invented success; model-reported network 
 - [x] Assignee self-review against owner scope and architecture: lifecycle/authority unchanged; optional composition-edge/report metadata only.
 - [x] Implement completion/report contracts and focused tests.
 - [x] Implement bounded native HTTPS in the reference image and persist attributed, explicitly agent-reported observations.
-- [x] Implement truthful notice/actions/Admin/Platform presentation; 168 UI unit tests and all 89 browser tests passed, including cleanup warnings and single-banner failure presentation.
+- [x] Implement truthful notice/actions/Admin/Platform presentation; 170 UI unit tests and all 89 browser tests passed, including cleanup warnings and single-banner failure presentation.
 - [x] Enforcing local-network joint acceptance; full Windows check.ps1 -All attempted with the known bootstrap test failure retained below. Linux CI remains the release gate.
 - [ ] Independent PR review, CI, normal merge/release and exact-image AWS acceptance.
 - [ ] Update parent plan, reproducible evidence and user walkthrough.
@@ -55,11 +55,16 @@ Local evidence: isolated kind 1.36.1 + Calico 3.33.0 (manifest SHA256
 Same image/node/public IP produced HTTP 200 in the control Pod and a 5s TCP
 timeout in the denied Pod; actual image fixture-driven native attempt and
 incomplete final reply passed. This is not real-model or AWS proof.
-Focused Go packages and two actual PostgreSQL role-transition tests passed.
+Focused Go packages, full actual PostgreSQL console/role suites, and durable
+staging/restart/history completion regression tests passed. Both recovery
+reconstruction windows preserve incomplete/partial classifications.
 Windows unskipped -All fails the known TestOwnerBootstrapDeliveryGuards
 directory-sync/delivery test; retain the failure and require exact-source Linux
 CI, not a silently skipped green claim. Personal CLI login subsequently restored.
 Owner approved administrator merge only for PR #257 after CI and independent review pass.
 Owner separately approved one temporary same-node/image credential-free AWS
 control Pod with no node/IAM/log service additions and deletion after testing.
+
+Sanitized exact-image local record: [evidence](evidence/local-network.json).
+Reproduction prerequisites: [local network commands](network-reproduction.md).
 
