@@ -33,7 +33,7 @@ No tool/no observation must not become invented success; model-reported network 
 - [x] Assignee self-review against owner scope and architecture: lifecycle/authority unchanged; optional composition-edge/report metadata only.
 - [x] Implement completion/report contracts and focused tests.
 - [x] Implement bounded native HTTPS in the reference image and persist attributed, explicitly agent-reported observations.
-- [x] Implement truthful notice/actions/Admin/Platform presentation; 170 UI unit tests and all 89 browser tests passed, including cleanup warnings and single-banner failure presentation.
+- [x] Implement truthful notice/actions/Admin/Platform presentation; 176 UI unit tests and all 90 browser tests passed. Independent failure/cleanup warnings survive alongside incomplete/partial/native/denial notices; equivalent messages are deduplicated.
 - [x] Enforcing local-network joint acceptance; full Windows check.ps1 -All attempted with the known bootstrap test failure retained below. Linux CI remains the release gate.
 - [ ] Independent PR review, CI, normal merge/release and exact-image AWS acceptance.
 - [ ] Update parent plan, reproducible evidence and user walkthrough.
