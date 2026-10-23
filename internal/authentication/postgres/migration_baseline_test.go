@@ -14,7 +14,7 @@ func TestMigrationBaselineIsReadOnlyAndDistinguishesDrift(t *testing.T) {
 	db := invitationDB(t)
 	ctx := context.Background()
 	baseline, err := MigrationBaseline(ctx, db)
-	if err != nil || len(baseline["exact"]) != len(migrations) || len(baseline["different"]) != 0 {
+	if err != nil || len(baseline["exact"])+len(baseline["lineEndingOnly"]) != len(migrations) || len(baseline["different"]) != 0 {
 		t.Fatal(baseline, err)
 	}
 	variant := strings.ReplaceAll(migrations[0], "\r\n", "\n")
@@ -27,7 +27,7 @@ func TestMigrationBaselineIsReadOnlyAndDistinguishesDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	baseline, err = MigrationBaseline(ctx, db)
-	if err != nil || len(baseline["lineEndingOnly"]) != 1 || baseline["lineEndingOnly"][0] != 1 {
+	if err != nil || len(baseline["lineEndingOnly"]) == 0 || baseline["lineEndingOnly"][0] != 1 || len(baseline["different"]) != 0 {
 		t.Fatal(baseline, err)
 	}
 	var unchanged string

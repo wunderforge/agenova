@@ -71,6 +71,14 @@ branch-protection bypass, new model IAM permissions or credential access.
   migration Jobs/Secrets removed. Read-only checks confirm DDL/minimal runtime
   preconditions; checksum-baseline diagnostics are next. No merged product or
   real-model cloud success is claimed yet.
+- Read-only baseline inspection identified the cause: all applied versions 1-9
+  match the current SQL exactly except LF/CRLF. No other checksum drift exists.
+  The fix uses canonical LF hashes for new migrations and recognizes the exact
+  legacy LF/CRLF variants of versions 1-11, without updating applied history.
+  Non-line-ending changes still fail; SQL checkout is pinned to LF. This follows
+  the line-ending-independent checksum practice in
+  [Flyway's implementation](https://github.com/flyway/flyway/blob/main/flyway-core/src/main/java/org/flywaydb/core/internal/resolver/ChecksumCalculator.java),
+  with a narrower compatibility window and unchanged SHA-256 algorithm.
 
 ## Evidence boundaries
 
