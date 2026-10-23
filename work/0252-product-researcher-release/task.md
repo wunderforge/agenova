@@ -75,6 +75,15 @@ Out of scope:
 
 ## Decisions and Blockers
 
+- #254 passed CI/re-review and automatically deployed as afb557b. Researcher-v3
+  cloud negative correctly failed without a web grant/call, but both positive
+  runs also failed after successful relevant MCP reads. Retain those attempts.
+  Follow-up narrows only the Researcher prompt: evaluate observations first,
+  distinguish untrusted data from instructions, and do not equate exhausted
+  callable inputs with missing evidence. Keep host schemas/validation and the
+  legacy Agent unchanged. Real Nova diagnostics use explicitly synthetic
+  observations; fresh formal cloud acceptance is still required.
+
 - User explicitly authorized the #254 follow-up administrator merge after all
   checks/re-review, then publication and real-model re-acceptance. Fix issues in
   this approved scope without requesting the same permission again. Keep failed

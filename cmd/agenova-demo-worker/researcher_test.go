@@ -64,6 +64,55 @@ func TestResearcherUsesModelSelectedTextInputAndObservedAnswer(t *testing.T) {
 	if second.Operation == nil || !strings.Contains(second.Operation.Prompt, "Meeting feature evidence.") || result.Result != "The source describes meeting features (https://example.com/meeting)." {
 		t.Fatal("final answer was not based on the observed model exchange")
 	}
+	if !strings.Contains(second.Operation.Prompt, `"operation":"web.read"`) || !strings.Contains(second.Operation.Prompt, "does NOT invalidate earlier observations") {
+		t.Fatal("Researcher hid its callable capability or lost the evidence-first completion rule")
+	}
+}
+
+func TestResearcherPreservesFiniteReadFinishingPhase(t *testing.T) {
+	for _, role := range []string{"", "researcher"} {
+		t.Run(map[string]string{"": "legacy", "researcher": "researcher"}[role], func(t *testing.T) {
+			previous := agentRole
+			agentRole = role
+			t.Cleanup(func() { agentRole = previous })
+			var input, output bytes.Buffer
+			enc := json.NewEncoder(&input)
+			enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Read the synthetic CRM dataset and cite an observed customer", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "crm.read", Description: "Read synthetic CRM", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
+			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention","answer":""}`})
+			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"synthetic":true,"customers":[{"id":"C001"}]}`})
+			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Synthetic customer C001 was observed."}`})
+			if err := run(&input, &output); err != nil {
+				t.Fatal(err)
+			}
+			dec := json.NewDecoder(&output)
+			var messages []workerprotocol.Message
+			for dec.More() {
+				var m workerprotocol.Message
+				if err := dec.Decode(&m); err != nil {
+					t.Fatal(err)
+				}
+				messages = append(messages, m)
+			}
+			if len(messages) != 4 {
+				t.Fatalf("unexpected messages: %d", len(messages))
+			}
+			secondPrompt := messages[2].Operation.Prompt
+			catalogPresent := strings.Contains(secondPrompt, `"operation":"crm.read"`)
+			if catalogPresent {
+				t.Fatal("finite-input finishing phase changed")
+			}
+			if messages[3].Result != "Synthetic customer C001 was observed." {
+				t.Fatal("observed answer changed")
+			}
+		})
+	}
+}
+
+func TestResearcherFinalTurnCanUsePriorEvidenceWithoutCallableTools(t *testing.T) {
+	prompt := researcherPrompt(workerprotocol.Task{Objective: "Cite an observed customer"}, `Successful observations: 1. {"observation":{"allowed":true,"text":"Synthetic customer C001"}}`)
+	if !strings.Contains(prompt, "does NOT invalidate earlier observations") || !strings.Contains(prompt, "finish with the supported findings") || !strings.Contains(prompt, "Callable tool catalog") {
+		t.Fatal("final-turn evidence instruction missing")
+	}
 }
 
 func TestResearcherCannotTurnAnOutOfCatalogModelChoiceIntoAProviderCall(t *testing.T) {
