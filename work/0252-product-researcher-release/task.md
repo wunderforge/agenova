@@ -75,6 +75,22 @@ Out of scope:
 
 ## Decisions and Blockers
 
+- User explicitly authorized the #254 follow-up administrator merge after all
+  checks/re-review, then publication and real-model re-acceptance. Fix issues in
+  this approved scope without requesting the same permission again. Keep failed
+  attempts immutable; no extra IAM/infrastructure or existing-template rewrites.
+
+- Post-release real-model acceptance: public and CRM positive runs passed with
+  exact separate grants and correlated independent MCP receipts. Missing-web
+  negative exposed an Agent completion bug: generic mandatory-read instructions
+  caused an unrelated CRM read followed by a refusal labelled Succeeded. No web
+  authority or downstream web call escaped. Follow-up isolates the Researcher
+  prompt and adds an explicit blocked control answer that exits without a result,
+  even after unrelated observations. Do not parse task prose or invent a Gateway
+  refusal. Existing Agent contracts and platform authorization remain unchanged.
+  Original failed cloud attempt is retained; new CI/review and separately
+  authorized follow-up merge/deployment precede a new immutable template version.
+
 - Human decision resolved: Admin is the highest daily application role and may
   appoint Admins/operators and manage all organization projects/users. Owner has
   the same daily rights plus confirmed ownership transfer and protection against

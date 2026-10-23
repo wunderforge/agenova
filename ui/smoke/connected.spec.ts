@@ -234,8 +234,10 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  await expect(page.locator('.portal-worker-state.negative')).toHaveCount(0);
  await page.screenshot({path:info.outputPath('work-outcome-failed.png'),fullPage:true});
  await page.getByRole('link',{name:'View failure record'}).click();
+ await expect(page.getByRole('heading',{name:'Work failed',level:1,exact:true})).toBeVisible();
  await expect(page.locator('.portal-head .portal-badge.failed')).toHaveText('Failed');
- await expect(page.getByRole('alert')).toContainText(reason);
+ // Wait for record navigation; the previous Work page also has a Failed badge.
+ await expect(page.locator('.portal-state.failed[role="alert"]')).toContainText(reason);
  await page.screenshot({path:info.outputPath('failed-record-detail.png'),fullPage:true});
  await page.getByRole('link',{name:'Activity',exact:true}).click();
  await expect(page.locator('.portal-record-row').filter({hasText:'Work failed'}).locator('.portal-badge.failed')).toHaveCount(2);

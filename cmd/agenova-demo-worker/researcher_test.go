@@ -88,3 +88,34 @@ func TestResearcherCannotTurnAnOutOfCatalogModelChoiceIntoAProviderCall(t *testi
 		}
 	}
 }
+
+func TestResearcherBlockedFinishFailsEvenAfterUnrelatedSuccessfulRead(t *testing.T) {
+	for _, observed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "no-observation", true: "unrelated-CRM-observation"}[observed], func(t *testing.T) {
+			researcherRole(t)
+			var input, output bytes.Buffer
+			enc := json.NewEncoder(&input)
+			tools := []workerprotocol.Tool{{Operation: "crm.read", Description: "Read synthetic CRM", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}
+			enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Read a public meeting security page", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: tools})
+			if observed {
+				enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention","answer":""}`})
+				enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"synthetic":true,"customers":[{"id":"C001"}]}`})
+			}
+			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"RESEARCH_TASK_BLOCKED"}`})
+			if err := run(&input, &output); !errors.Is(err, workerprotocol.ErrNoFinalResult) {
+				t.Fatalf("blocked research completed: %v", err)
+			}
+			if strings.Contains(output.String(), `"result"`) {
+				t.Fatal("blocked status emitted a success result")
+			}
+			var first workerprotocol.Message
+			if err := json.NewDecoder(&output).Decode(&first); err != nil {
+				t.Fatal(err)
+			}
+			prompt := first.Operation.Prompt
+			if strings.Contains(prompt, "Read at least one input before finishing") || strings.Contains(prompt, "At least two model turns are required") || !strings.Contains(prompt, researchBlocked) {
+				t.Fatal("Researcher inherited mandatory-read/success-only instructions")
+			}
+		})
+	}
+}
