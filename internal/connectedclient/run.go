@@ -385,6 +385,14 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		if fact.InvocationID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
 			return false
 		}
+		// The synchronous native exchange must finish before another Agent or
+		// provider action. Runtime cancellation/cleanup may still end an attempt
+		// without a report; it must not be reattributed to a later model action.
+		if nativeStarted && !nativeObserved &&
+			(fact.Kind == "WorkerActivity" && fact.Operation != "NativeHTTPSObservation" ||
+				fact.Kind == "ModelDecision" || fact.Kind == "ToolDecision" || fact.Kind == "ProviderAttempt" || fact.Kind == "ProviderOutcome") {
+			return false
+		}
 		if view.State != nil && view.State.Claim != nil && view.State.Claim.BackendIdentity == nil &&
 			(fact.BackendIdentity != nil || fact.Kind == "WorkerActivity" || fact.InvocationID != "" || runtimeProvesAllocation(fact)) {
 			return false

@@ -36,6 +36,20 @@ func TestNativeWorkerEvidenceRequiresBoundedCorrelatedOriginalWorker(t *testing.
 		t.Fatalf("canonical native evidence rejected: %v", err)
 	}
 	for name, mutate := range map[string]func(*evidence.View){
+		"interleaved successful model action": func(v *evidence.View) {
+			insert := append(v.Facts[:0:0], v.Facts[6:10]...)
+			for i := range insert {
+				insert[i].ID += ":interleaved"
+				insert[i].InvocationID = "inv:interleaved"
+			}
+			insert[3].ReasonCode = "agent-action-tool"
+			combined := append(v.Facts[:0:0], v.Facts[:11]...)
+			combined = append(combined, insert...)
+			v.Facts = append(combined, v.Facts[11:]...)
+			for i := range v.Facts {
+				v.Facts[i].Sequence = uint64(i + 1)
+			}
+		},
 		"no model selection":          func(v *evidence.View) { v.Facts[9].ReasonCode = "agent-action-tool" },
 		"unbound report":              func(v *evidence.View) { v.Facts[11].BackendIdentity = nil },
 		"different worker":            func(v *evidence.View) { v.Facts[11].BackendIdentity.WorkerID = "replacement" },
