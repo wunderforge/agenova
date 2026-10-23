@@ -96,10 +96,6 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			return errors.New("model request failed")
 		}
 		action, err := workerprotocol.ParseAgentAction(reply.Text, task.Tools, protocol)
-		// Old fixture actions remain readable; real opt-in schema requires metadata.
-		if err != nil && protocol != "" {
-			action, err = workerprotocol.ParseAction(reply.Text, task.Tools)
-		}
 		if err != nil {
 			_, issue := workerprotocol.ActionIssue(reply.Text, task.Tools)
 			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."

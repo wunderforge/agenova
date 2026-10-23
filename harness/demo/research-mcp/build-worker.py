@@ -43,7 +43,7 @@ def main():
     crm_call = {"allowed": True, "text": json.dumps({"action": "tool", "tool": "crm.read", "resource": "crm:customer-retention", "input": "customer-retention", "answer": ""})}
     observation = {"allowed": True, "text": '{"synthetic":true,"customers":[{"id":"C001"}]}'}
     for answer, expected_code in [("RESEARCH_TASK_BLOCKED", 1), ("Synthetic customer C001 was observed.", 0)]:
-        final = {"allowed": True, "text": json.dumps({"action": "finish", "answer": answer})}
+        final = {"allowed": True, "text": json.dumps({"action": "finish", "answer": answer, **({"completion": "completed"} if expected_code == 0 else {})})}
         scenario_task = crm_task if expected_code else {**crm_task, "objective": "Read the synthetic customer-retention dataset and cite an observed customer ID."}
         stream = "".join(json.dumps(item) + "\n" for item in [scenario_task, crm_call, observation, final])
         checked = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=stream, text=True, capture_output=True, timeout=30)

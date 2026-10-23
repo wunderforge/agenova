@@ -54,3 +54,12 @@ func TestNativeClientRejectsOtherTargetsBeforeNetworking(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeBodyMarksOnlyTruncatedResponses(t *testing.T) {
+	for _, size := range []int{32, 16384, 16385, 20000} {
+		data, truncated, err := nativeBody(strings.NewReader(strings.Repeat("x", size)))
+		if err != nil || truncated != (size > 16384) || len(data) != min(size, 16384) {
+			t.Fatal(size, len(data), truncated, err)
+		}
+	}
+}

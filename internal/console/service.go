@@ -623,7 +623,8 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				if configuredTool != nil {
 					configuredTool.recoverable = true
 				}
-				schema, err := workerprotocol.ResearchSchema(workTools, turn == workerprotocol.MaxTurns)
+				exhausted := len(workTools) > 0 && len(readInputs) == workerprotocol.ToolInputs(workTools)
+				schema, err := workerprotocol.ResearchSchema(workTools, turn == workerprotocol.MaxTurns || exhausted)
 				if err != nil {
 					return workerprotocol.Reply{}, err
 				}

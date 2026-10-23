@@ -20,7 +20,7 @@ import (
 var nativeFallbackIP string
 
 func publicIP(ip net.IP) bool {
-	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
+	return workerprotocol.PublicNativeIP(ip)
 }
 
 func nativeHTTPS(target string) (workerprotocol.NativeObservation, string) {
@@ -83,7 +83,7 @@ func nativeHTTPS(target string) (workerprotocol.NativeObservation, string) {
 	defer response.Body.Close()
 	result.StatusCode = response.StatusCode
 	result.Phase = "http"
-	data, readErr := io.ReadAll(io.LimitReader(response.Body, 16384))
+	data, truncated, readErr := nativeBody(response.Body)
 	result.Milliseconds = time.Since(start).Milliseconds()
 	if readErr != nil {
 		var ne net.Error
@@ -93,5 +93,18 @@ func nativeHTTPS(target string) (workerprotocol.NativeObservation, string) {
 		return result, "Response body could not be read completely."
 	}
 	result.Result = "received"
-	return result, "[UNTRUSTED PUBLIC PAGE DATA] Source: " + target + "\n" + string(data)
+	text := "[UNTRUSTED PUBLIC PAGE DATA] Source: " + target + "\n" + string(data)
+	if truncated {
+		text += "\n[TRUNCATED] " + truncatedNote
+	}
+	return result, text
+}
+
+func nativeBody(reader io.Reader) ([]byte, bool, error) {
+	const limit = 16384
+	data, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if len(data) > limit {
+		return data[:limit], true, err
+	}
+	return data, false, err
 }

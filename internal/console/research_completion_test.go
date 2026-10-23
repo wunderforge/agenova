@@ -83,3 +83,58 @@ func TestOptInToolFailureBecomesBoundedObservation(t *testing.T) {
 		}
 	}
 }
+
+type finiteResearchExecutor struct{}
+
+func (finiteResearchExecutor) Execute(ctx context.Context, _ v0.SandboxClaimBackendIdentity, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
+	op := workerprotocol.Operation{Kind: "model", AgentProtocol: workerprotocol.ResearchProtocol, ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Profile: task.ModelProfile, Prompt: workerprotocol.PromptPrefix(task) + "Next action:"}
+	if _, err := h(ctx, op); err != nil {
+		return "", err
+	}
+	for _, tool := range task.Tools {
+		for _, input := range tool.AllowedValues {
+			if _, err := h(ctx, workerprotocol.Operation{Kind: "tool", ClaimID: task.ClaimID, WorkloadToken: task.ToolToken, Tool: tool.Operation, ResourceScope: tool.ResourceScope, Input: input}); err != nil {
+				return "", err
+			}
+		}
+	}
+	r, err := h(ctx, op)
+	if err != nil {
+		return "", err
+	}
+	a, err := workerprotocol.ParseAgentAction(r.Text, task.Tools, workerprotocol.ResearchProtocol)
+	return a.Answer, err
+}
+
+type finiteResearchProvider struct{ calls int }
+
+func (p *finiteResearchProvider) Complete(_ context.Context, r modelprovider.Request) (modelprovider.Result, error) {
+	p.calls++
+	if p.calls > 1 {
+		var schema struct {
+			Properties struct{ Action struct{ Enum []string } }
+		}
+		if err := json.Unmarshal(r.OutputSchema, &schema); err != nil {
+			return modelprovider.Result{}, err
+		}
+		if len(schema.Properties.Action.Enum) != 1 || schema.Properties.Action.Enum[0] != "finish" {
+			return modelprovider.Result{}, errors.New("consumed finite tools still advertised")
+		}
+	}
+	return modelprovider.Result{Text: `{"action":"finish","answer":"Observed the finite inputs.","completion":"completed"}`, Model: "fixture"}, nil
+}
+func TestResearchFiniteInputsSwitchToFinishOnlySchema(t *testing.T) {
+	p := &finiteResearchProvider{}
+	s, err := NewService(&verticalBackend{}, finiteResearchExecutor{}, p, app.ReferencePrincipalTeamA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err = s.Submit(verticalRequest(t, "research-finite")); err != nil {
+		t.Fatal(err)
+	}
+	v := awaitVertical(t, s, "research-finite")
+	if v.Outcome.Status != "Succeeded" || p.calls != 2 {
+		t.Fatalf("finite completion failed: %+v calls=%d", v.Outcome, p.calls)
+	}
+}

@@ -51,4 +51,9 @@ func TestNativeReportValidation(t *testing.T) {
 			t.Fatal("invalid report accepted")
 		}
 	}
+	for _, ip := range []string{"127.0.0.1", "10.0.0.1", "169.254.169.254", "::1", "fc00::1", "fe80::1", "not-an-ip"} {
+		if ValidNative(&NativeObservation{Phase: "tcp", Result: "timeout", IP: ip}) {
+			t.Fatalf("non-public address accepted: %s", ip)
+		}
+	}
 }

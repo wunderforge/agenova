@@ -5,6 +5,7 @@ package workerprotocol
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"strings"
 )
 
@@ -41,7 +42,12 @@ func ValidNative(n *NativeObservation) bool {
 	default:
 		return false
 	}
-	return len(n.IP) <= 64 && !strings.ContainsAny(n.IP, "\r\n")
+	return n.IP == "" || PublicNativeIP(net.ParseIP(n.IP))
+}
+
+// PublicNativeIP bounds the reported fixed-host diagnostic, not Pod authority.
+func PublicNativeIP(ip net.IP) bool {
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
 }
 
 func ValidCompletion(c *Completion) bool {
