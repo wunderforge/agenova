@@ -5,10 +5,8 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"github.com/wunderforge/agenova/internal/workstore"
 	"time"
@@ -69,11 +67,10 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return errors.New("database version is unsupported")
 	}
 	for i, script := range migrations {
-		sum := sha256.Sum256([]byte(script))
-		checksum := hex.EncodeToString(sum[:])
+		checksum := migrationChecksum(script)
 		var existing string
 		err = tx.QueryRowContext(ctx, `SELECT checksum FROM agenova_schema_migrations WHERE version=$1`, i+1).Scan(&existing)
-		if err == nil && existing != checksum {
+		if err == nil && !migrationChecksumMatches(i+1, script, existing) {
 			return errors.New("migration checksum conflict; do not rewrite applied migrations")
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -108,8 +105,7 @@ func CheckMigration(ctx context.Context, db *sql.DB) error {
 		if err = rows.Scan(&v, &checksum); err != nil || v != count+1 || v > len(migrations) {
 			return errors.New("database migration is incompatible")
 		}
-		sum := sha256.Sum256([]byte(migrations[count]))
-		if checksum != hex.EncodeToString(sum[:]) {
+		if !migrationChecksumMatches(v, migrations[count], checksum) {
 			return errors.New("database migration checksum conflict")
 		}
 		count++
