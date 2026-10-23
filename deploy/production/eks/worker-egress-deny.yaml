@@ -1,5 +1,8 @@
-# EKS operator policy. Admin Deny overrides the upstream Sandbox controller's
-# additive internet-allow NetworkPolicy. Apply only after the VPC CNI CRD exists.
+# EKS operator policy. Keep startup, offline and replacement workers denied.
+# Only a UID/claim-guarded control-plane stamp delegates to per-Work rules;
+# the stamp itself grants no traffic. Namespace/template default deny MUST remain,
+# and legacy additive internet allows MUST be drained before applying this policy.
+# Apply only after the VPC CNI CRD exists. This is not a control-plane RBAC grant.
 apiVersion: networking.k8s.aws/v1alpha1
 kind: ClusterNetworkPolicy
 metadata:
@@ -16,6 +19,8 @@ spec:
         matchExpressions:
           - key: agents.x-k8s.io/sandbox-name-hash
             operator: Exists
+          - key: agenova.io/network-incarnation
+            operator: DoesNotExist
   egress:
     - name: no-direct-network-egress
       action: Deny
