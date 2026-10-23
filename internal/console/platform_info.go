@@ -68,6 +68,12 @@ func ProjectPlatform(resolved platform.ResolvedPlatform) *PlatformInfo {
 // Withhold installation topology entirely for non-operators. Their template
 // ceiling and Policy are already independently permission-filtered by setup.
 func ScopePlatform(view *Setup, operator bool) {
+	if !operator && view.Observability != nil {
+		o := *view.Observability
+		o.Endpoint = ""
+		o.DiagnosticURL = ""
+		view.Observability = &o
+	}
 	if view.PlatformInfo == nil {
 		return
 	}
@@ -76,12 +82,6 @@ func ScopePlatform(view *Setup, operator bool) {
 	copy.Connections = append([]ConnectionInfo{}, copy.Connections...)
 	if !operator {
 		copy.Connections = []ConnectionInfo{}
-		if view.Observability != nil {
-			o := *view.Observability
-			o.Endpoint = ""
-			o.DiagnosticURL = ""
-			view.Observability = &o
-		}
 	}
 	view.PlatformInfo = &copy
 }

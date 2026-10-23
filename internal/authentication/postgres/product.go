@@ -117,7 +117,7 @@ func (s Store) PolicyHistoryFor(ctx context.Context, p v0.Principal, project str
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return out, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT document FROM agenova_project_policies WHERE team=$1 AND project=$2 ORDER BY id,version LIMIT 100`, p.Team, project)
+	rows, err := tx.QueryContext(ctx, `SELECT document FROM agenova_project_policies WHERE team=$1 AND project=$2 ORDER BY id,version LIMIT 101`, p.Team, project)
 	if err != nil {
 		return out, err
 	}
@@ -134,6 +134,9 @@ func (s Store) PolicyHistoryFor(ctx context.Context, p v0.Principal, project str
 	rows.Close()
 	if err != nil {
 		return out, err
+	}
+	if len(out.Versions) > 100 {
+		return out, invitations.ErrUnavailable // Never present silently truncated history.
 	}
 	events, err := tx.QueryContext(ctx, `SELECT actor,id || '@' || version,activated_at FROM agenova_policy_activations WHERE team=$1 AND project=$2 ORDER BY event_id DESC LIMIT 50`, p.Team, project)
 	if err != nil {

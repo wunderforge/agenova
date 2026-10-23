@@ -69,6 +69,9 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1 -Profile $env:AGENOVA_CHECK_PROFILE
 
+      - name: Test trusted migration cleanup without cloud access
+        run: python3 -B -m unittest discover -s harness/demo/research-mcp -p test_run_migration.py -v
+
       - name: Upload frontend rendered evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -122,3 +122,25 @@ func TestProductMetadataPolicyCASAndProjectIsolation(t *testing.T) {
 		t.Fatal("disabled history read")
 	}
 }
+
+func TestPolicyHistoryFailsExplicitlyWhenVersionLimitIsExceeded(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	if err := s.PutMember(ctx, "fixture", Member{Issuer: "synthetic", Subject: "owner", Principal: "owner", Team: "team", Active: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB.Exec(`UPDATE agenova_members SET account_role='owner' WHERE principal='owner'; INSERT INTO agenova_projects VALUES('team','research'); INSERT INTO agenova_project_policies SELECT 'team','research','bounded',lpad(n::text,3,'0'),jsonb_build_object('ID','bounded','Version',lpad(n::text,3,'0'),'Rules','[]'::jsonb) FROM generate_series(1,101) AS n; INSERT INTO agenova_project_policy_active VALUES('team','research','bounded','101')`); err != nil {
+		t.Fatal(err)
+	}
+	p := v0.Principal{Subject: "owner", Team: "team", AuthenticationContext: "oidc"}
+	if _, err := s.PolicyHistoryFor(ctx, p, "research"); !errors.Is(err, invitations.ErrUnavailable) {
+		t.Fatal("truncated history looked complete", err)
+	}
+	if _, err := s.DB.Exec(`DELETE FROM agenova_project_policy_active; DELETE FROM agenova_project_policies WHERE version='101'`); err != nil {
+		t.Fatal(err)
+	}
+	h, err := s.PolicyHistoryFor(ctx, p, "research")
+	if err != nil || len(h.Versions) != 100 {
+		t.Fatal("bounded complete history unavailable", len(h.Versions), err)
+	}
+}

@@ -69,4 +69,9 @@ func TestPlatformProjectionNeverCopiesSecretsAndScopesTopology(t *testing.T) {
 	if len(info.Connections) != 1 {
 		t.Fatal("projection mutated shared configuration")
 	}
+	withoutTopology := Setup{Observability: &ObservabilityInfo{Endpoint: "http://internal.example:4318", DiagnosticURL: "https://internal.example/diagnostics"}}
+	ScopePlatform(&withoutTopology, false)
+	if withoutTopology.Observability.Endpoint != "" || withoutTopology.Observability.DiagnosticURL != "" {
+		t.Fatal("missing topology bypassed observability redaction")
+	}
 }

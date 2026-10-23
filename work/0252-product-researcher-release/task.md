@@ -56,6 +56,8 @@ Out of scope:
 
 ## Quality Gates
 
+- `python -B -m unittest discover -s harness/demo/research-mcp -p test_run_migration.py -v` (ambiguous create / confirmed absence / ownership-safe cleanup; no cloud access).
+
 - `go test ./cmd/agenova-demo-worker ./internal/workerprotocol ./internal/runtime/agentsandbox ./tools/product-release-migrate -count=1`
 - `python harness/demo/research-mcp/build-worker.py`
 - UI build/unit/smoke and local actual API/SQL/MCP journeys from linked acceptance.
@@ -72,6 +74,11 @@ Out of scope:
 - Preserve all existing topology and histories. One exact RDS managed Secret is approved only for a temporary trusted migration; no credential logging/local file/Agent exposure. New administrator merge bypass is not implied.
 
 ## Decisions and Blockers
+
+- Independent PR review: use serving-installation authorization for topology,
+  track cleanup candidates before ambiguous creates, suppress current rules in
+  historical Policy mode, and explicitly reject >100-version histories. Focused
+  tests cover the changed boundaries; no finding is waived by source CI alone.
 
 - 23 October Owner decision: no one-off project/user SQL bootstrap. Account
   Admin and Owner cover all organization projects; keep per-Work governance and

@@ -384,7 +384,8 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 				return console.Setup{}, err
 			}
 			view.Principal = p
-			console.ScopePlatform(&view, memberStore.IsOperator(ctx, p))
+			installation := os.Getenv("AGENOVA_PLATFORM_NAME")
+			console.ScopePlatform(&view, memberStore.AuthorizeInstallation(ctx, p, "platform.diagnose", installation, installation) == nil)
 			view.Projects = projects
 			submitProjects := []string{}
 			for _, name := range projects {

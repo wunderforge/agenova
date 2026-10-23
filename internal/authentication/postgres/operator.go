@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-// Installation topology is not implied by membership or project read access.
+// IsOperator selects account-administration navigation. Installation topology
+// must independently use AuthorizeInstallation with the serving installation.
 func (s Store) IsOperator(ctx context.Context, p v0.Principal) bool {
 	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Team == "" || p.Subject == "" {
 		return false

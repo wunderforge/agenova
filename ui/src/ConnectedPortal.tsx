@@ -308,6 +308,9 @@ function Platform({ setup, works, activity }: { setup: Setup; works: View[]; act
   return <PlatformOverview setup={setup}/>;
 }
 function Policy({ setup }: { setup: Setup }) {
+ const query=new URLSearchParams(window.location.hash.split('?')[1]||'');
+ const historical=query.has('id')||query.has('version');
+ if(historical)return <><Heading title="Policy" subtitle="Historical authorization document"/><PolicyHistory setup={setup}/></>;
  return <><Heading title="Policy" subtitle="Versioned rules. Explicit limits. Default deny."/>
  <section className="portal-panel"><div className="portal-head"><div><h2>{setup.policy.ID}</h2><p>Version {setup.policy.Version} · current configuration context</p></div><a className="portal-button" href="/admin#governance">Manage versions</a></div><p>Rules cap a request; they do not grant the template's full capabilities. Unmatched operations are denied.</p></section>
  <PolicyRules setup={setup}/><PolicyHistory setup={setup}/></>;

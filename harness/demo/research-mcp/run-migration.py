@@ -53,11 +53,11 @@ def main():
         if credentials.get("username") != "agenova_operator" or not credentials.get("password"):
             raise RuntimeError("Unexpected operator credential")
         secret = {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name, "labels": labels}, "type": "Opaque", "data": {"credentials.json": base64.b64encode(raw.encode()).decode()}}
-        command(kube + ["create", "-f", "-"], json.dumps(secret))
         created.append("secret")
+        command(kube + ["create", "-f", "-"], json.dumps(secret))
         job = {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": name, "labels": labels}, "spec": {"backoffLimit": 0, "activeDeadlineSeconds": 120, "ttlSecondsAfterFinished": 3600, "template": {"metadata": {"labels": labels}, "spec": {"restartPolicy": "Never", "automountServiceAccountToken": False, "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "fsGroup": 65532, "seccompProfile": {"type": "RuntimeDefault"}}, "containers": [{"name": "migrate", "image": args.image, "args": (["-apply", "-role", args.role] if args.apply else []), "resources": {"requests": {"cpu": "20m", "memory": "48Mi"}, "limits": {"cpu": "100m", "memory": "128Mi"}}, "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}, "volumeMounts": [{"name": "operator", "mountPath": "/run/operator", "readOnly": True}, {"name": "rds", "mountPath": "/etc/rds", "readOnly": True}]}], "volumes": [{"name": "operator", "secret": {"secretName": name, "defaultMode": 288}}, {"name": "rds", "configMap": {"name": "agenova-member-config", "items": [{"key": "rds-ca.pem", "path": "rds-ca.pem"}]}}]}}}}
-        command(kube + ["create", "-f", "-"], json.dumps(job))
         created.append("job")
+        command(kube + ["create", "-f", "-"], json.dumps(job))
         # Fail fast on a terminal error rather than keeping the shared writer
         # stopped until a wait-for-success timeout expires.
         deadline = time.monotonic() + 130
@@ -82,8 +82,10 @@ def main():
         cleanup_failed = False
         for kind in reversed(created):
             try:
-                owner = command(kube + ["get", kind, name, "-o", "jsonpath={.metadata.labels.agenova\\.io/operator-run}"])
-                if owner != OWNER:
+                existing = command(kube + ["get", kind, name, "--ignore-not-found=true", "-o", r'jsonpath={.metadata.name}{"\n"}{.metadata.labels.agenova\.io/operator-run}'])
+                if not existing.strip():
+                    continue  # Confirmed NotFound, not a transport/permission error.
+                if existing != name + "\n" + OWNER:
                     raise RuntimeError("Temporary object ownership changed")
                 command(kube + ["delete", kind, name, "--wait=true", "--timeout=40s"])
             except Exception:
