@@ -143,25 +143,25 @@ func ActionIssue(text string, tools []Tool) (string, string) {
 
 // Action intentionally excludes private reasoning. Agent semantics live at this demo edge.
 type Action struct {
-	Action   string `json:"action"`
-	Tool     string `json:"tool,omitempty"`
-	Resource string `json:"resource,omitempty"`
-	Input    string `json:"input,omitempty"`
-	Answer   string `json:"answer,omitempty"`
+	Completion string `json:"completion,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	Target     string `json:"target,omitempty"`
+	Action     string `json:"action"`
+	Tool       string `json:"tool,omitempty"`
+	Resource   string `json:"resource,omitempty"`
+	Input      string `json:"input,omitempty"`
+	Answer     string `json:"answer,omitempty"`
 }
 
 // ParseAction accepts a finish action, or a tool action whose tool, resource
 // and input all belong to one entry of the Work's catalog.
 func ParseAction(text string, tools []Tool) (Action, error) {
-	text = strings.TrimSpace(text)
-	if strings.HasPrefix(text, "```json\n") && strings.HasSuffix(text, "```") {
-		text = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(text, "```json\n"), "```"))
+	a, err := decodeAction(text)
+	if err != nil {
+		return a, err
 	}
-	var a Action
-	d := json.NewDecoder(bytes.NewBufferString(text))
-	d.DisallowUnknownFields()
-	if len(text) > 8192 || d.Decode(&a) != nil || d.Decode(new(any)) != io.EOF {
-		return a, errors.New("invalid action JSON")
+	if a.Completion != "" || a.Reason != "" || a.Target != "" {
+		return a, errors.New("unexpected completion metadata")
 	}
 	if a.Action == "tool" && a.Answer == "" {
 		if _, ok := FindTool(tools, a.Tool, a.Resource, a.Input); ok {
@@ -172,6 +172,20 @@ func ParseAction(text string, tools []Tool) (Action, error) {
 		return a, nil
 	}
 	return a, errors.New("unsupported action shape")
+}
+
+func decodeAction(text string) (Action, error) {
+	text = strings.TrimSpace(text)
+	if strings.HasPrefix(text, "```json\n") && strings.HasSuffix(text, "```") {
+		text = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(text, "```json\n"), "```"))
+	}
+	var a Action
+	d := json.NewDecoder(bytes.NewBufferString(text))
+	d.DisallowUnknownFields()
+	if len(text) > 8192 || d.Decode(&a) != nil || d.Decode(new(any)) != io.EOF {
+		return a, errors.New("invalid action JSON")
+	}
+	return a, nil
 }
 
 // FindTool returns the catalog entry that allows input for operation/scope.

@@ -170,6 +170,8 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 	var result, modelText string
 	operations := 0
 	modelTurns, observations := 0, 0
+	protocol := ""
+	nativeStarted, nativeFinished := false, false
 	if task.Mode != "" && task.Mode != workerprotocol.ReAct {
 		return "", errors.New("unsupported worker mode")
 	}
@@ -190,8 +192,9 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		if message.Operation == nil {
 			expected := modelText
 			if task.Mode == workerprotocol.ReAct {
-				a, err := workerprotocol.ParseAction(modelText, task.Tools)
-				if err != nil || a.Action != "finish" || modelTurns < 2 || (len(task.Tools) > 0 && observations == 0) {
+				a, err := workerprotocol.ParseAgentAction(modelText, task.Tools, protocol)
+				legacyPremature := a.Completion == "" && (modelTurns < 2 || (len(task.Tools) > 0 && observations == 0))
+				if err != nil || a.Action != "finish" || legacyPremature || (a.Completion == "completed" && observations == 0) || (nativeStarted && !nativeFinished) {
 					return "", workerprotocol.ErrInvalidFinalResult
 				}
 				expected = a.Answer
@@ -203,19 +206,35 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 			continue
 		}
 		op := *message.Operation
+		if op.Kind == "model" {
+			if modelTurns > 0 && op.AgentProtocol != protocol {
+				return "", errors.New("agent protocol changed during execution")
+			}
+			if op.AgentProtocol != "" && op.AgentProtocol != workerprotocol.ResearchProtocol {
+				return "", errors.New("unsupported agent protocol")
+			}
+			protocol = op.AgentProtocol
+		} else if op.AgentProtocol != "" {
+			return "", errors.New("unexpected agent protocol field")
+		}
 		operations++
 		expectedToken := task.ModelToken
 		if op.Kind == "tool" {
 			expectedToken = task.ToolToken
 		}
-		if operations > executionOperationLimit || op.ClaimID != task.ClaimID || op.WorkloadToken != expectedToken {
+		limit := executionOperationLimit
+		if protocol == workerprotocol.ResearchProtocol {
+			limit += 2
+		}
+		if operations > limit || op.ClaimID != task.ClaimID || op.WorkloadToken != expectedToken {
 			return "", errors.New("worker operation limit or claim binding rejected")
 		}
 		promptOK := op.Prompt == task.Objective
 		if task.Mode == workerprotocol.ReAct {
 			promptOK = strings.HasPrefix(op.Prompt, workerprotocol.PromptPrefix(task)) && len(op.Prompt) <= 60<<10
 		}
-		if (op.Kind != "model" && op.Kind != "tool") || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) {
+		native := op.Kind == "native-start" || op.Kind == "native-end"
+		if (op.Kind != "model" && op.Kind != "tool" && !native) || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) || (!native && op.Native != nil) {
 			return "", errors.New("worker operation shape rejected")
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "model" && modelTurns >= workerprotocol.MaxTurns {
@@ -224,12 +243,29 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
 			// The call must repeat the model-selected action exactly, and that
 			// action must name one entry of the host-issued Work catalog.
-			a, err := workerprotocol.ParseAction(modelText, task.Tools)
+			a, err := workerprotocol.ParseAgentAction(modelText, task.Tools, protocol)
 			if err != nil || a.Action != "tool" || a.Tool != op.Tool || a.Resource != op.ResourceScope || a.Input != op.Input {
 				return "", errors.New("tool lacks matching model-selected action")
 			}
 			if op.Profile != "" || op.Prompt != "" {
 				return "", errors.New("worker tool shape rejected")
+			}
+		}
+		if native {
+			a, err := workerprotocol.ParseAgentAction(modelText, task.Tools, protocol)
+			if err != nil || a.Action != "native_https" || op.Input != a.Input || op.Profile != "" || op.Prompt != "" || op.Tool != "" || op.ResourceScope != "" {
+				return "", errors.New("native report lacks matching model action")
+			}
+			if op.Kind == "native-start" {
+				if nativeStarted || op.Native != nil {
+					return "", errors.New("duplicate native attempt")
+				}
+				nativeStarted = true
+			} else {
+				if !nativeStarted || nativeFinished || !workerprotocol.ValidNative(op.Native) {
+					return "", errors.New("invalid native observation")
+				}
+				nativeFinished = true
 			}
 		}
 		reply, err := handle(ctx, op)
@@ -251,6 +287,15 @@ func exchangeWorker(ctx context.Context, reader io.Reader, writer io.Writer, tas
 		}
 		if op.Kind == "tool" && reply.Allowed && reply.Error == "" && reply.Text != "" {
 			observations++
+		}
+		if op.Kind == "native-end" {
+			if !reply.Allowed || reply.Error != "" {
+				return "", errors.New("native evidence was not recorded")
+			}
+			if op.Native.Result == "received" && op.Native.StatusCode >= 200 && op.Native.StatusCode < 300 {
+				observations++
+			}
+			modelText = ""
 		}
 		if task.Mode == workerprotocol.ReAct && op.Kind == "tool" {
 			modelText = ""

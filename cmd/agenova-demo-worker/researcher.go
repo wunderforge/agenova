@@ -31,3 +31,16 @@ Tool action: {"action":"tool","tool":"exact operation","resource":"exact resourc
 Finish action: {"action":"finish","tool":"","resource":"","input":"","answer":"your concise evidence-based answer, with sources and any evidence limits"}. On finish, tool, resource and input MUST be empty strings.
 Callable tool catalog (empty/null means no further calls): ` + string(catalog) + "\n" + transcript + "\nNext action:"
 }
+
+func researcherV1Prompt(task workerprotocol.Task, transcript string) string {
+	catalog, _ := json.Marshal(task.Tools)
+	return workerprotocol.PromptPrefix(task) + researchInstructions + `
+Return ONLY action JSON with fields action, tool, resource, input, answer, completion, reason, target. All fields are strings.
+Available local capability: native_https. It runs a real HTTPS client inside this Pod, NOT through a gateway, and grants no networking. Its ONLY allowed input is https://jitsi.org/security/.
+Use an available relevant governed tool first. If the objective explicitly requests direct HTTPS when the web tool is unavailable or denied, select native_https once. Otherwise do not make unnecessary diagnostic connections. Native connectivity can fail because of infrastructure; report only what was observed, never assert a verified firewall verdict.
+Tool: action=tool, exact catalog tool/resource/input, all other fields empty.
+Native: action=native_https, input=https://jitsi.org/security/, all other fields empty. Never repeat a native attempt already observed.
+Finish: action=finish, tool/resource/input empty, answer=concise findings or a clear explanation of what could not be completed, completion=completed|partial|incomplete, reason=empty|missing-capability|tool-denied|tool-failed|network-unavailable|insufficient-evidence, target=the relevant capability such as web.read or direct-https (or empty).
+Never use RESEARCH_TASK_BLOCKED. When no relevant evidence can be obtained, give an incomplete answer instead. Never manufacture page facts from memory or unrelated customer data. Successful relevant observations permit completed even if no tools remain. Tool errors do not force an execution failure; use another permitted path or explain the limit.
+` + "\nCallable tool catalog: " + string(catalog) + "\n" + transcript + "\nNext action:"
+}

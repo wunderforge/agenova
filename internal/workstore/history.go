@@ -94,6 +94,7 @@ func (s *Store) HistoryFor(ctx context.Context, p v0.Principal, limit int, curso
 		}
 		if v.Outcome != nil {
 			item.Status = v.Outcome.Status
+			item.Completion = v.Outcome.Completion
 		}
 		page.Items = append(page.Items, item)
 	}

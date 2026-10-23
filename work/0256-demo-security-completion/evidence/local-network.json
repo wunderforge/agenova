@@ -1,0 +1,66 @@
+{
+  "environment": "isolated local kind + Calico 3.33.0",
+  "model": "deterministic response fixture, NOT real model",
+  "checks": {
+    "sameImage": true,
+    "sameNode": true,
+    "samePublicIP": true,
+    "controlHTTPSReceived": true,
+    "deniedTCPTimeout": true,
+    "actualImageReports": true,
+    "incompleteOutputRetained": true,
+    "sameDeniedPod": true
+  },
+  "control": {
+    "phase": "http",
+    "result": "received",
+    "ip": "172.64.154.22",
+    "milliseconds": 1423,
+    "statusCode": 200
+  },
+  "denied": {
+    "phase": "tcp",
+    "result": "timeout",
+    "ip": "172.64.154.22",
+    "milliseconds": 5003
+  },
+  "reports": [
+    {
+      "claimId": "local-fixture-session",
+      "kind": "native-start",
+      "input": "https://jitsi.org/security/"
+    },
+    {
+      "native": {
+        "phase": "tcp",
+        "result": "timeout",
+        "ip": "172.64.154.22",
+        "milliseconds": 5004
+      },
+      "claimId": "local-fixture-session",
+      "kind": "native-end",
+      "input": "https://jitsi.org/security/"
+    }
+  ],
+  "pods": {
+    "native-control": {
+      "uid": "5d25ee06-8f6d-456c-98cb-d0bad82e40e9",
+      "node": "agenova-256-network-control-plane",
+      "imageID": "docker.io/library/import-2026-10-23@sha256:df4758809664cca7a5e7c75c1fe3a28f913f1bf2f9cee28c0e789914a172f1f5",
+      "ip": "192.168.229.202"
+    },
+    "native-denied": {
+      "uid": "24d07277-fb08-4cbb-977b-4f12021d8103",
+      "node": "agenova-256-network-control-plane",
+      "imageID": "docker.io/library/import-2026-10-23@sha256:df4758809664cca7a5e7c75c1fe3a28f913f1bf2f9cee28c0e789914a172f1f5",
+      "ip": "192.168.229.201"
+    }
+  },
+  "imageBuild": {
+    "sourceCommit": "08e2dd1",
+    "tag": "agenova-researcher:257-08e2dd1",
+    "publicSourceContextOnly": true,
+    "nativePinnedIP": "172.64.154.22",
+    "platformManifest": "sha256:fccf58b0374937951ea022847d718777ba87fa12bbbc311bb46008d7654cc0e7"
+  }
+}

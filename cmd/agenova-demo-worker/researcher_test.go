@@ -26,10 +26,11 @@ func TestResearcherDoesNotCompleteWithoutToolEvidence(t *testing.T) {
 	enc := json.NewEncoder(&input)
 	enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Read public meeting information", ModelProfile: "m", Mode: workerprotocol.ReAct})
 	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"An unsupported recommendation."}`})
-	if err := run(&input, &output); !errors.Is(err, workerprotocol.ErrNoFinalResult) {
-		t.Fatalf("expected missing evidence failure, got %v", err)
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"No evidence available.","completion":"incomplete","reason":"insufficient-evidence"}`})
+	if err := run(&input, &output); err != nil {
+		t.Fatalf("format retry should recover, got %v", err)
 	}
-	if strings.Contains(output.String(), `"result"`) {
+	if strings.Contains(output.String(), `"result":"An unsupported recommendation."`) {
 		t.Fatal("Researcher returned a completed answer without an observation")
 	}
 }
@@ -44,7 +45,7 @@ func TestResearcherUsesModelSelectedTextInputAndObservedAnswer(t *testing.T) {
 	// The URL is chosen by the model reply, not parsed out of the objective.
 	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.read","resource":"web:public-pages","input":"https://example.com/meeting","answer":""}`})
 	enc.Encode(workerprotocol.Reply{Allowed: true, Text: "Source: https://example.com/meeting. Meeting feature evidence."})
-	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"The source describes meeting features (https://example.com/meeting)."}`})
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"The source describes meeting features (https://example.com/meeting).","completion":"completed"}`})
 	if err := run(&input, &output); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestResearcherUsesModelSelectedTextInputAndObservedAnswer(t *testing.T) {
 	if second.Operation == nil || !strings.Contains(second.Operation.Prompt, "Meeting feature evidence.") || result.Result != "The source describes meeting features (https://example.com/meeting)." {
 		t.Fatal("final answer was not based on the observed model exchange")
 	}
-	if !strings.Contains(second.Operation.Prompt, `"operation":"web.read"`) || !strings.Contains(second.Operation.Prompt, "does NOT invalidate earlier observations") {
+	if !strings.Contains(second.Operation.Prompt, `"operation":"web.read"`) || !strings.Contains(second.Operation.Prompt, "Successful relevant observations permit completed") {
 		t.Fatal("Researcher hid its callable capability or lost the evidence-first completion rule")
 	}
 }
@@ -80,7 +81,11 @@ func TestResearcherPreservesFiniteReadFinishingPhase(t *testing.T) {
 			enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Read the synthetic CRM dataset and cite an observed customer", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "crm.read", Description: "Read synthetic CRM", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
 			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention","answer":""}`})
 			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"synthetic":true,"customers":[{"id":"C001"}]}`})
-			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Synthetic customer C001 was observed."}`})
+			finish := `{"action":"finish","answer":"Synthetic customer C001 was observed."}`
+			if role == "researcher" {
+				finish = `{"action":"finish","answer":"Synthetic customer C001 was observed.","completion":"completed"}`
+			}
+			enc.Encode(workerprotocol.Reply{Allowed: true, Text: finish})
 			if err := run(&input, &output); err != nil {
 				t.Fatal(err)
 			}
@@ -150,9 +155,11 @@ func TestResearcherBlockedFinishFailsEvenAfterUnrelatedSuccessfulRead(t *testing
 				enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention","answer":""}`})
 				enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"synthetic":true,"customers":[{"id":"C001"}]}`})
 			}
-			enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"RESEARCH_TASK_BLOCKED"}`})
-			if err := run(&input, &output); !errors.Is(err, workerprotocol.ErrNoFinalResult) {
-				t.Fatalf("blocked research completed: %v", err)
+			for range workerprotocol.MaxTurns {
+				enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"RESEARCH_TASK_BLOCKED"}`})
+			}
+			if err := run(&input, &output); !errors.Is(err, workerprotocol.ErrTurnLimit) {
+				t.Fatalf("invalid finishes should retry to the bounded limit, got %v", err)
 			}
 			if strings.Contains(output.String(), `"result"`) {
 				t.Fatal("blocked status emitted a success result")

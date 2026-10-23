@@ -95,7 +95,8 @@ for(const failed of [true,false]){
 test('ordinary execution failure without a refusal never fabricates a blocked banner',async({page})=>{
  const current=work();current.state!.claim!.phase='Failed';current.outcome={status:'Failed',failure:'Provider unavailable.'};
  await api(page,()=>[current]);await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await expect(page.locator('.portal-work-failure')).toContainText('Provider unavailable.');
+ await expect(page.getByRole('alert')).toHaveCount(1);
+ await expect(page.getByRole('alert')).toContainText('Provider unavailable.');
  await expect(page.locator('.portal-work-refusals')).toHaveCount(0);
 });
 test('connected chart and profile use only current API records, and clear on connection failure', async ({ page }, info) => {

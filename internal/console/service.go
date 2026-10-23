@@ -478,6 +478,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	}
 	var observed *evidence.ModelResult
 	var modelText string
+	var completion *evidence.Completion
 	toolEvidenceFailed := false
 	final, runErr := s.runner.RunContext(ctx, p.Issued, launch, func(ctx context.Context) error {
 		snapshot, ok := s.runner.ClaimAuthority(claimID)
@@ -511,9 +512,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
 
 		var selected toolgateway.Adapter = mock
+		var configuredTool *providerToolAdapter
 		results := mock.results
 		if s.tools != nil {
 			configured := &providerToolAdapter{telemetry: s.telemetry, ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
+			configuredTool = configured
 			selected, results = configured, configured.results
 		}
 		toolGW := toolgateway.NewGateway(s.runner, nil, s.store, toolgateway.WithWorkloadIdentity(s.workload), toolgateway.WithAdapter(selected), toolgateway.WithObserver(func(req toolgateway.Request, d gateway.Decision) error {
@@ -551,6 +554,26 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			if err := app.RequireRunningClaim(s.runner, claimID); err != nil {
 				return workerprotocol.Reply{}, err
+			}
+			if op.Kind == "native-start" || op.Kind == "native-end" {
+				if op.Input != workerprotocol.NativeTarget {
+					return workerprotocol.Reply{}, errors.New("native report target rejected")
+				}
+				operation, code, reason := "NativeHTTPSAttempt", "worker-native-attempt", "The original worker session selected a local HTTPS attempt; this record precedes the network request."
+				if op.Kind == "native-end" {
+					if !workerprotocol.ValidNative(op.Native) {
+						return workerprotocol.Reply{}, errors.New("native report invalid")
+					}
+					operation, code = "NativeHTTPSObservation", "worker-native-"+op.Native.Phase+"-"+op.Native.Result
+					data, _ := json.Marshal(op.Native)
+					reason = "Worker-reported native HTTPS observation (not independently verified CNI enforcement): " + string(data)
+				}
+				_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: "direct-https", ReasonCode: code, Reason: reason, BackendIdentity: snapshot.Claim.BackendIdentity})
+				if err != nil {
+					toolEvidenceFailed = true
+					return workerprotocol.Reply{}, errToolEvidence
+				}
+				return workerprotocol.Reply{Allowed: true}, nil
 			}
 			if op.Kind == "tool" {
 				parameter, err := s.toolParameter(op)
@@ -596,7 +619,19 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if len(workTools) == 0 || turn == workerprotocol.MaxTurns || len(readInputs) == workerprotocol.ToolInputs(workTools) {
+			if op.AgentProtocol == workerprotocol.ResearchProtocol {
+				if configuredTool != nil {
+					configuredTool.recoverable = true
+				}
+				exhausted := len(workTools) > 0 && len(readInputs) == workerprotocol.ToolInputs(workTools)
+				schema, err := workerprotocol.ResearchSchema(workTools, turn == workerprotocol.MaxTurns || exhausted)
+				if err != nil {
+					return workerprotocol.Reply{}, err
+				}
+				adapter.outputSchema = json.RawMessage(schema)
+			} else if op.AgentProtocol != "" {
+				return workerprotocol.Reply{}, errors.New("unsupported agent protocol")
+			} else if len(workTools) == 0 || turn == workerprotocol.MaxTurns || len(readInputs) == workerprotocol.ToolInputs(workTools) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.InvokeAuthenticated(modelgateway.Request{ClaimID: op.ClaimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}}, op.WorkloadToken)
@@ -615,12 +650,21 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, err
 			}
 			// Public action shape, not model reasoning or raw model output.
-			action, parseErr := workerprotocol.ParseAction(result.Text, workTools)
+			action, parseErr := workerprotocol.ParseAgentAction(result.Text, workTools, op.AgentProtocol)
 			code, reason := "agent-action-valid", "The model selected a valid final-answer action."
 			if parseErr != nil {
 				code, reason = workerprotocol.ActionIssue(result.Text, workTools)
 			} else if action.Action == "tool" {
 				code, reason = "agent-action-tool", "The model selected an available tool action."
+			}
+			if parseErr == nil && action.Action == "native_https" {
+				code, reason = "agent-action-native", "The model selected a local HTTPS diagnostic action; no networking permission was granted."
+			}
+			if parseErr == nil && action.Action == "finish" {
+				completion = nil
+				if c := action.CompletionValue(); c != nil {
+					completion = &evidence.Completion{Status: c.Status, Reason: c.Reason, Target: c.Target}
+				}
 			}
 			if _, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason}); err != nil {
 				return workerprotocol.Reply{}, err
@@ -639,7 +683,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			return errors.New("no active task-dependent model result")
 		}
 		if s.durable != nil {
-			if err := s.storageResult(s.durable.StageResult(context.Background(), ref, evidence.Outcome{Status: "Succeeded", Text: text, Model: observed})); err != nil {
+			if err := s.storageResult(s.durable.StageResult(context.Background(), ref, evidence.Outcome{Status: "Succeeded", Text: text, Model: observed, Completion: completion})); err != nil {
 				return err
 			}
 		}
@@ -660,6 +704,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 	if final != nil && final.Claim != nil && final.Claim.Phase == v0.ClaimPhaseSucceeded {
 		outcome.Text = modelText
 		outcome.Model = observed
+		outcome.Completion = completion
 	}
 	code := "run-" + status
 	if runErr != nil {

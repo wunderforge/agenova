@@ -1,5 +1,14 @@
 # Agenova MVP PRD
 
+Owner-approved final-demo follow-up (23 October 2026, #256): preserve useful
+partial/incomplete Agent output independently of execution phase; display
+evidence-backed reasons without manufacturing denial events. The reference
+Researcher may opt into a bounded native HTTPS diagnostic in its own Pod, with
+no new network grant. Real model choice, native execution and independently
+attributed infrastructure enforcement are separate acceptance gates. Ordinary
+images, lifecycle, Policy and historical facts remain unchanged. See the
+[execution packet](../../work/0256-demo-security-completion/task.md).
+
 Owner-approved account-role correction (23 October 2026, #252): active account
 Owner/Admin have application administration, configuration discovery and Work
 access across all existing projects in their own organization, including newly
