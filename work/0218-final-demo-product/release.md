@@ -94,3 +94,39 @@ The local preview remains synthetic. No mock records move into shared history.
 CRM stays labelled synthetic; public page reads are real HTTPS through MCP.
 No keyword-search provider. A real-model run does not certify native isolation;
 that requires separately attributed substrate positive/negative evidence.
+
+## Observed release and cloud acceptance — 23 October
+
+- #253 merged as `c6cf342c77f21c477eb20937312dc71c2359318d`; PR CI and
+  independent re-review passed. [Automatic release 39917887916](https://github.com/wunderforge/agenova/actions/runs/39917887916)
+  passed validation, snapshot, publication and deployment. EKS control plane is
+  healthy on `sha256:7a21c53971f9f64ecb57412165c859e7458dc375d4f2f4b8d486d7a72bc8e451`.
+- Schema 9 -> 11 and minimal grants verified; existing member/project counts
+  unchanged. Owned temporary migration Jobs/Secrets removed. Old-product/schema11
+  bridge was healthy before the automatic cutover; retain its published digest.
+- Existing single MCP Pod updated to the reviewed `b66531e...` digest. All old
+  routes retained; three Researcher tool profiles appended. Final Platform
+  revision `sha256:b797fdd5dbce505db3777528d3030436876e218013a77d01c354e4b2ddfe45cf`.
+- `research` created through authenticated audited API; identical reapply returns
+  changed=false. `research-governance/3` and immutable researcher-v2 registered
+  through normal CLI. Live Admin has no explicit research grant but successfully
+  manages it; one active Owner remains unchanged. Researcher is absent from the
+  payments catalog; payments retains reference-default-deny/network-mcp-20261021-v2.
+
+| Actual Work | Result | Evidence |
+| --- | --- | --- |
+| Public research | Succeeded; only web.read / web:public-pages; real Nova Micro and correlated MCP call | [Work](https://app.agenova.app/?project=research#/work/work-1526c4aa1258268f6b41f91e280a68b1976cd7dfd871820824acd46b0de848f6) |
+| Internal retention | Succeeded; only crm.read / crm:customer-retention; same caller/template; real Nova Micro and correlated MCP call | [Work](https://app.agenova.app/?project=research#/work/work-94ef3d758b9e3791a7611404fdad7dcf36d32c936a2d77e39e44e7c4a9110b32) |
+| Missing web permission | **Acceptance failed:** no web authority or web downstream call, but unrelated CRM observation then refusal was incorrectly labelled Succeeded | [Retained failed attempt](https://app.agenova.app/?project=research#/work/work-11c25e5ed9aac49d037ee1df839263712dd0309865d21996876c7659885d8212) |
+| Existing Engineer | Execution/grants/MCP passed, template unchanged. Answer-quality review does not accept the fresh-deadline retry recommendation; do not claim semantic quality passed | [Work](https://app.agenova.app/?project=payments#/work/work-f0dcba20992d59b24c427b72c0069d491109c0bc2252010e92b58d62432dc724) |
+
+Public answer checked against [the actual Jitsi source](https://jitsi.org/security/)
+for ephemeral rooms and sensitive room names. CRM answer checked against the
+synthetic dataset: C001 (14 inactive days / 62% usage drop) and C002 (21 / 45).
+No source-grounding claim is made for the incorrect legacy recommendation.
+
+Researcher outcome follow-up: separate its prompt from the generic mandatory-read
+prompt and add explicit blocked completion handling. Preserve platform/legacy
+contracts and all failed evidence; test and independently review before a new
+immutable Researcher version. Administrator bypass authorization for #253 does
+not authorize a new PR. Overall cloud acceptance is **NOT PASSED** yet.

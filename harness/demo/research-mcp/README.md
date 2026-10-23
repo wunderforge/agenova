@@ -13,6 +13,17 @@ receives actual MCP observations; a Researcher finish without any successful
 observation fails rather than emitting an unsupported research answer. The
 ordinary reference Worker image and existing templates keep their behavior.
 
+Researcher owns its prompt separately from the reference investigation Agent:
+it must not inherit a mandatory unrelated read or a success-only finish rule.
+When relevant evidence/capability is unavailable it selects the explicit
+`RESEARCH_TASK_BLOCKED` finish-answer control value. The Researcher exits without
+a final result even if an unrelated earlier call succeeded. This preserves the
+existing tool/finish and exact-answer execution contract; it is Agent outcome
+handling, not semantic Policy enforcement or a fabricated Gateway refusal.
+The original cloud false-success attempt remains evidence, not a passing test.
+The design follows [Nova's structured-output guidance](https://docs.aws.amazon.com/nova/latest/userguide/prompting-structured-output.html)
+and retains independent server-side tool validation; model choice remains fallible.
+
 Only granted tools reach the model catalog. If a necessary tool is absent, the
 model can explain the limitation without calling it; that is NOT a Gateway
 refusal. Out-of-catalog model actions are rejected by the existing agent/host

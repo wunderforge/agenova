@@ -70,7 +70,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if agentRole == "researcher" {
-			prompt += researchInstructions
+			prompt = researcherPrompt(promptTask, progress+transcript)
 		}
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
@@ -92,7 +92,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		if action.Action == "finish" {
-			if agentRole == "researcher" && observations == 0 {
+			if agentRole == "researcher" && (observations == 0 || action.Answer == researchBlocked) {
 				return workerprotocol.ErrNoFinalResult
 			}
 			if turn < 2 || (len(task.Tools) > 0 && observations == 0) {
