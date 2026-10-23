@@ -47,7 +47,7 @@ export function WorkNotices({work}:{work:View}){
  if(unavailable&&!denied.some(f=>f.target===target))events.push({id:'unavailable',text:`${target} unavailable`,href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});
  if(native)events.push({id:native.id,text:native.reasonCode?.endsWith('-timeout')?'Direct HTTPS timed out':'Direct HTTPS attempted',href:`${activity}/${encodeURIComponent(native.id)}`,label:'Evidence'});
  if(!events.length&&incomplete)events.push({id:'incomplete',text:completion.status==='partial'?'Task partially completed':'Task incomplete',href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});
- if(!events.length&&work.outcome?.failure){const f=[...work.facts].reverse().find(f=>f.kind==='RunOutcome');events.push({id:'failure',text:work.outcome.failure,href:f?`${activity}/${encodeURIComponent(f.id)}`:activity,label:'Evidence'});}
+ if(!events.length&&work.outcome?.failure){const f=[...work.facts].reverse().find(f=>f.kind==='RunOutcome');events.push({id:'failure',text:work.outcome.status==='Succeeded'?'Task completed; cleanup needs attention':work.outcome.failure,href:f?`${activity}/${encodeURIComponent(f.id)}`:activity,label:'Evidence'});}
  if(!events.length)return null;
  return <section className="portal-work-notices portal-work-notices-highlight" aria-label="Work notices" role="alert">{events.map(e=><div className="portal-blocked-event" key={e.id}><span>{e.text}</span><a href={e.href}>{e.label}</a></div>)}</section>;
 }
