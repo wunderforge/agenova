@@ -83,6 +83,7 @@ The reference service accepts the canonical ClaimRequest through its trusted app
 - The reference principal is fixed by service configuration. Kubernetes RBAC protects reference operator registration, but loopback/port access alone is not production authentication or tenancy. The separate member mode uses Google login and approved project membership.
 - Verified real-provider paths include the documented kind/Ollama reference and the shared EKS/Bedrock member trial above. Arbitrary agent images, production-grade adapter/plugin lifecycle, complete credential security, real Tool/Memory/Observability backends and network-enforced gateway isolation are not proven by these runs.
 - Complete cross-claim gateway correlation and filesystem/isolation proof remain separate work. The reference list is limited to the current service session and fixed local Team A identity; member-mode listing uses current membership and stored Work history. Backend-specific acceptance must not be inferred for untested runtime implementations.
+- On the kind reference tested on 5 October 2026, a running worker was blocked from the provider by the generated NetworkPolicy, but a freshly created worker reached it before the policy applied ([#208](https://github.com/wunderforge/agenova/issues/208)); public egress was open ([#202](https://github.com/wunderforge/agenova/issues/202)). See [`evidence/52/`](evidence/52/kind-boundary/summary.md). These historical results do not establish isolation on later versions or EKS.
 
 ## Next Delivery Slice
 
