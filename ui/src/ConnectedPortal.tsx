@@ -162,11 +162,7 @@ function WorkDetail({ work }: { work: View }) {
         : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
         : ['Failed', 'Expired', 'Cancelled'].includes(status)
           ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
-    }}/>} failure={work.outcome?.failure && <div className="portal-work-failure" role="alert">
-          <strong>{work.outcome.status === 'Succeeded'
-            ? 'Task completed; cleanup needs attention' : 'Execution needs attention'}</strong>
-          <p>{outcomeReason(work)}</p>
-        </div>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)} failure={status === 'Failed' ? {
+    }}/>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)} failure={status === 'Failed' ? {
           reason: outcomeReason(work),
           href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
         } : undefined}/>} access={<aside className="portal-access-card">
