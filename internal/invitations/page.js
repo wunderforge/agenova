@@ -47,14 +47,14 @@ async function refreshMembers(){
     const access=node('div');access.className='project-access';access.append(node('h4','Project access · independent grants'));
     for(const grant of m.projects){
      const grantForm=node('form');grantForm.className='member-actions';const label=node('strong',grant.project),roleSelect=node('select');roleSelect.setAttribute('aria-label','Project role '+grant.project+' for '+who);
-     for(const value of ['member','viewer',...(owner?['admin']:[]),'']){const option=node('option',value||'Remove access');option.value=value;roleSelect.append(option);}roleSelect.value=grant.role;
+     for(const value of ['member','viewer','admin','']){const option=node('option',value||'Remove access');option.value=value;roleSelect.append(option);}roleSelect.value=grant.role;
      const saveGrant=node('button','Save project access');saveGrant.type='submit';grantForm.append(label,roleSelect,saveGrant);grantForm.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'project-role',project:grant.project,role:roleSelect.value},saveGrant);});access.append(grantForm);
     }
     const add=node('form');add.className='member-actions';const addProject=node('select');addProject.setAttribute('aria-label','Add project for '+who);
     for(const name of [...new Set([...knownProjects,...rows.flatMap(person=>person.projects.map(g=>g.project))])].filter(name=>!m.projects.some(g=>g.project===name))){const o=node('option',name);o.value=name;addProject.append(o);}
-    const addRole=node('select');addRole.setAttribute('aria-label','New project role for '+who);for(const name of ['member','viewer',...(owner?['admin']:[])]){const o=node('option',name);addRole.append(o);}
+    const addRole=node('select');addRole.setAttribute('aria-label','New project role for '+who);for(const name of ['member','viewer','admin']){const o=node('option',name);addRole.append(o);}
     const addButton=node('button','Add project access');addButton.type='submit';addButton.disabled=!addProject.options.length;add.append(addProject,addRole,addButton);add.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'project-role',project:addProject.value,role:addRole.value},addButton);});access.append(add);row.append(access);
-    const toggle=node('button',m.active?'Disable user':'Enable user');toggle.type='button';toggle.addEventListener('click',()=>changeMember({principal:m.principal,action:m.active?'disable':'enable'},toggle));if(owner || m.accountRole!=='admin' && !(m.roles||[]).length)row.append(toggle);
+    const toggle=node('button',m.active?'Disable user':'Enable user');toggle.type='button';toggle.addEventListener('click',()=>changeMember({principal:m.principal,action:m.active?'disable':'enable'},toggle));row.append(toggle);
    }
    const summary=node('tr');summary.dataset.search=(who+' '+m.principal+' '+m.projects.map(g=>g.project).join(' ')).toLowerCase();
    summary.append(node('td',who),node('td',role==='owner'?'Owner':titles[role]||'Scoped roles'),node('td',role==='owner'||role==='platform-admin'?'All organization projects':m.projects.map(g=>g.project+' · '+g.role).join(', ')||'No project access'),node('td',m.active?'Active':'Disabled'));

@@ -5,8 +5,10 @@ Owner/Admin have application administration, configuration discovery and Work
 access across all existing projects in their own organization, including newly
 created projects. Ordinary members and project-only administrators retain explicit
 project scope. Project creation is an authenticated, audited, idempotent management
-operation, not a release-time SQL patch. Existing privileged-role assignment and
-last-Owner protections are not expanded by project access. No application role bypasses Work admission,
+operation, not a release-time SQL patch. Account Admin may appoint other Admins,
+delegate operational duties and manage users across the organization. Owner has
+the same daily capabilities plus confirmed ownership transfer; ordinary management
+cannot modify/remove Owner. Self role/activation edits remain guarded. No application role bypasses Work admission,
 Policy/Template ceilings, Gateway controls or cloud IAM/RBAC.
 
 Owner-approved final-demo product extension (23 October 2026, E20 #218): improve

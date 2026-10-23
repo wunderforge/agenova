@@ -169,16 +169,13 @@ func (s Store) ReviewAccessRequest(ctx context.Context, p v0.Principal, c invita
 		return invitations.ErrUnavailable
 	}
 	defer tx.Rollback()
-	actor, err := accessReviewer(ctx, tx, p)
+	_, err = accessReviewer(ctx, tx, p)
 	if err != nil {
 		return err
 	}
 	if c.Action == "approve" {
-		if actor != Owner && c.PlatformRole == "" && (c.AccountRole == Admin || c.Role == Admin) {
-			return authentication.ErrForbidden
-		}
 		var permitted bool
-		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_projects WHERE team=$1 AND project=$2) AND ($3 OR EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$4 AND team=$1 AND project=$2 AND role='admin'))`, p.Team, c.Project, actor == Owner, p.Subject).Scan(&permitted) != nil || !permitted {
+		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_projects WHERE team=$1 AND project=$2)`, p.Team, c.Project).Scan(&permitted) != nil || !permitted {
 			return authentication.ErrForbidden
 		}
 	}

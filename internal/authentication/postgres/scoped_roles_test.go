@@ -33,12 +33,12 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 			t.Fatal("implicit governance access", name)
 		}
 	}
-	for _, name := range []string{"admin", "member", "outsider"} {
+	for _, name := range []string{"member", "outsider"} {
 		if s.ChangeMember(ctx, p(name), c) == nil {
 			t.Fatal("delegation escalation", name)
 		}
 	}
-	if err := s.ChangeMember(ctx, p("owner"), c); err != nil {
+	if err := s.ChangeMember(ctx, p("admin"), c); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.AuthorizeScoped(ctx, p("member"), "policy.register", "project", "project"); err != nil {
@@ -49,8 +49,11 @@ func TestScopedDutiesAreExplicitAndRevocable(t *testing.T) {
 			t.Fatal("scope/action escape", x)
 		}
 	}
-	if s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "disable"}) == nil {
-		t.Fatal("project admin modified privileged member")
+	if err := s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "disable"}); err != nil {
+		t.Fatal("account admin cannot manage privileged member", err)
+	}
+	if err := s.ChangeMember(ctx, p("admin"), invitations.MemberChange{Principal: "member", Action: "enable"}); err != nil {
+		t.Fatal(err)
 	}
 	rows, err := s.ListMembers(ctx, p("owner"))
 	if err != nil {

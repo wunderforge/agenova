@@ -47,9 +47,10 @@ branch-protection bypass, new model IAM permissions or credential access.
   named RDS managed Secret; no local credential file or Agent exposure.
 - CLI personal Google login refreshed through its normal browser flow.
 - Existing model is amazon.nova-micro-v1:0; no IAM/model permission expansion.
-- Compatibility commit 43ce35c adds only 010/011 and migration registration.
-  Rollback image built locally from that exact clean source, preserving the old
-  product behavior while accepting schema 011. It is not yet deployed.
+- Compatibility commit 8850167 preserves old product behavior while accepting
+  schema 011 and the exact legacy line-ending checksum variants. Published
+  rollback digest: `sha256:232f4671e9be37a53e0cd02fde8386ce22a9d4e6ede4fde25e134521d2a8e15d`
+  in the existing control-plane ECR repository. Not yet deployed.
 - Separate Researcher and research-enabled MCP images built locally. Researcher
   image smoke proves no observation cannot produce a completed result; scripted
   source regressions preserve model-selected text input and reject absent tools.
@@ -66,6 +67,13 @@ branch-protection bypass, new model IAM permissions or credential access.
 - Real local PostgreSQL identity/Work/management/operator tests passed after the
   role correction, including ordinary project isolation, creation audit rollback,
   demotion/disable revocation and Owner transfer/last-Owner guards.
+- Final human role decision: Admin manages all organization projects/users and
+  may appoint Admins/operators; Owner adds confirmed ownership transfer. Keep
+  Owner/self and cross-organization guards. The new no-project-grant delegation
+  matrix and rendered Admin controls are part of the release regression suite.
+- The previous CI run exhausted its ten-minute budget after cold browser/dependency
+  installation consumed eight minutes. Increase baseline timeout to twenty minutes
+  while preserving every quality gate; a fresh completed run is mandatory.
 - First controlled migration attempt failed before commit. Verified database is
   still schema 9 and original service was restored healthy; owned temporary
   migration Jobs/Secrets removed. Read-only checks confirm DDL/minimal runtime

@@ -16,7 +16,7 @@ import (
 const GovernanceAdmin = "governance-admin"
 const PlatformOperator = "platform-operator"
 
-// ChangeScopedRole assigns additive duties. Only the active account Owner can
+// ChangeScopedRole assigns additive duties. Active account Owner/Admin can
 // delegate them. It never writes IAM/RBAC, PolicyBundle or claim authority.
 func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invitations.MemberChange) error {
 	if s.DB == nil || actor.AuthenticationContext != "oidc" || actor.Team == "" || actor.Subject == "" {
@@ -41,7 +41,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	if err != nil {
 		return invitations.ErrUnavailable
 	}
-	owner, target := false, false
+	administrator, target := false, false
 	for rows.Next() {
 		var id, role string
 		var active bool
@@ -50,10 +50,10 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 			return invitations.ErrUnavailable
 		}
 		if id == actor.Subject {
-			owner = active && role == Owner
+			administrator = active && (role == Owner || role == Admin)
 		}
 		if id == c.Principal {
-			target = active
+			target = active && role != Owner
 		}
 	}
 	err = rows.Err()
@@ -61,7 +61,7 @@ func (s Store) ChangeScopedRole(ctx context.Context, actor v0.Principal, c invit
 	if err != nil {
 		return invitations.ErrUnavailable
 	}
-	if !owner || !target {
+	if !administrator || !target || actor.Subject == c.Principal {
 		return authentication.ErrForbidden
 	}
 	if c.ScopeKind == "project" {

@@ -29,7 +29,7 @@ func invitationActor(ctx context.Context, tx *sql.Tx, p v0.Principal, role strin
 	if tx.QueryRowContext(ctx, `SELECT account_role FROM agenova_members WHERE principal=$1 AND team=$2 AND active FOR UPDATE`, p.Subject, p.Team).Scan(&account) != nil {
 		return authentication.ErrForbidden
 	}
-	if account != Owner && (role == Admin || role == Owner) {
+	if role == Owner || account != Owner && account != Admin && role == Admin {
 		return authentication.ErrForbidden
 	}
 	if account != Owner && account != Admin {

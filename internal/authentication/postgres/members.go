@@ -134,24 +134,8 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 	if err != nil {
 		return err
 	}
-	if target == Owner || actor != Owner && (actor != Admin || target == Admin || c.Action == "account-role") {
+	if target == Owner || (actor != Owner && actor != Admin) || c.Principal == p.Subject {
 		return authentication.ErrForbidden
-	}
-	if actor != Owner {
-		var privileged bool
-		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2)`, c.Principal, p.Team).Scan(&privileged) != nil {
-			return invitations.ErrUnavailable
-		}
-		if privileged {
-			return authentication.ErrForbidden
-		}
-		var scoped bool
-		// Account Admin covers all organization projects, but cannot disable a
-		// privileged project administrator. Owner-only delegation stays separate.
-		err = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2 AND role='admin')`, c.Principal, p.Team).Scan(&scoped)
-		if err != nil || !scoped {
-			return authentication.ErrForbidden
-		}
 	}
 	switch c.Action {
 	case "account-role":

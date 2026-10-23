@@ -64,8 +64,11 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 			t.Fatal("missing member description")
 		}
 	}
-	if err := change(admin, "member", "account-role", Admin); err == nil {
-		t.Fatal("admin appointed admin")
+	if err := change(admin, "member", "account-role", Admin); err != nil {
+		t.Fatal("admin cannot appoint admin", err)
+	}
+	if err := change(admin, "member", "account-role", MemberRole); err != nil {
+		t.Fatal(err)
 	}
 	if err := change(owner, "owner", "disable", ""); err == nil {
 		t.Fatal("owner disabled")
@@ -95,8 +98,11 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if err := change(owner, "member", "account-role", Admin); err != nil {
 		t.Fatal(err)
 	}
-	if err := change(admin, "member", "disable", ""); err == nil {
-		t.Fatal("admin disabled new admin")
+	if err := change(admin, "member", "disable", ""); err != nil {
+		t.Fatal("admin cannot disable another admin", err)
+	}
+	if err := change(admin, "member", "enable", ""); err != nil {
+		t.Fatal(err)
 	}
 	if err := change(owner, "member", "account-role", MemberRole); err != nil {
 		t.Fatal(err)
@@ -140,8 +146,8 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 	if err := s.GrantProject(ctx, owner, member.Subject, "project", Admin); err != nil {
 		t.Fatal(err)
 	}
-	if err := change(admin, "member", "disable", ""); err == nil {
-		t.Fatal("admin disabled project administrator")
+	if err := change(admin, "member", "disable", ""); err != nil {
+		t.Fatal("admin cannot disable project administrator", err)
 	}
 
 	_, pendingProof, err := s.ReserveGoogleInvitation(ctx, admin, invitations.Request{Email: "pending@gmail.com", Project: "project", Role: MemberRole})
@@ -158,7 +164,7 @@ func TestMemberAdministrationAndLoginInvalidation(t *testing.T) {
 		t.Fatal("revoked account/project administrator's invite accepted")
 	}
 	var count int
-	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_identity_audit WHERE operation LIKE 'member.%'`).Scan(&count); err != nil || count != 7 {
+	if err := s.DB.QueryRow(`SELECT count(*) FROM agenova_identity_audit WHERE operation LIKE 'member.%'`).Scan(&count); err != nil || count != 12 {
 		t.Fatalf("audit: %d %v", count, err)
 	}
 }

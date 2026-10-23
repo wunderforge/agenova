@@ -47,7 +47,7 @@ Out of scope:
 - [x] Scout the relevant implementation, tests, risks, and dependencies.
 - [x] Self-review: Agent role does not grant access or alter generic Worker/host rules; task prose is never authority.
 - [x] Separate Researcher image, model-selected text-input tests, no-observation failure and grant-scope tests.
-- [x] Preserve local UI/SQL/MCP evidence; build compatible rollback from 43ce35c.
+- [x] Preserve local UI/SQL/MCP evidence; build compatible rollback from 8850167 (old product plus schema/checksum compatibility).
 - [ ] Publish exact artifacts and pass Linux CI/review.
 - [ ] Quiet-window migration/grants and temporary credential cleanup.
 - [ ] Control-plane/MCP release and research registration; real model, negative, legacy and cleanup acceptance.
@@ -75,11 +75,12 @@ Out of scope:
 
 ## Decisions and Blockers
 
-- Follow-up review found the expanded project predicate would also broaden the
-  legacy `platform-role` delegation path. Restored its exact prior project/target
-  guards while retaining organization-wide Work/configuration access. Human
-  decision pending: retain that restricted delegation, or tighten privileged
-  role assignment to Owner-only. No merge/migration/deployment until settled.
+- Human decision resolved: Admin is the highest daily application role and may
+  appoint Admins/operators and manage all organization projects/users. Owner has
+  the same daily rights plus confirmed ownership transfer and protection against
+  ordinary role/activation/grant edits. All mutation paths now follow this model;
+  project-only administrators remain scoped. Per-Work and cloud boundaries stay
+  independent. Fresh regression and independent review precede release.
 - Administration now displays all-organization access for account Admins even
   without explicit project grants, rather than falsely saying no project access.
 

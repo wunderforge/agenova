@@ -114,6 +114,26 @@ test('account Admin without explicit grants displays organization-wide access',a
  await expect(page.locator('#member-editor')).not.toContainText('No business project access');
 });
 
+test('Admin may delegate daily roles while Owner and self remain protected',async({page},info)=>{
+ const accountAdmin={principal:'account-admin',email:'admin@example.test',accountRole:'admin',active:true,projects:[],roles:[]};
+ await admin(page);
+ await page.route('**/auth/me',route=>route.fulfill({json:{subject:accountAdmin.principal}}));
+ await page.route('**/api/members',route=>route.fulfill({json:[owner,accountAdmin,member]}));
+ await page.reload();
+ await page.getByRole('button',{name:'Edit member@example.test',exact:true}).click();
+ await expect(page.getByLabel('Role for member@example.test',{exact:true}).locator('option')).toHaveText(['Member','Platform Operator','Platform Admin']);
+ await expect(page.getByLabel('Project role payments for member@example.test').locator('option[value="admin"]')).toHaveCount(1);
+ await expect(page.getByRole('button',{name:'Disable user',exact:true})).toBeVisible();
+ await page.screenshot({path:info.outputPath('admin-role-delegation.png'),fullPage:true});
+ await page.locator('#member-editor-close').click();
+ await page.getByRole('button',{name:'View owner@example.test',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Save role',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Disable user',exact:true})).toHaveCount(0);
+ await page.locator('#member-editor-close').click();
+ await page.getByRole('button',{name:'Edit admin@example.test',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Save role',exact:true})).toHaveCount(0);
+});
+
 test('empty and failed management states keep safe controls and readable June cards', async ({ page }, info) => {
   await admin(page, 'empty');
   await expect(page.locator('#access-notice')).toHaveText('No pending access requests.');

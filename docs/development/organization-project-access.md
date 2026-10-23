@@ -14,14 +14,20 @@ are denied. Demotion takes effect on the next operation. Work Policy, Template
 limits, requested access and runtime restrictions still independently determine
 each Work's authority. Cloud IAM/RBAC remains independent.
 
-Raw account-role promotion, explicit scoped-role delegation, confirmed ownership
-transfer and last-Owner guards remain Owner-only. The legacy `platform-role`
-mutation separately permits some explicitly project-authorized Admins to assign
-operational roles within their existing grant boundary. This mutation has NOT
-been expanded by organization-wide Work/configuration access. Whether to tighten
-that legacy delegation to Owner-only is awaiting the human Owner decision; do
-not release until this is settled. Creating a new Owner is never part of project
-creation.
+Account Admin is the highest daily management role: it can appoint other Admins,
+manage project grants, delegate governance/operator duties, approve invitations
+and access requests, and disable/re-enable other non-Owner users. These operations
+cover existing projects in the same organization without explicit project grants.
+The operational-role editor replaces old duties atomically; low-level account-role
+edits change that role only and do not remove independent project/scoped grants.
+
+Owner has the same daily capabilities plus explicitly confirmed ownership
+transfer. Ordinary role, activation and grant mutations cannot modify Owner.
+Self account/operational/scoped-role and activation edits are rejected to avoid
+lockout. Project-only administrators cannot promote Admins or delegate platform
+duties. Every change retains active-actor checks, organization scope and atomic
+audit. Creating a new Owner is never part of project creation. Application
+operator duties never grant cloud IAM or Kubernetes RBAC.
 
 ## Create a project
 

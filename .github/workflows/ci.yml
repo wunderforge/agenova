@@ -23,7 +23,9 @@ jobs:
         github.ref == vars.SHARED_EKS_CANDIDATE_REF && github.sha == vars.SHARED_EKS_CANDIDATE_SHA)
     name: baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Cold browser/dependency installation can take eight minutes by itself.
+    # Keep every quality gate; allow enough time to actually execute them.
+    timeout-minutes: 20
     env:
       AGENOVA_CHECK_PROFILE: ${{ github.event_name == 'pull_request' && 'PR' || 'Main' }}
 
