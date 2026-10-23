@@ -20,6 +20,47 @@ func researcherRole(t *testing.T) {
 	t.Cleanup(func() { agentRole = previous })
 }
 
+func TestResearcherPromptCallExamplesDoNotCarryCompletion(t *testing.T) {
+	for _, tool := range []workerprotocol.Tool{
+		{Operation: "web.read", Description: "Read public page", ResourceScope: "web:public-pages", Parameter: "url", InputMode: "text", MaxBytes: 1024},
+		{Operation: "crm.read", Description: "Read synthetic CRM", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}},
+	} {
+		t.Run(tool.Operation, func(t *testing.T) {
+			tools := []workerprotocol.Tool{tool}
+			prompt := researcherV1Prompt(workerprotocol.Task{Tools: tools}, "")
+			for _, label := range []string{"Tool example: ", "Native example: "} {
+				_, tail, ok := strings.Cut(prompt, label)
+				if !ok {
+					t.Fatalf("missing %s", label)
+				}
+				var fields map[string]string
+				if err := json.NewDecoder(strings.NewReader(tail)).Decode(&fields); err != nil {
+					t.Fatal(err)
+				}
+				if len(fields) != 8 {
+					t.Fatal("example must explicitly include all eight fields")
+				}
+				for _, name := range []string{"answer", "completion", "reason", "target"} {
+					if fields[name] != "" {
+						t.Fatalf("call sets final-answer field %s", name)
+					}
+				}
+				b, _ := json.Marshal(fields)
+				if _, err := workerprotocol.ParseAgentAction(string(b), tools, workerprotocol.ResearchProtocol); err != nil {
+					t.Fatalf("prompt teaches invalid call: %v", err)
+				}
+			}
+			if tool.Operation == "crm.read" && strings.Contains(prompt, `"tool":"web.read"`) {
+				t.Fatal("CRM example advertises unavailable web tool")
+			}
+		})
+	}
+	prompt := researcherV1Prompt(workerprotocol.Task{}, "")
+	if strings.Contains(prompt, "Tool example:") || !strings.Contains(prompt, "No tool action is available when the catalog is empty.") {
+		t.Fatal("empty catalog advertises a tool")
+	}
+}
+
 func TestResearcherDoesNotCompleteWithoutToolEvidence(t *testing.T) {
 	researcherRole(t)
 	var input, output bytes.Buffer

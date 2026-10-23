@@ -38,6 +38,23 @@ No tool/no observation must not become invented success; model-reported network 
 - [ ] Independent PR review, CI, normal merge/release and exact-image AWS acceptance.
 - [ ] Update parent plan, reproducible evidence and user walkthrough.
 
+### Cloud follow-up: reference-image call formatting
+
+#257 merged at `92fdb61` and automatic release `39949039840` succeeded. The first
+real v5 public Work (`work-244c91003175eac9a2d5f2344b33bf5ee236e9378f884c080d83817afdab8b10`)
+retained an incomplete reply: Nova Micro incorrectly filled final-answer metadata
+on tool actions. No MCP call occurred; this is a failed positive acceptance, not
+a permissions denial. One isolated exact-image/model format diagnostic reproduced
+`action=tool` with `completion=incomplete`; a complete empty-metadata example
+passed the bounded diagnostic. These are not governed network evidence.
+
+Follow-up changes only the reference Researcher prompt: complete catalog-derived
+tool/native examples, final-answer fields explicitly empty on calls. No parser,
+grant, Gateway, model-provider, lifecycle or network-rule relaxation. Regressions
+require all eight example fields, valid web/CRM/native shapes, no unrelated web
+example for CRM and no advertised tool for an empty catalog. Fresh image and
+real-model campaign remain required; retain the failed v5-r1 attempt.
+
 ## Quality Gates
 
 Focused Go packages; npm --prefix ui run check; ./scripts/check.ps1 -All; actual Pod network checks in an enforcing CNI; positive web/CRM and missing-web real-model runs; image/Policy/Work/Pod attribution. Failures stop broad expansion. Existing platform-specific gate failures remain explicit.

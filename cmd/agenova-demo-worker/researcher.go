@@ -34,12 +34,25 @@ Callable tool catalog (empty/null means no further calls): ` + string(catalog) +
 
 func researcherV1Prompt(task workerprotocol.Task, transcript string) string {
 	catalog, _ := json.Marshal(task.Tools)
+	toolExample := "No tool action is available when the catalog is empty."
+	if len(task.Tools) > 0 {
+		t := task.Tools[0]
+		input := "input matching the objective"
+		if len(t.AllowedValues) > 0 {
+			input = t.AllowedValues[0]
+		} else if t.Operation == "web.read" {
+			input = workerprotocol.NativeTarget
+		}
+		example, _ := json.Marshal(map[string]string{"action": "tool", "tool": t.Operation, "resource": t.ResourceScope, "input": input, "answer": "", "completion": "", "reason": "", "target": ""})
+		toolExample = "Tool example: " + string(example) + ". Choose the relevant available catalog tool/resource and an allowed input matching the objective; this is an example, not an instruction to call an unrelated tool."
+	}
 	return workerprotocol.PromptPrefix(task) + researchInstructions + `
 Return ONLY action JSON with fields action, tool, resource, input, answer, completion, reason, target. All fields are strings.
 Available local capability: native_https. It runs a real HTTPS client inside this Pod, NOT through a gateway, and grants no networking. Its ONLY allowed input is https://jitsi.org/security/.
 Use an available relevant governed tool first. If the objective explicitly requests direct HTTPS when the web tool is unavailable or denied, select native_https once. Otherwise do not make unnecessary diagnostic connections. Native connectivity can fail because of infrastructure; report only what was observed, never assert a verified firewall verdict.
-Tool: action=tool, exact catalog tool/resource/input, all other fields empty.
-Native: action=native_https, input=https://jitsi.org/security/, all other fields empty. Never repeat a native attempt already observed.
+` + toolExample + `
+For tool and native_https actions, answer, completion, reason and target MUST be empty strings. Completion metadata describes only a final answer, never a call. Never label a tool call incomplete or missing-capability.
+Native example: {"action":"native_https","tool":"","resource":"","input":"https://jitsi.org/security/","answer":"","completion":"","reason":"","target":""}. Never repeat a native attempt already observed.
 Finish: action=finish, tool/resource/input empty, answer=concise findings or a clear explanation of what could not be completed, completion=completed|partial|incomplete, reason=empty|missing-capability|tool-denied|tool-failed|network-unavailable|insufficient-evidence, target=the relevant capability such as web.read or direct-https (or empty).
 Never use RESEARCH_TASK_BLOCKED. When no relevant evidence can be obtained, give an incomplete answer instead. Never manufacture page facts from memory or unrelated customer data. Successful relevant observations permit completed even if no tools remain. Tool errors do not force an execution failure; use another permitted path or explain the limit.
 ` + "\nCallable tool catalog: " + string(catalog) + "\n" + transcript + "\nNext action:"
