@@ -19,6 +19,11 @@ import (
 const lineLimit = 128 * 1024
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--native-probe" {
+		report, _ := nativeHTTPS(workerprotocol.NativeTarget)
+		_ = json.NewEncoder(os.Stdout).Encode(report)
+		return
+	}
 	if err := run(os.Stdin, os.Stdout); err != nil {
 		os.Stderr.WriteString("demo worker task failed\n")
 		os.Exit(1)
@@ -62,6 +67,7 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 	observations := 0
 	readInputs := []string{}
 	seen := map[string]bool{}
+	nativeSeen := false
 	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
 		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, workerprotocol.MaxTurns, observations, readInputs)
 		promptTask := task
@@ -70,12 +76,16 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if agentRole == "researcher" {
-			prompt = researcherPrompt(promptTask, progress+transcript)
+			prompt = researcherV1Prompt(promptTask, progress+transcript)
 		}
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
 		}
-		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
+		protocol := ""
+		if agentRole == "researcher" {
+			protocol = workerprotocol.ResearchProtocol
+		}
+		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{AgentProtocol: protocol, ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
 			return err
 		}
 		var reply workerprotocol.Reply
@@ -85,21 +95,62 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		if !reply.Allowed || reply.Error != "" || strings.TrimSpace(reply.Text) == "" {
 			return errors.New("model request failed")
 		}
-		action, err := workerprotocol.ParseAction(reply.Text, task.Tools)
+		action, err := workerprotocol.ParseAgentAction(reply.Text, task.Tools, protocol)
+		// Old fixture actions remain readable; real opt-in schema requires metadata.
+		if err != nil && protocol != "" {
+			action, err = workerprotocol.ParseAction(reply.Text, task.Tools)
+		}
 		if err != nil {
 			_, issue := workerprotocol.ActionIssue(reply.Text, task.Tools)
 			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
 			continue
 		}
 		if action.Action == "finish" {
-			if agentRole == "researcher" && (observations == 0 || action.Answer == researchBlocked) {
+			if agentRole == "researcher" && action.Completion == "" && (observations == 0 || action.Answer == researchBlocked) {
 				return workerprotocol.ErrNoFinalResult
 			}
-			if turn < 2 || (len(task.Tools) > 0 && observations == 0) {
+			if action.Completion == "completed" && observations == 0 {
+				transcript += "\nObservation: no successful evidence exists. Return an incomplete answer, not completed."
+				continue
+			}
+			if action.Completion == "" && (turn < 2 || (len(task.Tools) > 0 && observations == 0)) {
 				transcript += "\nObservation: premature finish. Complete the required read/review before finishing."
 				continue
 			}
 			return writeLine(output, workerprotocol.Message{Result: action.Answer})
+		}
+		if action.Action == "native_https" {
+			if nativeSeen {
+				transcript += "\nObservation: native HTTPS was already attempted. Finish using the observations."
+				continue
+			}
+			nativeSeen = true
+			if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{Kind: "native-start", ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Input: action.Input}}); err != nil {
+				return err
+			}
+			var ack workerprotocol.Reply
+			if err := readLine(scanner, &ack); err != nil {
+				return err
+			}
+			if !ack.Allowed || ack.Error != "" {
+				return errors.New("native attempt audit unavailable")
+			}
+			report, body := nativeHTTPS(action.Input)
+			if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{Kind: "native-end", ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Input: action.Input, Native: &report}}); err != nil {
+				return err
+			}
+			if err := readLine(scanner, &ack); err != nil {
+				return err
+			}
+			if !ack.Allowed || ack.Error != "" {
+				return errors.New("native observation audit unavailable")
+			}
+			data, _ := json.Marshal(report)
+			transcript += "\nNative HTTPS observation (worker-reported, not an independent CNI verdict): " + string(data) + "\n" + body
+			if report.Result == "received" && report.StatusCode >= 200 && report.StatusCode < 300 && body != "" {
+				observations++
+			}
+			continue
 		}
 		if len(promptTask.Tools) == 0 {
 			transcript += "\nObservation: no tool is available. Review the objective then finish."

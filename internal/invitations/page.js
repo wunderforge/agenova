@@ -1,7 +1,7 @@
 'use strict';
 document.addEventListener('pointerdown',()=>{document.documentElement.dataset.inputModality='pointer';},true);
 document.addEventListener('keydown',event=>{if(event.key==='Tab')document.documentElement.dataset.inputModality='keyboard';},true);
-const titles={'platform-admin':'Platform Admin','platform-operator':'Platform Operator',member:'Member'};
+const titles={'platform-admin':'Admin','platform-operator':'Platform Operator',member:'Member'};
 const registrationEnabled=document.body.dataset.registration==='true';
 const memberList=document.querySelector('#members');
 const memberNotice=document.querySelector('#member-notice');
@@ -42,8 +42,10 @@ async function refreshMembers(){
     const select=selector(`Role for ${who}`,admin,role);
     const project=node('input');project.setAttribute('aria-label',`Project for ${who}`);project.placeholder='Existing project';project.required=true;project.maxLength=128;project.value=m.projects[0]?.project||actor.projects[0]?.project||'';
     const save=node('button','Save role');save.type='submit';save.disabled=!m.active;
-    form.append(select,project,save,node('small','Changing operational role replaces duties across projects. Use Project access below to change one project without altering the others. Operators receive deployment access only.'));
-    form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'platform-role',role:select.value,project:project.value.trim()},save);});row.append(form);
+    function roleFields(){project.hidden=select.value!=='member';project.required=select.value==='member';}
+    select.addEventListener('change',roleFields);roleFields();
+    form.append(select,project,save,node('small','Role changes replace operational duties. Member requires an initial project; Admin inherits all organization projects.'));
+    form.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'platform-role',role:select.value,...(select.value==='member'?{project:project.value.trim()}:{})},save);});row.append(form);
     const access=node('div');access.className='project-access';access.append(node('h4','Project access · independent grants'));
     for(const grant of m.projects){
      const grantForm=node('form');grantForm.className='member-actions';const label=node('strong',grant.project),roleSelect=node('select');roleSelect.setAttribute('aria-label','Project role '+grant.project+' for '+who);
@@ -53,7 +55,10 @@ async function refreshMembers(){
     const add=node('form');add.className='member-actions';const addProject=node('select');addProject.setAttribute('aria-label','Add project for '+who);
     for(const name of [...new Set([...knownProjects,...rows.flatMap(person=>person.projects.map(g=>g.project))])].filter(name=>!m.projects.some(g=>g.project===name))){const o=node('option',name);o.value=name;addProject.append(o);}
     const addRole=node('select');addRole.setAttribute('aria-label','New project role for '+who);for(const name of ['member','viewer','admin']){const o=node('option',name);addRole.append(o);}
-    const addButton=node('button','Add project access');addButton.type='submit';addButton.disabled=!addProject.options.length;add.append(addProject,addRole,addButton);add.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'project-role',project:addProject.value,role:addRole.value},addButton);});access.append(add);row.append(access);
+    const addButton=node('button','Add project access');addButton.type='submit';addButton.disabled=!addProject.options.length;add.append(addProject,addRole,addButton);add.addEventListener('submit',e=>{e.preventDefault();changeMember({principal:m.principal,action:'project-role',project:addProject.value,role:addRole.value},addButton);});access.append(add);
+    if(role==='platform-admin'){row.append(node('p','Project access · All organization projects (inherited)'));}
+    else if(role==='platform-operator'){row.append(node('p','Installation duties only. No business project access.'));}
+    else{row.append(access);}
     const toggle=node('button',m.active?'Disable user':'Enable user');toggle.type='button';toggle.addEventListener('click',()=>changeMember({principal:m.principal,action:m.active?'disable':'enable'},toggle));row.append(toggle);
    }
    const summary=node('tr');summary.dataset.search=(who+' '+m.principal+' '+m.projects.map(g=>g.project).join(' ')).toLowerCase();

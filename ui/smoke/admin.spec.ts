@@ -77,7 +77,7 @@ test('management controls still load, validate and submit only their existing AP
   await page.getByLabel('Role for member@example.test',{exact:true}).selectOption('platform-operator');
   await page.getByRole('button', { name: 'Save role', exact: true }).click();
   await expect(page.locator('#member-notice')).toContainText('User access updated.');
-  expect(posts[0]).toEqual({ path: '/api/members', body: { principal: 'member', action: 'platform-role', role: 'platform-operator', project: 'payments' } });
+  expect(posts[0]).toEqual({ path: '/api/members', body: { principal: 'member', action: 'platform-role', role: 'platform-operator' } });
   await page.getByRole('link',{name:'Access requests',exact:true}).click();
   await page.getByLabel('Project for pending@example.test').fill('payments');
   await page.getByRole('button', { name: 'Approve access', exact: true }).click();
@@ -112,6 +112,9 @@ test('account Admin without explicit grants displays organization-wide access',a
  await page.getByRole('button',{name:'Edit '+accountAdmin.email,exact:true}).click();
  await expect(page.locator('#member-editor')).toContainText('Configuration access: all organization projects. Work Policy still applies.');
  await expect(page.locator('#member-editor')).not.toContainText('No business project access');
+ await expect(page.getByLabel('Project for admin@example.test',{exact:true})).toBeHidden();
+ await expect(page.getByRole('button',{name:'Add project access',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Save project access',exact:true})).toHaveCount(0);
 });
 
 test('Admin may delegate daily roles while Owner and self remain protected',async({page},info)=>{
@@ -121,7 +124,7 @@ test('Admin may delegate daily roles while Owner and self remain protected',asyn
  await page.route('**/api/members',route=>route.fulfill({json:[owner,accountAdmin,member]}));
  await page.reload();
  await page.getByRole('button',{name:'Edit member@example.test',exact:true}).click();
- await expect(page.getByLabel('Role for member@example.test',{exact:true}).locator('option')).toHaveText(['Member','Platform Operator','Platform Admin']);
+ await expect(page.getByLabel('Role for member@example.test',{exact:true}).locator('option')).toHaveText(['Member','Platform Operator','Admin']);
  await expect(page.getByLabel('Project role payments for member@example.test').locator('option[value="admin"]')).toHaveCount(1);
  await expect(page.getByRole('button',{name:'Disable user',exact:true})).toBeVisible();
  await page.screenshot({path:info.outputPath('admin-role-delegation.png'),fullPage:true});

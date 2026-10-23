@@ -64,7 +64,7 @@ func TestResearcherUsesModelSelectedTextInputAndObservedAnswer(t *testing.T) {
 	if second.Operation == nil || !strings.Contains(second.Operation.Prompt, "Meeting feature evidence.") || result.Result != "The source describes meeting features (https://example.com/meeting)." {
 		t.Fatal("final answer was not based on the observed model exchange")
 	}
-	if !strings.Contains(second.Operation.Prompt, `"operation":"web.read"`) || !strings.Contains(second.Operation.Prompt, "does NOT invalidate earlier observations") {
+	if !strings.Contains(second.Operation.Prompt, `"operation":"web.read"`) || !strings.Contains(second.Operation.Prompt, "Successful relevant observations permit completed") {
 		t.Fatal("Researcher hid its callable capability or lost the evidence-first completion rule")
 	}
 }

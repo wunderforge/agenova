@@ -6,6 +6,13 @@ This records what the repository currently proves, not the target architecture o
 
 ## Verified Shared Member Trial
 
+In-progress #256 follow-up: optional agent-reported completion, recoverable
+reference-agent tool errors, original-Pod native HTTPS observations and
+walkthrough UI corrections. Focused Go/browser and real PostgreSQL checks pass;
+isolated kind/Calico same-image/node/IP allow/deny checks pass with deterministic
+model-response fixtures. Real-model AWS acceptance, independent PR review and
+deployment remain pending. See [task packet](../work/0256-demo-security-completion/task.md).
+
 Local-only owner acceptance follow-up (23 October 2026, uncommitted): the
 permission-first Work detail and deterministic Researcher missing-tool correction
 are implemented on `codex/final-demo-product-local`. UI/SQL/Gateway/MCP checks

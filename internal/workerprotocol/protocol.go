@@ -38,14 +38,17 @@ type Task struct {
 }
 
 type Operation struct {
-	ClaimID       string `json:"claimId"`
-	WorkloadToken string `json:"workloadToken,omitempty"`
-	Kind          string `json:"kind"`
-	Profile       string `json:"profile,omitempty"`
-	Tool          string `json:"tool,omitempty"`
-	ResourceScope string `json:"resourceScope,omitempty"`
-	Prompt        string `json:"prompt,omitempty"`
-	Input         string `json:"input,omitempty"`
+	// AgentProtocol opts into a composition-edge schema, never authority.
+	AgentProtocol string             `json:"agentProtocol,omitempty"`
+	Native        *NativeObservation `json:"native,omitempty"`
+	ClaimID       string             `json:"claimId"`
+	WorkloadToken string             `json:"workloadToken,omitempty"`
+	Kind          string             `json:"kind"`
+	Profile       string             `json:"profile,omitempty"`
+	Tool          string             `json:"tool,omitempty"`
+	ResourceScope string             `json:"resourceScope,omitempty"`
+	Prompt        string             `json:"prompt,omitempty"`
+	Input         string             `json:"input,omitempty"`
 }
 
 type Reply struct {

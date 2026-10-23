@@ -98,7 +98,7 @@ function view(data: unknown): View {
 }
 
 export interface HistoryPage {
- items: { requestRef: string; claimId?: string; taskType: string; status: string; created: string; updated: string; traceId?: string; diagnosis?: { stage: string; code: string } }[];
+ items: { requestRef: string; claimId?: string; taskType: string; status: string; completion?: {status:string;reason?:string;target?:string}; created: string; updated: string; traceId?: string; diagnosis?: { stage: string; code: string } }[];
  nextCursor?: string;
 }
 export const connectedSource = {
@@ -168,6 +168,8 @@ export function workStatus(work: View): string {
   // Queued work can be cancelled before allocation, leaving the canonical
   // claim Pending. The final outcome is authoritative for that work status.
   if (work.outcome?.status === 'Cancelled') return 'Cancelled';
+  if(work.outcome?.status==='Succeeded'&&work.outcome.completion?.status==='incomplete')return 'Incomplete';
+  if(work.outcome?.status==='Succeeded'&&work.outcome.completion?.status==='partial')return 'Partial';
   const phase = work.state?.claim?.phase;
   if (phase === 'Bound') return 'Starting';
   // Terminal claim authority can precede the final work/cleanup report.
@@ -175,7 +177,7 @@ export function workStatus(work: View): string {
   return phase || 'Pending';
 }
 export function isTerminal(work: View): boolean {
-  return ['Succeeded', 'Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled', 'Interrupted'].includes(workStatus(work));
+  return ['Succeeded', 'Incomplete','Partial','Failed', 'Expired', 'Denied', 'Approval required', 'Cancelled', 'Interrupted'].includes(workStatus(work));
 }
 
 export function traceURL(traceId?: string, destination?: string): string | undefined {

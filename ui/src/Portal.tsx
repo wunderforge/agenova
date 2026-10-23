@@ -34,7 +34,7 @@ function Crumbs({ items }: { items: { label: string; link?: string }[] }) {
   return <nav className="portal-crumbs" aria-label="Breadcrumb">{items.map((item, index) => <span key={index}>{index > 0 && <span aria-hidden="true"> / </span>}{item.link ? <a href={href(item.link)}>{item.label}</a> : item.label}</span>)}</nav>;
 }
 function Head({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  return <div className="portal-head"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}</div>;
+  return <div className="portal-head"><div className="portal-head-info"><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action&&<div className="portal-head-actions">{action}</div>}</div>;
 }
 function Fact({ label, value }: { label: string; value?: ReactNode }) { return <div className="portal-fact"><span>{label}</span><strong>{value ?? 'Not available'}</strong></div>; }
 function Records({ work, events }: { work: WorkItem; events: WorkEvent[] }) {

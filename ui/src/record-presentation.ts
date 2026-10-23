@@ -22,6 +22,8 @@ const operationLabels: Record<string, string> = {
 };
 export const category = (fact: Observation) => fact.operation === 'tool.invoke' ? 'Tool Gateway' : categories[fact.kind] || fact.kind;
 export function recordTitle(fact: Observation): string {
+  if(fact.operation==='NativeHTTPSAttempt')return 'Direct HTTPS · attempt started';
+  if(fact.operation==='NativeHTTPSObservation')return 'Direct HTTPS · worker observation';
   if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return `${fact.target || 'Agent'} · Action format checked`;
   if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
   // Only the synthetic adapter records mock-* reason codes; a configured

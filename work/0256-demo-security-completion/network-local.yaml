@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agenova-256-network
+  labels:
+    agenova-test-owner: issue-256
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: probe-deny-egress
+  namespace: agenova-256-network
+spec:
+  podSelector:
+    matchLabels:
+      probe: denied
+  policyTypes: [Egress]
+  egress: []
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: native-denied
+  namespace: agenova-256-network
+  labels: {probe: denied, agenova-test-owner: issue-256}
+spec:
+  automountServiceAccountToken: false
+  volumes:
+    - name: temp
+      emptyDir: {medium: Memory, sizeLimit: 8Mi}
+  securityContext: {runAsNonRoot: true, runAsUser: 65532}
+  containers:
+    - name: agent
+      image: agenova-researcher:256-pinned
+      imagePullPolicy: Never
+      volumeMounts:
+        - {name: temp, mountPath: /tmp}
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: 200m, memory: 96Mi}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: native-control
+  namespace: agenova-256-network
+  labels: {probe: control, agenova-test-owner: issue-256}
+spec:
+  automountServiceAccountToken: false
+  volumes:
+    - name: temp
+      emptyDir: {medium: Memory, sizeLimit: 8Mi}
+  securityContext: {runAsNonRoot: true, runAsUser: 65532}
+  containers:
+    - name: agent
+      image: agenova-researcher:256-pinned
+      imagePullPolicy: Never
+      volumeMounts:
+        - {name: temp, mountPath: /tmp}
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: 200m, memory: 96Mi}

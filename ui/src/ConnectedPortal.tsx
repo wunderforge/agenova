@@ -12,7 +12,7 @@ import { WorkDetailLayout } from './WorkDetailLayout';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { WorkSubmissionCopy } from './WorkSubmission';
 import { ConfigurationContext, WorkComparison, PolicyRules, PolicyHistory } from './PresenterViews';
-import { WorkPermissions, WorkContext, WorkRefusals } from './WorkAuthority';
+import { WorkPermissions, WorkContext, WorkNotices } from './WorkAuthority';
 import {AgentDirectory,PlatformOverview} from './ProductPages';
 import { WorkOverview } from './WorkOverview';
 import { WorkActivityChart } from './WorkActivityChart';
@@ -33,9 +33,9 @@ function Chips({ values }: { values?: string[] | null }) {
 function Field({ label, value }: { label: string; value?: ReactNode }) {
   return <div className="portal-fact"><span>{label}</span><strong>{value ?? 'Not recorded'}</strong></div>;
 }
-function Heading({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+function Heading({ title, subtitle, action, status }: { title: string; subtitle?: string; action?: ReactNode; status?:ReactNode }) {
   return <div className="portal-head">
-    <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}
+    <div className="portal-head-info"><div className="portal-title-line"><h1>{title}</h1>{status}</div>{subtitle && <p>{subtitle}</p>}</div>{action&&<div className="portal-head-actions">{action}</div>}
   </div>;
 }
 function Access({ value, runtime, networkRecorded = false, requested = false }: {
@@ -122,7 +122,7 @@ function History() {
  return <><Heading title="Work history" subtitle="Stored governance evidence"/>
   {error && <p role="alert">{error}</p>}
   <div className="portal-table-wrap"><table className="portal-table"><thead><tr><th>Work</th><th>Status</th><th>Last update</th><th>Diagnosis</th></tr></thead>
-   <tbody>{page?.items.map(item => <tr key={item.requestRef}><td><a href={link(`work/${encodeURIComponent(item.requestRef)}`)}>{item.requestRef}</a></td><td>{item.status === 'Deny' ? 'Denied' : item.status}</td><td>{time(item.updated)}</td><td>{item.status === 'Succeeded' ? '—' : item.diagnosis?.code || '—'}</td></tr>)}</tbody></table></div>
+   <tbody>{page?.items.map(item => <tr key={item.requestRef}><td><a href={link(`work/${encodeURIComponent(item.requestRef)}`)}>{item.requestRef}</a></td><td>{item.status==='Succeeded'&&item.completion?.status==='incomplete'?'Incomplete':item.status==='Succeeded'&&item.completion?.status==='partial'?'Partial':item.status === 'Deny' ? 'Denied' : item.status}</td><td>{time(item.updated)}</td><td>{item.completion?.reason|| (item.status === 'Succeeded' ? '—' : item.diagnosis?.code || '—')}</td></tr>)}</tbody></table></div>
   {page?.nextCursor && <button className="portal-button" onClick={() => setCursor(page.nextCursor!)}>Next page</button>}
   {cursor && <button className="portal-button" onClick={() => setCursor('')}>Newest work</button>}
  </>;
@@ -138,16 +138,17 @@ function WorkDetail({ work }: { work: View }) {
   const progress = work.facts.filter(fact =>
     !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
   const summary = work.recovery ? 'Execution interrupted by service restart' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
+    : status==='Incomplete'?'Execution finished; task incomplete.':status==='Partial'?'Execution finished; task partially completed.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
     : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
       <a href={link('work')}>Work</a> / Details
     </nav>
-    <Heading title={workTitle(work)} action={<><a className="portal-button" href={link(`work/new?copy=${encodeURIComponent(work.requestRef)}`)}>Copy as new Work</a><Badge value={status}/></>}/>
-    {status === 'Failed' && <WorkRefusals work={work} highlight/>}
+    <Heading title={workTitle(work)} status={<Badge value={status}/>} action={<a className="portal-button" href={link(`work/new?copy=${encodeURIComponent(work.requestRef)}`)}>Copy as new Work</a>}/>
+    {status!=='Succeeded'&&<WorkNotices work={work}/>}
     <WorkPermissions work={work}/>
-    {status !== 'Failed' && <WorkRefusals work={work}/>}
+    {status==='Succeeded'&&<WorkNotices work={work}/>}
     <WorkContext work={work}/>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
     <WorkDetailLayout compact activityHref={link(`${workLink(work)}/activity`)} status={<RunFlow summary={summary} activityHref={link(`${workLink(work)}/activity`)} evidence={{
@@ -358,6 +359,7 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
     content = <WorkList works={data.works}/>;
   } else if (section === 'work' && data.current) {
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
+      : parts[2]==='completion'? <><nav className="portal-crumbs"><a href={link(workLink(data.current))}>{workTitle(data.current)}</a> / Completion</nav><Heading title="Task completion"/><section className="portal-panel"><h2>{data.current.outcome?.completion?.status||'Not reported'}</h2><p>{data.current.outcome?.text||'No explanation recorded.'}</p><Field label="Reason" value={data.current.outcome?.completion?.reason}/><Field label="Capability" value={data.current.outcome?.completion?.target}/><Field label="Execution status" value={data.current.outcome?.status}/><small>Agent-reported completion; not a Gateway decision or verified network verdict.</small></section><WorkPermissions work={data.current}/><a href={link(`${workLink(data.current)}/activity`)}>Activity &amp; evidence</a></>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
       : <WorkDetail key={data.current.requestRef} work={data.current}/>;
   } else if (section === 'history') {

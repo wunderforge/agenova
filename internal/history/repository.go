@@ -47,14 +47,15 @@ func (f AuthorizerFunc) CanRead(ctx context.Context, p v0.Principal, a Admission
 }
 
 type Summary struct {
-	RequestRef string              `json:"requestRef"`
-	ClaimID    string              `json:"claimId,omitempty"`
-	TaskType   string              `json:"taskType"`
-	Status     string              `json:"status"`
-	Created    time.Time           `json:"created"`
-	Updated    time.Time           `json:"updated"`
-	TraceID    string              `json:"traceId,omitempty"`
-	Diagnosis  *evidence.Diagnosis `json:"diagnosis,omitempty"`
+	Completion *evidence.Completion `json:"completion,omitempty"`
+	RequestRef string               `json:"requestRef"`
+	ClaimID    string               `json:"claimId,omitempty"`
+	TaskType   string               `json:"taskType"`
+	Status     string               `json:"status"`
+	Created    time.Time            `json:"created"`
+	Updated    time.Time            `json:"updated"`
+	TraceID    string               `json:"traceId,omitempty"`
+	Diagnosis  *evidence.Diagnosis  `json:"diagnosis,omitempty"`
 }
 type Page struct {
 	Items      []Summary `json:"items"`

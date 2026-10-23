@@ -9,7 +9,8 @@ COPY harness/integration/agentsandbox/testworker ./harness/integration/agentsand
 COPY internal/workerprotocol ./internal/workerprotocol
 COPY cmd/agenova-demo-worker ./cmd/agenova-demo-worker
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /agenova-workerctl ./harness/integration/agentsandbox/testworker
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.agentRole=researcher" -o /agenova-demo-worker ./cmd/agenova-demo-worker
+ARG NATIVE_FALLBACK_IP=""
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.agentRole=researcher -X main.nativeFallbackIP=${NATIVE_FALLBACK_IP}" -o /agenova-demo-worker ./cmd/agenova-demo-worker
 
 FROM alpine:3.20
 COPY --from=build /agenova-workerctl /agenova-workerctl
