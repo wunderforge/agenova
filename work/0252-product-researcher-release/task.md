@@ -75,6 +75,11 @@ Out of scope:
 
 ## Decisions and Blockers
 
+- User explicitly authorized the #254 follow-up administrator merge after all
+  checks/re-review, then publication and real-model re-acceptance. Fix issues in
+  this approved scope without requesting the same permission again. Keep failed
+  attempts immutable; no extra IAM/infrastructure or existing-template rewrites.
+
 - Post-release real-model acceptance: public and CRM positive runs passed with
   exact separate grants and correlated independent MCP receipts. Missing-web
   negative exposed an Agent completion bug: generic mandatory-read instructions

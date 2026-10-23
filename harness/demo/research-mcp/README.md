@@ -25,8 +25,8 @@ The design follows [Nova's structured-output guidance](https://docs.aws.amazon.c
 and retains independent server-side tool validation; model choice remains fallible.
 
 Only granted tools reach the model catalog. If a necessary tool is absent, the
-model can explain the limitation without calling it; that is NOT a Gateway
-refusal. Out-of-catalog model actions are rejected by the existing agent/host
+Researcher must select the explicit blocked control value rather than an
+explanatory successful finish; that is NOT a Gateway refusal. Out-of-catalog model actions are rejected by the existing agent/host
 action boundary. Explicit Gateway probes and independent MCP zero-receipt checks
 remain separate security acceptance, not fabricated model behavior.
 

@@ -44,7 +44,8 @@ def main():
     observation = {"allowed": True, "text": '{"synthetic":true,"customers":[{"id":"C001"}]}'}
     for answer, expected_code in [("RESEARCH_TASK_BLOCKED", 1), ("Synthetic customer C001 was observed.", 0)]:
         final = {"allowed": True, "text": json.dumps({"action": "finish", "answer": answer})}
-        stream = "".join(json.dumps(item) + "\n" for item in [crm_task, crm_call, observation, final])
+        scenario_task = crm_task if expected_code else {**crm_task, "objective": "Read the synthetic customer-retention dataset and cite an observed customer ID."}
+        stream = "".join(json.dumps(item) + "\n" for item in [scenario_task, crm_call, observation, final])
         checked = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=stream, text=True, capture_output=True, timeout=30)
         records = [json.loads(line) for line in checked.stdout.splitlines()]
         results = [record["result"] for record in records if "result" in record]
