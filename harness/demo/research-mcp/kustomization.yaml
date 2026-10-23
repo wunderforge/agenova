@@ -1,0 +1,29 @@
+# Render-only proposal for an owned environment; not applied by this work.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../incident-mcp]
+patches:
+  - target: {group: apps, version: v1, kind: Deployment, name: e16-mcp}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: FIXTURE_RESEARCH_ENABLED, value: "true"}
+  - target: {group: networking.k8s.io, version: v1, kind: NetworkPolicy, name: incident-evidence-gateway-only}
+    patch: |-
+      - op: replace
+        path: /spec/policyTypes
+        value: [Ingress, Egress]
+      - op: add
+        path: /spec/egress
+        value:
+          - to:
+              - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+                podSelector: {matchLabels: {k8s-app: kube-dns}}
+            ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+          - to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except: [0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4]
+            ports: [{protocol: TCP, port: 443}]
+# Only the trusted MCP Pod gets egress. Agent Pods are never selected here.
+# Fixed-source application restrictions remain necessary; NetworkPolicy is L3/L4.

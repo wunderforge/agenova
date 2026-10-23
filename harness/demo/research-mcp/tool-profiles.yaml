@@ -1,0 +1,36 @@
+# Merge these profiles into the existing Platform services.toolProfiles list;
+# keep the existing repo.read/git.read profiles. Not an independently applied API.
+toolProfiles:
+  - name: public-web-reader
+    backendRef: incident-evidence
+    config:
+      logical-operation: web.read
+      resource-scope: web:public-pages
+      mcp-tool: web_read
+      parameter-name: url
+      parameter-mode: text
+      parameter-max-bytes: "1024"
+      parameter-allowed-values: ""
+      description: Read a public HTTPS page without an API key. Private addresses and redirects are refused.
+  - name: public-product-research
+    backendRef: incident-evidence
+    config:
+      logical-operation: web.fetch
+      resource-scope: web:product-comparison
+      mcp-tool: web_fetch
+      parameter-name: source_id
+      parameter-max-bytes: "64"
+      parameter-allowed-values: |-
+        product-a
+        product-b
+      description: Fetch approved public product documentation by source ID. Returns untrusted public text.
+  - name: customer-retention
+    backendRef: incident-evidence
+    config:
+      logical-operation: crm.read
+      resource-scope: crm:customer-retention
+      mcp-tool: crm_read
+      parameter-name: dataset_id
+      parameter-max-bytes: "64"
+      parameter-allowed-values: customer-retention
+      description: Read the synthetic customer-retention dataset.

@@ -1,0 +1,90 @@
+// Copyright 2026 Agenova contributors.
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/wunderforge/agenova/internal/workerprotocol"
+)
+
+func researcherRole(t *testing.T) {
+	t.Helper()
+	previous := agentRole
+	agentRole = "researcher"
+	t.Cleanup(func() { agentRole = previous })
+}
+
+func TestResearcherDoesNotCompleteWithoutToolEvidence(t *testing.T) {
+	researcherRole(t)
+	var input, output bytes.Buffer
+	enc := json.NewEncoder(&input)
+	enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Read public meeting information", ModelProfile: "m", Mode: workerprotocol.ReAct})
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"An unsupported recommendation."}`})
+	if err := run(&input, &output); !errors.Is(err, workerprotocol.ErrNoFinalResult) {
+		t.Fatalf("expected missing evidence failure, got %v", err)
+	}
+	if strings.Contains(output.String(), `"result"`) {
+		t.Fatal("Researcher returned a completed answer without an observation")
+	}
+}
+
+func TestResearcherUsesModelSelectedTextInputAndObservedAnswer(t *testing.T) {
+	researcherRole(t)
+	tools := []workerprotocol.Tool{{Operation: "web.read", Description: "Read a public page", ResourceScope: "web:public-pages", Parameter: "url", InputMode: "text", MaxBytes: 1024}}
+	var input, output bytes.Buffer
+	enc := json.NewEncoder(&input)
+	objective := "Compare public meeting information."
+	enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: objective, ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: tools})
+	// The URL is chosen by the model reply, not parsed out of the objective.
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.read","resource":"web:public-pages","input":"https://example.com/meeting","answer":""}`})
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: "Source: https://example.com/meeting. Meeting feature evidence."})
+	enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"The source describes meeting features (https://example.com/meeting)."}`})
+	if err := run(&input, &output); err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(&output)
+	var first, tool, second, result workerprotocol.Message
+	for _, message := range []*workerprotocol.Message{&first, &tool, &second, &result} {
+		if err := dec.Decode(message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if first.Operation == nil || !strings.HasPrefix(first.Operation.Prompt, workerprotocol.PromptPrefix(workerprotocol.Task{Objective: objective})) || !strings.Contains(first.Operation.Prompt, researchInstructions) {
+		t.Fatal("Researcher objective/prompt missing")
+	}
+	if tool.Operation == nil || tool.Operation.Tool != "web.read" || tool.Operation.Input != "https://example.com/meeting" {
+		t.Fatal("model-selected operation was not preserved")
+	}
+	if second.Operation == nil || !strings.Contains(second.Operation.Prompt, "Meeting feature evidence.") || result.Result != "The source describes meeting features (https://example.com/meeting)." {
+		t.Fatal("final answer was not based on the observed model exchange")
+	}
+}
+
+func TestResearcherCannotTurnAnOutOfCatalogModelChoiceIntoAProviderCall(t *testing.T) {
+	researcherRole(t)
+	var input, output bytes.Buffer
+	enc := json.NewEncoder(&input)
+	enc.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Attempt a web read", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "crm.read", Description: "Read synthetic CRM", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
+	for range workerprotocol.MaxTurns {
+		enc.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.read","resource":"web:public-pages","input":"https://example.com/","answer":""}`})
+	}
+	if !errors.Is(run(&input, &output), workerprotocol.ErrTurnLimit) {
+		t.Fatal("out-of-catalog model actions must not complete")
+	}
+	dec := json.NewDecoder(&output)
+	for dec.More() {
+		var message workerprotocol.Message
+		if err := dec.Decode(&message); err != nil {
+			t.Fatal(err)
+		}
+		if message.Result != "" || message.Operation == nil || message.Operation.Kind != "model" {
+			t.Fatal("invalid tool choice escaped the agent action boundary")
+		}
+	}
+}

@@ -19,7 +19,7 @@ export function useConnection(parts: string[], revision: number) {
     // Consume the decoded array: production optimizers can remove an unused
     // decode call, including its validation side effect.
     const decodedParts = parts.map(part => decodeURIComponent(part));
-    if (decodedParts[0] === 'work' && decodedParts[1] && decodedParts[1] !== 'new') ref = decodedParts[1];
+    if (decodedParts[0] === 'work' && decodedParts[1] && decodedParts[1].split('?')[0] !== 'new') ref = decodedParts[1];
   } catch {
     routeError = 'Invalid work reference.';
   }

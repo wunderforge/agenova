@@ -190,6 +190,8 @@ func checkMemberSchema(ctx context.Context, db *sql.DB) error {
 		"SELECT id_hash,payload,expires_at,version FROM agenova_browser_sessions LIMIT 0",
 		"SELECT id_hash,payload,expires_at,attempt_kind,source_hash FROM agenova_login_attempts LIMIT 0",
 		"SELECT actor,operation,principal FROM agenova_identity_audit LIMIT 0",
+		"SELECT team,display_name,description FROM agenova_organization_metadata LIMIT 0",
+		"SELECT team,project,id,version,actor,activated_at FROM agenova_policy_activations LIMIT 0",
 	} {
 		rows, err := db.QueryContext(ctx, query)
 		if err != nil {
@@ -294,6 +296,7 @@ func (d *memberDependencies) handler(service *console.Service) (http.Handler, er
 	mux.Handle("/api/invitations", invitations.Handler(invitationService, d.boundary))
 	mux.Handle("/api/platform/authorize", d.platformAuthorizationHandler())
 	mux.Handle("/api/governance", d.governanceHandler())
+	mux.Handle("/api/organization", d.organizationHandler())
 	if d.config.RegistrationTeam != "" {
 		mux.Handle("/api/access-requests", invitations.AccessRequestHandler(d.store, d.boundary, os.Getenv("AGENOVA_PLATFORM_NAME")))
 	}

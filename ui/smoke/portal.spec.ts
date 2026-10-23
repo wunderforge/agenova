@@ -112,8 +112,8 @@ test('connected view keeps the route but never shows illustrative work or a fals
   await expect(page.getByText('Team A engineer')).toHaveCount(0);
   await page.reload();
   await expect(page.getByText('The connection is unavailable. Try again.')).toBeVisible();
-  await page.getByRole('button', { name: 'Demo', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Update invoice retry tests' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open example workspace ↗', exact: true }).click();
+  await expect(page.getByText('Example data',{exact:true})).toBeVisible();
   await page.screenshot({ path: info.outputPath('portal-demo-restored.png'), fullPage: true });
 });
 

@@ -21,6 +21,8 @@ type Tool struct {
 	ResourceScope string   `json:"resourceScope"`
 	Parameter     string   `json:"parameter"`
 	AllowedValues []string `json:"allowedValues"`
+	InputMode     string   `json:"inputMode,omitempty"`
+	MaxBytes      int      `json:"maxBytes,omitempty"`
 	// Synthetic labels the explicitly selected legacy mock fixture.
 	Synthetic bool `json:"synthetic,omitempty"`
 }

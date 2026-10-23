@@ -68,7 +68,7 @@ func (r ProjectRegistry) Template(name string) (*v0.AgentTemplate, error) {
 
 // ApplyGovernance commits immutable registration, policy activation and audit
 // together. Actor row locking serializes against all current grant/revoke paths.
-func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kind string, data []byte, validate func(*v0.AgentTemplate) error) (registration.Result, error) {
+func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kind string, data []byte, validate func(*v0.AgentTemplate) error, expected ...*v0.PolicyReference) (registration.Result, error) {
 	var out registration.Result
 	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" || project == "" || len(project) > 128 || len(data) > 1<<20 {
 		return out, authentication.ErrForbidden
@@ -126,6 +126,19 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 	}
 	var changed bool
 	if kind == "policy" {
+		if len(expected) > 1 {
+			return out, registration.ErrConflict
+		}
+		if len(expected) == 1 && expected[0] != nil {
+			var current v0.PolicyReference
+			e := tx.QueryRowContext(ctx, `SELECT id,version FROM agenova_project_policy_active WHERE team=$1 AND project=$2`, p.Team, project).Scan(&current.ID, &current.Version)
+			if e != nil && !errors.Is(e, sql.ErrNoRows) {
+				return out, errors.New("policy precondition unavailable")
+			}
+			if current != *expected[0] {
+				return out, registration.ErrConflict
+			}
+		}
 		result, e := tx.ExecContext(ctx, `INSERT INTO agenova_project_policies VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, p.Team, project, name, version, document)
 		if e != nil {
 			return out, errors.New("policy registration unavailable")
@@ -143,6 +156,9 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 		n, _ = result.RowsAffected()
 		changed = changed || n > 0
 		out.Active = true
+		if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_policy_activations(team,project,id,version,actor) VALUES($1,$2,$3,$4,$5)`, p.Team, project, name, version, p.Subject); err != nil {
+			return out, errors.New("policy activation audit unavailable")
+		}
 	} else {
 		result, e := tx.ExecContext(ctx, `INSERT INTO agenova_project_templates VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, p.Team, project, name, document)
 		if e != nil {

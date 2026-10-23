@@ -53,7 +53,7 @@ test('Administration and every management section use June in both themes and on
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1040 });
   await admin(page);
-  await expect(page.getByRole('heading', { name: 'pending@example.test' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit member@example.test' })).toBeVisible();
   for (const colorScheme of ['dark', 'light'] as const) {
     await page.emulateMedia({ colorScheme });
     await expect(page.locator('.admin-shell')).toHaveCSS('background-color', 'rgb(250, 249, 252)');
@@ -62,7 +62,7 @@ test('Administration and every management section use June in both themes and on
   }
   await page.screenshot({ path: info.outputPath('june-administration-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const name of ['Users', 'Access requests', 'Policy & Templates', 'Roles & permissions']) {
+  for (const name of ['Users', 'Access requests', 'Policy & Templates']) {
     await page.getByRole('navigation', { name: 'Administration', exact: true }).getByRole('link', { name, exact: true }).click();
     await expect(page.getByRole('heading', { name, exact: true })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -73,15 +73,17 @@ test('Administration and every management section use June in both themes and on
 
 test('management controls still load, validate and submit only their existing API shapes', async ({ page }) => {
   const posts = await admin(page);
-  await expect(page.getByRole('heading', { name: 'pending@example.test' })).toBeVisible();
-  await page.getByLabel('Role for member@example.test').selectOption('platform-operator');
+  await page.getByRole('button',{name:'Edit member@example.test',exact:true}).click();
+  await page.getByLabel('Role for member@example.test',{exact:true}).selectOption('platform-operator');
   await page.getByRole('button', { name: 'Save role', exact: true }).click();
-  await expect(page.locator('#member-notice')).toHaveText('User access updated.');
+  await expect(page.locator('#member-notice')).toContainText('User access updated.');
   expect(posts[0]).toEqual({ path: '/api/members', body: { principal: 'member', action: 'platform-role', role: 'platform-operator', project: 'payments' } });
+  await page.getByRole('link',{name:'Access requests',exact:true}).click();
   await page.getByLabel('Project for pending@example.test').fill('payments');
   await page.getByRole('button', { name: 'Approve access', exact: true }).click();
   await expect.poll(() => posts.length).toBe(2);
   expect(posts[1]).toEqual({ path: '/api/access-requests', body: { id: 'pending', action: 'approve', platformRole: 'member', project: 'payments' } });
+  await page.getByRole('link',{name:'Policy & Templates',exact:true}).click();
   await page.locator('#governance-load').click();
   await expect(page.locator('#governance-document')).toBeEnabled();
   await page.locator('#governance-document').fill('not json');

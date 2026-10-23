@@ -738,7 +738,11 @@ func (s *Service) workCatalog(authority *v0.EffectiveAuthority) []workerprotocol
 	entries := s.tools.Catalog().Intersect(authority.Tools, authority.ResourceScopes).Entries()
 	tools := make([]workerprotocol.Tool, 0, len(entries))
 	for _, entry := range entries {
-		tools = append(tools, workerprotocol.Tool{Operation: entry.Operation, Description: entry.Description, ResourceScope: entry.ResourceScope, Parameter: entry.Parameter, AllowedValues: entry.AllowedValues})
+		tool := workerprotocol.Tool{Operation: entry.Operation, Description: entry.Description, ResourceScope: entry.ResourceScope, Parameter: entry.Parameter, AllowedValues: entry.AllowedValues, InputMode: entry.InputMode}
+		if entry.InputMode == "text" {
+			tool.MaxBytes = entry.MaxBytes
+		}
+		tools = append(tools, tool)
 	}
 	return tools
 }

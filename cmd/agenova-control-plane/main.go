@@ -314,12 +314,18 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			if err != nil {
 				return console.Setup{}, err
 			}
-			if len(templates) != 1 {
-				return console.Setup{}, fmt.Errorf("reference Portal requires exactly one registered AgentTemplate")
+			var first *v0.AgentTemplate
+			names := []string{}
+			for _, t := range templates {
+				if first == nil {
+					first = t
+				}
+				names = append(names, t.Metadata.Name)
 			}
-			return console.Setup{Principal: setupPrincipal, Template: templates[0], Policy: bundle,
-				Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": toolStatus, "memory": "notConnected"},
-				Installation: console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
+			return console.Setup{Principal: setupPrincipal, Template: first, Templates: names, Policy: bundle, PlatformInfo: console.ProjectPlatform(resolved),
+				Observability: &console.ObservabilityInfo{Enabled: endpoint != "", Endpoint: endpoint, ExportFailures: diagnostic.Failures(), Ingestion: "notVerified", DiagnosticURL: console.SafeDiagnosticURL(os.Getenv("AGENOVA_DIAGNOSTICS_URL"))},
+				Capabilities:  map[string]string{"taskSubmission": "ready", "runtime": "configured", "model": "configured", "tool": toolStatus, "memory": "notConnected"},
+				Installation:  console.InstallationIdentity{Kind: "installed", Platform: resolved.PlatformName, Revision: resolved.Revision}}, nil
 		},
 		PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 			var source interface {
@@ -378,12 +384,26 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 				return console.Setup{}, err
 			}
 			view.Principal = p
+			console.ScopePlatform(&view, memberStore.IsOperator(ctx, p))
 			view.Projects = projects
+			submitProjects := []string{}
+			for _, name := range projects {
+				if memberStore.Authorize(ctx, p, identitydb.SubmitWork, name) == nil {
+					submitProjects = append(submitProjects, name)
+				}
+			}
+			view.SubmissionProjects = &submitProjects
+			organization, orgErr := memberStore.Organization(ctx, p)
+			if orgErr != nil {
+				return console.Setup{}, orgErr
+			}
+			view.Organization = &console.OrganizationInfo{ID: organization.ID, DisplayName: organization.DisplayName, Description: organization.Description}
 			if project == "" && len(projects) > 0 {
 				project = projects[0]
 			}
 			if project == "" {
 				view.Template = nil
+				view.Templates = []string{}
 				view.Policy = policy.PolicyBundle{ID: "no-project-access", Version: "1", Rules: []policy.Rule{}}
 				return view, nil
 			}
@@ -403,7 +423,7 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 				}
 			}
 			view.Policy.Rules = visible
-			defaults := []string{}
+			defaults := append([]string(nil), view.Templates...)
 			if view.Template != nil {
 				defaults = append(defaults, view.Template.Metadata.Name)
 			}
@@ -413,6 +433,10 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 			}
 			if template == "" && len(view.Templates) > 0 {
 				template = view.Templates[0]
+			}
+			if len(view.Templates) == 0 {
+				view.Template = nil
+				return view, nil
 			}
 			if !slices.Contains(view.Templates, template) {
 				return console.Setup{}, fmt.Errorf("template unavailable")
