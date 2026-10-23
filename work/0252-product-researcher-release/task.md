@@ -1,0 +1,77 @@
+# Task: Release accepted product journey and real-model Researcher
+
+- Ticket: [#252](https://github.com/wunderforge/agenova/issues/252)
+- Mission: release the owner-accepted product and real-model Researcher while preserving existing applications/data.
+- Target: member Portal/API/SQL, research MCP and separate controlled-v1 Agent image.
+- User value: two business tasks with distinct Work permissions and actual model/tool evidence.
+- PRD outcome: [declarative access, facts and contributor journey](../../docs/product/prd.md).
+
+## Context to Read
+
+Always:
+
+- `AGENTS.md`
+- `docs/product/prd.md`
+- this task packet
+
+Additional task-specific context:
+
+- [Architecture](../../docs/product/architecture-contract.md), [accepted spec](../0218-final-demo-product/spec.md), [local evidence](../0218-final-demo-product/acceptance.md), [release sequence](../0218-final-demo-product/release.md).
+- [Image contract](../../docs/development/agent-images.md), [shared CI/CD](../../docs/development/shared-eks-release.md), [MCP application](../../harness/demo/research-mcp/README.md).
+- Harness playbook: Add a User-Facing Demo Slice and quality gates.
+
+## Scope
+
+In scope:
+
+- Owner-approved product slice, keyless public HTTPS and synthetic CRM; separate model-driven Researcher; 010/011/minimal grants; compatible rollback, controlled release and cloud checks. Parent epic #218 is not closed by this ticket.
+
+Out of scope:
+
+- New model IAM, nodes/DB/PVC/Grafana, keyword-search service, direct Agent public egress, #247 changes, marketplace and authentication bypass.
+
+## Acceptance Criteria
+
+- Source/normal CI pass; keep the recorded Windows-only prior failure explicit.
+- Same caller/template/project: distinct grants, actual model-selected tools/observations and source-grounded answers reviewed separately from execution success.
+- Preserve existing Google/member and Agent/project/tool flows and historical data.
+- Verify schema/checksums/minimal grants, compatibility rollback and temporary operator cleanup; hand over actual images/source and real Work/UI links.
+
+## Negative Case
+
+- Missing tool/scope yields no unauthorized downstream calls. Model self-refusal is not Gateway blocking. Out-of-catalog actions remain rejected by the existing host; explicit Gateway probes require independent zero receipts.
+- No completed Researcher answer without observations. No direct Pod public authority. No synthetic preview deployed.
+
+## Execution Todo
+
+- [x] Scout the relevant implementation, tests, risks, and dependencies.
+- [x] Self-review: Agent role does not grant access or alter generic Worker/host rules; task prose is never authority.
+- [x] Separate Researcher image, model-selected text-input tests, no-observation failure and grant-scope tests.
+- [x] Preserve local UI/SQL/MCP evidence; build compatible rollback from 43ce35c.
+- [ ] Publish exact artifacts and pass Linux CI/review.
+- [ ] Quiet-window migration/grants and temporary credential cleanup.
+- [ ] Control-plane/MCP release and research registration; real model, negative, legacy and cleanup acceptance.
+- [ ] Run the focused gate and `./scripts/check.ps1 -All`.
+- [ ] Review the diff for scope, regressions, and source-of-truth updates.
+
+## Quality Gates
+
+- `go test ./cmd/agenova-demo-worker ./internal/workerprotocol ./internal/runtime/agentsandbox ./tools/product-release-migrate -count=1`
+- `python harness/demo/research-mcp/build-worker.py`
+- UI build/unit/smoke and local actual API/SQL/MCP journeys from linked acceptance.
+- `.\scripts\check.ps1 -All`
+
+## Evidence Required
+
+- Source/digests, schema/grant and cleanup summaries; actual model/provider evidence, independent MCP receipts, reviewed answers and current UI screenshots. Native isolation proof remains separate.
+
+## Constraints
+
+- Preserve `docs/product/architecture-contract.md`.
+- Do not broaden the Ticket or PRD without a recorded human decision.
+- Preserve all existing topology and histories. One exact RDS managed Secret is approved only for a temporary trusted migration; no credential logging/local file/Agent exposure. New administrator merge bypass is not implied.
+
+## Decisions and Blockers
+
+- AWS and personal CLI login refreshed. Owner approved 010/011 and minimal grants. Existing model is Nova Micro; real answer quality remains pending. Do not expand model IAM to pass tests. See linked release sequence.
+

@@ -1,6 +1,6 @@
 # Task: Locally acceptable final-demo product journey
 
-- Ticket: [E20 #218](https://github.com/wunderforge/agenova/issues/218)
+- Ticket: [release #252](https://github.com/wunderforge/agenova/issues/252), parent [E20 #218](https://github.com/wunderforge/agenova/issues/218)
 - Owner: wunderforge; approved implementation scope: owner's 23 October 2026 request and `../../../agenova-demo-deliverables/Agenova-Demo-Product-Improvement-Plan-20261023.md` in the parent workspace.
 - Mission: implement the approved local product journey using canonical requests and evidence, without publishing, merging, deploying, cloud changes or fabricated enforcement claims.
 - Targets: connected Portal, administration BFF/PostgreSQL management, public landing and repeatable local acceptance.
