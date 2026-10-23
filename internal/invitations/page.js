@@ -35,7 +35,7 @@ async function refreshMembers(){
   for(const m of rows){
    const who=m.email||m.principal,role=roleOf(m),row=node('article');row.className='member';
    row.append(node('h3',who),node('p',`${role==='owner'?'Owner':titles[role]||'Legacy permissions — review required'} · ${m.active?'Active':'Disabled'}`));
-   row.append(node('small',role==='owner'?'Configuration access: all organization projects. Work Policy still applies.':m.projects.length?'Projects: '+m.projects.map(g=>g.project).join(', '):'No business project access'));
+   row.append(node('small',role==='owner'||role==='platform-admin'?'Configuration access: all organization projects. Work Policy still applies.':m.projects.length?'Projects: '+m.projects.map(g=>g.project).join(', '):'No business project access'));
    if(role==='platform-operator')row.append(node('small','Installations: '+m.roles.map(g=>g.scopeRef).join(', ')));
    if(m.accountRole!=='owner' && admin && m.principal!==me.subject){
     const form=node('form');form.className='member-actions';
@@ -57,7 +57,7 @@ async function refreshMembers(){
     const toggle=node('button',m.active?'Disable user':'Enable user');toggle.type='button';toggle.addEventListener('click',()=>changeMember({principal:m.principal,action:m.active?'disable':'enable'},toggle));if(owner || m.accountRole!=='admin' && !(m.roles||[]).length)row.append(toggle);
    }
    const summary=node('tr');summary.dataset.search=(who+' '+m.principal+' '+m.projects.map(g=>g.project).join(' ')).toLowerCase();
-   summary.append(node('td',who),node('td',role==='owner'?'Owner':titles[role]||'Scoped roles'),node('td',role==='owner'?'All organization projects':m.projects.map(g=>g.project+' · '+g.role).join(', ')||'No project access'),node('td',m.active?'Active':'Disabled'));
+   summary.append(node('td',who),node('td',role==='owner'?'Owner':titles[role]||'Scoped roles'),node('td',role==='owner'||role==='platform-admin'?'All organization projects':m.projects.map(g=>g.project+' · '+g.role).join(', ')||'No project access'),node('td',m.active?'Active':'Disabled'));
    const action=node('td'),edit=node('button',role==='owner'?'View':'Edit');edit.type='button';edit.setAttribute('aria-label',(role==='owner'?'View ':'Edit ')+who);edit.addEventListener('click',()=>{document.querySelector('#member-editor-title').textContent=(role==='owner'?'User details':'Edit user')+' · '+who;const content=document.querySelector('#member-editor-content');content.replaceChildren(row);const status=node('p');status.setAttribute('role','status');content.append(status);document.querySelector('#member-editor').showModal();});action.append(edit);summary.append(action);body.append(summary);
   }
   if(!document.querySelector('#governance-project').options.length || !document.querySelector('#governance-project').value){const names=[...new Set(rows.flatMap(m=>m.projects.map(g=>g.project)))];const el=document.querySelector('#governance-project');el.replaceChildren();for(const name of names){const o=node('option',name);el.append(o);}}

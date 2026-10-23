@@ -14,9 +14,14 @@ are denied. Demotion takes effect on the next operation. Work Policy, Template
 limits, requested access and runtime restrictions still independently determine
 each Work's authority. Cloud IAM/RBAC remains independent.
 
-Owner-only account promotion, privileged delegation and confirmed ownership
-transfer remain unchanged. Creating a new Owner is not part of project creation.
-The existing last-Owner and atomic transfer guards remain in force.
+Raw account-role promotion, explicit scoped-role delegation, confirmed ownership
+transfer and last-Owner guards remain Owner-only. The legacy `platform-role`
+mutation separately permits some explicitly project-authorized Admins to assign
+operational roles within their existing grant boundary. This mutation has NOT
+been expanded by organization-wide Work/configuration access. Whether to tighten
+that legacy delegation to Owner-only is awaiting the human Owner decision; do
+not release until this is settled. Creating a new Owner is never part of project
+creation.
 
 ## Create a project
 

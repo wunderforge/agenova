@@ -94,6 +94,26 @@ test('management controls still load, validate and submit only their existing AP
   await expect(page.locator('.admin-sidebar form')).toHaveAttribute('method', 'post');
 });
 
+test('account Admin without explicit grants displays organization-wide access',async({page})=>{
+ const accountAdmin={principal:'account-admin',email:'admin@example.test',accountRole:'admin',active:true,projects:[],roles:[]};
+ await page.route('**/admin',route=>route.fulfill({contentType:'text/html',body:html,headers:{'Content-Security-Policy':csp}}));
+ await page.route('**/auth/me',route=>route.fulfill({json:{subject:accountAdmin.principal}}));
+ await page.route('**/api/**',route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==='/api/members')return route.fulfill({json:[owner,accountAdmin,member]});
+  if(path==='/api/access-requests')return route.fulfill({json:[]});
+  if(path==='/api/setup')return route.fulfill({json:{project:'research',projects:['payments','research'],policy:{ID:'fixture',Version:'1',Rules:[]}}});
+  return route.fulfill({status:404});
+ });
+ await page.goto('/admin');
+ const row=page.getByRole('row').filter({hasText:accountAdmin.email});
+ await expect(row).toContainText('All organization projects');
+ await expect(row).not.toContainText('No project access');
+ await page.getByRole('button',{name:'Edit '+accountAdmin.email,exact:true}).click();
+ await expect(page.locator('#member-editor')).toContainText('Configuration access: all organization projects. Work Policy still applies.');
+ await expect(page.locator('#member-editor')).not.toContainText('No business project access');
+});
+
 test('empty and failed management states keep safe controls and readable June cards', async ({ page }, info) => {
   await admin(page, 'empty');
   await expect(page.locator('#access-notice')).toHaveText('No pending access requests.');

@@ -75,6 +75,14 @@ Out of scope:
 
 ## Decisions and Blockers
 
+- Follow-up review found the expanded project predicate would also broaden the
+  legacy `platform-role` delegation path. Restored its exact prior project/target
+  guards while retaining organization-wide Work/configuration access. Human
+  decision pending: retain that restricted delegation, or tighten privileged
+  role assignment to Owner-only. No merge/migration/deployment until settled.
+- Administration now displays all-organization access for account Admins even
+  without explicit project grants, rather than falsely saying no project access.
+
 - Independent PR review: use serving-installation authorization for topology,
   track cleanup candidates before ambiguous creates, suppress current rules in
   historical Policy mode, and explicitly reject >100-version histories. Focused
