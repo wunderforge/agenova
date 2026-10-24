@@ -9,13 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 func nativeEvidenceFixture() string {
 	base := installedEvidenceJSON("demo", "Succeeded")
 	base = strings.Replace(base, `"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, `"requestedAccess":{"modelProfile":"coding-standard"},"runtime":{"profileRef":"standard-isolated","timeout":"1m"}}},"facts"`, 1)
 	base = strings.ReplaceAll(base, `"effectiveAuthority":{"id":"authority:demo"`, `"effectiveAuthority":{"id":"authority:demo","modelProfile":"coding-standard"`)
+	base = strings.Replace(base, `"outcome":{"status":"Succeeded"}`, `"outcome":{"status":"Succeeded","text":"Direct HTTPS timed out.","model":{"invocationId":"inv:finish","model":"test-model","inputTokens":1,"outputTokens":1}}`, 1)
 	decision := `{"id":"decision","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
 	attempt := `{"id":"attempt","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
 	provider := `{"id":"provider","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":"coding-standard","providerStatus":"Succeeded"}`
@@ -27,7 +30,12 @@ func nativeEvidenceFixture() string {
 	end := native("native-end", "NativeHTTPSObservation", "worker-native-tcp-timeout", `Worker-reported native HTTPS observation (not independently verified CNI enforcement): {"phase":"tcp","result":"timeout","ip":"172.64.154.22","milliseconds":5000}`, 12)
 	terminal := `{"id":"terminal","sequence":13,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	outcome := `{"id":"outcome","sequence":14,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
-	return withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provider, action, start, end, terminal, outcome))
+	finish := func(source string) string {
+		return strings.Replace(strings.ReplaceAll(source, `"inv:demo"`, `"inv:finish"`), `"id":"`, `"id":"finish:`, 1)
+	}
+	finishAction := strings.Replace(finish(action), `"agent-action-native"`, `"agent-action-valid"`, 1)
+	final := `{"id":"final-answer","sequence":17,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","operation":"FinalAnswer"}`
+	return withTeardown(withEvidenceFacts(base, receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provider, action, start, end, finish(decision), finish(attempt), finish(provider), finishAction, final, terminal, outcome))
 }
 
 func TestNativeWorkerEvidenceRequiresBoundedCorrelatedOriginalWorker(t *testing.T) {
@@ -36,6 +44,11 @@ func TestNativeWorkerEvidenceRequiresBoundedCorrelatedOriginalWorker(t *testing.
 		t.Fatalf("canonical native evidence rejected: %v", err)
 	}
 	for name, mutate := range map[string]func(*evidence.View){
+		"success without observation or finish": func(v *evidence.View) { v.Facts = append(v.Facts[:11], v.Facts[17:]...); v.Outcome.Model = nil },
+		"success without finishing model":       func(v *evidence.View) { v.Facts = append(v.Facts[:12], v.Facts[17:]...); v.Outcome.Model = nil },
+		"success without final answer":          func(v *evidence.View) { v.Facts = append(v.Facts[:16], v.Facts[17:]...) },
+		"success without outcome model":         func(v *evidence.View) { v.Outcome.Model = nil },
+		"nonfinishing final model action":       func(v *evidence.View) { v.Facts[15].ReasonCode = "agent-action-tool" },
 		"interleaved successful model action": func(v *evidence.View) {
 			insert := append(v.Facts[:0:0], v.Facts[6:10]...)
 			for i := range insert {
@@ -73,5 +86,59 @@ func TestNativeWorkerEvidenceRequiresBoundedCorrelatedOriginalWorker(t *testing.
 				t.Fatal("unsafe native evidence accepted")
 			}
 		})
+	}
+}
+
+func TestFailedNativeAttemptMayLackObservation(t *testing.T) {
+	var v evidence.View
+	if err := json.Unmarshal([]byte(nativeEvidenceFixture()), &v); err != nil {
+		t.Fatal(err)
+	}
+	v.Facts = append(v.Facts[:11], v.Facts[17:]...)
+	v.State.Claim.Phase = v0.ClaimPhaseFailed
+	v.Outcome.Status, v.Outcome.Failure, v.Outcome.Model = "Failed", "synthetic failure", nil
+	v.Outcome.Text = ""
+	for i := range v.Facts {
+		if v.Facts[i].Kind == "Runtime" && v.Facts[i].Operation == "Succeeded" {
+			v.Facts[i].Operation = "Failed"
+		}
+		if v.Facts[i].Kind == "RunOutcome" {
+			v.Facts[i].Operation = "Failed"
+			v.Facts[i].Reason = "synthetic failure"
+		}
+	}
+	for i := range v.State.Evidence.RuntimeEvents {
+		if v.State.Evidence.RuntimeEvents[i].Kind == "Succeeded" {
+			v.State.Evidence.RuntimeEvents[i].Kind = "Failed"
+		}
+	}
+	b, _ := json.Marshal(v)
+	if _, err := decodeView(b, "demo"); err != nil {
+		t.Fatalf("interrupted native attempt must remain readable: %v", err)
+	}
+}
+
+func TestNativeObservationPhaseRelationships(t *testing.T) {
+	for _, n := range []workerprotocol.NativeObservation{
+		{Phase: "dns", Result: "error"}, {Phase: "dns", Result: "timeout"},
+		{Phase: "tcp", Result: "timeout", IP: "172.64.154.22"}, {Phase: "tls", Result: "error", IP: "172.64.154.22"},
+		{Phase: "http", Result: "received", IP: "172.64.154.22", StatusCode: 200},
+		{Phase: "http", Result: "timeout", IP: "172.64.154.22", StatusCode: 200},
+		{Phase: "http", Result: "error", IP: "172.64.154.22"},
+	} {
+		if !validNativeReport(&n) {
+			t.Fatalf("valid report rejected: %+v", n)
+		}
+	}
+	for _, n := range []workerprotocol.NativeObservation{
+		{Phase: "dns", Result: "received", StatusCode: 200}, {Phase: "dns", Result: "error", IP: "172.64.154.22"},
+		{Phase: "tcp", Result: "error"}, {Phase: "tls", Result: "received", IP: "172.64.154.22"},
+		{Phase: "tcp", Result: "timeout", IP: "172.64.154.22", StatusCode: 200},
+		{Phase: "http", Result: "received", IP: "172.64.154.22"},
+		{Phase: "http", Result: "error", IP: "172.64.154.22", StatusCode: 99},
+	} {
+		if validNativeReport(&n) {
+			t.Fatalf("impossible report accepted: %+v", n)
+		}
 	}
 }

@@ -73,6 +73,31 @@ worker report as a CNI verdict or grant. Focused tests must reject unbound,
 replaced, unordered, private-IP, mismatched-code and claimed-firewall reports.
 No Gateway/provider/runtime/network rules or authority semantics change.
 
+### Short-demo closeout (24 October)
+
+Owner explicitly authorized administrator merge only for #259 after all gates,
+then prioritized the short Demo: stable public/CRM positive runs, same-task
+missing-Web/native isolation proof and readable UI evidence. Reuse #257/#258 UI
+and exact reference image; no new features, services or wider security project.
+
+Deduplication checked live: main remains #258 and #259 remains open at bc4f3ae;
+the prompt and native interleaving fix already exist. Only remaining review
+invariants are added: succeeded native runs require the observation and a later
+correlated model finish/FinalAnswer/Outcome.Model; reference report phase/IP/status
+relationships must be possible. Failed interrupted attempts remain readable.
+The stricter report projection is CLI-local; no reference-image input changes.
+
+CI's repeated 20ms bind-setup timeout is in the fake adapter, not production.
+Use a 1s positive bind setup budget; retain the explicit 20ms timeout case and
+existing cleanup/cancellation deadlines. Focused suites and 15 repeats of the
+affected cold-recovery/cancellation/lifetime cases pass. Full Linux CI/review and
+real cloud campaign remain required; no unknown submission retries.
+
+AWS and personal CLI logins expired during the discussion; normal user login is
+requested. No cloud configuration changes before access is restored. The single
+approved AWS success-control Pod has not yet been used. Local kind evidence is
+retained and its dedicated cluster was already removed.
+
 ## Quality Gates
 
 Focused Go packages; npm --prefix ui run check; ./scripts/check.ps1 -All; actual Pod network checks in an enforcing CNI; positive web/CRM and missing-web real-model runs; image/Policy/Work/Pod attribution. Failures stop broad expansion. Existing platform-specific gate failures remain explicit.
