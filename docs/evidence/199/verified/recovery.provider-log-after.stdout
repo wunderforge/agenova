@@ -1,0 +1,20 @@
+Couldn't find '/root/.ollama/id_ed25519'. Generating new private key.
+Your new public key is: 
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILT8UqSgZPTVHO1jMv8jNVUvkdRkhHpRds9jUHtGjJ3q
+
+[GIN] 2026/10/19 - 05:10:07 | 200 |       1.695ms |      172.17.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 05:10:19 | 200 | 11.487118798s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:10:23 | 200 |  4.139429501s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:10:26 | 200 |      71.333µs |       127.0.0.1 | HEAD     "/"
+[GIN] 2026/10/19 - 05:10:26 | 200 |    1.142792ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 05:10:38 | 200 | 11.230568797s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:10:42 | 200 |  3.542118793s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:11:25 | 200 |    3.899708ms |      172.17.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 05:11:30 | 200 |  4.052326586s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:11:32 | 200 |  2.207579584s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:11:35 | 200 |      53.708µs |       127.0.0.1 | HEAD     "/"
+[GIN] 2026/10/19 - 05:11:35 | 200 |     962.167µs |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 05:11:35 | 200 |    1.221417ms |      172.17.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 05:11:45 | 200 |  9.518334005s |      172.17.0.1 | POST     "/v1/chat/completions"
+[GIN] 2026/10/19 - 05:11:48 | 200 |   3.04129846s |      172.17.0.1 | POST     "/v1/chat/completions"

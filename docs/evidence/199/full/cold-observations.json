@@ -1,0 +1,9 @@
+{
+  "allTerminal": true,
+  "noSucceeded": true,
+  "workSpecDeadlines": [
+    "15s",
+    "8s"
+  ],
+  "allocationAdapterWait": "60s synchronous boundary; not immediate deadline interruption"
+}

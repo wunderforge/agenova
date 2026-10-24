@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "kubectl",
+    "--kubeconfig",
+    ".tmp/faults.kubeconfig",
+    "--context",
+    "kind-agenova-e15-199-faults",
+    "wait",
+    "--for=delete",
+    "namespace/agenova-e15-199-full",
+    "--timeout=120s"
+  ],
+  "exit": 0
+}

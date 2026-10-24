@@ -1,0 +1,254 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "annotations": {
+                    "agents.x-k8s.io/propagated-labels": "agents.x-k8s.io/sandbox-pod-template-hash,agents.x-k8s.io/sandbox-template-ref-hash,agents.x-k8s.io/warm-pool-sandbox"
+                },
+                "creationTimestamp": "2026-10-19T12:34:49Z",
+                "generation": 1,
+                "labels": {
+                    "agents.x-k8s.io/sandbox-name-hash": "0890fc13",
+                    "agents.x-k8s.io/sandbox-pod-template-hash": "2d5fd3d1",
+                    "agents.x-k8s.io/sandbox-template-ref-hash": "b19f624d",
+                    "agents.x-k8s.io/warm-pool-sandbox": "e95531c3"
+                },
+                "name": "agenova-pool-terminal-pool-xmh6f",
+                "namespace": "agenova-e15-199-terminal",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "agents.x-k8s.io/v1alpha1",
+                        "blockOwnerDeletion": true,
+                        "controller": true,
+                        "kind": "Sandbox",
+                        "name": "agenova-pool-terminal-pool-xmh6f",
+                        "uid": "f14f5ace-e269-493d-a674-028b3851fa33"
+                    }
+                ],
+                "resourceVersion": "5734",
+                "uid": "bfab29b7-f4a8-403a-b2be-61eda58648f6"
+            },
+            "spec": {
+                "automountServiceAccountToken": false,
+                "containers": [
+                    {
+                        "command": [
+                            "/agenova-workerctl",
+                            "serve"
+                        ],
+                        "image": "agenova-testworker:kind",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "agent",
+                        "resources": {},
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File"
+                    }
+                ],
+                "dnsConfig": {
+                    "nameservers": [
+                        "8.8.8.8",
+                        "1.1.1.1"
+                    ]
+                },
+                "dnsPolicy": "None",
+                "enableServiceLinks": true,
+                "nodeName": "agenova-e15-199-faults-control-plane",
+                "preemptionPolicy": "PreemptLowerPriority",
+                "priority": 0,
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "default",
+                "serviceAccountName": "default",
+                "terminationGracePeriodSeconds": 30,
+                "tolerations": [
+                    {
+                        "effect": "NoExecute",
+                        "key": "node.kubernetes.io/not-ready",
+                        "operator": "Exists",
+                        "tolerationSeconds": 300
+                    },
+                    {
+                        "effect": "NoExecute",
+                        "key": "node.kubernetes.io/unreachable",
+                        "operator": "Exists",
+                        "tolerationSeconds": 300
+                    }
+                ]
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "observedGeneration": 1,
+                        "status": "True",
+                        "type": "PodReadyToStartContainers"
+                    },
+                    {
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "observedGeneration": 1,
+                        "status": "True",
+                        "type": "Initialized"
+                    },
+                    {
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "observedGeneration": 1,
+                        "status": "True",
+                        "type": "Ready"
+                    },
+                    {
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "observedGeneration": 1,
+                        "status": "True",
+                        "type": "ContainersReady"
+                    },
+                    {
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "observedGeneration": 1,
+                        "status": "True",
+                        "type": "PodScheduled"
+                    }
+                ],
+                "containerStatuses": [
+                    {
+                        "containerID": "containerd://07fb17611788b1a44cd525bfd4de66f517af2e255ae90433cb18ecbe965da580",
+                        "image": "docker.io/library/agenova-testworker:kind",
+                        "imageID": "sha256:56b4af28584925b5a4f0bbb34f7d2103f8c4f68846e4cf7d32f5d3c7c0bd2956",
+                        "lastState": {},
+                        "name": "agent",
+                        "ready": true,
+                        "resources": {},
+                        "restartCount": 0,
+                        "started": true,
+                        "state": {
+                            "running": {
+                                "startedAt": "2026-10-19T12:34:49Z"
+                            }
+                        },
+                        "user": {
+                            "linux": {
+                                "gid": 0,
+                                "supplementalGroups": [
+                                    0
+                                ],
+                                "uid": 65532
+                            }
+                        }
+                    }
+                ],
+                "hostIP": "172.18.0.3",
+                "hostIPs": [
+                    {
+                        "ip": "172.18.0.3"
+                    }
+                ],
+                "observedGeneration": 1,
+                "phase": "Running",
+                "podIP": "10.244.0.62",
+                "podIPs": [
+                    {
+                        "ip": "10.244.0.62"
+                    }
+                ],
+                "qosClass": "BestEffort",
+                "resources": {},
+                "startTime": "2026-10-19T12:34:49Z"
+            }
+        },
+        {
+            "apiVersion": "agents.x-k8s.io/v1alpha1",
+            "kind": "Sandbox",
+            "metadata": {
+                "annotations": {
+                    "agents.x-k8s.io/pod-name": "agenova-pool-terminal-pool-xmh6f",
+                    "agents.x-k8s.io/sandbox-template-ref": "agenova-tmpl-reference-engineer-runtime"
+                },
+                "creationTimestamp": "2026-10-19T12:34:49Z",
+                "generateName": "agenova-pool-terminal-pool-",
+                "generation": 1,
+                "labels": {
+                    "agents.x-k8s.io/sandbox-pod-template-hash": "2d5fd3d1",
+                    "agents.x-k8s.io/sandbox-template-ref-hash": "b19f624d",
+                    "agents.x-k8s.io/warm-pool-sandbox": "e95531c3"
+                },
+                "name": "agenova-pool-terminal-pool-xmh6f",
+                "namespace": "agenova-e15-199-terminal",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "extensions.agents.x-k8s.io/v1alpha1",
+                        "blockOwnerDeletion": true,
+                        "controller": true,
+                        "kind": "SandboxWarmPool",
+                        "name": "agenova-pool-terminal-pool",
+                        "uid": "d304ff33-704a-4eb4-ac1e-4ca89a5735c1"
+                    }
+                ],
+                "resourceVersion": "5735",
+                "uid": "f14f5ace-e269-493d-a674-028b3851fa33"
+            },
+            "spec": {
+                "podTemplate": {
+                    "metadata": {
+                        "labels": {
+                            "agents.x-k8s.io/sandbox-pod-template-hash": "2d5fd3d1",
+                            "agents.x-k8s.io/sandbox-template-ref-hash": "b19f624d",
+                            "agents.x-k8s.io/warm-pool-sandbox": "e95531c3"
+                        }
+                    },
+                    "spec": {
+                        "automountServiceAccountToken": false,
+                        "containers": [
+                            {
+                                "command": [
+                                    "/agenova-workerctl",
+                                    "serve"
+                                ],
+                                "image": "agenova-testworker:kind",
+                                "name": "agent",
+                                "resources": {}
+                            }
+                        ],
+                        "dnsConfig": {
+                            "nameservers": [
+                                "8.8.8.8",
+                                "1.1.1.1"
+                            ]
+                        },
+                        "dnsPolicy": "None"
+                    }
+                },
+                "replicas": 1,
+                "shutdownPolicy": "Retain"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-19T12:34:49Z",
+                        "message": "Pod is Ready",
+                        "observedGeneration": 1,
+                        "reason": "DependenciesReady",
+                        "status": "True",
+                        "type": "Ready"
+                    }
+                ],
+                "podIPs": [
+                    "10.244.0.62"
+                ],
+                "replicas": 1,
+                "selector": "agents.x-k8s.io/sandbox-name-hash=0890fc13"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

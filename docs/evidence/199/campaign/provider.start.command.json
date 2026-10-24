@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "docker",
+    "start",
+    "802b940856c53358d27306333bd14bc5faac621e348d7357f196befd0e8f300e"
+  ],
+  "exit": 0
+}
