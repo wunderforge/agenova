@@ -109,7 +109,9 @@ func newTestAdapter(k *fakeKube) *SpikeAdapter {
 	a := newSpikeAdapter(k, "agenova-test")
 	a.poolRefs["tmpl-v1"] = "agenova-tmpl-tmpl-v1"
 	a.pools["my-pool"] = poolEntry{upstreamTemplateName: "agenova-tmpl-tmpl-v1", upstreamPoolName: "agenova-pool-my-pool", replicas: 1}
-	a.bindTimeout = 20 * time.Millisecond
+	// Positive allocation setup must not time out under go test -race scheduling.
+	// The explicit bind-timeout test keeps its own short deadline.
+	a.bindTimeout = time.Second
 	a.cleanupTimeout = 20 * time.Millisecond
 	a.pollInterval = time.Millisecond
 	return a
@@ -319,6 +321,7 @@ func TestAllocate_claimGoneButWorkerRemains_staysUnconfirmed(t *testing.T) {
 func TestAllocate_bindTimeoutRetainsRecordUntilWorkerIsProvenAbsent(t *testing.T) {
 	k := newFakeKube() // never binds
 	a := newTestAdapter(k)
+	a.bindTimeout = 20 * time.Millisecond
 	_, err := a.Allocate(runtime.AllocateRequest{ClaimID: "run-1", TemplateRef: "tmpl-v1"})
 	if err == nil || !strings.Contains(err.Error(), "bind timeout") {
 		t.Fatalf("error = %v, want bind timeout", err)

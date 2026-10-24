@@ -29,6 +29,7 @@ import (
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/history"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"gopkg.in/yaml.v3"
 )
 
@@ -338,6 +339,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	requiresNetworkLifecycle := view.State.EffectiveAuthority != nil && len(view.State.EffectiveAuthority.NetworkProfiles) > 0
 	runOutcomeReasonCode := ""
 	lastSucceededModelInvocation := ""
+	nativeSelected, nativeStarted, nativeObserved := false, false, false
+	nativeFinishInvocation := ""
+	nativeFinalAnswer := false
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
@@ -381,6 +385,14 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		if fact.InvocationID != "" && (view.State == nil || view.State.Claim == nil || fact.ClaimID != view.State.Claim.ID) {
+			return false
+		}
+		// The synchronous native exchange must finish before another Agent or
+		// provider action. Runtime cancellation/cleanup may still end an attempt
+		// without a report; it must not be reattributed to a later model action.
+		if nativeStarted && !nativeObserved &&
+			(fact.Kind == "WorkerActivity" && fact.Operation != "NativeHTTPSObservation" ||
+				fact.Kind == "ModelDecision" || fact.Kind == "ToolDecision" || fact.Kind == "ProviderAttempt" || fact.Kind == "ProviderOutcome") {
 			return false
 		}
 		if view.State != nil && view.State.Claim != nil && view.State.Claim.BackendIdentity == nil &&
@@ -557,6 +569,24 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		switch fact.Kind {
 		case "WorkerActivity":
 			switch fact.Operation {
+			case "NativeHTTPSAttempt", "NativeHTTPSObservation":
+				if fact.InvocationID != "" || fact.Target != "direct-https" || fact.BackendIdentity == nil ||
+					fact.Decision != nil || fact.Result != "" || fact.Authority != nil || len(fact.AuthorityChanges) != 0 || fact.ProviderStatus != "" || fact.PolicyRef != nil {
+					return false
+				}
+				if fact.Operation == "NativeHTTPSAttempt" {
+					if !nativeSelected || nativeStarted || fact.ReasonCode != "worker-native-attempt" || fact.Reason != "The original worker session selected a local HTTPS attempt; this record precedes the network request." {
+						return false
+					}
+					nativeSelected, nativeStarted = false, true
+				} else {
+					report, ok := strings.CutPrefix(fact.Reason, "Worker-reported native HTTPS observation (not independently verified CNI enforcement): ")
+					var observation workerprotocol.NativeObservation
+					if !nativeStarted || nativeObserved || !ok || len(report) > 512 || !decodeStrictJSON([]byte(report), &observation) || !validNativeReport(&observation) || fact.ReasonCode != "worker-native-"+observation.Phase+"-"+observation.Result {
+						return false
+					}
+					nativeObserved = true
+				}
 			case "ToolRequestRejected":
 				if fact.InvocationID != "" || fact.Target != "tool.invoke" || fact.ReasonCode != "tool-arguments-rejected" ||
 					fact.Reason != "Tool parameters do not match an installed route; no provider call was made." ||
@@ -567,6 +597,12 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			case "TurnStarted", "ActionReceived", "ObservationReceived", "FinalAnswer":
 				if fact.InvocationID != "" {
 					return false
+				}
+				if fact.Operation == "FinalAnswer" && nativeStarted {
+					if !nativeObserved || nativeFinishInvocation == "" || nativeFinishInvocation != lastSucceededModelInvocation {
+						return false
+					}
+					nativeFinalAnswer = true
 				}
 			case "ActionValidated":
 				if fact.InvocationID == "" {
@@ -583,6 +619,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				}
 				previous.stage = 4
 				invocations[fact.InvocationID] = previous
+				nativeSelected = fact.ReasonCode == "agent-action-native"
+				if nativeObserved && fact.ReasonCode == "agent-action-valid" {
+					nativeFinishInvocation = fact.InvocationID
+				}
 			}
 		case "ModelDecision", "ToolDecision":
 			expected := "model.invoke"
@@ -690,6 +730,10 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		return false
 	}
 	if view.Outcome != nil {
+		if view.Outcome.Status == "Succeeded" && nativeStarted &&
+			(!nativeObserved || !nativeFinalAnswer || view.Outcome.Model == nil || view.Outcome.Model.InvocationID != nativeFinishInvocation) {
+			return false
+		}
 		// A completed allocated Work with explicit network authority must record
 		// its release even if cancellation/failure won before activation. While
 		// teardown is in progress there is no Outcome, so terminal-phase polling
@@ -756,6 +800,27 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		// separately requires and correlates its real model invocation.
 	}
 	return true
+}
+
+// Validate the reference probe's field relationships, not a firewall verdict.
+// HTTP body errors may retain an HTTP status; earlier phases cannot have one.
+func validNativeReport(n *workerprotocol.NativeObservation) bool {
+	if !workerprotocol.ValidNative(n) {
+		return false
+	}
+	if n.Phase == "dns" {
+		return n.IP == "" && n.StatusCode == 0 && n.Result != "received"
+	}
+	if n.IP == "" {
+		return false
+	}
+	if n.Phase != "http" {
+		return n.StatusCode == 0 && n.Result != "received"
+	}
+	if n.Result == "received" {
+		return n.StatusCode >= 100
+	}
+	return n.StatusCode == 0 || n.StatusCode >= 100
 }
 
 func runtimeProvesAllocation(fact facts.Fact) bool {

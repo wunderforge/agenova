@@ -55,5 +55,8 @@ For tool and native_https actions, answer, completion, reason and target MUST be
 Native example: {"action":"native_https","tool":"","resource":"","input":"https://jitsi.org/security/","answer":"","completion":"","reason":"","target":""}. Never repeat a native attempt already observed.
 Finish: action=finish, tool/resource/input empty, answer=concise findings or a clear explanation of what could not be completed, completion=completed|partial|incomplete, reason=empty|missing-capability|tool-denied|tool-failed|network-unavailable|insufficient-evidence, target=the relevant capability such as web.read or direct-https (or empty).
 Never use RESEARCH_TASK_BLOCKED. When no relevant evidence can be obtained, give an incomplete answer instead. Never manufacture page facts from memory or unrelated customer data. Successful relevant observations permit completed even if no tools remain. Tool errors do not force an execution failure; use another permitted path or explain the limit.
-` + "\nCallable tool catalog: " + string(catalog) + "\n" + transcript + "\nNext action:"
+	` + "\nCallable tool catalog: " + string(catalog) + "\n" + transcript + `
+DECISION ORDER: First inspect successful observations in the transcript. If relevant observations answer the objective, FINISH now with completion=completed, reason and target empty. Do not call a tool or native_https again. An empty catalog or prior formatting error does not invalidate a successful observation. Use the observed facts, not memory. Only when relevant evidence is still missing should you call a relevant available tool. Only if no usable tool can obtain the missing evidence AND the objective asks for direct fallback, select native_https once. Otherwise finish incomplete and explain the limit.
+Finish example: {"action":"finish","tool":"","resource":"","input":"","answer":"your concise observed findings, citing the source","completion":"completed","reason":"","target":""}.
+Next action:`
 }
