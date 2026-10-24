@@ -1,0 +1,15 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: e15-engineer
+spec:
+  artifact:
+    image: agenova-e15-scriptedworker:e15-198-r2c
+  entrypoint:
+    command: [/agenova-workerctl, serve]
+  capabilityCeiling:
+    tools: [repo.read]
+    resourceScopes: [repo:e15/work-a, repo:e15/work-b, repo:e15/work-c]
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    maxTimeout: 5m

@@ -1,0 +1,24 @@
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Succeeded
+    boundary_test.go:155: phase=Succeeded lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Failed
+    boundary_test.go:155: phase=Failed lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Expired
+    boundary_test.go:155: phase=Expired lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+--- PASS: TestRetainedHandlerRefusesAllTerminalPhases (1.04s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Succeeded (0.01s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Failed (0.01s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Expired (1.01s)
+=== RUN   TestConsoleQueuesSecondClaimUntilFirstCompletes
+    boundary_test.go:207: same Service with two idle workers: A=Running B=Pending B.backendIdentity=nil; B ran after A completed (Go composition evidence)
+--- PASS: TestConsoleQueuesSecondClaimUntilFirstCompletes (0.02s)
+=== RUN   TestGatewayDenyAvailableThroughExecutorSeamOnly
+=== RUN   TestGatewayDenyAvailableThroughExecutorSeamOnly/profile
+    boundary_test.go:260: category=model-profile-not-granted Deny has policy+reason providerDelta=0; injected Executor skips installed transport, not kind/A2 proof
+=== RUN   TestGatewayDenyAvailableThroughExecutorSeamOnly/scope
+    boundary_test.go:260: category=resource-scope-not-granted Deny has policy+reason providerDelta=0; injected Executor skips installed transport, not kind/A2 proof
+--- PASS: TestGatewayDenyAvailableThroughExecutorSeamOnly (0.02s)
+    --- PASS: TestGatewayDenyAvailableThroughExecutorSeamOnly/profile (0.01s)
+    --- PASS: TestGatewayDenyAvailableThroughExecutorSeamOnly/scope (0.01s)
+PASS
+ok  	github.com/wunderforge/agenova/harness/security/boundaryprobe	2.560s

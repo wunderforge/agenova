@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-198-cross-claim"
+  },
+  "spec": {
+    "templateRef": "engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=cross-claim target=claim:e15-198-control:issuance:c47ca8d5f9d94874812b3a5a12a43844"
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "git.read"
+      ],
+      "resourceScopes": [
+        "repo:acme/payments"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

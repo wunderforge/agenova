@@ -1,0 +1,365 @@
+[
+  {
+    "scenario": "succeeded",
+    "origin": "A2 reference Worker",
+    "startedUTC": "2026-10-21T23:53:42.687159+00:00",
+    "requestRef": "e15-replay-g2-20261022-succeeded",
+    "runExit": 0,
+    "showExit": 0,
+    "phase": "Succeeded",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "outcome": {
+      "status": "Succeeded",
+      "text": "The Agenova E16 MCP fixture reference dataset describes a small payment client incident with a 5-second total request deadline and a retry budget that must fit inside it.",
+      "model": {
+        "invocationId": "inv-31574f1a102db32c901ee55e4573ccac",
+        "model": "llama3.1:latest",
+        "responseId": "chatcmpl-940",
+        "inputTokens": 437,
+        "outputTokens": 64
+      }
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "run-Succeeded"
+    },
+    "delta": {
+      "model": 3,
+      "mcp": 2
+    },
+    "countsBefore": {
+      "model": 107,
+      "mcp": 25
+    },
+    "countsAfter": {
+      "model": 110,
+      "mcp": 27
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+        "invocationId": "inv-081dfe6c14787af6347872c74e395928",
+        "target": "coding-standard"
+      },
+      {
+        "kind": "ToolDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+        "invocationId": "inv-a8dff694ed107b34cab4f066dd4be7c8",
+        "target": "repo.read"
+      },
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+        "invocationId": "inv-8e22728c9bea72426ce73ee05ad600e2",
+        "target": "coding-standard"
+      },
+      {
+        "kind": "ToolDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+        "invocationId": "inv-fb11ab39887de89c145452952223e6ca",
+        "target": "repo.read"
+      },
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-succeeded:issuance:ad5ca9930f268f94fa1ad7b9fe5c396b",
+        "invocationId": "inv-31574f1a102db32c901ee55e4573ccac",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 3,
+      "tool.invoke": 2
+    },
+    "mcpToolReceipts": [
+      {
+        "time": "2026-10-21T23:53:44.240417134Z",
+        "pod": "e16-mcp-6547c9cb5f-rrtpm",
+        "event": "tool",
+        "path": "/mcp",
+        "tool": "read_file",
+        "file": "README.md",
+        "correlation": "inv-a8dff694ed107b34cab4f066dd4be7c8",
+        "outcome": "ok",
+        "bytes": 490
+      },
+      {
+        "time": "2026-10-21T23:53:45.006402884Z",
+        "pod": "e16-mcp-6547c9cb5f-rrtpm",
+        "event": "tool",
+        "path": "/mcp",
+        "tool": "read_file",
+        "file": "src/retry.txt",
+        "correlation": "inv-fb11ab39887de89c145452952223e6ca",
+        "outcome": "ok",
+        "bytes": 307
+      }
+    ],
+    "receiptIDsMatch": true
+  },
+  {
+    "scenario": "failed",
+    "origin": "A1 scripted lifecycle probe",
+    "startedUTC": "2026-10-21T23:53:59.467709+00:00",
+    "requestRef": "e15-replay-g2-20261022-failed",
+    "runExit": 1,
+    "showExit": 0,
+    "phase": "Failed",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-replay-g2-20261022-failed:issuance:b8fc45342ff9442416811ec2a5f7855a",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "outcome": {
+      "status": "Failed",
+      "failure": "The agent returned a result that did not match its governed model and tool evidence."
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "agent-invalid-final-result"
+    },
+    "delta": {
+      "model": 1,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 110,
+      "mcp": 27
+    },
+    "countsAfter": {
+      "model": 111,
+      "mcp": 27
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-failed:issuance:b8fc45342ff9442416811ec2a5f7855a",
+        "invocationId": "inv-f534b58a4b581e7156fa401eef1f07a0",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 1,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  },
+  {
+    "scenario": "expired",
+    "origin": "A1 scripted lifecycle probe",
+    "startedUTC": "2026-10-21T23:54:14.375576+00:00",
+    "requestRef": "e15-replay-g2-20261022-expired",
+    "runExit": 1,
+    "showExit": 0,
+    "phase": "Expired",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-replay-g2-20261022-expired:issuance:a072b4135d0674ff0e5dfd39b83ab561",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "15s"
+      }
+    },
+    "outcome": {
+      "status": "Expired",
+      "failure": "The work exceeded its execution time limit."
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "run-deadline"
+    },
+    "delta": {
+      "model": 1,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 111,
+      "mcp": 27
+    },
+    "countsAfter": {
+      "model": 112,
+      "mcp": 27
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 5,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-replay-g2-20261022-expired:issuance:a072b4135d0674ff0e5dfd39b83ab561",
+        "invocationId": "inv-e32cbf364217c92fb78dc4a12f9013c0",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 1,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  }
+]

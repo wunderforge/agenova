@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "context": "kind-agenova-k8s-lab",
+  "namespace": "agenova-e15-198-supplement",
+  "startedUnix": 1792382992.227273,
+  "finishedUnix": 1792383004.102133,
+  "resourceWatchPositiveControl": "allowed Work produced ADDED events",
+  "canaryPositiveControl": "exact marker detected then UID-deleted",
+  "uiVerification": "separate browser run required",
+  "policyNarrowing": "not implemented; unsupported field rejected"
+}
