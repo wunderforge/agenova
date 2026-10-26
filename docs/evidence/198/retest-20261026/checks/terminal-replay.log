@@ -1,0 +1,13 @@
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Succeeded
+    boundary_test.go:156: phase=Succeeded lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Failed
+    boundary_test.go:156: phase=Failed lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+=== RUN   TestRetainedHandlerRefusesAllTerminalPhases/Expired
+    boundary_test.go:156: phase=Expired lateModel=refused lateTool=refused providerDelta=0 decisionFactDelta=0 (missing rejection evidence; Go seam only)
+--- PASS: TestRetainedHandlerRefusesAllTerminalPhases (1.05s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Succeeded (0.02s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Failed (0.02s)
+    --- PASS: TestRetainedHandlerRefusesAllTerminalPhases/Expired (1.01s)
+PASS
+ok  	github.com/wunderforge/agenova/harness/security/boundaryprobe	2.339s

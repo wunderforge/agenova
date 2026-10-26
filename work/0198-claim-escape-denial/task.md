@@ -127,3 +127,12 @@ Out of scope:
 - Product paths match main `58d951c` at rehearsal HEAD `84fe4cf`. Exact configuration, origins, failed attempts, independent counters/watches and remaining gaps are in the [candidate packet](../../docs/evidence/198/candidate-20261022/summary.md).
 - The original task-local execution scripts are archived as provenance. The maintained [opt-in driver](../../harness/security/run-demo-groups.py) requires explicit owned context, installation target, new refs and verified substrate prerequisites. The [offline verifier](../../harness/security/verify-demo-evidence.py) checks raw evidence consistency without declaring acceptance.
 - Gate results belong in the packet's [validation record](../../docs/evidence/198/candidate-20261022/validation.md). #198, #204, #248 and #251 remain open; no model induction or Gateway denial is fabricated from earlier refusal.
+
+## Main integration re-test — 26 October 2026
+
+- User authorized dependency assessment, merged-source gates and sequential three-group re-test, then evidence/PR reporting. Self-review retains report-only scope and all original acceptance criteria.
+- Current baseline `6571f9c` includes main `33193da`; #256 does not repair #204/#248/#251. All three remain open.
+- Focused security/Gateway/authority race tests and full `check.ps1 -All` passed (90 browser smoke tests). Terminal composition probes still show refusal with downstream delta 0 and decision-fact delta 0; not installed replay.
+- Saved owned Cilium kind cluster identity verified; current images built locally. Old test installation restored after immutable single-template registration refused a second template; a fresh test namespace is used instead.
+- Evidence and residual blockers: [current re-test](../../docs/evidence/198/retest-20261026/summary.md). No EKS changes, product fixes or acceptance waiver.
+- All three maintained driver groups completed with matched independent counts; gaps remain partial. Current test namespaces cleaned by checked UID. Final docs/diff/archive checks passed.
