@@ -33,6 +33,7 @@ const mcpProtocolVersion = "2025-06-18"
 var mcpTokenTimeout = 5 * time.Second
 
 type mcpRoute struct {
+	textInput bool
 	tool      string
 	parameter string
 }
@@ -109,7 +110,7 @@ func (c *mcpClient) Invoke(ctx context.Context, call toolbackend.Invocation) (to
 	// The reference is optional: omit it when the scope or file would break
 	// the shared contract, so a successful read is never reported as failed.
 	ref := call.ResourceScope + "/" + value
-	if !toolbackend.ValidResultRef(ref) {
+	if route.textInput || !toolbackend.ValidResultRef(ref) {
 		ref = ""
 	}
 	return toolbackend.Result{Text: result, ResultRef: ref}, nil

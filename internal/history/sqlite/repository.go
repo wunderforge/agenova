@@ -443,6 +443,9 @@ func (r *Repository) History(ctx context.Context, viewer v0.Principal, auth hist
 			c.v.Facts = fs
 			evidence.Decorate(&c.v)
 			item := history.Summary{RequestRef: c.ref, Status: status, Created: c.c, Updated: c.u, TraceID: c.v.TraceID, Diagnosis: c.v.Diagnosis}
+			if c.v.Outcome != nil {
+				item.Completion = c.v.Outcome.Completion
+			}
 			if c.v.Request != nil && c.v.Request.Spec.Task != nil {
 				item.TaskType = c.v.Request.Spec.Task.Type
 				if len(item.TaskType) > 128 {

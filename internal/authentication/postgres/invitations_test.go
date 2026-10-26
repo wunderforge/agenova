@@ -95,7 +95,7 @@ func TestInvitationAuthorityActivationAndReplay(t *testing.T) {
 	directory := &inviteDirectory{subject: "new-subject"}
 	service := invitations.Service{Issuer: "issuer", Directory: directory, Store: s}
 	request := invitations.Request{Email: "invited@example.com", Project: "payments", Role: Admin}
-	for _, p := range []v0.Principal{principal(Admin), principal(MemberRole), {Subject: Owner, Team: "foreign", AuthenticationContext: "oidc"}} {
+	for _, p := range []v0.Principal{principal(MemberRole), {Subject: Owner, Team: "foreign", AuthenticationContext: "oidc"}} {
 		if _, err := service.Invite(ctx, p, request); err == nil {
 			t.Fatal("unauthorized invitation allowed")
 		}

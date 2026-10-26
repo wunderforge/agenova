@@ -1,0 +1,19 @@
+apiVersion: agenova.io/v1alpha1
+kind: PolicyBundle
+metadata: {name: research-governance, version: "3"}
+spec:
+  rules:
+    - team: team-a
+      project: research
+      templateRef: researcher
+      action: claim.create
+      constraints:
+        networkProfiles: {values: []}
+    - team: team-a
+      project: research
+      templateRef: researcher-v2
+      action: claim.create
+      constraints:
+        networkProfiles: {values: []}
+# Tools/resources are bounded by the template plus each Work request. Current
+# Policy set constraints are request-narrowing constraints, not a catalog union.

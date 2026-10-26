@@ -74,6 +74,11 @@ export interface ClaimRuntimeRequirements {
   profileRef: string;
   timeout: (string | null);
 }
+export interface Completion {
+  reason?: string;
+  status: string;
+  target?: string;
+}
 export interface Decision {
   action: string;
   id: string;
@@ -160,6 +165,7 @@ export interface ObjectMeta {
   name: string;
 }
 export interface Outcome {
+  completion?: (Completion | null);
   failure?: string;
   model?: (ModelResult | null);
   status: string;
@@ -619,6 +625,28 @@ export const shapes = {
             "kind": "string"
           }
         }
+      }
+    }
+  },
+  "Completion": {
+    "kind": "object",
+    "fields": {
+      "reason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "status": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "target": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
       }
     }
   },
@@ -1111,6 +1139,16 @@ export const shapes = {
   "Outcome": {
     "kind": "object",
     "fields": {
+      "completion": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "Completion"
+          }
+        },
+        "optional": true
+      },
       "failure": {
         "shape": {
           "kind": "string"

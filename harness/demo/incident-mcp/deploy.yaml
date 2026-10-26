@@ -48,6 +48,7 @@ spec:
               - {key: legacy-readme, path: README.md}
               - {key: legacy-timeout, path: logs/timeout.log}
               - {key: legacy-retry, path: src/retry.txt}
+              - {key: research-customers, path: crm/customers.json}
 ---
 apiVersion: v1
 kind: Service

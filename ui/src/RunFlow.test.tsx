@@ -32,6 +32,9 @@ describe('evidence-driven static lifecycle', () => {
   it('actual result and cleanup complete independent stages', () => {
     expect(flowStages({...base,status:'Succeeded',authorized:true,started:true,result:true,cleanup:true}).every(s=>s.state==='done')).toBe(true);
   });
+  it.each(['Incomplete','Partial'])('%s is terminal without an active Agent stage',status=>{
+    expect(flowStages({...base,status,authorized:true,started:true,result:true,cleanup:true}).every(s=>s.state==='done')).toBe(true);
+  });
   it('cleanup failure does not change successful task outcome', () => {
     const stages=flowStages({...base,status:'Succeeded',result:true,failureAt:'Cleanup'});
     expect(stages[3].state).toBe('done');

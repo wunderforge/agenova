@@ -110,6 +110,48 @@ func TestThreeRolesTransitionsAndRevocation(t *testing.T) {
 	}
 }
 
+func TestAdminAndOperatorRoleDoNotRequireBusinessProject(t *testing.T) {
+	s := Store{invitationDB(t)}
+	ctx := context.Background()
+	_, proof, err := s.ReserveGoogleOwner(ctx, "team", invitations.Request{Email: "owner@gmail.com", Project: "payments", Role: Admin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.AcceptGoogleInvitation(ctx, googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "owner", Email: "owner@gmail.com", EmailAuthoritative: true}, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, proof, err = s.ReserveGoogleInvitation(ctx, owner, invitations.Request{Email: "member@gmail.com", Project: "payments", Role: MemberRole})
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := s.AcceptGoogleInvitation(ctx, googleoidc.LoginIdentity{Issuer: googleoidc.Issuer, Subject: "member", Email: "member@gmail.com", EmailAuthoritative: true}, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.CreateProject(ctx, owner, "research"); err != nil {
+		t.Fatal(err)
+	}
+	change := invitations.MemberChange{Action: "platform-role", Principal: member.Subject, Role: PlatformAdmin, ScopeRef: "installed"}
+	if err = s.ChangeMember(ctx, owner, change); err != nil {
+		t.Fatal("admin without seed project", err)
+	}
+	if s.Authorize(ctx, member, SubmitWork, "research") != nil {
+		t.Fatal("admin missing inherited project access")
+	}
+	change.Role = PlatformOperator
+	if err = s.ChangeMember(ctx, owner, change); err != nil {
+		t.Fatal("operator without business project", err)
+	}
+	if s.Authorize(ctx, member, SubmitWork, "research") == nil {
+		t.Fatal("operator gained business access")
+	}
+	change.Role = MemberRole
+	if err = s.ChangeMember(ctx, owner, change); err == nil {
+		t.Fatal("member without initial project accepted")
+	}
+}
+
 func TestOperatorApprovalAndAuditRollback(t *testing.T) {
 	s := Store{invitationDB(t)}
 	ctx := context.Background()

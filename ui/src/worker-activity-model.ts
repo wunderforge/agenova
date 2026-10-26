@@ -23,7 +23,7 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
   return ordered.filter(f => ['WorkerActivity', 'ProviderAttempt', 'ProviderOutcome', 'ModelDecision', 'ToolDecision'].includes(f.kind))
     .filter(f => f.kind !== 'ProviderOutcome' || !f.invocationId || (firstAttempt.get(f.invocationId) ?? Infinity) >= f.sequence)
     .map(f => {
-      if (f.kind === 'WorkerActivity' && f.target) turn = f.target;
+      if (f.kind === 'WorkerActivity' && f.target?.startsWith('Turn ')) turn = f.target;
       const candidate = f.kind === 'ProviderAttempt' && f.invocationId ? outcomes.get(f.invocationId) : undefined;
       const outcome = candidate && candidate.sequence > f.sequence ? candidate : undefined;
       const active = f.kind === 'ProviderAttempt' && !!f.invocationId && !outcome && status === 'Running';
@@ -33,10 +33,11 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
       // record-presentation.ts); a configured provider call is never mock.
       const mock = toolCall && [f, outcome].some(r => r?.reasonCode?.startsWith('mock-'));
       const step = f.kind === 'WorkerActivity';
+      const native=f.operation==='NativeHTTPSAttempt'||f.operation==='NativeHTTPSObservation';
       return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
-        label: step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? mock ? 'Tool call (mock)' : 'Tool call' : 'Model request',
+        label: native?'Direct HTTPS':step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? mock ? 'Tool call (mock)' : 'Tool call' : 'Model request',
         target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
-        state: step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? recovered && f.result === 'Allow' && !!f.invocationId && !firstAttempt.has(f.invocationId) ? 'Not started' : f.result || 'Recorded'
+        state: native?f.operation==='NativeHTTPSAttempt'?'Attempt started':f.reasonCode?.endsWith('-timeout')?'Timed out (worker report)':'Worker observation':step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? recovered && f.result === 'Allow' && !!f.invocationId && !firstAttempt.has(f.invocationId) ? 'Not started' : f.result || 'Recorded'
           : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || (recovered ? 'Outcome unknown' : 'No completion recorded'),
       };
     });

@@ -1,9 +1,31 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectedSource, suggestedProjects, type Setup } from './connected-source';
+import { connectedSource, validPolicyRule, suggestedProjects, SourceError, type Setup } from './connected-source';
 
 afterEach(() => vi.unstubAllGlobals());
+
+it('accepts Go nil-slice caps as explicit empty sets, not unrestricted access',()=>{
+ const rule={team:'team-a',project:'payments',action:'claim.create',templateRef:'engineer',constraints:{tools:{values:null}}};
+ expect(validPolicyRule(rule)).toBe(true);
+ expect(validPolicyRule({...rule,constraints:{tools:{values:'all'}}})).toBe(false);
+});
+
+it('never uses inspection projects to grant a viewer submission access',()=>{
+ expect(suggestedProjects({submissionProjects:[],projects:['payments']} as unknown as Setup)).toEqual([]);
+});
+it.each([400,401,403,422,429])('uses a safe actionable message for definite HTTP %s rejection',async(status)=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response('private upstream stack and credentials',{status})));
+ try{await connectedSource.submit({} as Parameters<typeof connectedSource.submit>[0]);throw new Error('expected rejection');}catch(error){expect(error).toBeInstanceOf(SourceError);expect((error as SourceError).uncertain).toBe(false);expect((error as Error).message).not.toContain('private');}
+});
+it.each([409,500,503])('retains uncertainty on HTTP %s so a retry does not generate new intent',async(status)=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response('{}',{status})));
+ await expect(connectedSource.submit({} as Parameters<typeof connectedSource.submit>[0])).rejects.toMatchObject({uncertain:true});
+});
+it('an incomplete success response remains an uncertain submission',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response('{}',{status:202})));
+ await expect(connectedSource.submit({} as Parameters<typeof connectedSource.submit>[0])).rejects.toMatchObject({uncertain:true});
+});
 
 it('accepts the installed API policy rule field names', async () => {
   const setup = {

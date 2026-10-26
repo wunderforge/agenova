@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -21,7 +22,8 @@ var parameterName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
 // Descriptor is safe to advertise to a worker after authority intersection.
 // It contains no provider endpoint, transport, native tool name or credential.
-// The initial contract supports one required, allowlisted string parameter.
+// Empty InputMode preserves the allowlist contract; explicit text mode retains
+// route/scope checks and a byte bound without enumerating individual queries.
 type Descriptor struct {
 	Operation     string   `json:"operation"`
 	Description   string   `json:"description"`
@@ -29,6 +31,7 @@ type Descriptor struct {
 	Parameter     string   `json:"parameter"`
 	MaxBytes      int      `json:"maxBytes"`
 	AllowedValues []string `json:"allowedValues"`
+	InputMode     string   `json:"inputMode,omitempty"`
 }
 
 type Catalog struct{ entries []Descriptor }
@@ -41,14 +44,15 @@ func NewCatalog(entries []Descriptor) (Catalog, error) {
 	seen := map[string]bool{}
 	shapes := map[string]string{}
 	for _, entry := range entries {
-		if !bounded(entry.Description, 256) || !operationName.MatchString(entry.Operation) || len(entry.Operation) > 128 || !bounded(entry.ResourceScope, 256) || strings.ContainsAny(entry.ResourceScope, "*? \t\r\n") || !strings.Contains(entry.ResourceScope, ":") || !parameterName.MatchString(entry.Parameter) || entry.MaxBytes < 1 || entry.MaxBytes > 4096 || len(entry.AllowedValues) == 0 || len(entry.AllowedValues) > 64 {
+		if !bounded(entry.Description, 256) || !operationName.MatchString(entry.Operation) || len(entry.Operation) > 128 || !bounded(entry.ResourceScope, 256) || strings.ContainsAny(entry.ResourceScope, "*? \t\r\n") || !strings.Contains(entry.ResourceScope, ":") || !parameterName.MatchString(entry.Parameter) || entry.MaxBytes < 1 || entry.MaxBytes > 4096 || len(entry.AllowedValues) > 64 || (entry.InputMode != "" && entry.InputMode != "text") || (entry.InputMode == "" && len(entry.AllowedValues) == 0) || (entry.InputMode == "text" && len(entry.AllowedValues) != 0) {
 			return Catalog{}, ErrCatalog
 		}
 		key := routeKey(entry.Operation, entry.ResourceScope)
-		if seen[key] || (shapes[entry.Operation] != "" && shapes[entry.Operation] != entry.Parameter) {
+		shape := entry.Parameter + "\x00" + entry.InputMode
+		if seen[key] || (shapes[entry.Operation] != "" && shapes[entry.Operation] != shape) {
 			return Catalog{}, ErrCatalog
 		}
-		seen[key], shapes[entry.Operation] = true, entry.Parameter
+		seen[key], shapes[entry.Operation] = true, shape
 		entry.AllowedValues = append([]string(nil), entry.AllowedValues...)
 		sort.Strings(entry.AllowedValues)
 		for i, value := range entry.AllowedValues {
@@ -105,7 +109,7 @@ func (c Catalog) Validate(operation, scope string, parameters map[string]string)
 			continue
 		}
 		value, ok := parameters[entry.Parameter]
-		if !ok || len(parameters) != 1 || !bounded(value, entry.MaxBytes) || !contains(entry.AllowedValues, value) {
+		if !ok || len(parameters) != 1 || !bounded(value, entry.MaxBytes) || (entry.InputMode == "text" && !validText(value)) || (entry.InputMode != "text" && !contains(entry.AllowedValues, value)) {
 			return ErrArguments
 		}
 		return nil
@@ -137,6 +141,17 @@ func contains(values []string, value string) bool {
 		}
 	}
 	return false
+}
+func validText(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }
 func bounded(value string, limit int) bool {
 	return value != "" && len(value) <= limit && utf8.ValidString(value) && !strings.ContainsAny(value, "\x00\r\n")

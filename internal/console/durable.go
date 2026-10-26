@@ -161,6 +161,7 @@ func completedEvidence(snapshot workstore.Snapshot) (evidence.View, bool) {
 		}
 		view.Outcome.Text = snapshot.StagedResult.Text
 		view.Outcome.Model = snapshot.StagedResult.Model
+		view.Outcome.Completion = snapshot.StagedResult.Completion
 	}
 	return view, true
 }

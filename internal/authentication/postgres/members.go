@@ -134,24 +134,8 @@ func (s Store) ChangeMember(ctx context.Context, p v0.Principal, c invitations.M
 	if err != nil {
 		return err
 	}
-	if target == Owner || actor != Owner && (actor != Admin || target == Admin || c.Action == "account-role") {
+	if target == Owner || (actor != Owner && actor != Admin) || c.Principal == p.Subject {
 		return authentication.ErrForbidden
-	}
-	if actor != Owner {
-		var privileged bool
-		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2)`, c.Principal, p.Team).Scan(&privileged) != nil {
-			return invitations.ErrUnavailable
-		}
-		if privileged {
-			return authentication.ErrForbidden
-		}
-		var scoped bool
-		// An account Admin may not disable a person with authority in projects
-		// that the Admin does not administer, or any existing project Admin.
-		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$1 AND team=$2) AND NOT EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=$1 AND g.team=$2 AND (g.role='admin' OR NOT EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$3 AND a.team=g.team AND a.project=g.project AND a.role='admin')))`, c.Principal, p.Team, p.Subject).Scan(&scoped)
-		if err != nil || !scoped {
-			return authentication.ErrForbidden
-		}
 	}
 	switch c.Action {
 	case "account-role":

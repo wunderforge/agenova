@@ -138,8 +138,8 @@ func TestDurableAdmissionIsolationAndWriterFencing(t *testing.T) {
 	if _, err := s.GetFor(ctx, people["bob"], alice.View.RequestRef); err != workstore.ErrNotFound {
 		t.Fatal("foreign Work disclosure")
 	}
-	if _, err := s.GetFor(ctx, people["admin"], alice.View.RequestRef); err != workstore.ErrNotFound {
-		t.Fatal("account admin bypassed project grants")
+	if _, err := s.GetFor(ctx, people["admin"], alice.View.RequestRef); err != nil {
+		t.Fatal("account admin cannot inspect organization Work", err)
 	}
 	if _, err := s.GetFor(ctx, people["viewer"], alice.View.RequestRef); err != nil {
 		t.Fatal("project viewer read failed", err)
@@ -150,7 +150,7 @@ func TestDurableAdmissionIsolationAndWriterFencing(t *testing.T) {
 			t.Fatal("owner isolation", name, err)
 		}
 	}
-	staged := evidence.Outcome{Status: "Succeeded", Text: "Observed response"}
+	staged := evidence.Outcome{Status: "Succeeded", Text: "Observed response", Completion: &evidence.Completion{Status: "incomplete", Reason: "network-unavailable", Target: "direct-https"}}
 	if err := s.StageResult(ctx, alice.View.RequestRef, staged); err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestDurableAdmissionIsolationAndWriterFencing(t *testing.T) {
 	found := false
 	for _, record := range pending {
 		if record.Owner.Subject == "alice" {
-			found = record.StagedResult != nil && record.StagedResult.Text == staged.Text && len(record.View.Facts) == 2
+			found = record.StagedResult != nil && record.StagedResult.Text == staged.Text && record.StagedResult.Completion != nil && *record.StagedResult.Completion == *staged.Completion && len(record.View.Facts) == 2
 		}
 	}
 	if !found {
@@ -234,12 +234,28 @@ func TestHistoryFiltersBeforePagingAndReauthorizes(t *testing.T) {
 		if _, err := store.Reserve(ctx, snap); err != nil {
 			t.Fatal(err)
 		}
+		if i == 4 {
+			snap.View.State.Claim.Phase = v0.ClaimPhaseSucceeded
+			snap.View.State.Claim.BackendIdentity = &v0.SandboxClaimBackendIdentity{Backend: "fixture", WorkerID: "worker"}
+			snap.View.Outcome = &evidence.Outcome{Status: "Succeeded", Text: "No web capability available.", Completion: &evidence.Completion{Status: "incomplete", Reason: "missing-capability", Target: "web.read"}}
+			fact := facts.Fact{ID: "fact:6", Sequence: 6, Timestamp: time.Now(), Kind: "RunOutcome", RequestRef: snap.View.RequestRef, ClaimID: snap.View.State.Claim.ID, Operation: "Succeeded"}
+			if err := store.Append(ctx, fact, snap.View.State); err != nil {
+				t.Fatal(err)
+			}
+			snap.View.Facts = append(snap.View.Facts, fact)
+			if err := store.Finish(ctx, snap.View); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	first, err := store.HistoryFor(ctx, people["alice"], 1, "")
 	if err != nil || len(first.Items) != 1 || first.NextCursor == "" {
 		t.Fatalf("first=%+v err=%v", first, err)
 	}
-	newWork := snapshot(t, people["alice"], "new-after-page", 6)
+	if first.Items[0].Status != "Succeeded" || first.Items[0].Completion == nil || first.Items[0].Completion.Status != "incomplete" {
+		t.Fatal("durable history lost completion", first.Items)
+	}
+	newWork := snapshot(t, people["alice"], "new-after-page", 7)
 	if _, err := store.Reserve(ctx, newWork); err != nil {
 		t.Fatal(err)
 	}
@@ -274,8 +290,8 @@ func TestHistoryFiltersBeforePagingAndReauthorizes(t *testing.T) {
 		}
 	}
 	admin, err := store.HistoryFor(ctx, people["admin"], 100, "")
-	if err != nil || len(admin.Items) != 0 {
-		t.Fatal("account admin gained project reads", err)
+	if err != nil || len(admin.Items) != 6 {
+		t.Fatal("account admin missing organization Work", err)
 	}
 	viewer, err := store.HistoryFor(ctx, people["viewer"], 100, "")
 	if err != nil || len(viewer.Items) != 6 {

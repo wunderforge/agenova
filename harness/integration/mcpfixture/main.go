@@ -51,6 +51,7 @@ const (
 )
 
 type config struct {
+	research     bool
 	addr         string
 	dataDir      string
 	pod          string
@@ -83,6 +84,7 @@ func main() {
 
 func loadConfig(getenv func(string) string) (config, error) {
 	cfg := config{addr: ":8080", dataDir: "/data", pod: getenv("POD_NAME"), maxFileBytes: 1 << 20}
+	cfg.research = getenv("FIXTURE_RESEARCH_ENABLED") == "true"
 	if v := getenv("FIXTURE_ADDR"); v != "" {
 		cfg.addr = v
 	}
@@ -194,6 +196,9 @@ func newStream(root *os.Root, cfg config, log *logger, path string) http.Handler
 		log.write(record)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 	})
+	if cfg.research {
+		addResearchTools(server, root, cfg, log, path)
+	}
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		SessionTimeout:      5 * time.Minute,
 		MaxRequestBodyBytes: maxRequestBytes,

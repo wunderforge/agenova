@@ -86,8 +86,8 @@ func TestIndependentInvitationRolesAndScopedAdministration(t *testing.T) {
 		}
 	}
 	aa := accept("accountadmin", "one", Viewer, Admin)
-	if s.Authorize(ctx, aa, SubmitWork, "one") == nil {
-		t.Fatal("account admin bypassed viewer role")
+	if s.Authorize(ctx, aa, SubmitWork, "one") != nil || s.Authorize(ctx, aa, SubmitWork, "two") != nil {
+		t.Fatal("account admin lacks organization-wide project access")
 	}
 	if s.Authorize(ctx, pa, SubmitWork, "one") != nil {
 		t.Fatal("project admin cannot run work")

@@ -1,5 +1,56 @@
 # Agenova MVP PRD
 
+Owner-approved final-demo follow-up (23 October 2026, #256): preserve useful
+partial/incomplete Agent output independently of execution phase; display
+evidence-backed reasons without manufacturing denial events. The reference
+Researcher may opt into a bounded native HTTPS diagnostic in its own Pod, with
+no new network grant. Real model choice, native execution and independently
+attributed infrastructure enforcement are separate acceptance gates. Ordinary
+images, lifecycle, Policy and historical facts remain unchanged. See the
+[execution packet](../../work/0256-demo-security-completion/task.md).
+
+Owner-approved account-role correction (23 October 2026, #252): active account
+Owner/Admin have application administration, configuration discovery and Work
+access across all existing projects in their own organization, including newly
+created projects. Ordinary members and project-only administrators retain explicit
+project scope. Project creation is an authenticated, audited, idempotent management
+operation, not a release-time SQL patch. Account Admin may appoint other Admins,
+delegate operational duties and manage users across the organization. Owner has
+the same daily capabilities plus confirmed ownership transfer; ordinary management
+cannot modify/remove Owner. Self role/activation edits remain guarded. No application role bypasses Work admission,
+Policy/Template ceilings, Gateway controls or cloud IAM/RBAC.
+
+Owner-approved final-demo product extension (23 October 2026, E20 #218): improve
+the existing authenticated product journey locally before owner acceptance.
+Scope includes safe submission recovery, multi-project administration, display-only
+organization metadata, registered-template selection, generic task entry, readable
+policy constraints and immutable activation/history, two-Work comparison, truthful
+boundary/observability presentation and the marketing landing. Existing trusted
+identity, registration, authority and credential boundaries remain unchanged.
+This does not authorize cloud changes, merge or deployment. The implementation
+contract is [the local acceptance task](../../work/0218-final-demo-product/task.md).
+
+Owner-approved follow-up (23 October 2026): permission-filtered Agent discovery,
+single-user editing, uniform Platform configuration summaries and a project-scoped
+Researcher using governed public-source and synthetic CRM tools. Catalog read,
+submission and effective Work authority are separate checks. This scenario uses
+Gateway-only external access; it must not issue direct public Pod egress. Existing
+explicit network-profile contracts remain compatible outside this configured
+scenario. All acceptance is local until separately approved for deployment.
+
+Walkthrough refinement: reusable capability-derived Task presets suggest access,
+not task text or authority. Public-network demonstration uses keyless public HTTPS
+page retrieval through MCP/Gateway, not an API-key search service. The existing
+immutable Researcher registration remains; researcher-v2 adds this local path.
+
+Owner-approved local acceptance refinement: Work details leads with the actual
+requested/granted permission snapshot; unrequested capabilities are omitted and
+only requested-but-ungranted values are dimmed. Agent/caller/Policy/runtime
+context is secondary, with full evidence still accessible. Local Researcher
+must not replace a missing required read with an unrelated synthetic success;
+the real Gateway decides attempted access. This does not require all agents to
+use tools or make the platform responsible for interpreting task semantics.
+
 This document is authoritative for committed MVP outcomes, scope, and product acceptance. It does not own architecture invariants, implementation status, or mutable ticket state. Accepted work that changes an MVP requirement must update this PRD; feature-level elaboration that stays within the requirement belongs in the applicable Ticket task packet under `work/`.
 
 Implementation order and stable Epic boundaries are summarized in the [MVP Epic Map](mvp-epics.md). Mutable ticket state remains in GitHub. See the [AIDLC source-of-truth map](../development/AIDLC.md) for conflict and update rules.

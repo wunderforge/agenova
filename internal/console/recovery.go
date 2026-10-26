@@ -208,6 +208,7 @@ func recoverAllocation(ctx context.Context, store DurableWork, backend CleanupRe
 	if claim.Phase == v0.ClaimPhaseSucceeded {
 		view.Outcome.Text = snapshot.StagedResult.Text
 		view.Outcome.Model = snapshot.StagedResult.Model
+		view.Outcome.Completion = snapshot.StagedResult.Completion
 	} else {
 		view.Outcome.Failure = "The service was interrupted. Runtime release was verified; uncertain external operations were not replayed."
 	}

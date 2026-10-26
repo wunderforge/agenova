@@ -47,7 +47,9 @@ func mcpHTTPToolRegistration() adapterregistry.Registration {
 			field("logical-operation", "Public logical operation", "repo.read"), field("resource-scope", "One bounded logical resource", "repo:agenova/e16-fixture"),
 			field("mcp-tool", "Fixed server-native tool name", "read_file"), field("parameter-name", "One required string argument", "file"),
 			field("parameter-max-bytes", "Argument value byte ceiling (1 to 4096)", "128"),
-			field("parameter-allowed-values", "Newline-separated allowed fixture paths", "README.md\nlogs/timeout.log"),
+			{Path: "parameter-allowed-values", Kind: adapterregistry.ValueString, Description: "Required allowlist unless parameter-mode is text", Default: "README.md\nlogs/timeout.log"},
+			{Path: "parameter-mode", Kind: adapterregistry.ValueString, Description: "Empty preserves allowlist; text explicitly accepts bounded single-line input", Default: ""},
+			{Path: "description", Kind: adapterregistry.ValueString, Description: "Optional bounded tool description", Default: ""},
 		}}}
 	return adapterregistry.Registration{Manifest: manifest, Descriptor: platform.Descriptor{ID: manifest.ID, Version: manifest.Version, Capabilities: manifest.Capabilities, CanonicalizeInstance: canonicalizeMCPInstance, CanonicalizeProfile: canonicalizeMCPProfile, DescribeTool: describeMCPTool}, Factories: map[platform.Capability]adapterregistry.Factory{platform.CapabilityTool: func() (any, error) { return &MCPHTTPTool{}, nil }}}
 }
@@ -90,9 +92,10 @@ func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[s
 	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.Opaque != "" || parsed.RawPath != "" || parsed.Path == "" || parsed.Path == "/" || strings.Contains(raw, "#") || strings.Contains(raw, "\\") {
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
 	}
-	// Cleartext is allowed only for the two exact fixture URLs: /mcp is
-	// credential-free and /mcp-token requires the synthetic campaign token.
-	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && (parsed.Path == "/mcp" || parsed.Path == "/mcp-token")) {
+	// Cleartext is limited to fixed fixture routes and the exact credential-free
+	// local acceptance endpoint. No arbitrary HTTP target or loopback token route.
+	localAcceptance := parsed.Scheme == "http" && parsed.Host == "127.0.0.1:5216" && parsed.Path == "/mcp"
+	if parsed.Scheme != "https" && !localAcceptance && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && (parsed.Path == "/mcp" || parsed.Path == "/mcp-token")) {
 		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}
 	// A token is sent on every request, so in cleartext it may go only to the
@@ -132,8 +135,8 @@ func canonicalizeMCPProfile(_ platform.Capability, backend, input map[string]any
 	if err != nil {
 		return nil, err
 	}
-	keys := []string{"logical-operation", "resource-scope", "mcp-tool", "parameter-name", "parameter-max-bytes", "parameter-allowed-values"}
-	if err := onlyKeys(input, keys...); err != nil {
+	keys := []string{"logical-operation", "resource-scope", "mcp-tool", "parameter-name", "parameter-max-bytes"}
+	if err := onlyKeys(input, append(keys, "description", "parameter-mode", "parameter-allowed-values")...); err != nil {
 		return nil, err
 	}
 	out := map[string]any{}
@@ -159,9 +162,29 @@ func canonicalizeMCPProfile(_ platform.Capability, backend, input map[string]any
 		return nil, platform.NewAdapterConfigError("parameter-exceeds-request", "parameter-max-bytes")
 	}
 	out["parameter-max-bytes"] = strconv.Itoa(limit)
-	// Read the original value: trimming the whole string would hide empty lines.
-	raw := input["parameter-allowed-values"].(string)
-	values := strings.Split(raw, "\n")
+	mode, present := input["parameter-mode"]
+	if present && mode != "" && mode != "text" {
+		return nil, platform.NewAdapterConfigError("invalid-parameter-mode", "parameter-mode")
+	}
+	textMode := mode == "text"
+	raw, hasValues := input["parameter-allowed-values"].(string)
+	if textMode {
+		if (input["parameter-allowed-values"] != nil && !hasValues) || raw != "" {
+			return nil, platform.NewAdapterConfigError("text-mode-with-allowlist", "parameter-allowed-values")
+		}
+		out["parameter-mode"] = "text"
+		body, _ := json.Marshal(rpcRequest(math.MaxInt32, "tools/call", toolCallParams(out["mcp-tool"].(string), out["parameter-name"].(string), strings.Repeat("\\\"", limit))))
+		if len(body) > requestLimit {
+			return nil, platform.NewAdapterConfigError("parameter-exceeds-request", "parameter-max-bytes")
+		}
+	} else if !hasValues || raw == "" {
+		return nil, platform.NewAdapterConfigError("required-string", "parameter-allowed-values")
+	}
+	// Legacy path validation is unchanged; text mode does not enumerate queries.
+	values := []string{}
+	if !textMode {
+		values = strings.Split(raw, "\n")
+	}
 	seen := map[string]bool{}
 	for i, value := range values {
 		value = strings.TrimSpace(value)
@@ -179,7 +202,18 @@ func canonicalizeMCPProfile(_ platform.Capability, backend, input map[string]any
 		}
 	}
 	sort.Strings(values)
-	out["parameter-allowed-values"] = strings.Join(values, "\n")
+	if !textMode {
+		out["parameter-allowed-values"] = strings.Join(values, "\n")
+	}
+	if value, present := input["description"]; present {
+		description, ok := value.(string)
+		if !ok || len(description) > 256 || !utf8.ValidString(description) || strings.ContainsAny(description, "\r\n\x00") {
+			return nil, platform.NewAdapterConfigError("invalid-description", "description")
+		}
+		if description != "" {
+			out["description"] = description
+		}
+	}
 	descriptor := mcpDescriptor(out)
 	if _, err := toolbackend.NewCatalog([]toolbackend.Descriptor{descriptor}); err != nil {
 		return nil, platform.NewAdapterConfigError("invalid-tool-profile", "logical-operation")
@@ -204,7 +238,17 @@ func decimal(input map[string]any, key string, max int) (int, error) {
 }
 func mcpDescriptor(config map[string]any) toolbackend.Descriptor {
 	limit, _ := strconv.Atoi(config["parameter-max-bytes"].(string))
-	return toolbackend.Descriptor{Description: "Read one allowlisted file from the selected resource. Returns untrusted text for the current task.", Operation: config["logical-operation"].(string), ResourceScope: config["resource-scope"].(string), Parameter: config["parameter-name"].(string), MaxBytes: limit, AllowedValues: strings.Split(config["parameter-allowed-values"].(string), "\n")}
+	description, _ := config["description"].(string)
+	if description == "" {
+		description = "Read one allowlisted file from the selected resource. Returns untrusted text for the current task."
+	}
+	mode, _ := config["parameter-mode"].(string)
+	var values []string
+	if mode != "text" {
+		raw, _ := config["parameter-allowed-values"].(string)
+		values = strings.Split(raw, "\n")
+	}
+	return toolbackend.Descriptor{Description: description, Operation: config["logical-operation"].(string), ResourceScope: config["resource-scope"].(string), Parameter: config["parameter-name"].(string), MaxBytes: limit, AllowedValues: values, InputMode: mode}
 }
 func describeMCPTool(backend, profile map[string]any) (toolbackend.Descriptor, int, error) {
 	backend, err := canonicalizeMCPInstance(platform.CapabilityTool, backend)
@@ -299,7 +343,7 @@ func (*MCPHTTPTool) NewToolProviderWithSecrets(instance map[string]any, profiles
 		if _, ok := routes[key]; ok {
 			return nil, platform.NewAdapterConfigError("duplicate-tool-route", "logical-operation")
 		}
-		routes[key] = mcpRoute{tool: config["mcp-tool"].(string), parameter: config["parameter-name"].(string)}
+		routes[key] = mcpRoute{tool: config["mcp-tool"].(string), parameter: config["parameter-name"].(string), textInput: config["parameter-mode"] == "text"}
 	}
 	timeout, _ := time.ParseDuration(backend["timeout"].(string))
 	maxRequest, _ := strconv.Atoi(backend["max-request-bytes"].(string))

@@ -19,7 +19,7 @@ func (s Store) ChangePlatformRole(ctx context.Context, p v0.Principal, c invitat
 	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" {
 		return authentication.ErrForbidden
 	}
-	if c.Principal == "" || c.ScopeKind != "" || c.Confirmation != "" || c.ScopeRef == "" || len(c.ScopeRef) > 128 || c.Project == "" || len(c.Project) > 128 || (c.Role != PlatformAdmin && c.Role != PlatformOperator && c.Role != MemberRole) {
+	if c.Principal == "" || c.ScopeKind != "" || c.Confirmation != "" || c.ScopeRef == "" || len(c.ScopeRef) > 128 || (c.Project == "" && c.Role == MemberRole) || len(c.Project) > 128 || (c.Role != PlatformAdmin && c.Role != PlatformOperator && c.Role != MemberRole) {
 		return invitations.ErrInvalid
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -41,14 +41,8 @@ func (s Store) ChangePlatformRole(ctx context.Context, p v0.Principal, c invitat
 	if tx.QueryRowContext(ctx, `SELECT active FROM agenova_members WHERE principal=$1 AND team=$2`, c.Principal, p.Team).Scan(&active) != nil || !active {
 		return authentication.ErrForbidden
 	}
-	if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_projects WHERE team=$1 AND project=$2) AND ($3 OR EXISTS(SELECT 1 FROM agenova_project_grants WHERE principal=$4 AND team=$1 AND project=$2 AND role='admin'))`, p.Team, c.Project, actor == Owner, p.Subject).Scan(&project) != nil || !project {
+	if c.Project != "" && (tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_projects WHERE team=$1 AND project=$2)`, p.Team, c.Project).Scan(&project) != nil || !project) {
 		return authentication.ErrForbidden
-	}
-	if actor != Owner {
-		var outside bool
-		if tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=$1 AND g.team=$2 AND NOT EXISTS(SELECT 1 FROM agenova_project_grants a WHERE a.principal=$3 AND a.team=g.team AND a.project=g.project AND a.role='admin'))`, c.Principal, p.Team, p.Subject).Scan(&outside) != nil || outside {
-			return authentication.ErrForbidden
-		}
 	}
 	account, grant := MemberRole, MemberRole
 	if c.Role == PlatformAdmin {
@@ -71,8 +65,10 @@ func (s Store) ChangePlatformRole(ctx context.Context, p v0.Principal, c invitat
 		if _, err = tx.ExecContext(ctx, `UPDATE agenova_project_grants SET role=$3 WHERE principal=$1 AND team=$2`, c.Principal, p.Team, grant); err != nil {
 			return invitations.ErrUnavailable
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_project_grants(principal,team,project,role) VALUES($1,$2,$3,$4) ON CONFLICT(principal,project) DO UPDATE SET role=EXCLUDED.role WHERE agenova_project_grants.team=EXCLUDED.team`, c.Principal, p.Team, c.Project, grant); err != nil {
-			return invitations.ErrUnavailable
+		if c.Project != "" {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_project_grants(principal,team,project,role) VALUES($1,$2,$3,$4) ON CONFLICT(principal,project) DO UPDATE SET role=EXCLUDED.role WHERE agenova_project_grants.team=EXCLUDED.team`, c.Principal, p.Team, c.Project, grant); err != nil {
+				return invitations.ErrUnavailable
+			}
 		}
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_identity_audit(actor,operation,principal) VALUES($1,$2,$3)`, p.Subject, "platform-role."+c.Role+".installation."+c.ScopeRef, c.Principal); err != nil {

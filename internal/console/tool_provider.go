@@ -18,6 +18,7 @@ import (
 // providerToolAdapter is a consumer of the neutral provider contract. Only
 // the Tool Gateway calls it, after successful decision recording.
 type providerToolAdapter struct {
+	recoverable  bool
 	telemetry    *telemetry.Telemetry
 	ctx          context.Context
 	claims       app.ClaimAuthorityReader
@@ -115,7 +116,19 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		return errToolEvidence
 	}
 	if invokeErr != nil {
-		return invokeErr
+		if !a.recoverable {
+			return invokeErr
+		}
+		if a.ctx.Err() != nil {
+			return invokeErr
+		}
+		if err := app.RequireRunningClaim(a.claims, a.claimID); err != nil {
+			return err
+		}
+		// Decision/attempt/outcome are committed; ordinary tool failure is an
+		// observation, not a reason to terminate the whole agent process.
+		a.results[id] = workerprotocol.Reply{Allowed: true, Error: fact.ReasonCode}
+		return nil
 	}
 	prefix := "[UNTRUSTED TOOL DATA]\n"
 	if result.Truncated {

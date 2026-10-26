@@ -1,0 +1,14 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata: {name: researcher}
+spec:
+  artifact: {image: "agenova-researcher:local"}
+  entrypoint: {command: ["/agenova-workerctl", "serve"]}
+  defaults: {modelProfile: coding-standard}
+  capabilityCeiling:
+    tools: [web.fetch, crm.read]
+    resourceScopes: [web:product-comparison, crm:customer-retention]
+    modelProfiles: [coding-standard]
+    runtimeProfiles: [standard-isolated]
+    networkProfiles: []
+    maxTimeout: 5m

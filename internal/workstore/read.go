@@ -17,8 +17,8 @@ import (
 
 // The SQL read predicate mirrors the private application-role policy: current
 // membership + own Member/Admin evidence, or explicit project Admin/Viewer read.
-// Account Admin alone does not imply access to every project's Work.
-const visibleSQL = `EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=w.project AND (g.role IN ('admin','viewer') OR (g.role='member' AND w.owner=m.principal)))))`
+// Account Owner/Admin can read all Work in their own organization.
+const visibleSQL = `EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role IN ('owner','admin') OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=m.team AND g.project=w.project AND (g.role IN ('admin','viewer') OR (g.role='member' AND w.owner=m.principal)))))`
 const snapshotColumns = `w.owner,w.team,w.input_name,w.input_digest,w.view,w.staged_result,w.complete`
 
 func readSnapshot(ctx context.Context, tx *sql.Tx, query string, args ...any) (Snapshot, error) {

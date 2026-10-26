@@ -8,10 +8,14 @@ import { App } from './App';
 import { createFixtureSource, storyboardRows } from './fixture-source';
 import './style.css';
 import './console.css';
+import './presenter.css';
 import { ClaimConsole, ConsoleNavigation } from './ClaimConsole';
 import { parseConsoleRoute } from './console-route';
 import { createConsoleFixtureSource, fixtureConsoleKeys } from './console-fixture-source';
 import { Portal } from './Portal';
+import { installInputModality } from './input-modality';
+
+installInputModality(document);
 
 const rows = storyboardRows(canonicalRows);
 const source = createFixtureSource(rows);

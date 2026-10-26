@@ -68,7 +68,7 @@ func (r ProjectRegistry) Template(name string) (*v0.AgentTemplate, error) {
 
 // ApplyGovernance commits immutable registration, policy activation and audit
 // together. Actor row locking serializes against all current grant/revoke paths.
-func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kind string, data []byte, validate func(*v0.AgentTemplate) error) (registration.Result, error) {
+func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kind string, data []byte, validate func(*v0.AgentTemplate) error, expected ...*v0.PolicyReference) (registration.Result, error) {
 	var out registration.Result
 	if s.DB == nil || p.AuthenticationContext != "oidc" || p.Subject == "" || p.Team == "" || project == "" || len(project) > 128 || len(data) > 1<<20 {
 		return out, authentication.ErrForbidden
@@ -118,7 +118,7 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 		return out, authentication.ErrForbidden
 	}
 	var allowed bool
-	if tx.QueryRowContext(ctx, `SELECT (EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 AND role='governance-admin' AND ((scope_kind='project' AND scope_ref=$3) OR (scope_kind='account' AND scope_ref=$2))) OR EXISTS(SELECT 1 FROM agenova_members m JOIN agenova_project_grants g ON g.principal=m.principal AND g.team=m.team WHERE m.principal=$1 AND m.team=$2 AND m.account_role='admin' AND g.project=$3 AND g.role='admin')) AND EXISTS(SELECT 1 FROM agenova_projects WHERE team=$2 AND project=$3)`, p.Subject, p.Team, project).Scan(&allowed) != nil || !allowed {
+	if tx.QueryRowContext(ctx, `SELECT (EXISTS(SELECT 1 FROM agenova_scoped_roles WHERE principal=$1 AND team=$2 AND role='governance-admin' AND ((scope_kind='project' AND scope_ref=$3) OR (scope_kind='account' AND scope_ref=$2))) OR EXISTS(SELECT 1 FROM agenova_members m WHERE m.principal=$1 AND m.team=$2 AND m.account_role IN ('owner','admin'))) AND EXISTS(SELECT 1 FROM agenova_projects WHERE team=$2 AND project=$3)`, p.Subject, p.Team, project).Scan(&allowed) != nil || !allowed {
 		return out, authentication.ErrForbidden
 	}
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,215007))`, p.Team+":"+project); err != nil {
@@ -126,6 +126,19 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 	}
 	var changed bool
 	if kind == "policy" {
+		if len(expected) > 1 {
+			return out, registration.ErrConflict
+		}
+		if len(expected) == 1 && expected[0] != nil {
+			var current v0.PolicyReference
+			e := tx.QueryRowContext(ctx, `SELECT id,version FROM agenova_project_policy_active WHERE team=$1 AND project=$2`, p.Team, project).Scan(&current.ID, &current.Version)
+			if e != nil && !errors.Is(e, sql.ErrNoRows) {
+				return out, errors.New("policy precondition unavailable")
+			}
+			if current != *expected[0] {
+				return out, registration.ErrConflict
+			}
+		}
 		result, e := tx.ExecContext(ctx, `INSERT INTO agenova_project_policies VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, p.Team, project, name, version, document)
 		if e != nil {
 			return out, errors.New("policy registration unavailable")
@@ -143,6 +156,9 @@ func (s Store) ApplyGovernance(ctx context.Context, p v0.Principal, project, kin
 		n, _ = result.RowsAffected()
 		changed = changed || n > 0
 		out.Active = true
+		if _, err = tx.ExecContext(ctx, `INSERT INTO agenova_policy_activations(team,project,id,version,actor) VALUES($1,$2,$3,$4,$5)`, p.Team, project, name, version, p.Subject); err != nil {
+			return out, errors.New("policy activation audit unavailable")
+		}
 	} else {
 		result, e := tx.ExecContext(ctx, `INSERT INTO agenova_project_templates VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, p.Team, project, name, document)
 		if e != nil {
@@ -177,7 +193,7 @@ func (s Store) ConfigurationProjects(ctx context.Context, p v0.Principal) ([]str
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	rows, err := s.DB.QueryContext(ctx, `SELECT p.project FROM agenova_projects p JOIN agenova_members m ON m.team=p.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role='owner' OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))) ORDER BY p.project LIMIT 101`, p.Subject, p.Team)
+	rows, err := s.DB.QueryContext(ctx, `SELECT p.project FROM agenova_projects p JOIN agenova_members m ON m.team=p.team WHERE m.principal=$1 AND m.team=$2 AND m.active AND (m.account_role IN ('owner','admin') OR EXISTS(SELECT 1 FROM agenova_project_grants g WHERE g.principal=m.principal AND g.team=p.team AND g.project=p.project) OR EXISTS(SELECT 1 FROM agenova_scoped_roles g WHERE g.principal=m.principal AND g.team=p.team AND g.role='governance-admin' AND ((g.scope_kind='account' AND g.scope_ref=p.team) OR (g.scope_kind='project' AND g.scope_ref=p.project)))) ORDER BY p.project LIMIT 101`, p.Subject, p.Team)
 	if err != nil {
 		return nil, errors.New("project configuration unavailable")
 	}
