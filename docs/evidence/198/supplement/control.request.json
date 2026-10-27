@@ -1,0 +1,26 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-198-supplement-control-1792382992227273000"
+  },
+  "spec": {
+    "templateRef": "engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=control"
+      }
+    },
+    "requestedAccess": {
+      "tools": [],
+      "resourceScopes": [],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "10m"
+    }
+  }
+}

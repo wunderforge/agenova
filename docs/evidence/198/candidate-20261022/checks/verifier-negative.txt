@@ -1,0 +1,1 @@
+PASS: changing foreign MCP delta and updating its hash is still rejected by raw consistency assertions.

@@ -1,0 +1,14 @@
+[
+  {
+    "namespace": "agenova-e15-ready-20261026",
+    "uid": "58a6a07e-908f-44e4-bbfc-6737d592f0c0"
+  },
+  {
+    "namespace": "e15-probe-target-20261026",
+    "uid": "c520778f-344d-4043-a0c3-c194bb1afb6b"
+  },
+  {
+    "namespace": "e15-probe-workers-20261026",
+    "uid": "286e1d0a-daf0-4f21-9098-de854764e2b1"
+  }
+]

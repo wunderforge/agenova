@@ -1,0 +1,5 @@
+{
+  "context": "kind-agenova-k8s-lab",
+  "workerImage": "docker.io/library/agenova-e15-scriptedworker@sha256:02eec5f22a228158b672dca7bdac9b28104c8268e28f7682dc0efc480a451a62",
+  "gitHead": "ae24a67261dff289a7063f7435c7c3616fd36dc0"
+}

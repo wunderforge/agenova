@@ -1,0 +1,5 @@
+ok  	github.com/wunderforge/agenova/harness/security/boundaryprobe	7.107s
+ok  	github.com/wunderforge/agenova/harness/security/scriptedworker	9.076s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	6.425s
+ok  	github.com/wunderforge/agenova/internal/toolgateway	7.654s
+ok  	github.com/wunderforge/agenova/internal/authority	7.227s

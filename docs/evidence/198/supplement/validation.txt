@@ -1,0 +1,8 @@
+PASS supplemental live campaign: monitored admission Deny, allocation-watch positive control, exact-canary scan positive control, private API rejection, bounded residual scan, real control/profile Work, CLI/API parity, unsupported Policy constraints rejected.
+PASS node harness/security/verify-198-ui.mjs: Succeeded/Failed/Denied and template narrowing; no mock responses; screenshots visually inspected.
+PASS node --check harness/security/verify-198-ui.mjs
+PASS Python AST syntax check
+PASS pwsh -NoProfile -File scripts/check.ps1 -All: exit 0, 52 browser smoke tests.
+PASS successful raw watch streams contain no ERROR records and stderr empty.
+PASS cleanup: owned namespace absent, loopback tunnel and Vite stopped; original reference platform healthy and unchanged.
+Policy capability narrowing remains unimplemented (#204); no installed post-terminal/A2/two-Running-claim acceptance is waived.

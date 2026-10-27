@@ -1,0 +1,8 @@
+{
+  "group": "3",
+  "context": "kind-agenova-e15-strict-20261022",
+  "namespace": "agenova-e15-ready-20261026",
+  "prefix": "e15-20261026-g3",
+  "sourceCommit": "6571f9c0c4fd338d5cca418b48abff795e10aec9",
+  "policySHA256": "a1162ad3cc9412599db2d6f5e82e16be6ae79a4dab6afda912b6874802abce25"
+}

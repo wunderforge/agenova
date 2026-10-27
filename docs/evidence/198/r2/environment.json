@@ -1,0 +1,28 @@
+{
+  "runDateUTC": "2026-10-20",
+  "branch": "feat/198-claim-escape-denial",
+  "harnessCommit": "b3d294f (driver committed after the run; content identical)",
+  "productSourceCommit": "56e9763 (main d2b3d90 merged; product source identical at HEAD, only harness/ changed)",
+  "productDiffSince56e9763": "none",
+  "kindContext": "kind-agenova-k8s-lab",
+  "installNamespace": "agenova-e15-198-r2",
+  "installNamespaceUID": "cffa26df-9920-4e0b-98b1-cd384f5a1322",
+  "mcpFixtureNamespace": "agenova-e16",
+  "mcpFixtureNamespaceUID": "19daea5f-d4c1-4bb7-8db4-e8542ee08fdf",
+  "images": {
+    "docker.io/library/agenova-control-plane:e15-198-56e9763": "sha256:fb4e522e6e0399cea4b44b65500955372eb7dfb39112f2f30eac415cfe237e39",
+    "docker.io/library/agenova-e15-scriptedworker:e15-198-56e9763": "sha256:5cbf4c268289ad11f191738fcefbee5f765dda39e1a427d59b3814a123b1baa0",
+    "docker.io/library/agenova-e15-scriptedworker:e15-198-r2c": "sha256:5e810fba21de96709df16144b9e9f4ca07d231fff01e3a576e6b7eba4a4bb079",
+    "docker.io/library/agenova-e16-mcp:e15-198-56e9763": "sha256:e152eff1fbc14a3190b6ad3006cfb681b20aeec7e8bdc6d8d6f58c07662c89a6",
+    "docker.io/library/agenova-testworker:e15-198-56e9763": "sha256:e9479267c5b294bc16bad9827efa3d179eb61cb46ac02836279caaface335e5e"
+  },
+  "controlPlaneImageRef": "docker.io/library/agenova-control-plane@sha256:fb4e522e6e0399cea4b44b65500955372eb7dfb39112f2f30eac415cfe237e39",
+  "workerTemplateImage": "agenova-e15-scriptedworker:e15-198-r2c",
+  "model": "llama3.1:latest via host Ollama",
+  "ollamaCounter": "[GIN] lines containing /v1/chat/completions in ~/.ollama/logs/server.log",
+  "mcpCounter": "\"event\":\"tool\" lines in the single e16-mcp pod log; correlation equals the Agenova invocationId",
+  "principal": "user:team-a-engineer / team-a (reference:local)",
+  "referenceInstall": "agenova-system not reconfigured; control-plane pod start 2026-10-17T12:13:16Z unchanged",
+  "workerImageBuiltAt": "cfc6f12",
+  "campaignDriverSha256": "8f59bb227674305628c25ddb471cc7a9c001bfd7fa114bfd309300c876aa8d82"
+}

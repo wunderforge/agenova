@@ -1,0 +1,8 @@
+=== RUN   TestAuthenticatedModelInvocationCannotBorrowAnotherClaim
+--- PASS: TestAuthenticatedModelInvocationCannotBorrowAnotherClaim (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/modelgateway	1.913s
+=== RUN   TestAuthenticatedToolInvocationCannotBorrowAnotherClaim
+--- PASS: TestAuthenticatedToolInvocationCannotBorrowAnotherClaim (0.00s)
+PASS
+ok  	github.com/wunderforge/agenova/internal/toolgateway	1.421s

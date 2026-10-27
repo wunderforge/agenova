@@ -1,0 +1,109 @@
+[
+  {
+    "scenario": "succeeded",
+    "origin": "A1 scripted Worker, actual Ollama, installed CLI/service/Agent Sandbox",
+    "startedUTC": "2026-10-21T23:24:17.085838+00:00",
+    "requestRef": "e15-g2-succeeded-20261022",
+    "runExit": 1,
+    "showExit": 0,
+    "phase": "Failed",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-g2-succeeded-20261022:issuance:c75e0d4fe1d02bafa36a7df120adb1a0",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "outcome": {
+      "status": "Failed",
+      "failure": "The agent exited without returning a final answer."
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "agent-no-final-result"
+    },
+    "delta": {
+      "model": 2,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 76,
+      "mcp": 8
+    },
+    "countsAfter": {
+      "model": 78,
+      "mcp": 8
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022:issuance:c75e0d4fe1d02bafa36a7df120adb1a0",
+        "invocationId": "inv-37e8049c793406e50f28d0c8b3b1638f",
+        "target": "coding-standard"
+      },
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022:issuance:c75e0d4fe1d02bafa36a7df120adb1a0",
+        "invocationId": "inv-6b1c5c2242048aaa6372b0c58cf5ee0c",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 2,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  }
+]

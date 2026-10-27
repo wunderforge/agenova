@@ -1,0 +1,10 @@
+{
+  "before": 37,
+  "after": 37,
+  "exit": 1,
+  "delta": 0,
+  "watchEvents": {
+    "pods": 0,
+    "sandboxclaims": 0
+  }
+}

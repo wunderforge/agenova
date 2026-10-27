@@ -1,0 +1,8 @@
+{
+  "phase": "Failed",
+  "observationSeconds": 8,
+  "modelDelta": 0,
+  "mcpDelta": 0,
+  "factsUnchangedDuringQuietWindow": true,
+  "scope": "quiet window only, NOT installed terminal replay"
+}

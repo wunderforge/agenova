@@ -1,0 +1,22 @@
+# github.com/wunderforge/agenova/harness/security/boundaryprobe
+internal/platform/resolve.go:20:2: open /Users/yue/Library/Caches/go-build/f0/f0958cb83b254d0d177263d53ae535cdc4cf412f8be939d7f8be785c2c5f01dd-d: operation not permitted
+FAIL	github.com/wunderforge/agenova/harness/security/boundaryprobe [setup failed]
+# github.com/wunderforge/agenova/harness/security/scriptedworker
+harness/security/scriptedworker/main.go:26:2: open /Users/yue/Library/Caches/go-build/93/93e79a3dffd020e25168fdfd5ba673d51a4c367ee91a5b5f41dbafe6b398f57e-d: operation not permitted
+FAIL	github.com/wunderforge/agenova/harness/security/scriptedworker [setup failed]
+# github.com/wunderforge/agenova/internal/modelgateway
+internal/platform/resolve.go:20:2: open /Users/yue/Library/Caches/go-build/f0/f0958cb83b254d0d177263d53ae535cdc4cf412f8be939d7f8be785c2c5f01dd-d: operation not permitted
+# github.com/wunderforge/agenova/internal/modelgateway
+internal/app/adapters.go:13:2: open /Users/yue/Library/Caches/go-build/10/101b068496c208593c15a20adcf6f1a8ad93a237a202cbc00957a4f6a69eea16-d: operation not permitted
+# github.com/wunderforge/agenova/internal/modelgateway
+internal/app/submit.go:15:2: open /Users/yue/Library/Caches/go-build/e9/e90d57286d41bc51b74eb471a9d6e09cdf89eed42fa1bec03f2ccd5aa82d8062-a: operation not permitted
+FAIL	github.com/wunderforge/agenova/internal/modelgateway [setup failed]
+# github.com/wunderforge/agenova/internal/toolgateway
+internal/platform/resolve.go:20:2: open /Users/yue/Library/Caches/go-build/f0/f0958cb83b254d0d177263d53ae535cdc4cf412f8be939d7f8be785c2c5f01dd-d: operation not permitted
+# github.com/wunderforge/agenova/internal/toolgateway
+internal/app/adapters.go:13:2: open /Users/yue/Library/Caches/go-build/10/101b068496c208593c15a20adcf6f1a8ad93a237a202cbc00957a4f6a69eea16-d: operation not permitted
+# github.com/wunderforge/agenova/internal/toolgateway
+internal/app/submit.go:15:2: open /Users/yue/Library/Caches/go-build/e9/e90d57286d41bc51b74eb471a9d6e09cdf89eed42fa1bec03f2ccd5aa82d8062-a: operation not permitted
+FAIL	github.com/wunderforge/agenova/internal/toolgateway [setup failed]
+ok  	github.com/wunderforge/agenova/internal/authority	1.499s
+FAIL
