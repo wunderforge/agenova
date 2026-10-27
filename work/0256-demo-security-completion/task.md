@@ -55,6 +55,49 @@ require all eight example fields, valid web/CRM/native shapes, no unrelated web
 example for CRM and no advertised tool for an empty catalog. Fresh image and
 real-model campaign remain required; retain the failed v5-r1 attempt.
 
+### Cloud follow-up: evidence consumption and CLI native facts
+
+#258 merged at `33193da`; v6 / Policy 7 preserved earlier versions. First public
+Work `work-638338e523adec70d1a222b105a6db2ac19403f190de83e72df10f89aadb8f44`
+made a real MCP call with correlated successful receipt (2776 bytes), but the
+Agent did not finish from the successful observation and unnecessarily attempted
+native HTTPS. Its incomplete result is retained, not accepted as a positive.
+The normal CLI also rejected the new native WorkerActivity vocabulary; the API
+still retained the complete canonical Work. Do not resubmit an unknown result.
+
+Small follow-up: make the reference prompt's decision order explicit after the
+transcript (observed evidence before tools before requested native fallback),
+include a complete finish example, and teach the CLI the two bounded native
+facts with model-selection/order/original-worker correlation. Never accept a
+worker report as a CNI verdict or grant. Focused tests must reject unbound,
+replaced, unordered, private-IP, mismatched-code and claimed-firewall reports.
+No Gateway/provider/runtime/network rules or authority semantics change.
+
+### Short-demo closeout (24 October)
+
+Owner explicitly authorized administrator merge only for #259 after all gates,
+then prioritized the short Demo: stable public/CRM positive runs, same-task
+missing-Web/native isolation proof and readable UI evidence. Reuse #257/#258 UI
+and exact reference image; no new features, services or wider security project.
+
+Deduplication checked live: main remains #258 and #259 remains open at bc4f3ae;
+the prompt and native interleaving fix already exist. Only remaining review
+invariants are added: succeeded native runs require the observation and a later
+correlated model finish/FinalAnswer/Outcome.Model; reference report phase/IP/status
+relationships must be possible. Failed interrupted attempts remain readable.
+The stricter report projection is CLI-local; no reference-image input changes.
+
+CI's repeated 20ms bind-setup timeout is in the fake adapter, not production.
+Use a 1s positive bind setup budget; retain the explicit 20ms timeout case and
+existing cleanup/cancellation deadlines. Focused suites and 15 repeats of the
+affected cold-recovery/cancellation/lifetime cases pass. Full Linux CI/review and
+real cloud campaign remain required; no unknown submission retries.
+
+AWS and personal CLI logins expired during the discussion; normal user login is
+requested. No cloud configuration changes before access is restored. The single
+approved AWS success-control Pod has not yet been used. Local kind evidence is
+retained and its dedicated cluster was already removed.
+
 ## Quality Gates
 
 Focused Go packages; npm --prefix ui run check; ./scripts/check.ps1 -All; actual Pod network checks in an enforcing CNI; positive web/CRM and missing-web real-model runs; image/Policy/Work/Pod attribution. Failures stop broad expansion. Existing platform-specific gate failures remain explicit.
