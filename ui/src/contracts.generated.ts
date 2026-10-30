@@ -3,10 +3,28 @@
 // Generated from api/v1alpha1 by ui/contractgen. Do not edit.
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export interface AccessAdvice {
+  acceptedRequestDigest: string;
+  engine: string;
+  guideDigest: string;
+  guideVersion: string;
+  id: string;
+  intentDigest: string;
+  mode: string;
+  plannerInputTokens?: number;
+  plannerModel?: string;
+  plannerOutputTokens?: number;
+  profileID: string;
+}
 export interface Action {
   name: string;
   project: string;
   templateRef: string;
+}
+export interface AgentAccessGuide {
+  markdown?: string;
+  profiles: (Array<TaskAccessProfile> | null);
+  version: string;
 }
 export interface AgentTemplate {
   apiVersion: string;
@@ -34,6 +52,7 @@ export interface AgentTemplateEntrypoint {
   command: (Array<string> | null);
 }
 export interface AgentTemplateSpec {
+  accessGuide?: (AgentAccessGuide | null);
   artifact: (AgentTemplateArtifact | null);
   capabilityCeiling: (AgentTemplateCapabilityCeiling | null);
   defaults?: AgentTemplateDefaults;
@@ -197,7 +216,14 @@ export interface SandboxClaimBackendIdentity {
   backend: string;
   workerId: string;
 }
+export interface TaskAccessProfile {
+  description: string;
+  id: string;
+  requestedAccess: ClaimRequestedAccess;
+  taskType: string;
+}
 export interface View {
+  accessAdvice?: (AccessAdvice | null);
   diagnosis?: (Diagnosis | null);
   facts: (Array<Fact> | null);
   outcome?: (Outcome | null);
@@ -210,6 +236,69 @@ export interface View {
 }
 
 export const shapes = {
+  "AccessAdvice": {
+    "kind": "object",
+    "fields": {
+      "acceptedRequestDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "engine": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "guideDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "guideVersion": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "id": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "intentDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "mode": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "plannerInputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "plannerModel": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "plannerOutputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "profileID": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "Action": {
     "kind": "object",
     "fields": {
@@ -224,6 +313,34 @@ export const shapes = {
         }
       },
       "templateRef": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
+  "AgentAccessGuide": {
+    "kind": "object",
+    "fields": {
+      "markdown": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "profiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "ref",
+              "ref": "TaskAccessProfile"
+            }
+          }
+        }
+      },
+      "version": {
         "shape": {
           "kind": "string"
         }
@@ -395,6 +512,16 @@ export const shapes = {
   "AgentTemplateSpec": {
     "kind": "object",
     "fields": {
+      "accessGuide": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AgentAccessGuide"
+          }
+        },
+        "optional": true
+      },
       "artifact": {
         "shape": {
           "kind": "nullable",
@@ -1290,9 +1417,45 @@ export const shapes = {
       }
     }
   },
+  "TaskAccessProfile": {
+    "kind": "object",
+    "fields": {
+      "description": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "id": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "requestedAccess": {
+        "shape": {
+          "kind": "ref",
+          "ref": "ClaimRequestedAccess"
+        }
+      },
+      "taskType": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "View": {
     "kind": "object",
     "fields": {
+      "accessAdvice": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AccessAdvice"
+          }
+        },
+        "optional": true
+      },
       "diagnosis": {
         "shape": {
           "kind": "nullable",

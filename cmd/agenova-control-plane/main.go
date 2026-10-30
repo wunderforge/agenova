@@ -23,6 +23,7 @@ import (
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/accessadvisor"
 	"github.com/wunderforge/agenova/internal/adapters/bundled"
 	"github.com/wunderforge/agenova/internal/app"
 	identitydb "github.com/wunderforge/agenova/internal/authentication/postgres"
@@ -461,6 +462,12 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 		options.PrepareFor = nil
 		options.Prepare = func(data []byte) (app.PreparedAssignment, error) { return prepare(data, setupPrincipal) }
 	}
+	planner, err := accessadvisor.Configured(resolved.AccessAdvisor, provider)
+	if err != nil {
+		closeResources()
+		return nil, fmt.Errorf("invalid access Advisor configuration: %w", err)
+	}
+	options.Advisor = planner
 	configured, err := console.NewServiceWithOptions(adapter, adapter, provider, preset, options)
 	if err != nil {
 		closeResources()

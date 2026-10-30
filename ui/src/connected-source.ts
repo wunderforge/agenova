@@ -10,6 +10,7 @@ export type View = Omit<CanonicalView, 'request' | 'facts'> & {
   facts: Fact[];
 };
 export interface Setup {
+	accessAdvisor?: AdvisorInfo;
   platformInfo?: { operator:boolean; connections: ConnectionInfo[] };
   installation: { kind: 'installed'; platform: string; revision: string };
   principal: Principal;
@@ -27,6 +28,9 @@ export interface Setup {
   };
   capabilities: Record<string, string>;
 }
+export type AccessMode = 'manual' | 'suggest' | 'automatic';
+export interface AdvisorInfo {enabled:boolean;allowedModes:AccessMode[];defaultMode:AccessMode;engine?:string;callsUsed:number;maxCalls:number}
+export interface AccessPlan {id:string;status:'ready'|'clarification'|'failed';request?:ClaimRequest;profileID?:string;explanation:string;questions:string[];engine:string;guideDigest:string;guideVersion:string;intentDigest:string;model?:{name:string;inputTokens:number;outputTokens:number}}
 export interface ConnectionInfo {category:string;name:string;backend?:string;adapter?:string;model?:string;operation?:string;scope?:string;tool?:string;endpoint?:string;status?:string}
 export interface AgentEntry {project:string;template:AgentTemplate;canSubmit:boolean}
 export interface PolicyRule {
@@ -58,7 +62,7 @@ export class SourceError extends Error {
   }
 }
 
-async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Promise<unknown> {
+async function json(path: string, signal?: AbortSignal, body?: unknown, adviceID?:string): Promise<unknown> {
   // The installed service can synchronously configure the runtime before
   // acknowledging submission. Reads remain short; writes share the server's
   // bounded setup window so a Work is not launched after the UI reports fail.
@@ -69,11 +73,17 @@ async function json(path: string, signal?: AbortSignal, body?: ClaimRequest): Pr
     cache: 'no-store',
     ...(body ? {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(adviceID ? {'X-Agenova-Advice-ID':adviceID}: {}) },
       body: JSON.stringify(body),
     } : {}),
   }); } catch { throw new SourceError(0, body ? 'Submission result is not confirmed. Check this request before creating another.' : 'The connection is unavailable. Try again.', !!body); }
   if (!response.ok) {
+    if(path.startsWith('/api/access-')) {
+      let message='Access planning did not complete. No confirmed Work was returned.';let uncertain=response.status>=500;
+      const knownCodes=['advisor_failed','advisor_unavailable','advisor_invalid','advisor_disabled','advisor_budget','advisor_busy','mode_disabled','invalid_task','invalid_advice_context','required_access_missing','authority_request_rejected','advice_stale','advice_expired','advice_conflict','advice_pending','advice_not_found','explicit_access','capability_unavailable','access_denied','viewer_required','request_conflict','storage_unavailable'];
+      try{const detail=await response.json();if(knownCodes.includes(detail.code)&&typeof detail.message==='string'&&detail.message.length<=256){message=detail.message;uncertain=!['advisor_failed','advisor_invalid','advisor_budget','advisor_busy','mode_disabled','invalid_task','required_access_missing','advice_stale'].includes(detail.code)&&response.status>=500;}}catch{/* Preserve bounded generic diagnosis. */}
+      throw new SourceError(response.status,message,uncertain);
+    }
     // Never echo raw upstream errors, which can contain infrastructure details.
     const messages: Record<number, string> = {
       400: 'Request validation failed. Review the task and requested access.',
@@ -102,6 +112,16 @@ export interface HistoryPage {
  nextCursor?: string;
 }
 export const connectedSource = {
+ async advise(request:ClaimRequest,signal?:AbortSignal):Promise<AccessPlan>{
+  const data=await json('/api/access-advice',signal,{mode:'suggest',request}) as AccessPlan;
+  if(!data||!['ready','clarification','failed'].includes(data.status)||typeof data.id!=='string'||!Array.isArray(data.questions)||data.status==='ready'&&(!data.request||shapeDiagnostics('ClaimRequest',data.request).length))throw new SourceError(502,'Advisor response is incomplete.');
+  return data;
+ },
+ async autoSubmit(request:ClaimRequest,signal?:AbortSignal):Promise<View>{
+  const data=await json('/api/access-submit',signal,{mode:'automatic',request}) as View&AccessPlan;
+  if(data?.status==='clarification')throw new SourceError(422,data.questions?.join(' ')||'Clarify this task before starting.');
+  try{return view(data);}catch{throw new SourceError(502,'Submission result is not confirmed. Check this request before retrying.',true);}
+ },
  async agents(signal?:AbortSignal):Promise<AgentEntry[]> {
   const data=await json('/api/agents',signal);
   if(!Array.isArray(data)||data.length>200||!data.every(e=>e&&typeof e.project==='string'&&e.project.length<=128&&typeof e.canSubmit==='boolean'&&!shapeDiagnostics('AgentTemplate',e.template).length))throw new SourceError(502,'Agent catalog is incomplete.');
@@ -148,8 +168,8 @@ export const connectedSource = {
   async request(ref: string, signal?: AbortSignal): Promise<View> {
     return view(await json(`/api/requests/${encodeURIComponent(ref)}/evidence`, signal));
   },
-  async submit(request: ClaimRequest, signal?: AbortSignal): Promise<View> {
-    const result = await json('/api/requests', signal, request);
+  async submit(request: ClaimRequest, signal?: AbortSignal, adviceID?:string): Promise<View> {
+    const result = await json('/api/requests', signal, request,adviceID);
     try { return view(result); } catch { throw new SourceError(502, 'Submission result is not confirmed. The response was incomplete; check the existing request.', true); }
   },
   async submission(name: string, signal?: AbortSignal): Promise<View> {

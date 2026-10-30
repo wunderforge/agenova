@@ -40,6 +40,6 @@ MD-only arbitrary permission generation is harder to validate than structured pr
 
 ## Risks and Verification
 
-Provider/runtime spies prove absence of calls; httptest verifies transport/identity; immutable registry tests verify guide snapshots. Local preview uses real API/PostgreSQL but synthetic worker execution unless labeled otherwise. Test Advisor inference separately with actual Ollama. No new AWS/network proof is claimed. Report any existing Windows Owner-bootstrap failure without hiding/skipping it.
+Provider/runtime spies prove absence of calls; httptest verifies transport/identity; immutable registry tests verify guide snapshots. The existing PostgreSQL preview remains available. Because local Docker/PostgreSQL was unavailable, an explicit loopback-only `--volatile` acceptance mode uses real Go APIs/authorization with synthetic identity, worker and tool fixtures and memory-only Work history. Its Advisor uses actual configured Ollama inference; a rules config is separate and labeled. This is not real PostgreSQL restart or AWS/network proof. Report the existing Windows Owner-bootstrap directory-sync failure without hiding/skipping it. Exact evidence and reproduction steps are in [evidence.md](evidence.md).
 
 Mature references: [Skills metadata/disclosure](https://www.anthropic.com/research/equipping-agents-for-the-real-world-with-agent-skills); [MCP untrusted annotations](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). Reuse knowledge packaging and hint/authority separation, not authorization through Markdown.

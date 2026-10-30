@@ -28,7 +28,10 @@ type DurableWork interface {
 	GetClaimFor(context.Context, v0.Principal, string) (evidence.View, error)
 	ListFor(context.Context, v0.Principal) ([]evidence.View, error)
 }
-type submissionKey struct{ name, digest string }
+type submissionKey struct {
+	name, digest string
+	planning     *evidence.AccessAdvice
+}
 
 var ErrRecoveryRequired = errors.New("unfinished durable Work requires fail-closed recovery before admission")
 

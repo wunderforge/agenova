@@ -37,13 +37,13 @@ An unknown/over-ceiling guide/model capability cannot grant authority. A require
 ## Execution Todo
 
 - [x] Scout code and prior practices; self-review accepted scope and authorization boundary.
-- [ ] Optional guide/Platform contracts and compatibility.
-- [ ] Bounded selectors, hashes, owner-bound receipts and budgets.
-- [ ] Authenticated HTTP, confirmation/auto submission, replay and current Policy checks.
-- [ ] CLI guide packaging, Platform composition and UI.
-- [ ] Focused and combined local tests; real Ollama; browser screenshots.
-- [ ] Run full repository checks, distinguish pre-existing failures, review diff.
-- [ ] Update evidence/local guide; commit and push feature branch only.
+- [x] Optional guide/Platform contracts and compatibility.
+- [x] Bounded selectors, hashes, owner-bound receipts and budgets.
+- [x] Authenticated HTTP, confirmation/auto submission, replay and current Policy checks.
+- [x] CLI guide packaging, Platform composition and UI.
+- [x] Focused and combined local tests; real Ollama; browser screenshots.
+- [x] Run full repository checks, distinguish pre-existing failures, review diff.
+- [x] Update evidence/local guide; commit and push feature branch only.
 
 ## Quality Gates
 
@@ -64,3 +64,4 @@ No cloud requests, merge/deploy or credential-file reads. Preserve debug.log, ol
 - First selector chooses one registered access profile; it never emits arbitrary authority-bearing JSON. Interface permits later bounded composition.
 - Draft cache/limits are bounded per process, not a durable monetary spending cap. Accepted provenance persists with Work; expired draft recovery is explicit.
 - User approval expands #211 from exploration to a bounded local implementation; no unresolved architecture conflict.
+- See [local evidence and acceptance guide](evidence.md). Actual local Advisor inference is verified; volatile task fixtures are explicit. A real PostgreSQL restart remains unverified because Docker/local database was unavailable. Full-check Windows Owner-bootstrap failure is recorded without skipping it.

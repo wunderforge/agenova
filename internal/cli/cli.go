@@ -168,6 +168,7 @@ Platform Operator grant before using the caller's local cloud/cluster identity.
 `
 
 type parsedArgs struct {
+	accessGuide  string
 	project      string
 	installation string
 	server       string
@@ -233,6 +234,9 @@ func MainWithServices(args []string, stdout, stderr io.Writer, services Services
 	}
 	if parsed.help && (parsed.command == "policy" || parsed.command == "agent-template") {
 		fmt.Fprintf(stdout, "Usage: agenova %s apply -f <document.yaml> [--json]\n", parsed.command)
+		if parsed.command == "agent-template" {
+			fmt.Fprintln(stdout, "Optional: --access-guide ACCESS.md packages immutable permission guidance with the template.")
+		}
 		return 0
 	}
 	if parsed.help || parsed.command == "help" || (parsed.command == "" && !parsed.version) {
@@ -468,7 +472,18 @@ func printRegistration(stdout, stderr io.Writer, parsed parsedArgs, factory Regi
 	if parsed.command == "policy" {
 		result, err = service.ApplyPolicyFile(parsed.file)
 	} else {
-		result, err = service.ApplyTemplateFile(parsed.file)
+		if parsed.accessGuide == "" {
+			result, err = service.ApplyTemplateFile(parsed.file)
+		} else {
+			var data []byte
+			data, err = readTemplateForGuide(parsed.file)
+			if err == nil {
+				data, err = packageGuide(data, parsed.accessGuide)
+			}
+			if err == nil {
+				result, err = service.ApplyTemplate(data)
+			}
+		}
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -972,6 +987,12 @@ func parseArgs(argv []string) (parsedArgs, error) {
 			continue
 		}
 		switch {
+		case arg == "--access-guide":
+			if parsed.accessGuide != "" || i+1 >= len(argv) || looksLikeFlag(argv[i+1]) {
+				return parsedArgs{}, fmt.Errorf("--access-guide requires one Markdown path")
+			}
+			i++
+			parsed.accessGuide = argv[i]
 		case arg == "--":
 			if parsed.command != "work" || len(parsed.operands) != 1 || parsed.operands[0] != "show" {
 				return parsedArgs{}, fmt.Errorf("-- is only valid after agenova work show")
@@ -1108,6 +1129,9 @@ func parseArgs(argv []string) (parsedArgs, error) {
 	if parsed.project != "" && (!parsed.serverSet || (parsed.command != "policy" && parsed.command != "agent-template")) {
 		return parsed, fmt.Errorf("--project requires authenticated governance apply")
 	}
+	if parsed.accessGuide != "" && parsed.command != "agent-template" {
+		return parsedArgs{}, fmt.Errorf("--access-guide is only valid for agent-template apply")
+	}
 	if parsed.installation != "" && (!parsed.serverSet || parsed.command != "platform") {
 		return parsed, fmt.Errorf("--installation requires authenticated platform operation")
 	}
@@ -1217,6 +1241,11 @@ func printMemberRegistration(stdout, stderr io.Writer, parsed parsedArgs, servic
 	kind := "policy"
 	if parsed.command == "agent-template" {
 		kind = "template"
+		data, err = packageGuide(data, parsed.accessGuide)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
 	}
 	result, err := services.ApplyGovernance(parsed.project, kind, string(data))
 	if err != nil {

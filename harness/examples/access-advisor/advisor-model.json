@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "allowedModes": ["manual", "suggest", "automatic"],
+  "defaultMode": "automatic",
+  "engine": "model",
+  "modelProfile": "access-advisor",
+  "maxCalls": 24,
+  "maxConcurrent": 1,
+  "maxRecords": 64,
+  "timeout": "60s"
+}

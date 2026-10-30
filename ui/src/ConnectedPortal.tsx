@@ -9,6 +9,7 @@ import { workerActions } from './worker-activity-model';
 import { category, recordTitle, recordReason, recordStatus, outcomeReason } from './record-presentation';
 import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
+import { AccessPlanningEvidence } from './AccessPlanningEvidence';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { WorkSubmissionCopy } from './WorkSubmission';
 import { ConfigurationContext, WorkComparison, PolicyRules, PolicyHistory } from './PresenterViews';
@@ -147,7 +148,7 @@ function WorkDetail({ work }: { work: View }) {
     </nav>
     <Heading title={workTitle(work)} status={<Badge value={status}/>} action={<a className="portal-button" href={link(`work/new?copy=${encodeURIComponent(work.requestRef)}`)}>Copy as new Work</a>}/>
     {status!=='Succeeded'&&<WorkNotices work={work}/>}
-    <WorkPermissions work={work}/>
+    <WorkPermissions work={work}/><AccessPlanningEvidence work={work}/>
     {status==='Succeeded'&&<WorkNotices work={work}/>}
     <WorkContext work={work}/>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
@@ -367,6 +368,7 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
+    {setup.installation.platform.startsWith('LOCAL ADVISOR ACCEPTANCE') && <p role="status" className="portal-local-warning">Local Advisor acceptance · real configured Advisor · synthetic task execution and tool data · in-memory Work history · no AWS or network-isolation test</p>}
     {setup.installation.platform.startsWith('LOCAL ACCEPTANCE') && <p role="status" className="portal-local-warning">Local acceptance · synthetic identity/runtime/model · real Go authorization / PostgreSQL · MCP and source status shown in Platform · not AWS or infrastructure verification</p>}
     {data.paused && <p role="status" className="portal-source-note">
       Automatic refresh paused. <button className="portal-button" onClick={retry}>Refresh progress</button>

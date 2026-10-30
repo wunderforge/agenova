@@ -17,6 +17,7 @@ import (
 	"time"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/accessadvisor"
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/evidence"
@@ -53,6 +54,7 @@ type record struct {
 }
 
 type Service struct {
+	advisor    *accessadvisor.Service
 	repository history.Repository
 	revision   string
 	telemetry  *telemetry.Telemetry
@@ -92,6 +94,7 @@ type AccessAuthorizer interface {
 }
 
 type Options struct {
+	Advisor     *accessadvisor.Service
 	Repository  history.Repository
 	Revision    string
 	Telemetry   *telemetry.Telemetry
@@ -154,6 +157,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 		}
 	}
 	s := &Service{tools: options.ToolBackend, durable: options.Durable, preset: preset, setup: options.Setup, setupFor: options.SetupFor, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
+	s.advisor = options.Advisor
 	var key [32]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		return nil, errors.New("workload identity entropy unavailable")
@@ -199,6 +203,10 @@ func (s *Service) SubmitFor(data []byte, principal v0.Principal) (evidence.View,
 }
 
 func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionCheck func(context.Context) error) (evidence.View, error) {
+	return s.submitForSessionPlanned(data, principal, sessionCheck, nil)
+}
+
+func (s *Service) submitForSessionPlanned(data []byte, principal v0.Principal, sessionCheck func(context.Context) error, receipt *evidence.AccessAdvice) (evidence.View, error) {
 	if sessionCheck != nil && sessionCheck(context.Background()) != nil {
 		return evidence.View{}, authentication.ErrForbidden
 	}
@@ -212,12 +220,12 @@ func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionC
 	if err := s.access.Authorize(context.Background(), principal, "work.submit", request.Spec.ProjectRef); err != nil {
 		return evidence.View{}, authentication.ErrForbidden
 	}
-	key := submissionKey{}
+	key := submissionKey{planning: receipt}
 	if s.durable != nil {
 		if s.storageFailed.Load() {
 			return evidence.View{}, workstore.ErrUnavailable
 		}
-		key = submissionKey{name: request.Metadata.Name, digest: workstore.Digest(request)}
+		key = submissionKey{name: request.Metadata.Name, digest: workstore.Digest(request), planning: receipt}
 		view, existing, err := s.durable.Existing(context.Background(), principal, key.name, key.digest)
 		if err != nil {
 			return evidence.View{}, err
@@ -235,6 +243,14 @@ func (s *Service) submitForSession(data []byte, principal v0.Principal, sessionC
 		p, err := s.prepareFor(data, principal)
 		if err == nil && (p.Admission.Principal != principal || (p.Issued != nil && p.Issued.Principal != principal)) {
 			return app.PreparedAssignment{}, errors.New("prepared identity mismatch")
+		}
+		if err == nil && receipt != nil {
+			if p.Template == nil || v0.AccessGuideDigest(p.Template) != receipt.GuideDigest {
+				return app.PreparedAssignment{}, &SubmissionError{Code: "advice_stale", Message: "The registered Agent guide changed; plan again explicitly."}
+			}
+			if receipt.Mode == "automatic" && p.Admission.Decision.Result == v0.DecisionResultAllow && (p.Issued == nil || !accessadvisor.RequiredGranted(p.Request.Spec.RequestedAccess, p.Issued.EffectiveAuthority)) {
+				return app.PreparedAssignment{}, &SubmissionError{Code: "required_access_missing", Message: "Current Policy did not grant the required access; no Work was started."}
+			}
 		}
 		return p, err
 	}, sessionCheck, key)
@@ -324,6 +340,7 @@ func (s *Service) submit(data []byte, owner v0.Principal, prepare func([]byte) (
 	}
 	s.telemetry.Decision(traceCtx, "admission", string(d.Result))
 	view := evidence.View{TraceID: telemetry.TraceID(traceCtx), Version: "agenova.evidence/v0", RequestRef: ref, Request: request, State: prepared.Issued, Facts: []facts.Fact{}}
+	view.AccessAdvice = key.planning
 	if d.Result != v0.DecisionResultAllow {
 		view.Outcome = &evidence.Outcome{Status: string(d.Result)}
 		if err := s.persistInitial(prepared, owner, key, view); err != nil {

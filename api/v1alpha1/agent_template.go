@@ -64,6 +64,7 @@ type AgentTemplate struct {
 }
 
 type AgentTemplateSpec struct {
+	AccessGuide       *AgentAccessGuide               `json:"accessGuide,omitempty" yaml:"accessGuide,omitempty"`
 	Artifact          *AgentTemplateArtifact          `json:"artifact" yaml:"artifact"`
 	Entrypoint        *AgentTemplateEntrypoint        `json:"entrypoint" yaml:"entrypoint"`
 	Defaults          AgentTemplateDefaults           `json:"defaults,omitempty" yaml:"defaults,omitempty"`
@@ -227,7 +228,7 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 		}
 	}
 
-	return nil
+	return ValidateAccessGuide(template)
 }
 
 func validateUniqueNonBlankList(path string, values []string) *ValidationError {
@@ -277,6 +278,7 @@ func validateAgentTemplateSpecShape(node *yaml.Node, path string) *ValidationErr
 	}
 	return validateMapping(node, path, map[string]nodeValidator{
 		"artifact":          validateArtifactShape,
+		"accessGuide":       validateAccessGuideShape,
 		"entrypoint":        validateEntrypointShape,
 		"defaults":          validateDefaultsShape,
 		"capabilityCeiling": validateCapabilityCeilingShape,

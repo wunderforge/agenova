@@ -12,15 +12,32 @@ import (
 )
 
 type View struct {
-	Version    string           `json:"version"`
-	RequestRef string           `json:"requestRef"`
-	Request    *v0.ClaimRequest `json:"request"`
-	State      *v0.IssuedState  `json:"state,omitempty"`
-	Facts      []facts.Fact     `json:"facts"`
-	TraceID    string           `json:"traceId,omitempty"`
-	Recovery   *Recovery        `json:"recovery,omitempty"`
-	Diagnosis  *Diagnosis       `json:"diagnosis,omitempty"`
-	Outcome    *Outcome         `json:"outcome,omitempty"`
+	AccessAdvice *AccessAdvice    `json:"accessAdvice,omitempty"`
+	Version      string           `json:"version"`
+	RequestRef   string           `json:"requestRef"`
+	Request      *v0.ClaimRequest `json:"request"`
+	State        *v0.IssuedState  `json:"state,omitempty"`
+	Facts        []facts.Fact     `json:"facts"`
+	TraceID      string           `json:"traceId,omitempty"`
+	Recovery     *Recovery        `json:"recovery,omitempty"`
+	Diagnosis    *Diagnosis       `json:"diagnosis,omitempty"`
+	Outcome      *Outcome         `json:"outcome,omitempty"`
+}
+
+// AccessAdvice is accepted preflight provenance, not a Work authority or a
+// worker model invocation. Hashes avoid storing raw planner prompt/response.
+type AccessAdvice struct {
+	ID                    string `json:"id"`
+	Mode                  string `json:"mode"`
+	Engine                string `json:"engine"`
+	IntentDigest          string `json:"intentDigest"`
+	GuideDigest           string `json:"guideDigest"`
+	GuideVersion          string `json:"guideVersion"`
+	ProfileID             string `json:"profileID"`
+	AcceptedRequestDigest string `json:"acceptedRequestDigest"`
+	PlannerModel          string `json:"plannerModel,omitempty"`
+	PlannerInputTokens    int    `json:"plannerInputTokens,omitempty"`
+	PlannerOutputTokens   int    `json:"plannerOutputTokens,omitempty"`
 }
 
 type Outcome struct {

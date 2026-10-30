@@ -24,6 +24,12 @@ Agenova provides a **claim-scoped governance contract** for reusable agent work.
 - The task remains embedded in `ClaimRequest` for the MVP; a standalone Task resource requires a separately justified lifecycle.
 - `SandboxClaim` is the system-managed record of one resolved worker run. Callers do not self-issue claim status or effective authority.
 - Request resolution precedes claim creation and must remain backend-neutral.
+- Owner-approved optional preflight (#211, 30 October 2026): a separate Advisor
+  may use author guidance and task context to propose canonical requestedAccess,
+  with optional automatic adoption/submission. It cannot issue authority,
+  impersonate a future claim, replace current resolution or make itself mandatory
+  for existing explicit upstream clients. Planning authorization/calls/evidence
+  remain distinct from execution; Agent code still owns its task workflow.
 - The MVP may use a static, versioned, default-deny reference policy bundle. Identity-provider integration and self-service policy administration are separate concerns.
 - Owner-approved reference extension (#165, 17 September 2026): a trusted operator may create a versioned PolicyBundle and compatible AgentTemplate from declarative files, with identical reapply idempotency and same-identity conflict. This is not general policy/template CRUD or a task-submitter capability. Runtime/backend details remain in adapter configuration, not authority-bearing request or template fields.
 
