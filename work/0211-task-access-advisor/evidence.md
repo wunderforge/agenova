@@ -63,8 +63,10 @@ path is retained, but a real database restart was not exercised this round.
 ## Executed gates
 
 - Guide/config/platform/CLI and existing affected Go package regressions.
-- Four browser flows using real local Go APIs and deterministic rules: Manual,
+- Six browser cases using real local Go APIs and deterministic rules: Manual,
   Suggest/review/confirm, Automatic CRM, clarification/stale-review reset.
+  Desktop (1440px) and mobile (390px) verify task-first order, nearby permission
+  controls, mode switching without losing task text, and no horizontal overflow.
 - Three opt-in browser tests with actual `qwen2.5-coder:7b`: same generic task type,
   public objective selects `web.read`; customer objective selects `crm.read`.
   Both returned real planner metadata/token counts and no direct network request.
@@ -115,3 +117,18 @@ separate frontend check continues despite this unrelated full-check stop.
 Optional controlled/live integration entry points and the `agenovaprobe` command
 compiled locally; `go test -tags agenovaprobe ./internal/console/` passed. These
 were compile/local tests, not real Kubernetes or cloud runs.
+
+## Task-first UI refinement
+
+30 Oct owner walkthrough: reorganized New Work into task context and objective,
+Permissions, Run settings, then actions. Permission setup now lives inside
+Permissions, immediately above its dependent controls. Removed the repeated
+sidebar and inline instructional prose. Suggested permissions are shown once as
+editable fields; the explanation is available in a disclosure. Configuration
+metadata is also optional to expand. Existing Policy/Advisor submission contracts
+are unchanged. Production build and all 178 frontend unit tests passed; screenshots
+are recorded in the layout cases under `.tmp/advisor-browser/`. The existing
+90-case frontend browser regression also passed for this refinement. All six
+Advisor/layout cases passed; final neutral-focus desktop/mobile screenshots were
+inspected. No backend or authorization contract changed. The existing port 5221
+process was kept running, so in-memory Work history was not reset for this UI update.

@@ -43,3 +43,26 @@ MD-only arbitrary permission generation is harder to validate than structured pr
 Provider/runtime spies prove absence of calls; httptest verifies transport/identity; immutable registry tests verify guide snapshots. The existing PostgreSQL preview remains available. Because local Docker/PostgreSQL was unavailable, an explicit loopback-only `--volatile` acceptance mode uses real Go APIs/authorization with synthetic identity, worker and tool fixtures and memory-only Work history. Its Advisor uses actual configured Ollama inference; a rules config is separate and labeled. This is not real PostgreSQL restart or AWS/network proof. Report the existing Windows Owner-bootstrap directory-sync failure without hiding/skipping it. Exact evidence and reproduction steps are in [evidence.md](evidence.md).
 
 Mature references: [Skills metadata/disclosure](https://www.anthropic.com/research/equipping-agents-for-the-real-world-with-agent-skills); [MCP untrusted annotations](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). Reuse knowledge packaging and hint/authority separation, not authorization through Markdown.
+
+## New Work layout refinement
+
+Owner feedback (30 October): define the task first, then choose how to prepare
+permissions, with Manual controls immediately below that choice. Keep the June
+palette and execution/authorization behavior unchanged.
+
+Single-column order: Project/Agent context, Task, Permissions, Run settings,
+submission actions. Task contains the caller's objective/name and adjacent
+preset/type fields; presets still never overwrite their task. Permissions owns the
+mode control and its controls: Manual shows editable fields immediately; Suggest
+adds a review label and an expandable reason above those same fields rather than
+duplicating the permission list; Automatic shows one short timing hint. Runtime
+profile/time limit remain visible. Policy/image/identity move to an optional
+Configuration details disclosure; the repeated sidebar summary and instructional
+paragraphs are removed.
+
+Use semantic groups and clear labels, following [W3C form grouping](https://www.w3.org/WAI/tutorials/forms/grouping/).
+Only secondary explanation is collapsed, following [GOV.UK details guidance](https://design-system.service.gov.uk/components/details/);
+required task/access controls are not hidden in disclosures. Local browser
+acceptance checks order, mode-to-fields proximity, no duplicated permission list,
+unchanged draft/submit behavior, keyboard focus and mobile overflow. Review
+screenshots in both desktop/mobile layouts. This is a local UI refinement only.

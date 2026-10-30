@@ -28,6 +28,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const [loading, setLoading] = useState(false);
  const [error, setError] = useState('');
  const [busy, setBusy] = useState(false);
+ const [planning, setPlanning] = useState(false);
  const [draft, setDraft] = useState<ClaimRequest>();
  const [pending, setPending] = useState(pendingReference);
  const [tools, setTools] = useState<string[]>((copy?.request.spec.requestedAccess?.tools || []).filter(tool=>initial.template?.spec.capabilityCeiling?.tools?.includes(tool)));
@@ -36,7 +37,6 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const [preset,setPreset]=useState('');
  const [objective,setObjective]=useState(String(copy?.request.spec.task?.input?.objective||''));
  const [scopes,setScopes]=useState(copy?.request.spec.requestedAccess?.resourceScopes?.filter(value=>initial.template?.spec.capabilityCeiling?.resourceScopes?.includes(value)).join(', ')||'');
- const [review,setReview]=useState({scopes:copy?.request.spec.requestedAccess?.resourceScopes?.join(', ')||'',network:'',timeout:''});
  const contextRequest = useRef<AbortController | null>(null);
  const locked = busy || loading || !!pending;
  const template = setup.template;
@@ -55,7 +55,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
    const next = await connectedSource.setup(controller.signal, { project, template: name });
    if (controller.signal.aborted) return;
    const copiedScopes=copying?original?.spec.requestedAccess?.resourceScopes?.filter(value=>next.template?.spec.capabilityCeiling?.resourceScopes?.includes(value)).join(', ')||'':'';
-   setSetup(next);setScopes(copiedScopes);if(copying)setTools((original?.spec.requestedAccess?.tools||[]).filter(tool=>next.template?.spec.capabilityCeiling?.tools?.includes(tool)));setFormKey(key => key + 1);setReview({scopes:copiedScopes,network:'',timeout:''});
+   setSetup(next);setScopes(copiedScopes);if(copying)setTools((original?.spec.requestedAccess?.tools||[]).filter(tool=>next.template?.spec.capabilityCeiling?.tools?.includes(tool)));setFormKey(key => key + 1);
   } catch (cause) { if (!controller.signal.aborted) { setSetup({...setup, template: null}); setError(cause instanceof Error ? cause.message : 'Configuration unavailable.'); } }
   finally { if (!controller.signal.aborted) setLoading(false); }
  }
@@ -95,11 +95,11 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  async function suggest(){
   if(locked||!template||!formRef.current)return;const form=formRef.current;
   const request=buildRequest(form,true);if(!request.spec.task?.input?.objective){setError('Describe the task first.');return;}
-  setBusy(true);setError('');
+  setBusy(true);setPlanning(true);setError('');
   try{const plan=await connectedSource.advise(request);setAdvice(plan);if(plan.status==='ready'&&plan.request){
-   const a=plan.request.spec.requestedAccess;setTools(a?.tools||[]);setScopes(a?.resourceScopes?.join(', ')||'');setReview(current=>({...current,scopes:a?.resourceScopes?.join(', ')||''}));
+   const a=plan.request.spec.requestedAccess;setTools(a?.tools||[]);setScopes(a?.resourceScopes?.join(', ')||'');
    for(const [name,value]of Object.entries({model:a?.modelProfile||'',memory:a?.memoryScopes?.join(', ')||'',network:a?.networkProfiles?.[0]||''})){const item=form.elements.namedItem(name);if(item instanceof HTMLInputElement||item instanceof HTMLSelectElement)item.value=value;}
-  }}catch(cause){setError(cause instanceof Error?cause.message:'Access advice is unavailable.');}finally{setBusy(false);}
+  }}catch(cause){setError(cause instanceof Error?cause.message:'Access advice is unavailable.');}finally{setBusy(false);setPlanning(false);}
  }
  async function submit(event: FormEvent<HTMLFormElement>) {
   event.preventDefault(); if (locked || !template) return;
@@ -112,41 +112,50 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const project = allowedProjects.includes(setup.project || '') ? setup.project! : allowedProjects[0] || '';
  const minutes = requestedMinutes(ceiling?.maxTimeout);
  return <><nav className="portal-crumbs"><a href="#/work">Work</a> / New work</nav>
-  <div className="portal-head"><div><h1>{copy ? 'Create another Work' : 'New work'}</h1><p>Reuse an agent. Request only what this assignment needs.</p></div></div>
-  {pending && <section className="portal-panel portal-uncertain" role="status"><h2>Submission result not confirmed</h2><p>Request: <code>{pending}</code>. Check its evidence before creating another task. Only the reference is retained in this browser session.</p>
+  <div className="portal-head"><h1>{copy ? 'Create another Work' : 'New work'}</h1></div>
+  {pending && <section className="portal-panel portal-uncertain" role="status"><h2>Submission result not confirmed</h2><p>Request: <code>{pending}</code>. Check its evidence before creating another task.</p>
    <button className="portal-button" disabled={busy} onClick={() => void reconcile()}>Check existing request</button>{draft && <button className="portal-button" disabled={busy} onClick={() => void send(draft,draftAutomatic)}>Retry identical request</button>}
    <button className="portal-button" disabled={busy} onClick={()=>{if(window.confirm('This does not stop or cancel the earlier Work. It may still execute. Abandon this reference and intentionally prepare a different task?')){clearPending();setDraft(undefined);setError('Earlier request was not cancelled. This will be a new logical task.');}}}>Prepare a different task…</button>
    </section>}
-  <form ref={formRef} className="portal-form" onSubmit={event => void submit(event)} onChange={event=>{const name=(event.target as unknown as HTMLInputElement).name;if(['objective','workName','taskType','runtime','timeout','repository','branch','preset'].includes(name))invalidateAdvice();const values=new FormData(event.currentTarget);setReview({scopes:String(values.get('scopes')||''),network:String(values.get('network')||''),timeout:String(values.get('timeout')||'')});}}><div>
-   <fieldset disabled={locked} className="portal-form-context"><legend>Assignment context</legend><div className="portal-field-row">
+  <form ref={formRef} className="portal-form portal-new-work" onSubmit={event => void submit(event)} onChange={event=>{const name=(event.target as unknown as HTMLInputElement).name;if(['objective','workName','taskType','runtime','timeout','repository','branch','preset'].includes(name))invalidateAdvice();}}>
+   <fieldset disabled={locked} className="portal-form-context"><legend className="portal-new-work-sr-only">Assignment context</legend><div className="portal-field-row">
     <label>Project<select name="project" value={project} onChange={event => void select(event.target.value)} required><option value="" disabled>Choose a project</option>{allowedProjects.map(value => <option key={value}>{value}</option>)}</select></label>
     <label>Agent<select value={template?.metadata.name || ''} onChange={event => void select(project, event.target.value)}><option value="" disabled>Choose an agent</option>{(setup.templates || (template ? [template.metadata.name] : [])).map(name => <option key={name}>{name}</option>)}</select></label>
    </div></fieldset>
-   {loading && <p role="status">Loading the selected configuration…</p>}
+   {loading && <p role="status">Loading configuration…</p>}
    {!loading && !template && <p role="alert">No approved template is available in this project.</p>}
-   <fieldset key={formKey} disabled={locked || !template} className="portal-task-fields"><legend>Task and requested access</legend>
-    {setup.accessAdvisor?.enabled&&<section className="portal-advice-mode"><label>Permission setup<select value={accessMode} onChange={e=>{setAccessMode(e.target.value as AccessMode);setAdvice(undefined);setError('');}}>
-     {(['manual',...setup.accessAdvisor.allowedModes.filter(mode=>mode!=='manual')] as AccessMode[]).map(mode=><option key={mode} value={mode} disabled={mode!=='manual'&&!template?.spec.accessGuide}>{({manual:'Manual',suggest:'Suggest permissions',automatic:'Automatic'})[mode]}</option>)}
-    </select></label><span className="portal-muted">{accessMode==='automatic'?'Plan permissions and start after Policy checks.':accessMode==='suggest'?'Review a suggestion before starting.':'Choose the permissions for this Work.'}</span></section>}
-    <section><label>Task preset<select name="preset" value={preset} onChange={e=>{const value=e.target.value;const chosen=presets.find(p=>p.id===value);setPreset(value);setTools(chosen?[chosen.tool]:[]);setScopes(chosen?.scope||'');setTaskType(chosen?.type||'investigation');setReview(current=>({...current,scopes:chosen?.scope||''}));}}><option value="">Custom task</option>{presets.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label><small>Presets suggest task type and access. Describe your own task below; existing text is kept.</small><label>Task type<select name="taskType" value={taskType} onChange={event => setTaskType(event.target.value)}><option value="investigation">Investigation</option><option value="document-summary">Document summary</option><option value="repository-change">Repository change</option>{[...new Set(template?.spec.accessGuide?.profiles?.map(p=>p.taskType)||[])].filter(value=>!["investigation","document-summary","repository-change",taskType].includes(value)).map(value=><option key={value}>{value}</option>)}{!['investigation','document-summary','repository-change'].includes(taskType) && <option>{taskType}</option>}</select></label>
-     <label>Work name (optional)<input name="workName" maxLength={maxWorkName} defaultValue={String(input?.workName || '')} placeholder="Give this task a short name"/></label>
-     <label>What should it do?<textarea name="objective" required value={objective} onChange={e=>setObjective(e.target.value)} placeholder={selectedPreset?.example||'Describe the outcome you need from this task.'}/></label>
-     {selectedPreset?.tool==='web.fetch'&&<small>Uses the public product sources configured for this project.</small>}
-     {tools.includes('web.read')&&setup.installation.platform.startsWith('LOCAL ACCEPTANCE')&&<p className="product-notice">Local preview reads the first public HTTPS URL in your task text. No search service or API key is used.</p>}
+   <fieldset key={formKey} disabled={locked || !template} className="portal-task-fields"><legend className="portal-new-work-sr-only">Work configuration</legend>
+    <section className="portal-new-work-card" aria-labelledby="new-work-task-heading"><h2 id="new-work-task-heading">Task</h2>
+     <label>Work name (optional)<input name="workName" maxLength={maxWorkName} defaultValue={String(input?.workName || '')} placeholder="A short name for this task"/></label>
+     <label>What should it do?<textarea name="objective" required value={objective} onChange={e=>setObjective(e.target.value)} placeholder={selectedPreset?.example||'Describe the outcome you need.'}/></label>
+     <div className="portal-field-row">
+      <label>Task preset<select name="preset" value={preset} onChange={e=>{const value=e.target.value;const chosen=presets.find(p=>p.id===value);setPreset(value);setTools(chosen?[chosen.tool]:[]);setScopes(chosen?.scope||'');setTaskType(chosen?.type||'investigation');}}><option value="">Custom task</option>{presets.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+      <label>Task type<select name="taskType" value={taskType} onChange={event => setTaskType(event.target.value)}><option value="investigation">Investigation</option><option value="document-summary">Document summary</option><option value="repository-change">Repository change</option>{[...new Set(template?.spec.accessGuide?.profiles?.map(p=>p.taskType)||[])].filter(value=>!["investigation","document-summary","repository-change",taskType].includes(value)).map(value=><option key={value}>{value}</option>)}{!['investigation','document-summary','repository-change'].includes(taskType) && <option>{taskType}</option>}</select></label>
+     </div>
      {taskType === 'repository-change' && <div className="portal-field-row"><label>Repository<input name="repository" defaultValue={String(input?.repository || '')}/></label><label>Base branch<input name="branch" defaultValue={String(input?.baseBranch || 'main')}/></label></div>}
     </section>
-    {accessMode==='suggest'&&<div className="portal-form-actions"><button type="button" className="portal-button" disabled={locked} onClick={()=>void suggest()}>{busy?'Planning…':'Suggest permissions'}</button></div>}
-    {advice&&<AccessAdviceReview plan={advice}/>}
-    <section hidden={accessMode==='automatic'||accessMode==='suggest'&&advice?.status!=='ready'}><h2>Requested access</h2><p>Template limits are a ceiling, not a grant. Policy resolves this request on the server.</p>
-     <fieldset><legend>Tools</legend>{(ceiling?.tools || []).map(tool => <label className="portal-check" key={tool}><input type="checkbox" checked={tools.includes(tool)} onChange={event => setTools(current => event.target.checked ? [...current, tool] : current.filter(value => value !== tool))}/>{tool}</label>)}</fieldset>
-     <label>Resource scopes<input name="scopes" value={scopes} onChange={e=>setScopes(e.target.value)} placeholder="Choose only the resources this task needs"/></label>
-     <div className="portal-chips">{ceiling?.resourceScopes?.map(scope => <code key={scope}>{scope}</code>)}</div><small>Available template scopes · comma-separated request above</small>
-     {!ceiling?.networkProfiles?.length&&ceiling?.tools?.some(tool=>tool==='web.fetch'||tool==='web.read')?<><input type="hidden" name="network" value=""/><p className="portal-muted">External data uses the Tool Gateway. Direct Pod public egress is not requested.</p></>:<><label>Public network access<select name="network" defaultValue=""><option value="">No public network requested</option>{(ceiling?.networkProfiles || []).map(profile => <option key={profile}>{profile}</option>)}</select></label><p className="portal-muted">A network request needs Policy approval. Public-web permits public TCP 443 and DNS, not domain-specific or read-only access.</p></>}
-     <div className="portal-field-row"><label>Model profile<select name="model" defaultValue={template?.spec.defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>{ceiling?.modelProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Memory scope<input name="memory" defaultValue=""/></label></div>
-    </section><section><h2>Runtime request</h2><div className="portal-field-row"><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label></div></section>
+    <section className="portal-new-work-card" aria-labelledby="new-work-permissions-heading"><h2 id="new-work-permissions-heading">Permissions</h2>
+     {setup.accessAdvisor?.enabled&&<div className="portal-advice-mode"><label>Permission setup<select value={accessMode} onChange={e=>{setAccessMode(e.target.value as AccessMode);setAdvice(undefined);setError('');}}>
+      {(['manual',...setup.accessAdvisor.allowedModes.filter(mode=>mode!=='manual')] as AccessMode[]).map(mode=><option key={mode} value={mode} disabled={mode!=='manual'&&!template?.spec.accessGuide}>{({manual:'Manual',suggest:'Suggest permissions',automatic:'Automatic'})[mode]}</option>)}
+     </select></label></div>}
+     {accessMode==='automatic'&&<p className="portal-new-work-mode-hint">Permissions are planned when you start.</p>}
+     {accessMode==='suggest'&&<div className="portal-new-work-suggest"><button type="button" className="portal-button" disabled={locked} onClick={()=>void suggest()}>{planning?'Planning…':advice?.status==='ready'?'Update suggestion':'Suggest permissions'}</button></div>}
+     {advice&&<AccessAdviceReview plan={advice}/>}
+     <div className="portal-new-work-permission-fields" hidden={accessMode==='automatic'||accessMode==='suggest'&&advice?.status!=='ready'}>
+      <fieldset className="portal-new-work-tools"><legend>Tools</legend><div>{(ceiling?.tools || []).map(tool => <label className="portal-check" key={tool}><input type="checkbox" checked={tools.includes(tool)} onChange={event => setTools(current => event.target.checked ? [...current, tool] : current.filter(value => value !== tool))}/>{tool}</label>)}{!ceiling?.tools?.length&&<span className="portal-muted">None available</span>}</div></fieldset>
+      <label>Resource scopes<input name="scopes" value={scopes} onChange={e=>setScopes(e.target.value)} placeholder="Resources this task needs"/></label>
+      {!!ceiling?.resourceScopes?.length&&<div className="portal-chips">{ceiling.resourceScopes.map(scope => <code key={scope}>{scope}</code>)}</div>}
+      <div className="portal-field-row"><label>Model profile<select name="model" defaultValue={template?.spec.defaults?.modelProfile || ceiling?.modelProfiles?.[0] || ''}>{ceiling?.modelProfiles?.map(value => <option key={value}>{value}</option>)}</select></label>
+       {!!ceiling?.memoryScopes?.length?<label>Memory scope<input name="memory" defaultValue=""/></label>:<input type="hidden" name="memory" value=""/>}
+       {!!ceiling?.networkProfiles?.length?<label>Public network access<select name="network" defaultValue=""><option value="">No public network requested</option>{ceiling.networkProfiles.map(profile => <option key={profile}>{profile}</option>)}</select></label>:<input type="hidden" name="network" value=""/>}
+      </div>
+     </div>
+    </section>
+    <section className="portal-new-work-card" aria-labelledby="new-work-runtime-heading"><h2 id="new-work-runtime-heading">Run settings</h2><div className="portal-field-row"><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label></div></section>
    </fieldset>
+   <details className="portal-new-work-config"><summary>Configuration details</summary><dl><dt>Policy</dt><dd>{setup.policy.ID} / {setup.policy.Version}</dd><dt>Agent image</dt><dd>{template?.spec.artifact?.image || 'Not recorded'}</dd><dt>Organization</dt><dd>{setup.organization?.displayName || setup.principal.team}</dd><dt>Requested by</dt><dd>{setup.principal.subject}</dd></dl></details>
    {error && <p role="alert" className="portal-form-error">{error}{error.includes('Sign in') && <a href="/login"> Sign in</a>}</p>}
-   <div className="portal-form-actions"><button className="portal-button primary" disabled={locked || !template || !project || accessMode==='suggest'&&advice?.status!=='ready'} type="submit">{busy ? 'Starting…' : accessMode==='automatic'?'Plan and start work':'Start work'}</button><a href="#/work">Cancel</a></div>
-  </div><aside className="portal-panel portal-request-route"><h2>Before execution</h2><p>{setup.principal.subject}</p><dl><dt>Organization</dt><dd>{setup.organization?.displayName || setup.principal.team}</dd><dt>Project</dt><dd>{project || 'None available'}</dd><dt>Agent image</dt><dd className="portal-break">{template?.spec.artifact?.image || 'Not recorded'}</dd><dt>Policy</dt><dd>{setup.policy.ID} / {setup.policy.Version}</dd><dt>Requested tools</dt><dd>{tools.join(', ')||'None'}</dd><dt>Requested resources</dt><dd>{review.scopes||'None'}</dd><dt>Requested network</dt><dd>{review.network||'No public network'}</dd><dt>Time limit</dt><dd>{review.timeout||minutes} minutes</dd></dl><p>Task intent → Policy resolution → temporary Work authority → governed execution.</p><small>This is a request, not a grant. No provider credentials are included.</small></aside></form>
+   <div className="portal-form-actions portal-new-work-actions"><button className="portal-button primary" disabled={locked || !template || !project || accessMode==='suggest'&&advice?.status!=='ready'} type="submit">{busy&&!planning ? accessMode==='automatic'?'Planning and starting…':'Starting…' : accessMode==='automatic'?'Plan and start work':'Start work'}</button><a href="#/work">Cancel</a></div>
+  </form>
  </>;
 }
