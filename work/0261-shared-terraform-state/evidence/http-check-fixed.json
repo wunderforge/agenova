@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/",
+    "status": "200",
+    "exit": 0
+  },
+  {
+    "path": "/landing/styles.css",
+    "status": "200",
+    "exit": 0
+  },
+  {
+    "path": "/landing/app.js",
+    "status": "200",
+    "exit": 0
+  },
+  {
+    "path": "/login",
+    "status": "200",
+    "exit": 0
+  },
+  {
+    "path": "/api/requests",
+    "status": "401",
+    "exit": 0
+  },
+  {
+    "path": "/members",
+    "status": "303",
+    "exit": 0
+  }
+]
