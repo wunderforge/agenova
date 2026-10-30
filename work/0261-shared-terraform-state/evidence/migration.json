@@ -1,0 +1,37 @@
+[
+  {
+    "root": "production/eks",
+    "exact_backup_bytes_equal": true,
+    "lineage": "1845063a-7c56-473b-727a-8f5b9d57ac75",
+    "serial": 190,
+    "resource_count": 25
+  },
+  {
+    "root": "production/edge",
+    "exact_backup_bytes_equal": true,
+    "lineage": "3caf5ca8-df14-2731-a69e-781771f7c5cb",
+    "serial": 73,
+    "resource_count": 13
+  },
+  {
+    "root": "domain",
+    "exact_backup_bytes_equal": true,
+    "lineage": "d91cacde-9de2-5bcb-8616-34a5d161130f",
+    "serial": 13,
+    "resource_count": 7
+  },
+  {
+    "root": "database",
+    "exact_backup_bytes_equal": true,
+    "lineage": "a888f385-7aae-9066-4298-71c98d2eb51f",
+    "serial": 6,
+    "resource_count": 7
+  },
+  {
+    "root": "member-edge",
+    "exact_backup_bytes_equal": true,
+    "lineage": "bbe04e57-1e6d-5b94-f102-6142969682fc",
+    "serial": 12,
+    "resource_count": 10
+  }
+]

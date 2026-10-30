@@ -1,0 +1,42 @@
+{
+  "get-bucket-versioning": {
+    "Status": "Enabled"
+  },
+  "get-public-access-block": {
+    "PublicAccessBlockConfiguration": {
+      "BlockPublicAcls": true,
+      "IgnorePublicAcls": true,
+      "BlockPublicPolicy": true,
+      "RestrictPublicBuckets": true
+    }
+  },
+  "get-bucket-encryption": {
+    "ServerSideEncryptionConfiguration": {
+      "Rules": [
+        {
+          "ApplyServerSideEncryptionByDefault": {
+            "SSEAlgorithm": "AES256"
+          },
+          "BucketKeyEnabled": false,
+          "BlockedEncryptionTypes": {
+            "EncryptionType": [
+              "SSE-C"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "get-bucket-ownership-controls": {
+    "OwnershipControls": {
+      "Rules": [
+        {
+          "ObjectOwnership": "BucketOwnerEnforced"
+        }
+      ]
+    }
+  },
+  "get-bucket-policy": {
+    "Policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"DenyInsecureTransport\",\"Effect\":\"Deny\",\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::agenova-tfstate-931228356546-ap-southeast-2\",\"arn:aws:s3:::agenova-tfstate-931228356546-ap-southeast-2/*\"],\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}]}"
+  }
+}
