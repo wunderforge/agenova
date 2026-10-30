@@ -1,5 +1,18 @@
 # Agenova MVP PRD
 
+Owner-approved optional local extension (30 October 2026, #211): an independent
+Task Access Advisor may propose canonical requestedAccess from task context,
+an immutable author-provided AgentTemplate access guide and visible capability
+catalog. Platform configuration enables allowed/default manual, suggest and
+automatic modes; each request may choose an allowed mode. Automatic mode may
+adopt a validated proposal and submit it without extra human confirmation, but
+cannot bypass current Policy, template/runtime limits or required approvals.
+Existing explicit upstream/CLI requests remain independent of Advisor. Planning
+identity, bounded calls and evidence are separate from worker claim authority.
+No worker image coupling, new claim lifecycle or generic Skills engine is implied.
+This covers local implementation/testing and feature-branch backup only, not PR,
+merge, cloud spend or deployment. See [task/spec/design](../../work/0211-task-access-advisor/task.md).
+
 Owner-approved final-demo follow-up (23 October 2026, #256): preserve useful
 partial/incomplete Agent output independently of execution phase; display
 evidence-backed reasons without manufacturing denial events. The reference
