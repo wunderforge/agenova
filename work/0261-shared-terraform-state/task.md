@@ -58,3 +58,15 @@ Preserve architecture contracts, resource addresses, RDS and shared network. Use
 - GitHub CLI active enterprise identity cannot create this repository issue; used existing Leo1piece credential only for the scoped command, without changing global account.
 
 - Evidence: [verification](evidence/verification.md); private backups in `.tmp/shared-state/backup`.
+
+## Authorized lifecycle verification follow-up
+
+2026-10-30: user explicitly requested actual startup, latest-main UI verification,
+then shutdown. This supersedes this packet's earlier no-rebuild limitation for
+the bounded verification cycle only. Preserve RDS/data and persistent dependencies;
+no automatic schedule. Record actual plans, runtime digest, UI evidence, teardown
+and failures. Local SSO token is expired; designated operator credentials remain
+valid, so this cycle does not certify teammate SSO access.
+
+User subsequently confirmed “没事，关吧，晚上我再测试。” Continue shutdown;
+do not reopen for the delayed manual login. No automatic evening restart.

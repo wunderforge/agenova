@@ -14,6 +14,11 @@ class PlanReviewTests(unittest.TestCase):
         self.assertTrue(review(plan('aws_eks_cluster.demo', ['create']), 'production/eks', 'on'))
         self.assertTrue(review(plan('aws_eks_node_group.demo', ['delete']), 'production/eks', 'off'))
 
+    def test_cluster_scoped_pod_identity_lifecycle(self):
+        for address in ['aws_eks_addon.pod_identity', 'aws_eks_pod_identity_association.model_gateway']:
+            self.assertTrue(review(plan(address, ['create']), 'production/eks', 'on'))
+            self.assertTrue(review(plan(address, ['delete']), 'production/eks', 'off'))
+
     def test_protect_persistent_and_unknown_changes(self):
         for address in ['aws_vpc.demo', 'aws_subnet.demo[0]', 'aws_iam_role.node',
                         'aws_ecr_repository.demo["worker"]', 'aws_db_instance.application',

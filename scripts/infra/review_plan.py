@@ -10,7 +10,8 @@ ALLOWED = {
     'production/eks': {
         'aws_eks_cluster.demo', 'aws_eks_node_group.demo',
         'aws_eks_access_entry.operator', 'aws_eks_access_policy_association.operator',
-        'aws_eks_addon.vpc_cni',
+        'aws_eks_addon.vpc_cni', 'aws_eks_addon.pod_identity',
+        'aws_eks_pod_identity_association.model_gateway',
     },
     'production/edge': {
         'aws_lb.demo', 'aws_lb_listener.https', 'aws_lb_target_group.demo',

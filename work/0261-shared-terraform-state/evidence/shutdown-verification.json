@@ -1,0 +1,17 @@
+{
+  "verifiedAt": "2026-10-30T06:07:53.554394+00:00",
+  "cluster": "absent",
+  "nodegroup": "absent with cluster",
+  "node": "terminated",
+  "rootVolume": "absent",
+  "asg": "absent",
+  "alb": "absent",
+  "targetGroups": "both absent",
+  "applicationTrafficDns": "absent",
+  "hostedZone": "preserved",
+  "rdsStatus": "available",
+  "rdsIdentityUnchanged": true,
+  "rdsDeletionProtection": true,
+  "manualGoogleLogin": "deferred by user",
+  "automaticRestart": "not scheduled"
+}

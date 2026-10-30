@@ -45,7 +45,12 @@ Use the latest reviewed `origin/main` commit as the UI deployment baseline. Reco
 its full SHA when restoring, and deploy the artifact built from that SHA. As of the
 initial inspection, main was `32b59bf`; this is a source baseline, not proof of a
 running UI. EKS and app/demo DNS were absent. Restoring infrastructure alone does
-not restore workload secrets or the UI.
+not restore workload secrets or the UI. An absent immutable main tag must be
+built and published before referencing it; a branch update does not prove that
+publication succeeded. Use `deploy/production/release.Dockerfile` with the exact
+main source tree, `linux/amd64`, revision label and immutable SHA tag. On managed
+networks, provide the trusted enterprise CA to build stages; never disable TLS
+verification or copy build-only trust material into the final runtime image.
 
 Follow [shared EKS release](shared-eks-release.md) and
 [member service bootstrap](../../deploy/production/member-service.md). The existing
@@ -62,11 +67,19 @@ For example, after setting the correct root and reviewed inputs:
 ```sh
 mkdir -p .tmp/terraform-plans
 chmod 700 .tmp/terraform-plans
-terraform -chdir=infra/production/eks plan -out=../../../.tmp/terraform-plans/eks.tfplan
+python3 scripts/infra/check_backend.py --root production/eks
+# Set a current RFC3339 reminder in the private tfvars before planning.
+terraform -chdir=infra/production/eks plan -input=false -out=../../../.tmp/terraform-plans/eks.tfplan
 terraform -chdir=infra/production/eks show -json ../../../.tmp/terraform-plans/eks.tfplan > .tmp/terraform-plans/eks.json
 python3 scripts/infra/check_backend.py --root production/eks
 python3 scripts/infra/review_plan.py --root production/eks --operation on .tmp/terraform-plans/eks.json
 ```
+
+Private recovery tfvars may still contain an expired `expires_at` and old API
+CIDRs. Update those explicitly for the current test window and operator egress.
+The reminder is not a shutdown scheduler. First recovery can also propose
+tag-only changes on retained resources; review these separately, without
+expanding the routine ephemeral allowlist.
 
 Read the human plan as well. The scope guard rejects persistent or unknown
 resource changes and replacements. It is a review aid, not authorization to apply.
@@ -77,28 +90,71 @@ changes; targeted plans do not represent the whole configuration.
 ## Restore order and current limits
 
 1. Review EKS root drift and restore the cluster/node group, access entries and
-   addons while preserving its VPC, subnets, IAM, ECR and logs.
+   addons while preserving its VPC, subnets, IAM, ECR and logs. Verify access for
+   the existing SSO administrator principal: the current Terraform operator
+   entry alone does not restore the separately provisioned team SSO entry.
+   Restore its existing cluster-admin policy association if absent; do not
+   create a new IAM role or grant application users cluster access.
 2. Review the new cluster security group wiring to RDS. A recreated cluster can
    change its security group ID. Review a separate narrowly scoped database
    ingress repair; never apply unrelated RDS engine or data changes.
 3. Restore `production/edge`, then `member-edge`, using the current certificate
    and node group inputs. Stale security-group rules may need a separate reviewed
    repair before routine allowlisted plans pass.
-4. Restore workload secrets, service and main's artifact; verify endpoints and UI.
+4. Restore the pinned Agent Sandbox controller/CRDs compatible with the saved
+   templates. Create namespaces and apply
+   `deploy/production/eks/network-policies.yaml` before starting workloads and
+   `deploy/production/eks/worker-egress-deny.yaml` after the CNI addon is ready: the
+   EKS CNI uses strict network-policy enforcement.
+5. Restore workload secrets, service and main's artifact; verify endpoints and UI.
+   Exclude old `kube-root-ca.crt`, object UIDs/resource versions/owner references
+   and Service cluster IPs from backups. The new cluster supplies its own CA.
+   Preserve the original application session key and runtime DB credentials;
+   do not rerun Owner bootstrap.
 
-This migration does not execute or certify a complete off/on cycle. The current
+The migration and lifecycle verification are separate operations. The current
 configuration mixes persistent network resources with ephemeral compute, so
-first restoration requires the above drift review. Do not promise a one-click
+restoration requires the above drift review. See the ticket evidence for the
+actual cycle results and remaining manual-login limitation. Native EKS Pod Identity addon
+and model-gateway association are cluster-scoped restore targets; their IAM role
+and policy remain persistent. Do not promise a one-click
 restart until that recovery has been exercised.
 
 ## Stop order (only when explicitly authorized)
 
-Plan exact ephemeral targets in `member-edge`, then `production/edge`, then
-`production/eks`. The allowed addresses are maintained in
-`scripts/infra/review_plan.py`. Use repeated `-target=ADDRESS` arguments with
-`terraform plan -destroy -out=...`; inspect the JSON with `--operation off` and
-run the backend check. Terraform may include dependencies; the guard must reject
-any resulting persistent-resource deletion. Apply only a reviewed saved plan.
+Use the reviewed AWS API procedure for this mixed persistent/ephemeral layout.
+The real EKS targeted-destroy preview included the retained model-gateway IAM role
+and policy because of dependencies; it was rejected and was **not applied**.
+Terraform also marks targeted plans incomplete. Do not disable the guard or
+assume `-target` limits deletion to the addresses typed on the command line.
+
+If a person is performing a manual login check, wait for their explicit result
+or instruction to shut down before removing the entry point.
+
+1. Confirm account/backend, no running apply, no active SandboxClaims/Work, and
+   privately save state, current deployment/configuration and exact AWS IDs.
+2. Remove the warm pool and allow its Sandbox workers to finish deletion. Keep
+   the controller running until that cleanup finishes; never remove finalizers
+   or bypass a node drain to hurry the test.
+3. Inspect the current Route53 records. Submit DELETE only for app/demo traffic
+   aliases that point to the reviewed ALB. Preserve all other records and zone.
+4. Delete that exact ALB ARN; wait until absent. Delete only the reviewed
+   `agenova-members` and `agenova-demo-portal` target-group ARNs. Listener/rule
+   resources disappear with their ALB. Do not delete security groups.
+5. Delete node group `demo` in `agenova-demo`; wait until absent and verify its
+   recorded EC2 nodes and root EBS volumes are gone. Then delete `agenova-demo`
+   and wait until absent. Preserve IAM roles/policies, including model-gateway.
+6. Verify RDS is still `available`, deletion protection is enabled, and its
+   resource identity is unchanged. Check the exact ALB/TG/DNS/node/EBS/EKS IDs.
+7. After confirmed absence, reconcile only the absent ephemeral addresses with
+   locked `terraform state rm` in the three affected roots. Pull private state
+   backups first; never remove persistent resource addresses. This removes stale
+   bindings, not cloud resources, and the next start plan will recreate them.
+   Keep the audit of removed addresses and final S3 lineage/serial.
+
+The exact ephemeral address sets are in `scripts/infra/review_plan.py`. Use them
+for reviewed state reconciliation, not as an instruction to bypass plan review.
+Re-run init/backend checks from other checkouts; shared state remains authoritative.
 
 **Never run whole-root destroy for EKS, database, domain or state storage.**
 Preserve RDS/data, VPC/subnets/routes/security dependencies, permanent certificates

@@ -1,0 +1,45 @@
+[
+  {
+    "root": "production/eks",
+    "removedAbsentBindings": [
+      "aws_eks_access_entry.operator",
+      "aws_eks_access_policy_association.operator",
+      "aws_eks_addon.pod_identity",
+      "aws_eks_addon.vpc_cni",
+      "aws_eks_cluster.demo",
+      "aws_eks_node_group.demo",
+      "aws_eks_pod_identity_association.model_gateway"
+    ],
+    "lineagePreserved": true,
+    "persistentBindingsUnchanged": true,
+    "serialBefore": 194,
+    "serialAfter": 195
+  },
+  {
+    "root": "production/edge",
+    "removedAbsentBindings": [
+      "aws_autoscaling_attachment.demo",
+      "aws_lb.demo",
+      "aws_lb_listener.https",
+      "aws_lb_target_group.demo",
+      "aws_route53_record.demo"
+    ],
+    "lineagePreserved": true,
+    "persistentBindingsUnchanged": true,
+    "serialBefore": 75,
+    "serialAfter": 76
+  },
+  {
+    "root": "member-edge",
+    "removedAbsentBindings": [
+      "aws_autoscaling_attachment.members",
+      "aws_lb_listener_rule.members",
+      "aws_lb_target_group.members",
+      "aws_route53_record.members"
+    ],
+    "lineagePreserved": true,
+    "persistentBindingsUnchanged": true,
+    "serialBefore": 13,
+    "serialAfter": 14
+  }
+]

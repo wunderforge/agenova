@@ -17,7 +17,9 @@ COPY harness /src/harness
 COPY internal /src/internal
 COPY go.mod go.sum /src/
 # Vite compiles canonical Go fixtures; the locked Go toolchain is build-only.
-RUN npx tsc --noEmit && npx vite build
+RUN npx tsc --noEmit && npx vite build && \
+    find dist -type d -exec chmod 0755 {} + && \
+    find dist -type f -exec chmod 0644 {} +
 
 FROM golang:1.27.2-alpine AS build
 WORKDIR /src
