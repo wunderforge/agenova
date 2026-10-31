@@ -20,6 +20,15 @@
 
 Only optional fields on template/Platform/evidence. ClaimRequest/EffectiveAuthority/lifecycle unchanged; old documents remain valid. Registries keep immutable semantics. No SQL migration, generic Skill/Task lifecycle, cross-Work elevation or cloud rollout.
 
+Owner-approved follow-up (31 October): ordinary `task.type` may be omitted/empty;
+it has no routing or authority requirement. Nonempty legacy types retain their
+serialization and meaning. Omitted/empty forms canonicalize to omission without
+inventing a classifier; explicit requests remain independent of the Advisor.
+Whitespace-only types are invalid. Rules planning remains an explicitly typed
+workflow contract; model planning accepts a generic objective. Remove the primary
+type selector while preserving repository inputs and legacy typed copies/presets.
+See followups.md for failure diagnosis and real local Researcher acceptance.
+
 ## Negative Cases
 
 Disabled mode; missing/oversized/over-ceiling guide; unknown/ambiguous task/profile; extra model fields; timeout/error; call/concurrency cap; unauthorized project; session revoked; stale/swapped task/guide; cross-user ID; Policy shrink; duplicate retry/restart; no silent mock fallback.

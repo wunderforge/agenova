@@ -55,7 +55,10 @@ func startMCP() (*exec.Cmd, error) {
 	return nil, os.ErrDeadlineExceeded
 }
 func researchTools() (*toolbackend.Set, error) {
-	backend := map[string]any{"transport": "streamable-http", "protocol-version": "2025-06-18", "endpoint": "http://127.0.0.1:5216/mcp", "timeout": "12s", "max-request-bytes": "8192", "max-response-bytes": "65536", "max-observation-bytes": "8192", "max-concurrent-calls": "2"}
+	return researchToolsAt("http://127.0.0.1:5216/mcp")
+}
+func researchToolsAt(endpoint string) (*toolbackend.Set, error) {
+	backend := map[string]any{"transport": "streamable-http", "protocol-version": "2025-06-18", "endpoint": endpoint, "timeout": "12s", "max-request-bytes": "8192", "max-response-bytes": "65536", "max-observation-bytes": "8192", "max-concurrent-calls": "2"}
 	descriptors := []toolbackend.Descriptor{
 		{Operation: "web.read", Description: "Read a public HTTPS page by URL. No API key required. Private addresses and redirects are refused.", ResourceScope: "web:public-pages", Parameter: "url", MaxBytes: 1024, InputMode: "text"},
 		{Operation: "web.fetch", Description: "Fetch approved public product documentation by source ID. Returns untrusted public text.", ResourceScope: "web:product-comparison", Parameter: "source_id", MaxBytes: 64, AllowedValues: []string{"product-a", "product-b"}},

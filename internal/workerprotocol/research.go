@@ -73,27 +73,53 @@ func ResearchSchema(tools []Tool, finishing bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var v map[string]any
+	var v actionSchema
 	if err = json.Unmarshal(schema, &v); err != nil {
 		return nil, err
 	}
-	p := v["properties"].(map[string]any)
 	actions := []string{"tool", "native_https", "finish"}
 	if finishing {
 		actions = []string{"finish"}
 	}
-	p["action"] = map[string]any{"type": "string", "enum": actions}
-	p["completion"] = map[string]any{"type": "string", "enum": []string{"", "completed", "partial", "incomplete"}}
-	p["reason"] = map[string]any{"type": "string", "enum": []string{"", "missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}}
-	p["target"] = map[string]any{"type": "string"}
+	v.Properties.Action = stringSchema{Type: "string", Enum: actions}
 	// Native input is checked against NativeTarget after decoding, not as a grant.
-	p["input"] = map[string]any{"type": "string"}
-	v["required"] = []string{"action", "tool", "resource", "input", "answer", "completion", "reason", "target"}
-	b, err := json.Marshal(v)
+	v.Properties.Input = stringSchema{Type: "string"}
+	// Keep action/tool/input before answer and completion, like ActionSchema.
+	// Alphabetical map serialization asks local constrained decoders to write the
+	// answer before choosing a tool, encouraging contradictory call metadata.
+	b, err := json.Marshal(researchVariant{Type: "object", Properties: researchProperties{v.Properties,
+		stringSchema{Type: "string", Enum: []string{"", "completed", "partial", "incomplete"}},
+		stringSchema{Type: "string", Enum: []string{"", "missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}},
+		stringSchema{Type: "string"}},
+		Required: []string{"action", "tool", "resource", "input", "answer", "completion", "reason", "target"}})
 	if err == nil && len(b) > MaxSchemaBytes {
 		return nil, ErrToolCatalog
 	}
 	return b, err
+}
+
+// AgentActionIssue reports bounded shape diagnostics, never model text.
+func AgentActionIssue(text string, tools []Tool, protocol string) (string, string) {
+	if protocol == "" {
+		return ActionIssue(text, tools)
+	}
+	a, err := ParseAgentAction(text, tools, protocol)
+	if err == nil {
+		return "", ""
+	}
+	if a.Action == "tool" && (a.Answer != "" || a.Completion != "" || a.Reason != "" || a.Target != "") {
+		return "agent-action-invalid", "A tool call must leave answer, completion, reason and target empty. Completion metadata is only for finish actions. The agent must retry."
+	}
+	if a.Action == "finish" && (a.Tool != "" || a.Resource != "" || a.Input != "") {
+		return "agent-action-invalid", "A finish action must leave tool, resource and input empty. The agent must retry."
+	}
+	if a.Action == "finish" {
+		return "agent-action-invalid", "A finish action requires an answer and valid completion metadata. The agent must retry."
+	}
+	if a.Action == "tool" {
+		return "agent-action-invalid", "A tool call must select an available tool, its resource and a permitted nonempty input. The agent must retry."
+	}
+	return "agent-action-invalid", "The model response did not match the required Agent action JSON. The agent must retry."
 }
 
 func ParseAgentAction(text string, tools []Tool, protocol string) (Action, error) {

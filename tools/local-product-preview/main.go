@@ -224,7 +224,7 @@ func (e previewExecutor) Execute(ctx context.Context, identity v0.SandboxClaimBa
 		if tool.InputMode == "text" {
 			input = publicURLInTask(t.Objective)
 			if input == "" {
-				return "", errors.New("local public-page task requires a public HTTPS URL")
+				return "", workerprotocol.ErrSourceURLRequired
 			}
 			if len(input) > tool.MaxBytes {
 				return "", errors.New("local public page URL exceeds its byte bound")
@@ -283,7 +283,14 @@ func main() {
 	advisorConfig := flag.String("advisor-config", "", "optional local Advisor configuration JSON")
 	advisorModel := flag.String("advisor-model", "qwen2.5-coder:7b", "existing local Ollama model")
 	volatile := flag.Bool("volatile", false, "explicit in-memory Advisor acceptance; synthetic task execution; no database")
+	liveWorker := flag.String("live-worker", "", "explicit trusted local Researcher executable; enables real Work inference/MCP with --volatile")
+	liveMCP := flag.String("live-mcp", ".tmp/local-mcp.exe", "trusted local MCP executable for real acceptance")
+	liveMCPListen := flag.String("live-mcp-listen", "127.0.0.1:5216", "dedicated loopback MCP address for real acceptance")
+	executionModel := flag.String("execution-model", "llama3.1:latest", "existing local Ollama model for Agent execution")
 	flag.Parse()
+	if *liveWorker != "" && !*volatile {
+		log.Fatal("live Researcher acceptance requires --volatile")
+	}
 	host, _, listenErr := net.SplitHostPort(*listen)
 	if listenErr != nil || host != "127.0.0.1" || !strings.HasPrefix(*database, "postgres://postgres@127.0.0.1:") {
 		log.Fatal("local preview requires literal loopback endpoints")
@@ -296,7 +303,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if *volatile {
-		if e := serveVolatile(ctx, planner); e != nil {
+		var live *liveConfig
+		if *liveWorker != "" {
+			live = &liveConfig{Worker: *liveWorker, MCP: *liveMCP, MCPListen: *liveMCPListen, Model: *executionModel}
+		}
+		if e := serveVolatile(ctx, planner, live); e != nil {
 			log.Fatal(e)
 		}
 		return

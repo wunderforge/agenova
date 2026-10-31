@@ -80,7 +80,7 @@ export interface ClaimRequestSpec {
 }
 export interface ClaimRequestTask {
   input?: Record<string, JsonValue> | null;
-  type: string;
+  type?: string;
 }
 export interface ClaimRequestedAccess {
   memoryScopes?: (Array<string> | null);
@@ -674,7 +674,8 @@ export const shapes = {
       "type": {
         "shape": {
           "kind": "string"
-        }
+        },
+        "optional": true
       }
     }
   },

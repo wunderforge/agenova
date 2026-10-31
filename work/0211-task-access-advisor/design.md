@@ -44,6 +44,29 @@ Provider/runtime spies prove absence of calls; httptest verifies transport/ident
 
 Mature references: [Skills metadata/disclosure](https://www.anthropic.com/research/equipping-agents-for-the-real-world-with-agent-skills); [MCP untrusted annotations](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). Reuse knowledge packaging and hint/authority separation, not authorization through Markdown.
 
+## Real local execution follow-up
+
+The optional `--live-worker` preview replaces fixture execution with an approved
+Researcher subprocess and the actual loopback MCP adapter. The existing bounded
+stdio exchange is shared with Agent Sandbox; its identity/token/final-answer
+binding and action limits stay intact. The local runner owns its binaries and
+MCP instance, propagates cancellation, and does not inherit provider credentials.
+No executable or environment setting comes from the user's task.
+
+The optional local decoder constrains the existing research-v1 call and finish
+variants separately. It prevents completion metadata on calls and excludes native
+actions for this explicitly gateway-only preview; server-side validation remains
+authoritative. The default provider format and cloud native-probe path remain.
+Source citation, synthetic labeling and capability-consistency checks belong to
+the reference Agent, not the platform's Policy engine. It chooses sources and
+tool inputs from the objective; no platform keyword router is added.
+
+The New Work form omits ordinary type metadata. Legacy typed copies keep it;
+repository inputs remain available. Explicit rules-based presets can select a
+single registered type, while ambiguous matches clarify instead of picking the
+first rule. Presets never grant authority or overwrite the objective. See
+[local-acceptance.md](local-acceptance.md) for execution and evidence limits.
+
 ## New Work layout refinement
 
 Owner feedback (30 October): define the task first, then choose how to prepare
@@ -52,7 +75,8 @@ palette and execution/authorization behavior unchanged.
 
 Single-column order: Project/Agent context, Task, Permissions, Run settings,
 submission actions. Task contains the caller's objective/name and adjacent
-preset/type fields; presets still never overwrite their task. Permissions owns the
+preset field; legacy type metadata is preserved without a primary selector.
+Presets still never overwrite the objective. Permissions owns the
 mode control and its controls: Manual shows editable fields immediately; Suggest
 adds a review label and an expandable reason above those same fields rather than
 duplicating the permission list; Automatic shows one short timing hint. Runtime

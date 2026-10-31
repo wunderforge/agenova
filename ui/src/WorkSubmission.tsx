@@ -32,7 +32,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const [draft, setDraft] = useState<ClaimRequest>();
  const [pending, setPending] = useState(pendingReference);
  const [tools, setTools] = useState<string[]>((copy?.request.spec.requestedAccess?.tools || []).filter(tool=>initial.template?.spec.capabilityCeiling?.tools?.includes(tool)));
- const [taskType, setTaskType] = useState(copy?.request.spec.task?.type || 'investigation');
+ const [taskType, setTaskType] = useState(copy?.request.spec.task?.type || '');
  const [formKey, setFormKey] = useState(0);
  const [preset,setPreset]=useState('');
  const [objective,setObjective]=useState(String(copy?.request.spec.task?.input?.objective||''));
@@ -50,7 +50,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  async function select(project: string, name?: string,copying=false) {
   invalidateAdvice();setAccessMode('manual');
   contextRequest.current?.abort(); const controller = new AbortController(); contextRequest.current = controller;
-  setLoading(true); setError(''); setTools([]); setDraft(undefined);setPreset('');setObjective(copying?String(input?.objective||''):'');setScopes('');setTaskType(copying?original?.spec.task?.type||'investigation':'investigation');
+  setLoading(true); setError(''); setTools([]); setDraft(undefined);setPreset('');setObjective(copying?String(input?.objective||''):'');setScopes('');setTaskType(copying?original?.spec.task?.type||'':'');
   try {
    const next = await connectedSource.setup(controller.signal, { project, template: name });
    if (controller.signal.aborted) return;
@@ -84,13 +84,21 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
   const text = (name: string) => String(values.get(name) || '').trim();
   const request: ClaimRequest = { apiVersion: 'agenova.io/v1alpha1', kind: 'ClaimRequest', metadata: { name: requestName.current }, spec: {
    templateRef: template!.metadata.name, projectRef: text('project'),
-   task: {type: taskType, input: {objective: text('objective'), ...(text('workName') ? {workName: text('workName')} : {}),
-    ...(taskType === 'repository-change' && text('repository') ? {repository: text('repository'), baseBranch: text('branch') || 'main'} : {})}},
+   task: {...(taskType?{type:taskType}:{}), input: {objective: text('objective'), ...(text('workName') ? {workName: text('workName')} : {}),
+    ...(text('repository') ? {repository: text('repository'), baseBranch: text('branch') || 'main'} : {})}},
    requestedAccess: {tools, resourceScopes: list('scopes'), modelProfile: text('model'), memoryScopes: list('memory'), ...(text('network') ? {networkProfiles: [text('network')]} : {})},
    runtime: {profileRef: text('runtime'), timeout: `${text('timeout')}m`},
   }};
   if(planning)request.spec.requestedAccess={};
   return request;
+ }
+ function choosePreset(value:string){
+  const chosen=presets.find(p=>p.id===value);
+  setPreset(value);setTools(chosen?[chosen.tool]:[]);setScopes(chosen?.scope||'');
+  const rules=chosen&&setup.accessAdvisor?.engine==='rules'
+   ?template?.spec.accessGuide?.profiles?.filter(p=>p.requestedAccess.tools?.includes(chosen.tool)&&p.requestedAccess.resourceScopes?.includes(chosen.scope))||[]:[];
+  // An ambiguous rules configuration must clarify, never choose the first rule.
+  setTaskType(rules.length===1?rules[0].taskType||'':'');
  }
  async function suggest(){
   if(locked||!template||!formRef.current)return;const form=formRef.current;
@@ -128,11 +136,8 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
     <section className="portal-new-work-card" aria-labelledby="new-work-task-heading"><h2 id="new-work-task-heading">Task</h2>
      <label>Work name (optional)<input name="workName" maxLength={maxWorkName} defaultValue={String(input?.workName || '')} placeholder="A short name for this task"/></label>
      <label>What should it do?<textarea name="objective" required value={objective} onChange={e=>setObjective(e.target.value)} placeholder={selectedPreset?.example||'Describe the outcome you need.'}/></label>
-     <div className="portal-field-row">
-      <label>Task preset<select name="preset" value={preset} onChange={e=>{const value=e.target.value;const chosen=presets.find(p=>p.id===value);setPreset(value);setTools(chosen?[chosen.tool]:[]);setScopes(chosen?.scope||'');setTaskType(chosen?.type||'investigation');}}><option value="">Custom task</option>{presets.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
-      <label>Task type<select name="taskType" value={taskType} onChange={event => setTaskType(event.target.value)}><option value="investigation">Investigation</option><option value="document-summary">Document summary</option><option value="repository-change">Repository change</option>{[...new Set(template?.spec.accessGuide?.profiles?.map(p=>p.taskType)||[])].filter(value=>!["investigation","document-summary","repository-change",taskType].includes(value)).map(value=><option key={value}>{value}</option>)}{!['investigation','document-summary','repository-change'].includes(taskType) && <option>{taskType}</option>}</select></label>
-     </div>
-     {taskType === 'repository-change' && <div className="portal-field-row"><label>Repository<input name="repository" defaultValue={String(input?.repository || '')}/></label><label>Base branch<input name="branch" defaultValue={String(input?.baseBranch || 'main')}/></label></div>}
+     <label className="portal-new-work-preset">Task preset<select name="preset" value={preset} onChange={e=>choosePreset(e.target.value)}><option value="">Custom task</option>{presets.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+     {(ceiling?.resourceScopes?.some(scope=>scope.startsWith('repo:'))||original?.spec.task?.type==='repository-change') && <div className="portal-field-row"><label>Repository<input name="repository" defaultValue={String(input?.repository || '')}/></label><label>Base branch<input name="branch" defaultValue={String(input?.baseBranch || 'main')}/></label></div>}
     </section>
     <section className="portal-new-work-card" aria-labelledby="new-work-permissions-heading"><h2 id="new-work-permissions-heading">Permissions</h2>
      {setup.accessAdvisor?.enabled&&<div className="portal-advice-mode"><label>Permission setup<select value={accessMode} onChange={e=>{setAccessMode(e.target.value as AccessMode);setAdvice(undefined);setError('');}}>

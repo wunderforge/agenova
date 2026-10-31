@@ -19,6 +19,9 @@ import (
 const lineLimit = 128 * 1024
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--gateway-only" {
+		allowNativeHTTPS = false
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--native-probe" {
 		report, _ := nativeHTTPS(workerprotocol.NativeTarget)
 		_ = json.NewEncoder(os.Stdout).Encode(report)
@@ -97,16 +100,28 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		action, err := workerprotocol.ParseAgentAction(reply.Text, task.Tools, protocol)
 		if err != nil {
-			_, issue := workerprotocol.ActionIssue(reply.Text, task.Tools)
+			_, issue := workerprotocol.AgentActionIssue(reply.Text, task.Tools, protocol)
 			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
 			continue
 		}
 		if action.Action == "finish" {
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Reason == "missing-capability" && callableCapability(action.Target, task.Tools) {
+				transcript += "\nObservation: " + action.Target + " IS available in your callable catalog. Do not report it missing. Choose its relevant input yourself if the objective needs it, or explain the actual evidence limitation."
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Completion != "incomplete" && missingSyntheticLabel(action.Answer, readInputs) {
+				transcript += "\nObservation: the customer-retention dataset is synthetic. Label the findings synthetic in your answer and complete every part of the original objective, including requested follow-up recommendations. Cite the observed customer IDs."
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Completion != "incomplete" && missingSourceCitation(action.Answer, readInputs) {
+				transcript += "\nObservation: your answer omitted its observed source URL. Cite at least one successfully read public URL in the final answer. Successfully read inputs: " + fmt.Sprintf("%q", readInputs)
+				continue
+			}
 			if agentRole == "researcher" && action.Completion == "" && (observations == 0 || action.Answer == researchBlocked) {
 				return workerprotocol.ErrNoFinalResult
 			}
-			if action.Completion == "completed" && observations == 0 {
-				transcript += "\nObservation: no successful evidence exists. Return an incomplete answer, not completed."
+			if observations == 0 && (action.Completion == "completed" || (!allowNativeHTTPS && action.Completion == "partial")) {
+				transcript += "\nObservation: no successful evidence exists yet. If a relevant callable tool is available, call it to obtain evidence. Otherwise explain what could not be verified with completion=incomplete; do not state unverified facts."
 				continue
 			}
 			if action.Completion == "" && (turn < 2 || (len(task.Tools) > 0 && observations == 0)) {
@@ -116,6 +131,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			return writeLine(output, workerprotocol.Message{Result: action.Answer})
 		}
 		if action.Action == "native_https" {
+			if !allowNativeHTTPS {
+				transcript += "\nObservation: direct networking is unavailable in this runtime. Use governed tools or finish incomplete."
+				continue
+			}
 			if nativeSeen {
 				transcript += "\nObservation: native HTTPS was already attempted. Finish using the observations."
 				continue
@@ -176,6 +195,9 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			Observation workerprotocol.Reply `json:"observation"`
 		}{action.Tool, action.Resource, action.Input, observation})
 		transcript += "\n" + string(data)
+		if !allowNativeHTTPS && action.Tool == "crm.read" && observation.Allowed && observation.Error == "" {
+			transcript += "\nCustomer field meanings: inactive_days is days since last activity, NOT the period over which usage_drop_percent was measured. The dataset does not specify that measurement period. Keep these signals separate and do not invent dates or intervals."
+		}
 		// A local model reads past the [TRUNCATED] marker in the text (L12), so
 		// the host's truncated flag is also said in words. It comes from the
 		// host's reply, never from tool text.

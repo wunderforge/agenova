@@ -10,8 +10,8 @@ for(const task of [
  test(`real local model selects ${task.name} from free task context`,async({page})=>{
   await page.goto('/login');
   await page.getByRole('combobox',{name:'Permission setup',exact:true}).selectOption('suggest');
-  // Same generic task type: this must be semantic model selection, not task-type routing.
-  await page.getByRole('combobox',{name:'Task type',exact:true}).selectOption('investigation');
+  // No task category: selection must follow the objective.
+  await expect(page.getByRole('combobox',{name:'Task type',exact:true})).toHaveCount(0);
   await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill(task.objective);
   const reply=page.waitForResponse(r=>r.url().endsWith('/api/access-advice')&&r.request().method()==='POST');
   await page.getByRole('button',{name:'Suggest permissions',exact:true}).click();
@@ -30,7 +30,7 @@ for(const task of [
 test('real local model automatic mode plans and starts with one click',async({page})=>{
  await page.goto('/login');
  await page.getByRole('combobox',{name:'Permission setup',exact:true}).selectOption('automatic');
- await page.getByRole('combobox',{name:'Task type',exact:true}).selectOption('investigation');
+ await expect(page.getByRole('combobox',{name:'Task type',exact:true})).toHaveCount(0);
  await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill('Analyze the internal customer-retention dataset for declining usage and recommend follow-ups. Do not send messages or browse public sources.');
  const reply=page.waitForResponse(r=>r.url().endsWith('/api/access-submit')&&r.request().method()==='POST');
  await page.getByRole('button',{name:'Plan and start work',exact:true}).click();

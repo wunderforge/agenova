@@ -64,4 +64,24 @@ No cloud requests, merge/deploy or credential-file reads. Preserve debug.log, ol
 - First selector chooses one registered access profile; it never emits arbitrary authority-bearing JSON. Interface permits later bounded composition.
 - Draft cache/limits are bounded per process, not a durable monetary spending cap. Accepted provenance persists with Work; expired draft recovery is explicit.
 - User approval expands #211 from exploration to a bounded local implementation; no unresolved architecture conflict.
-- See [local evidence and acceptance guide](evidence.md). Actual local Advisor inference is verified; volatile task fixtures are explicit. A real PostgreSQL restart remains unverified because Docker/local database was unavailable. Full-check Windows Owner-bootstrap failure is recorded without skipping it.
+- See [local evidence](evidence.md) and the [real Researcher walkthrough](local-acceptance.md). Real local Advisor/Agent inference and MCP are separate from synthetic identity/lifecycle/CRM. A real PostgreSQL restart remains outside this volatile preview. Full-check Windows Owner-bootstrap failure is recorded without skipping it.
+
+## Owner-authorized local repairs — 31 October
+
+- [x] Actionable execution failure evidence and UI diagnosis.
+- [ ] Real Researcher execution of business goals without requiring a supplied URL;
+  distinguish actual goal completion from synthetic execution success.
+- [x] Remove Task type from the primary UI, remove ordinary-task dependence on
+  explicit categories, and preserve existing API/CLI compatibility (confirmed
+  requirement; implemented locally). Preserve registered CRM type-name compatibility.
+- [ ] Review Task preset presentation separately; its final placement/removal
+  remains open.
+
+See [recorded findings and acceptance criteria](followups.md). The subsequent
+owner instruction authorizes complete local implementation/testing and commit/push
+to this feature branch. Owner acceptance remains pending; no PR, merge or deployment.
+
+Planned order: failure diagnosis → category-dependency/API compatibility → real
+Researcher execution → simplified form → joint local/legacy regression and owner
+walkthrough. The independent Gateway denial test and Agent no-attempt case must
+remain separate evidence. A local process is not a Kubernetes enforcement proof.

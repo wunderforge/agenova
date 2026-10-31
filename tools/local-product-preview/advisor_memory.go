@@ -12,6 +12,7 @@ import (
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
 	"github.com/wunderforge/agenova/internal/runtime"
@@ -63,8 +64,13 @@ func (syntheticAdviceTool) Invoke(_ context.Context, in toolbackend.Invocation) 
 	return toolbackend.Result{Text: text, Untrusted: true}, nil
 }
 
-func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
-	data, e := os.ReadFile("harness/examples/access-advisor/researcher.yaml")
+func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *liveConfig) error {
+	templatePath, guidePath := "harness/examples/access-advisor/researcher.yaml", "harness/examples/access-advisor/ACCESS.md"
+	if live != nil {
+		templatePath = "harness/examples/access-advisor/researcher-live.yaml"
+		guidePath = "harness/examples/access-advisor/ACCESS-live.md"
+	}
+	data, e := os.ReadFile(templatePath)
 	if e != nil {
 		return e
 	}
@@ -72,7 +78,7 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
 	if invalid != nil {
 		return invalid
 	}
-	guide, e := os.ReadFile("harness/examples/access-advisor/ACCESS.md")
+	guide, e := os.ReadFile(guidePath)
 	if e != nil {
 		return e
 	}
@@ -92,6 +98,24 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
 	if e := loader.Load(bundle); e != nil {
 		return e
 	}
+	var executor console.Executor = previewExecutor{}
+	var provider modelprovider.Client = syntheticProvider{}
+	var liveTools *toolbackend.Set
+	receiptsPath := ""
+	if live != nil {
+		var stop func()
+		liveTools, stop, receiptsPath, e = startLiveTools(ctx, live)
+		if e != nil {
+			return e
+		}
+		defer stop()
+		executor = localProcessExecutor{binary: live.Worker}
+		provider, e = modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{template.Spec.Defaults.ModelProfile: live.Model}, MaxTokens: 1024, Timeout: 2 * time.Minute})
+		if e != nil {
+			return e
+		}
+		provider = localResearchProvider{client: provider, catalog: localWorkerCatalog(liveTools)}
+	}
 	auth := volatileAuth{}
 	setup := func(_ context.Context, p v0.Principal, project, name string) (console.Setup, error) {
 		if project != "" && project != "research" || name != "" && name != template.Metadata.Name {
@@ -102,7 +126,19 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
 		if e != nil {
 			return console.Setup{}, e
 		}
-		return console.Setup{Principal: p, Project: "research", Projects: []string{"research"}, Templates: []string{template.Metadata.Name}, Template: copy, Policy: bundle, Installation: console.InstallationIdentity{Kind: "installed", Platform: "LOCAL ADVISOR ACCEPTANCE · volatile Work history", Revision: "sha256:" + strings.Repeat("b", 64)}, Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "synthetic", "model": "synthetic", "tool": "mock", "memory": "notConnected"}}, nil
+		view := console.Setup{Principal: p, Project: "research", Projects: []string{"research"}, Templates: []string{template.Metadata.Name}, Template: copy, Policy: bundle, Installation: console.InstallationIdentity{Kind: "installed", Platform: "LOCAL ADVISOR ACCEPTANCE · volatile Work history", Revision: "sha256:" + strings.Repeat("b", 64)}, Capabilities: map[string]string{"taskSubmission": "ready", "runtime": "synthetic", "model": "synthetic", "tool": "mock", "memory": "notConnected"}}
+		if live != nil {
+			view.Installation.Platform = "LOCAL LIVE RESEARCHER · volatile Work history"
+			view.Capabilities["model"] = "real-local-model"
+			view.Capabilities["tool"] = "real-local-mcp"
+			view.PlatformInfo = &console.PlatformInfo{Connections: []console.ConnectionInfo{
+				{Category: "model", Name: template.Spec.Defaults.ModelProfile, Backend: "local-ollama", Model: live.Model},
+				{Category: "tool", Name: "public-web-reader", Backend: "local-real-mcp", Operation: "web.read", Scope: "web:public-pages", Tool: "web_read", Endpoint: "http://" + live.MCPListen + "/mcp"},
+				{Category: "tool", Name: "synthetic-customer-retention", Backend: "local-real-mcp", Operation: "crm.read", Scope: "crm:customer-retention", Tool: "crm_read", Endpoint: "http://" + live.MCPListen + "/mcp"},
+				{Category: "runtime", Name: "standard-isolated", Backend: "local-worker-process-simulated-lifecycle", Status: "No OS/Pod isolation proof"},
+			}}
+		}
+		return view, nil
 	}
 	bindings := []toolbackend.Binding{}
 	for _, d := range []toolbackend.Descriptor{{Operation: "web.read", Description: "Synthetic public-page fixture for local Advisor UI acceptance", ResourceScope: "web:public-pages", Parameter: "url", InputMode: "text", MaxBytes: 1024}, {Operation: "crm.read", Description: "Synthetic customer retention fixture", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", MaxBytes: 64, AllowedValues: []string{"customer-retention"}}} {
@@ -113,7 +149,12 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
 		return e
 	}
 	backend := &previewRuntime{claims: map[string]string{}, released: map[string]bool{}, authority: map[string]runtime.NetworkAuthority{}}
-	service, e := console.NewServiceWithOptions(backend, previewExecutor{templateFor: backend.templateFor}, syntheticProvider{}, "", console.Options{Advisor: planner, ToolBackend: tools, Access: auth, Setup: func() (console.Setup, error) { return setup(ctx, v0.Principal{}, "", "") }, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
+	if live != nil {
+		tools = liveTools
+	} else {
+		executor = previewExecutor{templateFor: backend.templateFor}
+	}
+	service, e := console.NewServiceWithOptions(backend, executor, provider, "", console.Options{Advisor: planner, ToolBackend: tools, Access: auth, Setup: func() (console.Setup, error) { return setup(ctx, v0.Principal{}, "", "") }, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
 		return app.ResolvedLaunch{ProfileRef: "standard-isolated", TemplateRef: t.Metadata.Name}, nil
 	}, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 		return app.PrepareAssignment(data, source{p}, loader, volatileTemplates{registry})
@@ -181,7 +222,11 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service) error {
 		defer cancel()
 		_ = server.Shutdown(shutdown)
 	}()
-	fmt.Printf("Local Advisor acceptance: http://%s/login ; real configured Advisor, synthetic task execution, in-memory Work history. No AWS.\n", address)
+	if live != nil {
+		fmt.Printf("Local real Researcher: http://%s/login ; real local model/worker/MCP, synthetic identity/CRM and lifecycle; receipts %s; no infrastructure proof.\n", address, receiptsPath)
+	} else {
+		fmt.Printf("Local Advisor acceptance: http://%s/login ; real configured Advisor, synthetic task execution, in-memory Work history. No AWS.\n", address)
+	}
 	if e := server.ListenAndServe(); e != nil && !errors.Is(e, http.ErrServerClosed) {
 		return e
 	}

@@ -368,6 +368,7 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
+    {setup.installation.platform.startsWith('LOCAL LIVE RESEARCHER') && <p role="status" className="portal-local-warning">Local Researcher · real model, Agent process and MCP · synthetic identity, CRM data and runtime lifecycle · in-memory history · no infrastructure-isolation proof</p>}
     {setup.installation.platform.startsWith('LOCAL ADVISOR ACCEPTANCE') && <p role="status" className="portal-local-warning">Local Advisor acceptance · real configured Advisor · synthetic task execution and tool data · in-memory Work history · no AWS or network-isolation test</p>}
     {setup.installation.platform.startsWith('LOCAL ACCEPTANCE') && <p role="status" className="portal-local-warning">Local acceptance · synthetic identity/runtime/model · real Go authorization / PostgreSQL · MCP and source status shown in Platform · not AWS or infrastructure verification</p>}
     {data.paused && <p role="status" className="portal-source-note">

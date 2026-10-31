@@ -27,6 +27,9 @@ var ErrTurnLimit = errors.New("agent turn limit reached")
 var ErrNoFinalResult = errors.New("agent exited without a final result")
 var ErrInvalidFinalResult = errors.New("agent final result did not match governed evidence")
 var ErrToolCatalog = errors.New("worker tool catalog is invalid or exceeds the schema budget")
+var ErrSourceURLRequired = errors.New("agent requires a source URL")
+var ErrWorkerStart = errors.New("agent process could not start")
+var ErrWorkerTransport = errors.New("agent process communication failed")
 
 // The finishing phase must not advertise stale tool choices in the grammar.
 const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"tool":{"type":"string","enum":[""]},"resource":{"type":"string","enum":[""]},"input":{"type":"string","enum":[""]},"answer":{"type":"string"}},"required":["action","tool","resource","input","answer"],"additionalProperties":false}`

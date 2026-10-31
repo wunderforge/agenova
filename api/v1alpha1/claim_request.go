@@ -54,7 +54,8 @@ type ClaimRequestSpec struct {
 // mappings — the same invariants are enforced on the document tree at parse
 // time and on decoded values in ValidateClaimRequest.
 type ClaimRequestTask struct {
-	Type  string         `json:"type" yaml:"type"`
+	// Type is optional compatibility metadata, not a required task router or grant.
+	Type  string         `json:"type,omitempty" yaml:"type,omitempty"`
 	Input map[string]any `json:"input,omitempty" yaml:"input,omitempty"`
 }
 
@@ -155,8 +156,8 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 	if request.Spec.Task == nil {
 		return validationError(ValidationCategoryRequiredField, "spec.task", "value is required")
 	}
-	if strings.TrimSpace(request.Spec.Task.Type) == "" {
-		return validationError(ValidationCategoryRequiredField, "spec.task.type", "value is required")
+	if request.Spec.Task.Type != "" && strings.TrimSpace(request.Spec.Task.Type) == "" {
+		return validationError(ValidationCategoryInvalidValue, "spec.task.type", "optional type must be non-blank when supplied")
 	}
 	if err := validateTaskInputValues("spec.task.input", request.Spec.Task.Input); err != nil {
 		return err

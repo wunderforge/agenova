@@ -89,6 +89,9 @@ func TestRunFailureReasonsAreRecordedAndSanitized(t *testing.T) {
 		{"turn-limit", workerprotocol.ErrTurnLimit, "agent-turn-limit"},
 		{"no-result", workerprotocol.ErrNoFinalResult, "agent-no-final-result"},
 		{"invalid-result", workerprotocol.ErrInvalidFinalResult, "agent-invalid-final-result"},
+		{"source-input", workerprotocol.ErrSourceURLRequired, "agent-source-url-required"},
+		{"process-start", workerprotocol.ErrWorkerStart, "agent-process-start-failed"},
+		{"process-transport", workerprotocol.ErrWorkerTransport, "agent-communication-failed"},
 		{"unknown", errors.New("private transport credential details"), "execution-failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

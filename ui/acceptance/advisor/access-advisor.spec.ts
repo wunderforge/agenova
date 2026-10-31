@@ -5,7 +5,9 @@ import {test,expect,type Page} from '@playwright/test';
 async function openTask(page:Page,mode:string,type:string,objective:string){
  await page.goto('/login');await expect(page.getByRole('heading',{name:'New work',exact:true})).toBeVisible();
  await page.getByRole('combobox',{name:'Permission setup',exact:true}).selectOption(mode);
- await page.getByRole('combobox',{name:'Task type',exact:true}).selectOption(type);
+ if(mode!=='manual'&&type==='public-research')await page.getByRole('combobox',{name:'Task preset',exact:true}).selectOption('web');
+ if(mode!=='manual'&&type==='customer-analysis')await page.getByRole('combobox',{name:'Task preset',exact:true}).selectOption('crm');
+ await expect(page.getByRole('combobox',{name:'Task type',exact:true})).toHaveCount(0);
  await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill(objective);
 }
 test('manual submits explicit permissions without planning',async({page})=>{
@@ -65,9 +67,9 @@ test('automatic plans and starts CRM in one submission without confirmation',asy
 });
 test('ambiguous automatic task stays unstarted and stale suggestion is cleared',async({page})=>{
  await openTask(page,'automatic','investigation','Do something useful.');const before=await (await page.request.get('/api/requests')).json();
- await page.getByRole('button',{name:'Plan and start work',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Choose a supported task type');
+ await page.getByRole('button',{name:'Plan and start work',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Choose a registered task preset');
  expect((await (await page.request.get('/api/requests')).json()).length).toBe(before.length);
- await page.getByRole('combobox',{name:'Permission setup',exact:true}).selectOption('suggest');await page.getByRole('combobox',{name:'Task type',exact:true}).selectOption('public-research');await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill('Read https://jitsi.org/security/');
+ await page.getByRole('combobox',{name:'Permission setup',exact:true}).selectOption('suggest');await page.getByRole('combobox',{name:'Task preset',exact:true}).selectOption('web');await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill('Read https://jitsi.org/security/');
  await page.getByRole('button',{name:'Suggest permissions',exact:true}).click();await expect(page.getByRole('heading',{name:'Suggested permissions'})).toBeVisible();
  await page.getByRole('textbox',{name:'What should it do?',exact:true}).fill('Different task');await expect(page.getByRole('heading',{name:'Suggested permissions'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Start work',exact:true})).toBeDisabled();
 });

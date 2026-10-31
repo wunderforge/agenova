@@ -670,7 +670,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			action, parseErr := workerprotocol.ParseAgentAction(result.Text, workTools, op.AgentProtocol)
 			code, reason := "agent-action-valid", "The model selected a valid final-answer action."
 			if parseErr != nil {
-				code, reason = workerprotocol.ActionIssue(result.Text, workTools)
+				code, reason = workerprotocol.AgentActionIssue(result.Text, workTools, op.AgentProtocol)
 			} else if action.Action == "tool" {
 				code, reason = "agent-action-tool", "The model selected an available tool action."
 			}
@@ -813,6 +813,12 @@ func (s *Service) workCatalog(authority *v0.EffectiveAuthority) []workerprotocol
 // provider, model output or operating-system error text to the browser.
 func runFailure(err error, recorded []facts.Fact) (string, string) {
 	switch {
+	case errors.Is(err, workerprotocol.ErrSourceURLRequired):
+		return "agent-source-url-required", "This Agent requires a public HTTPS source URL in its task input."
+	case errors.Is(err, workerprotocol.ErrWorkerStart):
+		return "agent-process-start-failed", "The Agent process could not start. Check the configured executable and local runtime."
+	case errors.Is(err, workerprotocol.ErrWorkerTransport):
+		return "agent-communication-failed", "Communication with the Agent process failed before a final result was received."
 	case errors.Is(err, runtime.ErrWorkerImageUnavailable):
 		return "runtime-image-unavailable", "The Agent image could not be pulled. Check the template image reference, registry access and node architecture."
 	case errors.Is(err, runtime.ErrWorkerControlUnavailable):

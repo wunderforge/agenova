@@ -25,6 +25,7 @@
 .portal-new-work .portal-chips{margin:-6px 0 20px}
 .portal-new-work .portal-new-work-mode-hint{font-size:12px;color:var(--portal-muted,#777189);margin:0}
 .portal-new-work-suggest{margin:0 0 16px}
+.portal-new-work-preset{max-width:340px}
 .portal-new-work-config{font-size:12px;margin:24px 0}
 .portal-new-work-config summary{color:var(--portal-muted,#777189);cursor:pointer}
 .portal-new-work-config dl{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px 24px;margin:18px 0 0;line-height:1.6}

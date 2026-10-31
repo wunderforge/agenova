@@ -1,5 +1,14 @@
 # Agenova MVP PRD
 
+Owner-approved local walkthrough correction (31 October 2026, #211): ordinary
+tasks should require a selected Agent and goal, without user-selected semantic
+task categories or an obligatory source URL. Preserve optional legacy `task.type`
+compatibility and specialized inputs; classifications never grant authority.
+Use the existing real Researcher/model/tool loop for local business acceptance,
+keep execution and goal completion distinct, and retain safe failure diagnostics.
+No mandatory new Advisor/classifier, paid provider, merge or deployment is implied.
+See [follow-up scope and gates](../../work/0211-task-access-advisor/followups.md).
+
 Owner-approved optional local extension (30 October 2026, #211): an independent
 Task Access Advisor may propose canonical requestedAccess from task context,
 an immutable author-provided AgentTemplate access guide and visible capability

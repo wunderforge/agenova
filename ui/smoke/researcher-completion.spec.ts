@@ -15,6 +15,17 @@ for(const width of [1440,390])test(`incomplete reason and grouped actions at wid
  await page.goto('/?mode=connected#/work');const group=page.locator('.portal-head-actions');await expect(group.getByRole('link',{name:'Compare two Work'})).toBeVisible();await expect(group.getByRole('link',{name:'New work',exact:true})).toBeVisible();
  await expect(group).toHaveCSS('gap','10px');const spacing=await group.getByRole('link').evaluateAll(links=>links[1].getBoundingClientRect().left-links[0].getBoundingClientRect().right);if(width>650)expect(spacing).toBeLessThanOrEqual(16);
 });
+test('pre-call input failure is highlighted above task permissions without an invented denial',async({page},info)=>{
+ const s=structuredClone(state);s.claim.phase='Failed';
+ const reason='This Agent requires a public HTTPS source URL in its task input.';
+ const view={version:'agenova.evidence/v0',requestRef:'w',request,state:s,diagnosis:{stage:'execution',code:'agent-source-url-required'},facts:[{id:'failure',sequence:1,timestamp:'2026-10-31T12:00:00Z',kind:'RunOutcome',requestRef:'w',operation:'Failed',reason,reasonCode:'agent-source-url-required'}],outcome:{status:'Failed',failure:reason}};
+ await page.route('**/api/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({json:path==='/api/setup'?setup:path==='/api/requests'?[view]:view});});
+ await page.goto('/?mode=connected#/work/w');const notice=page.getByRole('alert');await expect(notice).toContainText(reason);await expect(notice).not.toContainText('blocked');
+ const permissions=page.getByRole('table',{name:'Requested and granted task permissions'});expect((await notice.boundingBox())!.y).toBeLessThan((await permissions.boundingBox())!.y);
+ await expect(notice.getByRole('link',{name:'Evidence'})).toHaveAttribute('href','#/work/w/activity/failure');
+ await page.screenshot({path:info.outputPath('pre-call-failure-highlight.png'),fullPage:true});
+});
+
 test('incomplete task and unconfirmed cleanup both retain their evidence entries',async({page},info)=>{
  const s=structuredClone(state);s.claim.phase='Succeeded';s.effectiveAuthority.tools=[];
  const view={version:'agenova.evidence/v0',requestRef:'w',request,state:s,facts:[{id:'finish',sequence:1,timestamp:'2026-10-23T09:00:00Z',kind:'RunOutcome',requestRef:'w',claimId:s.claim.id,operation:'Succeeded',reason:'Worker cleanup was not confirmed.'}],outcome:{status:'Succeeded',text:'No web access available.',failure:'Worker cleanup was not confirmed.',completion:{status:'incomplete',reason:'missing-capability',target:'web.read'}}};
