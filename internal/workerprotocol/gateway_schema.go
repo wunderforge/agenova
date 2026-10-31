@@ -36,6 +36,8 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 	finish.Properties.Resource = empty
 	finish.Properties.Input = empty
 	finish.Properties.Completion = stringSchema{Type: "string", Enum: []string{"completed", "partial", "incomplete"}}
+	finish.Properties.Answer.MaxLength = 1200
+	finish.Properties.Target.MaxLength = 128
 	variants := []researchVariant{finish}
 	if len(base.Properties.Tool.Enum) > 1 && len(base.Properties.Action.Enum) > 1 {
 		// ResearchSchema permits the native diagnostic URL as well as tool
@@ -65,6 +67,13 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 		call.Properties.Resource.Enum = nonemptySchemaValues(call.Properties.Resource.Enum)
 		if len(call.Properties.Input.Enum) > 0 {
 			call.Properties.Input.Enum = nonemptySchemaValues(call.Properties.Input.Enum)
+		}
+		if len(call.Properties.Input.Enum) == 0 {
+			for _, tool := range selected {
+				if tool.MaxBytes > call.Properties.Input.MaxLength {
+					call.Properties.Input.MaxLength = tool.MaxBytes
+				}
+			}
 		}
 		call.Properties.Answer = empty
 		call.Properties.Completion = empty

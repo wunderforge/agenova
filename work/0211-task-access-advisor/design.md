@@ -61,6 +61,13 @@ Source citation, synthetic labeling and capability-consistency checks belong to
 the reference Agent, not the platform's Policy engine. It chooses sources and
 tool inputs from the objective; no platform keyword router is added.
 
+Explicit public-source wording is additionally checked by the reference Agent
+itself, so it cannot use the customer dataset as evidence for an official-website
+question. This is local Agent quality logic, not infrastructure enforcement or a
+new Policy classifier. The private decoder restores finite dataset input values
+from installed routes intersected with the Work's schema and bounds answer size;
+it never advertises an ungranted route. Other Agent contracts remain unchanged.
+
 The New Work form omits ordinary type metadata. Legacy typed copies keep it;
 repository inputs remain available. Explicit rules-based presets can select a
 single registered type, while ambiguous matches clarify instead of picking the

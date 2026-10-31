@@ -856,6 +856,9 @@ func runFailure(err error, recorded []facts.Fact) (string, string) {
 		if f.Kind == "ProviderOutcome" && !sawProvider {
 			sawProvider = true
 			if f.ProviderStatus == "Failed" {
+				if f.ReasonCode == "model-provider-timeout" {
+					return "model-provider-timeout", "The model provider exceeded its call time limit. Retry or check the configured provider capacity."
+				}
 				return "provider-failed", "The last governed provider call failed. Open the failed call record for context."
 			}
 		}
@@ -920,6 +923,9 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	reason, reasonCode := "", ""
 	if status == "Failed" {
 		reasonCode, reason = "model-provider-failed", "The model provider call failed before a usable response was available."
+		if errors.Is(providerErr, context.DeadlineExceeded) {
+			reasonCode, reason = "model-provider-timeout", "The model provider exceeded its call time limit."
+		}
 	}
 	if status == "Cancelled" {
 		reasonCode, reason = "model-call-cancelled", "The model call was cancelled or its claim became inactive."

@@ -80,6 +80,12 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if agentRole == "researcher" {
 			prompt = researcherV1Prompt(promptTask, progress+transcript)
+			if !allowNativeHTTPS && hasPublicObservation(readInputs) {
+				prompt += "\nFinal answers must be at most 90 words, with a source citation and complete sentences. Answer the goal concisely; do not fill the response length limit."
+			}
+			if !allowNativeHTTPS && publicSourceRequired(task.Objective) && !callableCapability("web.read", task.Tools) {
+				prompt += "\n" + publicEvidenceFeedback(task)
+			}
 		}
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
@@ -105,6 +111,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		if action.Action == "finish" {
+			if agentRole == "researcher" && !allowNativeHTTPS && publicSourceRequired(task.Objective) && action.Completion != "incomplete" && !hasPublicObservation(readInputs) {
+				transcript += "\nObservation: " + publicEvidenceFeedback(task)
+				continue
+			}
 			if agentRole == "researcher" && !allowNativeHTTPS && action.Reason == "missing-capability" && callableCapability(action.Target, task.Tools) {
 				transcript += "\nObservation: " + action.Target + " IS available in your callable catalog. Do not report it missing. Choose its relevant input yourself if the objective needs it, or explain the actual evidence limitation."
 				continue
@@ -172,6 +182,11 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		key := action.Tool + "\x00" + action.Resource + "\x00" + action.Input
+		if agentRole == "researcher" && !allowNativeHTTPS && publicSourceRequired(task.Objective) && action.Tool == "crm.read" {
+			// Agent quality filtering, not a Gateway denial or infrastructure event.
+			transcript += "\nObservation: " + publicEvidenceFeedback(task)
+			continue
+		}
 		if seen[key] {
 			transcript += "\nObservation: input already read successfully; choose new evidence or finish."
 			continue

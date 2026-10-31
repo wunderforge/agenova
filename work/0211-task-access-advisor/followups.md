@@ -42,9 +42,9 @@ unknown errors remain explicitly unknown. No fabricated denial or invocation.
   do not require a URL in the task text as a platform input rule.
 - [x] Use real governed tool calls and observed results. Keep synthetic customer
   records labeled as such, independently of whether model/tool calls are real.
-- [ ] Test Public and Internal customer objectives with the same Agent; permission
+- [x] Test Public and Internal customer objectives with the same Agent; permission
   requests/grants, actual attempted calls and answer quality are separate checks.
-- [ ] Avoid selecting the first granted tool as a substitute for task reasoning,
+- [x] Avoid selecting the first granted tool as a substitute for task reasoning,
   and avoid unrelated canned answers being presented as task completion.
 
 Additional observed Work: `work-5c02a8a9-c8d4-4fac-8251-d8e350356e57`.
@@ -63,7 +63,7 @@ invent a successful business outcome. Gateway authority and Pod network limits
 remain intact. Search capability/provider selection, if needed, is a separate
 explicit design decision, with no assumed paid API key or new cloud permission.
 
-## 3. Task type — confirmed requirement, implementation deferred
+## 3. Task type — implemented locally, owner acceptance pending
 
 - [x] Remove the Task type selector from the primary New Work interface.
 - [x] Ordinary tasks must work from the selected Agent, objective and requested

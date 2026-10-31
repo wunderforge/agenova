@@ -99,3 +99,14 @@ The formatting approach follows [Ollama structured outputs](https://docs.ollama.
 and the documented [llama.cpp schema limitations](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
 Provider support is verified locally; format validity alone cannot prove answer
 correctness, relevance, authorization or infrastructure enforcement.
+
+The reference Agent also checks an explicit public-source requirement (such as
+“official website”) before using customer data or claiming that goal complete.
+This is an authored Agent strategy, not a platform task classifier or Policy
+decision. It does not issue permissions or change other Agent images. An Agent
+discarding an irrelevant proposed call is not a Gateway denial. Ambiguous and
+mixed-source goals remain outside the single-profile acceptance corpus.
+
+Local execution bounds: six model turns, 512 output tokens per call, a 1,200-
+character final answer, a two-minute provider-call limit and a five-minute Work
+limit. Known provider timeouts keep their specific safe reason in Work evidence.

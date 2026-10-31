@@ -15,6 +15,35 @@ import (
 var agentRole string
 var allowNativeHTTPS = true
 
+// This reference Agent validates an explicit source requirement in its own
+// objective. It neither classifies platform tasks nor issues permissions. Other
+// Agent images and ordinary submission are independent of this local strategy.
+func publicSourceRequired(objective string) bool {
+	goal := strings.ToLower(objective)
+	for _, cue := range []string{"official website", "official public website", "public website", "public web", "public source", "public page"} {
+		if strings.Contains(goal, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPublicObservation(inputs []string) bool {
+	for _, input := range inputs {
+		if strings.HasPrefix(input, "https://") {
+			return true
+		}
+	}
+	return false
+}
+
+func publicEvidenceFeedback(task workerprotocol.Task) string {
+	if callableCapability("web.read", task.Tools) {
+		return "The objective explicitly requires website evidence. Customer records cannot establish it. Use the available web.read tool with an official URL you choose, then cite the observed URL."
+	}
+	return "The objective explicitly requires website evidence, but web.read is unavailable. Do not read customer records or state website facts from memory. Finish with completion=incomplete, reason=missing-capability, target=web.read and explain that the requested website could not be verified."
+}
+
 func callableCapability(name string, tools []workerprotocol.Tool) bool {
 	for _, tool := range tools {
 		if name != "" && tool.Operation == name {

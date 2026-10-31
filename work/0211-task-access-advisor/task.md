@@ -69,7 +69,7 @@ No cloud requests, merge/deploy or credential-file reads. Preserve debug.log, ol
 ## Owner-authorized local repairs — 31 October
 
 - [x] Actionable execution failure evidence and UI diagnosis.
-- [ ] Real Researcher execution of business goals without requiring a supplied URL;
+- [x] Real Researcher execution of business goals without requiring a supplied URL;
   distinguish actual goal completion from synthetic execution success.
 - [x] Remove Task type from the primary UI, remove ordinary-task dependence on
   explicit categories, and preserve existing API/CLI compatibility (confirmed

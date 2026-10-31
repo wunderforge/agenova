@@ -24,7 +24,9 @@ async function start(page:Page,automatic=false){
  await test.info().attach('work-evidence',{body:JSON.stringify(current,null,2),contentType:'application/json'});
  expect(current.outcome?.status).toBe('Succeeded');expect(current.outcome?.model?.inputTokens).toBeGreaterThan(0);
  expect(current.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='model.invoke'&&f.providerStatus==='Succeeded')).toBe(true);
- expect(current.facts.some(f=>f.operation==='NativeHTTPSStarted')).toBe(false);
+ expect(current.facts.some(f=>(f.operation||'').startsWith('NativeHTTPS'))).toBe(false);
+ await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible({timeout:15000});
+ await expect(page.locator('.portal-title-line')).not.toContainText('Running');
  return current;
 }
 test('Manual public goal chooses its own official source and returns observed facts',async({page})=>{
@@ -32,6 +34,7 @@ test('Manual public goal chooses its own official source and returns observed fa
  await page.getByLabel('web.read',{exact:true}).check();await page.getByLabel('Resource scopes',{exact:true}).fill('web:public-pages');
  const v=await start(page);expect(v.accessAdvice).toBeUndefined();expect(v.outcome?.completion?.status).toBe('completed');
  expect(v.outcome?.text).toMatch(/python\.org/i);
+ expect((v.outcome?.text?.match(/\S+/g)||[]).length).toBeLessThanOrEqual(110);
  expect(v.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='tool.invoke'&&f.providerStatus==='Succeeded')).toBe(true);
  await page.screenshot({path:test.info().outputPath('public-goal.png'),fullPage:true});
 });

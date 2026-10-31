@@ -22,6 +22,27 @@ func TestSourceCitationCheckIsAnAgentQualityRule(t *testing.T) {
 	}
 }
 
+func TestReferenceAgentDoesNotUseCustomerRecordsForAnExplicitWebsiteGoal(t *testing.T) {
+	researcherRole(t)
+	previous := allowNativeHTTPS
+	allowNativeHTTPS = false
+	t.Cleanup(func() { allowNativeHTTPS = previous })
+	var input, output bytes.Buffer
+	e := json.NewEncoder(&input)
+	e.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Explain Python based on its official website.", ModelProfile: "m", Mode: workerprotocol.ReAct, Tools: []workerprotocol.Tool{{Operation: "crm.read", Description: "Internal customers", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"I could not verify the website because web.read is unavailable.","completion":"incomplete","reason":"missing-capability","target":"web.read"}`})
+	if err := run(&input, &output); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), `"kind":"tool"`) || !strings.Contains(output.String(), `"result":"I could not verify`) {
+		t.Fatal("reference Agent used unrelated records or lost incomplete explanation")
+	}
+	if publicSourceRequired("Prioritize our internal customers and draft follow-ups.") {
+		t.Fatal("ordinary internal task was classified as public")
+	}
+}
+
 func TestResearcherRecoversIncorrectMissingCapabilityWithModelSelectedCall(t *testing.T) {
 	researcherRole(t)
 	previous := allowNativeHTTPS

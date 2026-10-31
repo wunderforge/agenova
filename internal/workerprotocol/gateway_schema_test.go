@@ -68,6 +68,9 @@ func TestGatewayDecoderSeparatesCallsFromCompletionWithoutOfferingNative(t *test
 					t.Fatal("call permits answer metadata")
 				}
 			case "finish":
+				if v.Properties.Answer.MaxLength != 1200 || v.Properties.Target.MaxLength != 128 {
+					t.Fatal("local response budget was not enforced")
+				}
 				if len(v.Properties.Tool.Enum) != 1 || v.Properties.Tool.Enum[0] != "" || len(v.Properties.Completion.Enum) != 3 {
 					t.Fatal("finish permits a call")
 				}

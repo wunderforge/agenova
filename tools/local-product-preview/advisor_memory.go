@@ -110,7 +110,7 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *li
 		}
 		defer stop()
 		executor = localProcessExecutor{binary: live.Worker}
-		provider, e = modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{template.Spec.Defaults.ModelProfile: live.Model}, MaxTokens: 1024, Timeout: 2 * time.Minute})
+		provider, e = modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{template.Spec.Defaults.ModelProfile: live.Model}, MaxTokens: 512, Timeout: 2 * time.Minute})
 		if e != nil {
 			return e
 		}

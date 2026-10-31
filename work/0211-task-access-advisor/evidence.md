@@ -3,7 +3,55 @@
 Date: 30 Oct 2026. Branch: `codex/task-access-advisor`. No PR, merge, deployment,
 AWS request, paid inference, image download or database migration was performed.
 
-## Run and inspect locally
+## Current owner acceptance — 1 November 2026
+
+Use [the real local preview](http://127.0.0.1:5224/login), with
+[the current walkthrough](local-acceptance.md). The old 5221 process/history is
+preserved. No PR, merge, cloud request or deployment was performed.
+
+The same `researcher-advisor-v2` executable ran all cases through real local
+`llama3.1:latest` inference and the actual Go MCP adapter. Automatic preparation
+used the separately configured `qwen2.5-coder:7b` Advisor (736 input / 55 output
+tokens for the internal case). Manual requests did not invoke the Advisor.
+
+| Case | Current Work ref | Execution model calls | Tool calls / matching MCP receipts | Goal |
+| --- | --- | --- | --- | --- |
+| Public, Manual, no caller URL/type | `work-bc71d7ca-1871-47fd-81a7-965b31cea0d8` | 2 | 1 / 1 | Completed; official Python source cited, 59-word answer |
+| Internal customers, Automatic | `work-1fcab6dc-5fc1-426b-9bdd-87c0489f7d16` | 3 | 1 / 1 | Completed; C001/C002/C003, synthetic label and follow-up recommendations |
+| Same Public goal, only CRM granted | `work-cc3b3e86-4b5c-4403-a579-531f1fdf14bc` | 1 | 0 / 0 | Incomplete, `missing-capability / web.read`; no unrelated customer read |
+
+All three reported cleanup success. MCP tool receipts independently matched the
+two actual tool invocation IDs. The negative is an Agent/catalog-unavailability
+case, not a fabricated Gateway refusal. The separate
+`TestMissingWebPermissionIsDeniedBeforeProvider` exercises the actual Gateway
+with a scoped Work identity: Deny, zero provider attempts. Neither is a fresh
+Kubernetes or packet-blocking test.
+
+Local identity, customer records and lifecycle/network state remain explicitly
+synthetic; model/Agent/MCP execution is real. Work history is in memory. The
+reference Agent's own explicit-source checks are not platform Policy or infra
+enforcement; other images and optional legacy API types remain supported.
+
+Verification: affected Go packages and `go vet` passed; 178 frontend unit tests,
+93 browser regressions, six Advisor/layout cases, and the final three real
+business-task cases passed (2.6 minutes). Final worker executable SHA-256:
+`71133708EC2074408F053708A9D4D3F57A3E4BFEE0D12CC0D4B9EB57BDFD275A`.
+Read-only rendering review waited
+for terminal UI results rather than photographing an earlier Running snapshot.
+The pre-existing Windows `TestOwnerBootstrapDeliveryGuards` full-check failure
+remains visible and is not counted as green. No database restart or cloud proof
+is claimed.
+
+Reproduction logs/artifacts are under `.tmp/repair-final-joint.log`,
+`.tmp/repair-final-all.log`, `.tmp/repair-owner-acceptance.log`,
+`.tmp/repair-public-concise.log`, `.tmp/repair-render-review.log`,
+`.tmp/repair-selected-evidence.json` and `.tmp/live-researcher-render-review`.
+Earlier unsuccessful model/formatting runs remain in separate `.tmp/repair-*`
+logs and saved histories; they were not rewritten as successful evidence.
+Final owner approval is pending. Task preset placement remains a separate open
+decision.
+
+## Original Advisor-only preview — 30 October (historical)
 
 From the repository root, in PowerShell:
 
