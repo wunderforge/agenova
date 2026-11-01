@@ -41,7 +41,7 @@ func TestDiagnosticsIsOptInBoundAndDoesNotReplaceFinalModelText(t *testing.T) {
 		})
 	}
 }
-func TestCompactDiagnosticsGrammarKeepsLegacyShapeAndArgumentLimits(t *testing.T) {
+func TestDiagnosticObjectGrammarKeepsLegacyShapeAndArgumentLimits(t *testing.T) {
 	tool := Tool{Operation: "web.search", ResourceScope: "web:public-pages", Description: "search", Parameter: "query", InputMode: "text", MaxBytes: 512}
 	legacy, _ := ResearchSchema([]Tool{tool}, false)
 	if strings.Contains(string(legacy), "decisionSummary") {
@@ -53,13 +53,23 @@ func TestCompactDiagnosticsGrammarKeepsLegacyShapeAndArgumentLimits(t *testing.T
 		t.Fatal(err)
 	}
 	var shape struct {
-		AnyOf []struct {
-			Properties map[string]json.RawMessage `json:"properties"`
-		} `json:"anyOf"`
+		Type       string                     `json:"type"`
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+		AnyOf      []any                      `json:"anyOf"`
 	}
 	json.Unmarshal(out, &shape)
-	if len(shape.AnyOf) != 4 || shape.AnyOf[3].Properties["answer"] != nil || !bytes.Contains(shape.AnyOf[3].Properties["input"], []byte(`512`)) {
-		t.Fatal("invalid compact tool grammar")
+	if shape.Type != "object" || len(shape.AnyOf) != 0 || len(shape.Required) != 9 || len(shape.Properties) != 9 || !bytes.Contains(shape.Properties["input"], []byte(`512`)) || !bytes.Contains(shape.Properties["action"], []byte(`"tool"`)) {
+		t.Fatal("diagnostic provider schema must require one complete bounded action object")
+	}
+	finishing, _ := DiagnosticsSchema([]Tool{tool}, true)
+	last, err := GatewayResearchSchema(finishing, []Tool{tool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.Unmarshal(last, &shape)
+	if bytes.Contains(shape.Properties["action"], []byte(`"tool"`)) {
+		t.Fatal("finishing schema re-enabled a tool action")
 	}
 	if _, err := ParseAgentAction(`{"action":"finish","answer":"A","completion":"completed","decisionSummary":"actual explanation"}`, nil, DiscoveryProtocol); err == nil {
 		t.Fatal("legacy parser accepts new content")

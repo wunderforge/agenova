@@ -31,7 +31,7 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 		return nil, errors.New("expected research action schema")
 	}
 	if base.Properties.DecisionSummary != nil {
-		return compactDiagnosticsSchema(base, catalog)
+		return diagnosticObjectSchema(base, catalog)
 	}
 	empty := stringSchema{Type: "string", Enum: []string{""}}
 	finish := base
@@ -94,41 +94,41 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 	return out, err
 }
 
-// Only the new opt-in grammar omits redundant empty call/finish fields. The
-// semantic parser and exact model/action binding remain unchanged.
-func compactDiagnosticsSchema(base researchVariant, catalog []Tool) (json.RawMessage, error) {
-	type variant struct {
-		Type                 string         `json:"type"`
-		Properties           map[string]any `json:"properties"`
-		Required             []string       `json:"required"`
-		AdditionalProperties bool           `json:"additionalProperties"`
-	}
-	field := func(v string) stringSchema { return stringSchema{Type: "string", Enum: []string{v}} }
-	variants := []variant{{Type: "object", Properties: map[string]any{"action": field("finish"), "answer": stringSchema{Type: "string", MaxLength: 700}, "completion": stringSchema{Type: "string", Enum: []string{"completed", "partial", "incomplete"}}, "reason": base.Properties.Reason, "target": stringSchema{Type: "string", MaxLength: 128}, "decisionSummary": stringSchema{Type: "string", MaxLength: 100}}, Required: []string{"action", "answer", "completion", "reason", "target", "decisionSummary"}}}
-	for _, status := range []string{"partial", "incomplete"} {
-		props := make(map[string]any)
-		for k, v := range variants[0].Properties {
-			props[k] = v
+// A single required-field object works with both constrained local decoders and
+// provider tool schemas. Small cloud models can omit the action or mix fields
+// when required fields exist only inside anyOf branches. Action semantics and
+// operation-specific input bounds are still checked by the Agent and Gateway.
+func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessage, error) {
+	allowTool := containsSchemaValue(base.Properties.Action.Enum, "tool")
+	base.Properties.Action = stringSchema{Type: "string", Enum: []string{"finish"}}
+	tools, resources := []string{""}, []string{""}
+	maxInput := 0
+	for _, tool := range catalog {
+		if !allowTool || !containsSchemaValue(base.Properties.Tool.Enum, tool.Operation) || !containsSchemaValue(base.Properties.Resource.Enum, tool.ResourceScope) {
+			continue
 		}
-		props["completion"] = field(status)
-		props["reason"] = stringSchema{Type: "string", Enum: []string{"missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}}
-		variants = append(variants, variant{Type: "object", Properties: props, Required: variants[0].Required})
-	}
-	variants[0].Properties["completion"] = field("completed")
-	variants[0].Properties["reason"] = field("")
-	variants[0].Properties["target"] = field("")
-	if len(base.Properties.Action.Enum) > 1 {
-		for _, t := range catalog {
-			if !containsSchemaValue(base.Properties.Tool.Enum, t.Operation) || !containsSchemaValue(base.Properties.Resource.Enum, t.ResourceScope) {
-				continue
-			}
-			input := stringSchema{Type: "string", Enum: t.AllowedValues, MaxLength: t.MaxBytes}
-			variants = append(variants, variant{Type: "object", Properties: map[string]any{"action": field("tool"), "tool": field(t.Operation), "resource": field(t.ResourceScope), "input": input, "decisionSummary": stringSchema{Type: "string", MaxLength: 100}}, Required: []string{"action", "tool", "resource", "input", "decisionSummary"}})
+		tools = append(tools, tool.Operation)
+		resources = append(resources, tool.ResourceScope)
+		maxInput = max(maxInput, tool.MaxBytes)
+		for _, value := range tool.AllowedValues {
+			maxInput = max(maxInput, len(value))
 		}
 	}
-	out, err := json.Marshal(struct {
-		AnyOf []variant `json:"anyOf"`
-	}{variants})
+	if len(tools) > 1 {
+		base.Properties.Action.Enum = []string{"tool", "finish"}
+	}
+	base.Properties.Tool = stringSchema{Type: "string", Enum: tools}
+	base.Properties.Resource = stringSchema{Type: "string", Enum: resources}
+	base.Properties.Input = stringSchema{Type: "string", MaxLength: maxInput}
+	if len(tools) == 1 {
+		base.Properties.Input.Enum = []string{""}
+	}
+	base.Properties.Answer.MaxLength = 700
+	base.Properties.Target.MaxLength = 128
+	base.Properties.DecisionSummary.MaxLength = 100
+	base.Required = []string{"action", "tool", "resource", "input", "answer", "completion", "reason", "target", "decisionSummary"}
+	base.AdditionalProperties = false
+	out, err := json.Marshal(base)
 	if len(out) > MaxSchemaBytes {
 		return nil, ErrToolCatalog
 	}

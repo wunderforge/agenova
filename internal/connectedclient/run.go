@@ -345,6 +345,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	budgetCount := 0
 	budgetIDs := map[string]bool{}
 	actionFacts := map[string]facts.Fact{}
+	lastValidatedActionTurn := 0
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
@@ -608,6 +609,13 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			budgetIDs[fact.InvocationID] = true
 		case "WorkerActivity":
 			switch fact.Operation {
+			case "AgentFeedback":
+				if fact.InvocationID != "" || fact.Turn < 1 || fact.Turn != lastValidatedActionTurn || lastSucceededModelInvocation == "" ||
+					fact.Target != fmt.Sprintf("Turn %d", fact.Turn) || workerprotocol.FeedbackReason(fact.ReasonCode) == "" ||
+					fact.Reason != workerprotocol.FeedbackReason(fact.ReasonCode) || fact.Decision != nil || fact.Result != "" ||
+					fact.Authority != nil || len(fact.AuthorityChanges) != 0 || fact.ProviderStatus != "" || fact.PolicyRef != nil || fact.BackendIdentity != nil {
+					return false
+				}
 			case "NativeHTTPSAttempt", "NativeHTTPSObservation":
 				if fact.InvocationID != "" || fact.Target != "direct-https" || fact.BackendIdentity == nil ||
 					fact.Decision != nil || fact.Result != "" || fact.Authority != nil || len(fact.AuthorityChanges) != 0 || fact.ProviderStatus != "" || fact.PolicyRef != nil {
@@ -647,6 +655,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				if fact.InvocationID == "" {
 					return false
 				}
+				lastValidatedActionTurn = fact.Turn
 			default:
 				return false
 			}

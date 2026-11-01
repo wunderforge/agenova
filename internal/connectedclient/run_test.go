@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1139,13 +1140,31 @@ func TestWorkerActionRequiresCompletedSuccessfulModelInvocation(t *testing.T) {
 	decision := `{"id":"fact:decision","sequence":7,"timestamp":"2026-09-18T00:00:00Z","kind":"ModelDecision","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","policyRef":{"id":"policy:demo","version":"1"},"operation":"model.invoke","target":"coding-standard","result":"Allow"}`
 	attempt := `{"id":"fact:attempt","sequence":8,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderAttempt","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":"coding-standard","providerStatus":"Attempted"}`
 	provider := `{"id":"fact:provider","sequence":9,"timestamp":"2026-09-18T00:00:00Z","kind":"ProviderOutcome","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"model.invoke","target":"coding-standard","providerStatus":"Succeeded"}`
-	action := `{"id":"fact:action","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","operation":"ActionValidated"}`
+	action := `{"id":"fact:action","sequence":10,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","invocationId":"inv:demo","turn":1,"operation":"ActionValidated"}`
 	terminal := `{"id":"fact:terminal","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"Runtime","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	outcome := `{"id":"fact:outcome","sequence":12,"timestamp":"2026-09-18T00:00:00Z","kind":"RunOutcome","requestRef":"demo","claimId":"claim:demo","operation":"Succeeded"}`
 	prefix := []string{receivedFact("demo"), resolutionFact("demo", "Allow"), modelAuthorityFact("demo"), boundFact("demo"), backendReadyFact("demo"), runningFact("demo"), decision, attempt, provider}
 	valid := withTeardown(withEvidenceFacts(base, append(append([]string{}, prefix...), action, terminal, outcome)...))
 	if _, err := decodeView([]byte(valid), "demo"); err != nil {
 		t.Fatalf("correlated model action rejected: %v", err)
+	}
+	for _, code := range []string{"tool-selected", "schema-invalid", "finish-accepted"} {
+		feedback := fmt.Sprintf(`{"id":"fact:agent-feedback","sequence":11,"timestamp":"2026-09-18T00:00:00Z","kind":"WorkerActivity","requestRef":"demo","claimId":"claim:demo","turn":1,"operation":"AgentFeedback","target":"Turn 1","reasonCode":%q,"reason":%q}`, code, workerprotocol.FeedbackReason(code))
+		withFeedback := insertBeforeRuntimeTerminal(valid, feedback)
+		if _, err := decodeView([]byte(withFeedback), "demo"); err != nil {
+			t.Fatalf("bounded %s Agent feedback rejected: %v", code, err)
+		}
+		for _, bad := range []string{
+			strings.Replace(feedback, `"turn":1`, `"turn":0`, 1),
+			strings.Replace(feedback, `"target":"Turn 1"`, `"target":"Turn 2"`, 1),
+			strings.ReplaceAll(strings.Replace(feedback, `"turn":1`, `"turn":2`, 1), `"target":"Turn 1"`, `"target":"Turn 2"`),
+			strings.Replace(feedback, `"reasonCode":`+fmt.Sprintf("%q", code), `"reasonCode":"forged-feedback"`, 1),
+			strings.Replace(feedback, `"operation":"AgentFeedback"`, `"operation":"AgentFeedback","invocationId":"inv:foreign"`, 1),
+		} {
+			if _, err := decodeView([]byte(insertBeforeRuntimeTerminal(valid, bad)), "demo"); err == nil {
+				t.Fatal("accepted malformed or misattributed Agent feedback")
+			}
+		}
 	}
 	for _, invalidAction := range []string{
 		strings.Replace(action, `"invocationId":"inv:demo"`, `"invocationId":"inv:other"`, 1),

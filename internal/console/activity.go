@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wunderforge/agenova/internal/evidence"
+	"github.com/wunderforge/agenova/internal/workerprotocol"
 )
 
 type activityEntry struct {
@@ -173,6 +174,5 @@ func activityInput(operation, scope, input string) string {
 }
 
 func safeFeedbackReason(code string) string {
-	reasons := map[string]string{"synthetic-label-missing": "The candidate answer omitted the source's synthetic-data label.", "schema-invalid": "The Agent rejected a malformed model action.", "citation-missing": "The candidate answer did not cite the observed source.", "evidence-missing": "The candidate answer was not supported by available observations.", "finish-accepted": "The Agent accepted its final answer and is finishing.", "tool-selected": "The Agent accepted the proposed tool request.", "unrelated-tool": "The Agent rejected a tool unrelated to this objective.", "tool-repeated": "The Agent rejected a repeated successful read.", "unsupported-finish": "The Agent rejected inconsistent completion metadata.", "format-retry-limit": "The Agent stopped repeated invalid actions."}
-	return reasons[code]
+	return workerprotocol.FeedbackReason(code)
 }

@@ -55,6 +55,24 @@ func TestDiagnosticAgentDoesNotRequireToolsForOrdinaryKnowledge(t *testing.T) {
 	}
 }
 
+func TestDiagnosticAgentRepairsCloudFinishFieldMixing(t *testing.T) {
+	researcherRole(t)
+	var in, out bytes.Buffer
+	e := json.NewEncoder(&in)
+	e.Encode(workerprotocol.Task{ClaimID: "c", ModelProfile: "m", Objective: "What is 2+2?", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct})
+	// A real cloud model kept the previous tool's resource on a finish action.
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","resource":"web:public-pages","answer":"4","completion":"completed"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","resource":"","input":"","answer":"4","completion":"completed","reason":"","target":"","decisionSummary":"Answer the question"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	if err := run(&in, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), `"kind":"model"`) != 2 || !strings.Contains(out.String(), `"result":"4"`) || !strings.Contains(out.String(), "A finish action must leave tool, resource and input empty") {
+		t.Fatal("format repair must explain the actual field error and recover without tools")
+	}
+}
+
 func TestDiagnosticExplicitPageMustActuallyBeAttempted(t *testing.T) {
 	researcherRole(t)
 	var in, out bytes.Buffer
