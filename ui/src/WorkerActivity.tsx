@@ -26,7 +26,7 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
   return <section className={`portal-worker ${pending.length ? 'has-active-call' : ''}`} aria-label="Worker activity">
     <div className="portal-section-head"><div><h2>Agent activity</h2><p className="portal-activity-help">{turn ? 'Model calls and tool results, grouped by turn.' : actions.some(a => ['Model request', ...toolCallLabels].includes(a.label)) ? 'Recorded model and tool calls.' : 'Access checks only; no execution calls recorded.'}</p></div><a href={activityHref}>View records</a></div>
     <p className="portal-worker-current" data-negative={status === 'Failed'} role="status"><span>{turn && `${turn} · `}{summary}</span></p>
-    {turns > 0 && <p className="portal-turn-count">{turns} model turns · {observations} tool observations</p>}
+    {turns > 0 && <p className="portal-turn-count">{turns} turns · {observations} tool observations</p>}
     <div className="portal-trace-layout"><div className="portal-turns">{groups.map(group => {
       const open = followLatest ? group.id === latest : chosen === group.id;
       const failures = group.calls.filter(a => /failed/i.test(a.state)).length;

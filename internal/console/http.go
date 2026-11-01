@@ -202,6 +202,12 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			if setup.Policy.Rules == nil {
 				setup.Policy.Rules = []policy.Rule{}
 			}
+			capabilities := make(map[string]string, len(setup.Capabilities)+1)
+			for key, value := range setup.Capabilities {
+				capabilities[key] = value
+			}
+			capabilities["modelCallBudget"] = "per-work"
+			setup.Capabilities = capabilities
 			if service.advisor != nil {
 				info := service.advisor.Info()
 				setup.AccessAdvisor = &info

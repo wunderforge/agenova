@@ -55,6 +55,15 @@ Preserve debug.log, historical records and the running 5224 acceptance service.
 - [x] Reconcile approved TODOs and inspect existing contracts/practices.
 - [x] Contracts, budgets and independent discovery/authorization.
 - [x] Public action facts and Agent handling.
-- [ ] UI changes and whole-product visual audit.
-- [ ] Local joint regression and real-model acceptance.
-- [ ] Evidence, feature-branch commit/push, owner handoff.
+- [x] UI changes and whole-product visual audit.
+- [x] Local joint regression and real-model acceptance (quality limits recorded).
+- [x] Evidence and initial feature-branch backup; final handoff recorded below.
+
+## Delivery and limits
+
+See [the acceptance report](acceptance-20261101.md) for current task URLs,
+independent MCP receipt counts, test logs, screenshots and the unchanged Windows
+full-check failure. User acceptance remains pending. The local negative proves
+actual Gateway refusal and quota enforcement; its final explanation is a truthful
+platform summary because the model did not finish within the allowance.
+No remote access, PR, merge or deployment was performed. The 5224 history remains.

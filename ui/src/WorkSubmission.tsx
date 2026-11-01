@@ -83,7 +83,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
    task: {...(taskType?{type:taskType}:{}), input: {objective: text('objective'), ...(text('workName') ? {workName: text('workName')} : {}),
     ...(text('repository') ? {repository: text('repository'), baseBranch: text('branch') || 'main'} : {})}},
    requestedAccess: {tools, resourceScopes: list('scopes'), modelProfile: text('model'), memoryScopes: list('memory'), ...(text('network') ? {networkProfiles: [text('network')]} : {})},
-   runtime: {profileRef: text('runtime'), timeout: `${text('timeout')}m`, maxModelCalls:Number(text('maxModelCalls'))},
+   runtime: {profileRef: text('runtime'), timeout: `${text('timeout')}m`, ...(budgetSupported?{maxModelCalls:Number(text('maxModelCalls'))}:{})},
   }};
   if(planning)request.spec.requestedAccess={};
   return request;
@@ -107,6 +107,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const allowedProjects = setup.projects || suggestedProjects(setup);
  const project = allowedProjects.includes(setup.project || '') ? setup.project! : allowedProjects[0] || '';
  const minutes = requestedMinutes(ceiling?.maxTimeout);
+ const budgetSupported=ceiling?.maxModelCalls!=null||setup.capabilities.modelCallBudget==='per-work';
  return <><nav className="portal-crumbs"><a href="#/work">Work</a> / New work</nav>
   <div className="portal-head"><h1>{copy ? 'Create another Work' : 'New work'}</h1></div>
   {pending && <section className="portal-panel portal-uncertain" role="status"><h2>Submission result not confirmed</h2><p>Request: <code>{pending}</code>. Check its evidence before creating another task.</p>
@@ -143,7 +144,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
       </div>
      </div>
     </section>
-    <section className="portal-new-work-card" aria-labelledby="new-work-runtime-heading"><h2 id="new-work-runtime-heading">Run settings</h2><div className="portal-field-row portal-runtime-settings"><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label><label>Max model calls<input name="maxModelCalls" type="number" min="1" max={ceiling?.maxModelCalls||6} step="1" defaultValue={original?.spec.runtime?.maxModelCalls||Math.min(6,ceiling?.maxModelCalls||6)} required/></label></div></section>
+    <section className="portal-new-work-card" aria-labelledby="new-work-runtime-heading"><h2 id="new-work-runtime-heading">Run settings</h2><div className={`portal-field-row portal-runtime-settings${budgetSupported?' has-model-budget':''}`}><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label>{budgetSupported&&<label>Max model calls<input name="maxModelCalls" type="number" min="1" max={ceiling?.maxModelCalls||6} step="1" defaultValue={original?.spec.runtime?.maxModelCalls||Math.min(6,ceiling?.maxModelCalls||6)} required/></label>}</div></section>
    </fieldset>
    <details className="portal-new-work-config"><summary>Configuration details</summary><dl><dt>Policy</dt><dd>{setup.policy.ID} / {setup.policy.Version}</dd><dt>Agent image</dt><dd>{template?.spec.artifact?.image || 'Not recorded'}</dd><dt>Organization</dt><dd>{setup.organization?.displayName || setup.principal.team}</dd><dt>Requested by</dt><dd>{setup.principal.subject}</dd></dl></details>
    {error && <p role="alert" className="portal-form-error">{error}{error.includes('Sign in') && <a href="/login"> Sign in</a>}</p>}

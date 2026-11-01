@@ -131,3 +131,12 @@ limit. Known provider timeouts keep their specific safe reason in Work evidence.
   Platform editing/toggles remain deferred as requested.
 - Local identity/lifecycle/network are simulated, and CRM data are synthetic.
   Real local model, Gateway and MCP evidence is not a cloud or packet-level test.
+
+Legacy rules/fixture browser suite (no real inference): build
+`.tmp/followups-rules-preview.exe` from `./tools/local-product-preview`, then run
+`npx playwright test --config playwright.advisor.config.ts access-advisor.spec.ts`
+from `ui`. It owns a separate temporary 5222 service and closes it after testing.
+Typed rules-positive cases use explicit API task types. The ordinary form does not
+restore a preset/type selector to satisfy those cases. For real-model planning,
+the model-specific suite is selected separately; the current full Researcher
+walkthrough uses `playwright.live-researcher.config.ts` and port 5225.

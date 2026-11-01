@@ -3,7 +3,14 @@
 Date: 30 Oct 2026. Branch: `codex/task-access-advisor`. No PR, merge, deployment,
 AWS request, paid inference, image download or database migration was performed.
 
-## Current owner acceptance — 1 November 2026
+## Current follow-up acceptance — 1 November 2026
+
+Use [the current follow-up report](acceptance-20261101.md) and
+[the 5225 preview](http://127.0.0.1:5225/login). It includes independent discovery,
+actual invocation denial, model quotas and the new UI. Owner acceptance is pending;
+no merge/deploy/cloud access. The results below are the earlier retained checkpoint.
+
+## Earlier repaired acceptance — retained historical checkpoint
 
 Use [the real local preview](http://127.0.0.1:5224/login), with
 [the current walkthrough](local-acceptance.md). The old 5221 process/history is
@@ -48,8 +55,8 @@ Reproduction logs/artifacts are under `.tmp/repair-final-joint.log`,
 `.tmp/repair-selected-evidence.json` and `.tmp/live-researcher-render-review`.
 Earlier unsuccessful model/formatting runs remain in separate `.tmp/repair-*`
 logs and saved histories; they were not rewritten as successful evidence.
-Final owner approval is pending. Task preset placement remains a separate open
-decision.
+At that checkpoint owner approval was pending. Task preset removal was later
+confirmed and implemented; see the current follow-up report above.
 
 ## Original Advisor-only preview — 30 October (historical)
 

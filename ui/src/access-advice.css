@@ -33,5 +33,5 @@
 .portal-new-work-actions{padding:0 0 16px}
 @media(max-width:760px){.portal-advice-heading{align-items:flex-start;flex-direction:column;gap:6px}.portal-advice-values{grid-template-columns:110px minmax(0,1fr)}.portal-new-work .portal-new-work-card{padding:20px}.portal-new-work-config dl{grid-template-columns:100px minmax(0,1fr);gap:12px}}
 
-.portal-new-work .portal-runtime-settings{grid-template-columns:1.2fr 1fr 1fr;align-items:start}
-@media(max-width:760px){.portal-new-work .portal-runtime-settings{grid-template-columns:1fr}.portal-new-work .portal-runtime-settings label{margin-bottom:12px}}
+.portal-new-work .portal-runtime-settings{align-items:start}.portal-new-work .portal-runtime-settings.has-model-budget{grid-template-columns:1.2fr 1fr 1fr}
+@media(max-width:760px){.portal-new-work .portal-runtime-settings,.portal-new-work .portal-runtime-settings.has-model-budget{grid-template-columns:1fr}.portal-new-work .portal-runtime-settings label{margin-bottom:12px}}

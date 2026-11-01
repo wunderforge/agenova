@@ -55,7 +55,7 @@ func (Rules) Select(ctx context.Context, c SelectionContext) (Choice, error) {
 		}
 	}
 	if len(matches) != 1 {
-		return Choice{Questions: []string{"Choose a registered task preset for rules-based planning."}, Explanation: "No single registered task rule matches. Model-based planning can use the task objective directly."}, nil
+		return Choice{Questions: []string{"Choose Manual or configure a model planner for an ordinary task."}, Explanation: "Rules planning requires an explicit registered task type from the API. Model-based planning can use the objective directly."}, nil
 	}
 	return Choice{ProfileID: matches[0].ID, Explanation: matches[0].Description, Questions: []string{}}, nil
 }

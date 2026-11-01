@@ -74,7 +74,7 @@ No cloud requests, merge/deploy or credential-file reads. Preserve debug.log, ol
 - [x] Remove Task type from the primary UI, remove ordinary-task dependence on
   explicit categories, and preserve existing API/CLI compatibility (confirmed
   requirement; implemented locally). Preserve registered CRM type-name compatibility.
-- [ ] Remove Task preset under the 1 November owner-approved follow-up batch.
+- [x] Remove Task preset under the 1 November owner-approved follow-up batch.
 
 See [recorded findings and acceptance criteria](followups.md). The subsequent
 owner instruction authorizes complete local implementation/testing and commit/push

@@ -27,7 +27,7 @@ async function start(page:Page,automatic=false){
  expect(current.outcome?.status).toBe('Succeeded');expect(current.outcome?.model?.inputTokens).toBeGreaterThan(0);
  expect(current.facts.some(f=>f.kind==='ProviderOutcome'&&f.operation==='model.invoke'&&f.providerStatus==='Succeeded')).toBe(true);
  expect(current.facts.some(f=>(f.operation||'').startsWith('NativeHTTPS'))).toBe(false);
- await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible({timeout:15000});
+ await expect(page.getByRole('heading',{name:current.outcome?.completion?.reportedBy==='platform'?'Execution summary':'Result',exact:true})).toBeVisible({timeout:15000});
  await expect(page.locator('.portal-title-line')).not.toContainText('Running');
  return current;
 }

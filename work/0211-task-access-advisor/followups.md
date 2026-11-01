@@ -104,63 +104,64 @@ business meaning, such as drafting versus actually sending a message. An Agent
 owns its execution strategy; the optional Advisor prepares requests before the
 Work; the platform authorizes and enforces. Classification is not a new authority.
 
-## 4. Task preset — removal confirmed, implementation not started
+## 4. Task preset — removed locally, owner acceptance pending
 
-Owner decision: 1 November 2026. Record TODO only; do not implement yet.
+Original recording request: 1 November 2026. Subsequent instruction authorized
+local implementation/testing and feature-branch backup; owner acceptance is pending.
 Selecting a preset currently changes placeholder text rather than filling a usable
 task, so the user still has to type. The owner explicitly chose to remove the
 feature, superseding the earlier open examples/shortcut discussion.
 
-- [ ] Remove the Task preset feature from New Work, including its selector,
+- [x] Remove the Task preset feature from New Work, including its selector,
   preset-specific placeholders and implicit preset-driven form mutations.
-- [ ] Keep direct objective entry and Manual / Suggest / Automatic permission
+- [x] Keep direct objective entry and Manual / Suggest / Automatic permission
   preparation. Do not replace the selector with another examples/shortcut control.
-- [ ] Preserve user-entered text, Copy as new Work, registered Advisor guide
+- [x] Preserve user-entered text, Copy as new Work, registered Advisor guide
   profiles and explicit legacy API/CLI task contracts. Review shared consumers
   before removing preset code; removing a UI shortcut must not remove the
   independently configured rules Advisor or its profiles.
-- [ ] Verify no Task preset control remains; Public/Internal tasks can still be
+- [x] Verify no Task preset control remains; Public/Internal tasks can still be
   submitted from an objective without a category or preset prerequisite. Confirm
   permission setup, copy/retry and existing coding-task regressions pass.
 
-## 5. Model-call budget — design confirmed, implementation not started
+## 5. Model-call budget — implemented locally, owner acceptance pending
 
-Owner decision: 1 November 2026. Record together with Task preset removal;
-no development, service restart, merge or deployment is authorized by this TODO.
+Owner decision: 1 November 2026. Recorded with Task preset removal, then
+authorized for local implementation/testing and feature-branch backup. No deployment.
 
-Current finding: `workerprotocol.MaxTurns` is a shared hardcoded value of six.
+Original finding before this repair: `workerprotocol.MaxTurns` is a shared hardcoded value of six.
 The reference Agent, host protocol exchange and Work execution handler enforce
 it. It is not a configurable, general Model Gateway quota. Changing the image
 alone cannot increase the current effective limit.
 
-- [ ] Give the reference Researcher image its own internal safety limit of 20
+- [x] Give the reference Researcher image its own internal safety limit of 20
   model calls, independently of the platform-approved Work budget. Preserve
   arbitrary-image support; other Agent implementations own their internal loops.
-- [ ] Add **Max model calls** next to **Time limit** under Run settings. Keep
+- [x] Add **Max model calls** next to **Time limit** under Run settings. Keep
   the platform default at six; allow an explicitly configured Demo request of
   20 when permitted by the server's Template/Policy budget ceiling.
-- [ ] Define and validate an optional budget in the Work/API contract, including
+- [x] Define and validate an optional budget in the Work/API contract, including
   the approved effective value, server-owned ceiling and legacy omission default.
   Reject invalid or above-ceiling requests with a clear reason. A browser value,
   Agent image or Advisor suggestion cannot raise the approved budget by itself.
-- [ ] Replace the shared six-turn coupling in the execution handler and protocol
+- [x] Replace the shared six-turn coupling in the execution handler and protocol
   exchange. Their transport/action limits must accommodate the approved budget
   without accidentally retaining a lower fixed ceiling. Preserve existing
   protocol identity checks, timeouts and tool/model authorization.
-- [ ] Enforce the approved budget on the trusted side before provider dispatch.
+- [x] Enforce the approved budget on the trusted side before provider dispatch.
   Define one budget unit as one execution-model request attempt through the
   governed boundary, not a tool call or an Agent's internal reasoning step.
   Reserve atomically so parallel requests cannot exceed the cap; retries after
   malformed model replies consume additional units. Document provider-internal
   retry behavior separately. Advisor preparation remains separately recorded.
-- [ ] Retain consumed budget across supported Work resume/recovery paths; a new
+- [x] Retain consumed budget across supported Work resume/recovery paths; a new
   process, repeated submission or retry must not reset an existing Work's quota.
   Use existing persistence where available; explicitly label volatile-preview
   limits rather than claiming durable quota enforcement there.
-- [ ] In Work details show requested/granted model-call budget and actual usage,
+- [x] In Work details show requested/granted model-call budget and actual usage,
   for example `Model calls · 3 / 8`. Record a bounded budget-exhausted reason and
   evidence; distinguish exhausted quota from denied permission/provider failure.
-- [ ] Let the Agent return an existing result and report partial/incomplete when
+- [x] Let the Agent return an existing result and report partial/incomplete when
   the budget is exhausted, without forcing an unexplained task failure. Any
   model-based finalization must fit within the same approved cap; no hidden
   extra model call. Never invent an Agent answer or business completion.
@@ -175,30 +176,29 @@ Use deterministic provider counters for boundary tests; a 20-call paid/cloud
 inference run is not needed or authorized. UI tests cover adjacent controls,
 copy behavior, requested/granted display and mobile layout.
 
-## 6. Prominent Work status and activity — design preview, approval pending
+## 6. Prominent Work status and activity — implemented locally, owner acceptance pending
 
 Owner request: 1 November 2026. Redesign the Work details status/activity hierarchy
-without weakening the requested-versus-granted presentation. A design mock has
-been produced; no actual UI or service changes were made.
+without weakening the requested-versus-granted presentation. The approved direction is now implemented locally; owner acceptance is pending.
 
-- [ ] Put a compact lifecycle strip directly below the Work title: Requested,
+- [x] Put a compact lifecycle strip directly below the Work title: Requested,
   Authorized, Agent, Result, Cleanup. Show the current recorded action, elapsed
   time and most recent event. Keep Permissions immediately below it, with the
   existing requested/granted columns and restrained color rules unchanged.
-- [ ] Make recorded stages navigate to and highlight their corresponding Activity
+- [x] Make recorded stages navigate to and highlight their corresponding Activity
   event, opening that event's details. A running Agent stage targets its latest
   model/tool operation. Unobserved stages must not link to invented events.
-- [ ] Display Activity as an open section, not a bottom collapsed disclosure.
+- [x] Display Activity as an open section, not a bottom collapsed disclosure.
   Keep model/tool iterations there rather than pretending they occur once as
   sequential top-level phases. Raw evidence and secondary metadata can collapse.
-- [ ] Distinguish execution lifecycle from task completion: a recorded Result and
+- [x] Distinguish execution lifecycle from task completion: a recorded Result and
   successful Cleanup can coexist with an incomplete task. Missing capability is
   not automatically a Gateway refusal or infrastructure-blocking event.
-- [ ] Derive state from existing Work facts. Do not invent percentage completion,
+- [x] Derive state from existing Work facts. Do not invent percentage completion,
   duration, successful preceding stages, or a Live indicator without refresh
   evidence. Preserve failure/unavailable banners and distinguish a failed stage
   from a later successful cleanup. Keep the user's scroll position during updates.
-- [ ] Test pending/running/completed/incomplete/denied/failed/cleanup-failure and
+- [x] Test pending/running/completed/incomplete/denied/failed/cleanup-failure and
   missing/stale evidence, click-to-record behavior, keyboard navigation, mobile,
   stable permission rows and existing actual activity links before implementation
   is accepted. The current mock covers running/completed/missing-access/waiting
@@ -212,43 +212,43 @@ pattern; they do not establish Agenova runtime behavior.
 - [GitHub Actions visualization graph](https://docs.github.com/en/actions/how-tos/monitor-workflows/use-the-visualization-graph)
 - [New Relic trace details](https://docs.newrelic.com/docs/distributed-tracing/ui-data/trace-details/)
 
-## 7. Platform Advisor planner model — TODO only
+## 7. Platform Advisor planner model — displayed locally
 
 Owner request: 1 November 2026. The Task Access Advisor card currently shows
 `Planner: model`, which identifies the engine but omits the concrete model.
 
-- [ ] Show a **Planner model** field on the Platform Task Access Advisor card,
+- [x] Show a **Planner model** field on the Platform Task Access Advisor card,
   populated from the active server configuration (for example
   `qwen2.5-coder:7b`), not inferred from the execution Agent's model or hardcoded.
-- [ ] Keep planner engine and model identity distinct. For a rules-only engine,
+- [x] Keep planner engine and model identity distinct. For a rules-only engine,
   show Not applicable; for unavailable model metadata, show Not reported rather
   than guessing. Configuration does not establish verified provider availability.
-- [ ] Expose only safe model identification, not API keys, credential values or
+- [x] Expose only safe model identification, not API keys, credential values or
   sensitive provider connection parameters. Existing per-Work Advisor provenance
   continues to represent the model actually used for that historical preparation.
-- [ ] Verify the configured identifier is visible on the card without opening
+- [x] Verify the configured identifier is visible on the card without opening
   details, configuration changes render correctly, long names fit on mobile,
   and rules/disabled/missing-metadata states are handled truthfully.
 
 No development or deployment is authorized by this recording request.
 
-## 8. General-purpose model profile naming — TODO only
+## 8. General-purpose model profile naming — implemented locally
 
 Owner request: 1 November 2026. The Researcher uses the profile identifier
 `approved-coding-model`, which incorrectly suggests a coding-specific purpose.
 
-- [ ] Adopt a general-purpose profile name for new Researcher configurations;
+- [x] Adopt a general-purpose profile name for new Researcher configurations;
   proposed identifier: `approved-general-model`. Keep the profile concept distinct
   from the actual provider/model identifier shown elsewhere.
-- [ ] Update the relevant provider mapping, Template defaults/limits, Policy,
+- [x] Update the relevant provider mapping, Template defaults/limits, Policy,
   Advisor guide references, form values, examples and tests consistently. Do not
   perform an unrestricted repository-wide string replacement or change unrelated
   coding-specific profiles, models, credentials or authority boundaries.
-- [ ] Preserve explicit old API/CLI profile references and historical Work
+- [x] Preserve explicit old API/CLI profile references and historical Work
   evidence. Use an explicit compatible mapping where needed, never a wildcard
   fallback. Respect immutable registrations by using new versions/identities
   rather than silently rewriting existing Templates or evidence.
-- [ ] Verify new Public/Internal tasks display and request the generic profile,
+- [x] Verify new Public/Internal tasks display and request the generic profile,
   resolve to the intended configured model, and still pass access checks. Old
   requests/copies remain usable; unknown/ungranted profiles remain rejected.
 
@@ -256,26 +256,26 @@ Separately, the owner deferred the broader editable Platform configuration /
 Advisor-toggle proposal. Do not add it to this implementation batch. Section 7's
 read-only Planner model display remains a separate recorded TODO.
 
-## 9. Whole-UI visual consistency — TODO only
+## 9. Whole-UI visual consistency — locally reviewed
 
 Owner feedback: 1 November 2026. Work details still contains browser-default
 buttons, including **Copy request ID** in the expanded execution details. The
 owner requires visual inspection of every UI change, including typography and
 layout, rather than relying on functional checks alone.
 
-- [ ] Audit all reachable pages, dialogs and expanded/empty/error/loading states
+- [x] Audit all reachable pages, dialogs and expanded/empty/error/loading states
   for unstyled buttons and inconsistent controls, including deep Work activity
   and evidence views, comparison, New Work, Agents, Administration, Policy,
   Platform and authentication pages. Reuse the June component styles; avoid
   page-specific cosmetic patches and browser-default controls.
-- [ ] Fix action grouping/placement, button height/padding/weight, keyboard focus,
+- [x] Fix action grouping/placement, button height/padding/weight, keyboard focus,
   icon alignment, font families/sizes/line heights, spacing and long-ID wrapping.
   Keep secondary metadata visually secondary. Do not introduce decorative colors
   or disturb the requested/granted semantics and existing warning-banner rules.
-- [ ] Distinguish lifecycle completion from goal completion in visible labels:
+- [x] Distinguish lifecycle completion from goal completion in visible labels:
   this Work's process ended successfully but its task was incomplete; avoid a
   standalone **Work completed** label implying the customer's goal succeeded.
-- [ ] Every UI implementation slice requires rendered desktop/mobile review of
+- [x] Every UI implementation slice requires rendered desktop/mobile review of
   its affected states, in addition to interaction/accessibility checks. Acceptance
   must explicitly include visual quality, not only screenshot generation or a
   passing click assertion. Preserve original local Work records during fixes.
@@ -285,7 +285,7 @@ native button without the shared button class. The surrounding copy-reference
 layout rule does not supply the missing button style. Other pages still need the
 planned complete audit; this finding is not evidence that all have been inspected.
 
-## 10. Internal task diagnosis and per-turn evidence — design follow-up, no implementation
+## 10. Internal task diagnosis and per-turn evidence — implemented locally
 
 Observed local Work: `work-7413c4ba-c78e-46eb-8fee-6fb48bfc8d01`, named
 `1_nov_test_4`, on 1 November 2026. Objective: identify three customers with the
@@ -359,11 +359,12 @@ distinguishes Agent operations and tool execution and supports tool-call
 correlation. These conventions are under development; reuse the separation and
 correlation pattern without making it a dependency on a particular Agent SDK.
 
-## 11. Tool discovery separate from Work authorization — confirmed direction, design only
+## 11. Tool discovery separate from Work authorization — implemented locally
 
 Owner confirmation: 1 November 2026. Develop this design and record TODOs only;
-do not implement, restart services, run new Work, merge, deploy or access remote
-infrastructure. This supersedes using Work grants to hide all ungranted tools
+The original design-only restriction was superseded by the local start instruction.
+Implementation, local service/tests and feature-branch backup are authorized;
+merge, deployment and remote infrastructure remain outside scope. This supersedes using Work grants to hide all ungranted tools
 from the reference Researcher's discovery catalog.
 
 ### Responsibilities and contracts
@@ -406,33 +407,33 @@ visibility alone never causes Work admission or tool execution to be allowed.
 
 ### Minimal changes, in dependency order
 
-1. [ ] Define distinct descriptor/discovery and issued-authority inputs at the
+1. [x] Define distinct descriptor/discovery and issued-authority inputs at the
    console/Worker boundary. Audit workCatalog, ActionSchema/ResearchSchema,
    GatewayResearchSchema and Exchange validation. Construct action grammar from
    the approved discovery descriptors rather than the narrower Work grant.
    Preserve structural, registered-input and identity checks; do not replace
    EffectiveAuthority with the discovery list or broaden actual resource access.
-2. [ ] Introduce explicit protocol version/capability negotiation for the changed
+2. [x] Introduce explicit protocol version/capability negotiation for the changed
    catalog meaning. Preserve existing controlled-v1/legacy callers and arbitrary
    compatible Agent images; do not require a new base image or one Agent framework.
    Reuse the installed Tool Gateway/MCP backend; no extra MCP service is required
    by this split, and backend-specific endpoints remain in their adapters.
-3. [ ] Exercise the real Gateway for known discoverable-but-ungranted requests.
+3. [x] Exercise the real Gateway for known discoverable-but-ungranted requests.
    Keep server-side authentication/authorization authoritative even for a client
    that ignores SDK hints, changes its prompt or constructs a request directly.
    Keep grant checks ahead of backend execution; treat Deny as an observable
    tool response the Agent can handle, rather than automatically failing the
    entire Work or falsely reporting tool absence.
-4. [ ] Record the safe public Agent action and actual platform response per turn
+4. [x] Record the safe public Agent action and actual platform response per turn
    as in section 10. Link Work/turn/model-call/action/request/decision IDs. A
    denied request with no provider invocation still needs a correlation ID;
    never fabricate a provider call/span to connect it. Missing Agent telemetry
    remains Not reported; Gateway facts still stand independently.
-5. [ ] Update reference-Agent context and examples to distinguish supported,
+5. [x] Update reference-Agent context and examples to distinguish supported,
    authorized, denied and unavailable tools. Fix the internal CRM misdiagnosis
    using Agent-owned context/observed responses. Do not add task-keyword routing
    to the platform, widen permissions or reinterpret the old 1_nov_test_4 record.
-6. [ ] Show each turn's selected action, Gateway decision/reason, backend status
+6. [x] Show each turn's selected action, Gateway decision/reason, backend status
    and subsequent observation in the open Activity view. A genuine denial should
    be reachable from the top warning/progress strip even without a provider call.
    Preserve the simplified permission table and desktop/mobile June styling.
@@ -474,7 +475,7 @@ not guarantees supplied by MCP itself.
 4. Add the Run settings control and Work details usage/exhaustion presentation.
 5. Implement the discovery/authority split and independent Gateway checks from
    section 11, then section 10's internal-task diagnosis and correlated per-turn
-   action/decision evidence. Direction is confirmed; development is not started.
+   action/decision evidence. Implemented locally; owner acceptance remains pending.
 6. Display the configured Planner model on the Platform Advisor card (section 7).
 7. Apply the generic model profile naming and explicit compatibility plan
    (section 8), without changing the actual execution model or permissions.

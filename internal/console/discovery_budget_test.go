@@ -116,7 +116,7 @@ func discoveryRequest(t *testing.T, name string, tools, scopes []string, limit i
 
 func TestTemplateDiscoveryDoesNotGrantWorkExecution(t *testing.T) {
 	for _, operation := range []string{"web.read", "crm.read"} {
-		for _, missing := range []string{"none", "tool", "scope"} {
+		for _, missing := range []string{"none", "tool", "scope", "all"} {
 			t.Run(operation+"/"+missing, func(t *testing.T) {
 				scope := "web:public-pages"
 				otherScope := "crm:customer-retention"
@@ -132,6 +132,10 @@ func TestTemplateDiscoveryDoesNotGrantWorkExecution(t *testing.T) {
 				}
 				if missing == "scope" {
 					grantedScopes = []string{otherScope}
+				}
+				if missing == "all" {
+					grantedTools = nil
+					grantedScopes = nil
 				}
 				var task workerprotocol.Task
 				p := &discoveryProvider{tool: operation, scope: scope, denied: missing != "none"}
