@@ -93,8 +93,9 @@ func canonicalizeMCPInstance(_ platform.Capability, input map[string]any) (map[s
 		return nil, platform.NewAdapterConfigError("invalid-endpoint", "endpoint")
 	}
 	// Cleartext is limited to fixed fixture routes and the exact credential-free
-	// local acceptance endpoint. No arbitrary HTTP target or loopback token route.
-	localAcceptance := parsed.Scheme == "http" && parsed.Host == "127.0.0.1:5216" && parsed.Path == "/mcp"
+	// local acceptance endpoints. Additional fixed ports allow side-by-side acceptance
+	// without resetting existing history. No arbitrary HTTP or loopback token route.
+	localAcceptance := parsed.Scheme == "http" && (parsed.Host == "127.0.0.1:5216" || parsed.Host == "127.0.0.1:5217" || parsed.Host == "127.0.0.1:5230") && parsed.Path == "/mcp"
 	if parsed.Scheme != "https" && !localAcceptance && !(parsed.Scheme == "http" && parsed.Host == fixtureMCPHost+":8080" && (parsed.Path == "/mcp" || parsed.Path == "/mcp-token")) {
 		return nil, platform.NewAdapterConfigError("unsupported-endpoint", "endpoint")
 	}

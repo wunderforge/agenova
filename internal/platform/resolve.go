@@ -120,6 +120,7 @@ type ModelRoute struct {
 }
 
 type ResolvedPlatform struct {
+	AccessAdvisor    *v1alpha1.AccessAdvisorConfig    `json:"accessAdvisor,omitempty"`
 	PlatformName     string                           `json:"platformName"`
 	Revision         string                           `json:"revision"`
 	Adapters         []ResolvedAdapter                `json:"adapters"`
@@ -138,6 +139,7 @@ type LockedConfig struct {
 }
 
 type PlatformLock struct {
+	AccessAdvisor    *v1alpha1.AccessAdvisorConfig    `json:"accessAdvisor,omitempty"`
 	PlatformName     string                           `json:"platformName"`
 	Revision         string                           `json:"revision"`
 	Adapters         []ResolvedAdapter                `json:"adapters"`
@@ -266,12 +268,26 @@ func Resolve(input *v1alpha1.Platform, lookup DescriptorLookup) (*ResolvedPlatfo
 	sort.Slice(modelRoutes, func(i, j int) bool { return modelRoutes[i].Profile < modelRoutes[j].Profile })
 
 	policy := *input.Spec.InitialPolicyRef
-	payload := revisionPayload{PlatformName: input.Metadata.Name, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
+	var advisor *v1alpha1.AccessAdvisorConfig
+	if input.Spec.Services.AccessAdvisor != nil {
+		normalized, _ := v1alpha1.NormalizeAccessAdvisor(input.Spec.Services.AccessAdvisor)
+		advisor = &normalized
+	}
+	if advisor != nil && advisor.Enabled && advisor.Engine == "model" {
+		found := false
+		for _, route := range modelRoutes {
+			found = found || route.Profile == advisor.ModelProfile
+		}
+		if !found {
+			return nil, nil, &ResolveError{Category: ErrorInvalidConfig, FieldPath: "spec.services.accessAdvisor.modelProfile", Detail: "planner model profile is not installed"}
+		}
+	}
+	payload := revisionPayload{AccessAdvisor: advisor, PlatformName: input.Metadata.Name, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
 	revision, err := digestValue(payload)
 	if err != nil {
 		return nil, nil, &ResolveError{Category: ErrorCanonicalEncoding, FieldPath: "$", Detail: err.Error()}
 	}
-	resolved := &ResolvedPlatform{PlatformName: input.Metadata.Name, Revision: revision, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
+	resolved := &ResolvedPlatform{AccessAdvisor: advisor, PlatformName: input.Metadata.Name, Revision: revision, Adapters: adapters, Instances: instances, Profiles: profiles, ModelRoutes: modelRoutes, ToolRoutes: toolRoutes, InitialPolicyRef: policy}
 	lock, failure := lockFromResolved(resolved)
 	if failure != nil {
 		return nil, nil, failure
@@ -325,6 +341,7 @@ func resolveProfile(capability Capability, path string, input v1alpha1.PlatformP
 }
 
 type revisionPayload struct {
+	AccessAdvisor    *v1alpha1.AccessAdvisorConfig    `json:"accessAdvisor,omitempty"`
 	PlatformName     string                           `json:"platformName"`
 	Adapters         []ResolvedAdapter                `json:"adapters"`
 	Instances        []ResolvedInstance               `json:"instances"`
@@ -335,7 +352,7 @@ type revisionPayload struct {
 }
 
 func lockFromResolved(resolved *ResolvedPlatform) (*PlatformLock, *ResolveError) {
-	lock := &PlatformLock{PlatformName: resolved.PlatformName, Revision: resolved.Revision, Adapters: append([]ResolvedAdapter(nil), resolved.Adapters...), ModelRoutes: append([]ModelRoute(nil), resolved.ModelRoutes...), ToolRoutes: cloneToolRoutes(resolved.ToolRoutes), InitialPolicyRef: resolved.InitialPolicyRef}
+	lock := &PlatformLock{AccessAdvisor: resolved.AccessAdvisor, PlatformName: resolved.PlatformName, Revision: resolved.Revision, Adapters: append([]ResolvedAdapter(nil), resolved.Adapters...), ModelRoutes: append([]ModelRoute(nil), resolved.ModelRoutes...), ToolRoutes: cloneToolRoutes(resolved.ToolRoutes), InitialPolicyRef: resolved.InitialPolicyRef}
 	for _, instance := range resolved.Instances {
 		digest, err := digestValue(instance.Config)
 		if err != nil {
@@ -361,6 +378,7 @@ func VerifyResolvedLock(resolved *ResolvedPlatform, lock *PlatformLock) error {
 		return fmt.Errorf("effective Platform and lock revision mismatch")
 	}
 	payload := revisionPayload{
+		AccessAdvisor:    resolved.AccessAdvisor,
 		PlatformName:     resolved.PlatformName,
 		Adapters:         resolved.Adapters,
 		Instances:        resolved.Instances,

@@ -649,3 +649,15 @@ func TestMCPClientOmitsAResultRefTheContractRejects(t *testing.T) {
 		t.Fatalf("fetchable reference was not omitted: result %+v, err %v", result, err)
 	}
 }
+
+func TestMCPClientPreservesSafeStructuredCause(t *testing.T) {
+	envelope := `{"agenovaError":{"code":"source-unavailable","httpStatus":404,"message":"password=DO-NOT-ECHO"}}`
+	text, _ := json.Marshal(envelope)
+	fake, server := startFake(t, rawResult("application/json", `{"jsonrpc":"2.0","id":$ID,"result":{"isError":true,"content":[{"type":"text","text":`+string(text)+`}]}}`))
+	defer server.Close()
+	_, err := testClient(server.URL, 65536).Invoke(context.Background(), readCall("README.md"))
+	d := toolbackend.ErrorDiagnostic(err)
+	if d == nil || d.Code != "source-unavailable" || d.HTTPStatus != 404 || strings.Contains(err.Error(), "DO-NOT-ECHO") || fake.calls("tools/call") != 1 {
+		t.Fatal("specific cause lost or unsafe replay", err)
+	}
+}

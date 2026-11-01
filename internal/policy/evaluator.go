@@ -86,6 +86,7 @@ type StringSetConstraint struct {
 // AuthorityConstraints are optional caps carried with an evaluation. They do
 // not grant authority; consumers may only intersect them with other ceilings.
 type AuthorityConstraints struct {
+	MaxModelCalls   *int                 `json:"maxModelCalls,omitempty" yaml:"maxModelCalls,omitempty"`
 	Tools           *StringSetConstraint `json:"tools,omitempty" yaml:"tools,omitempty"`
 	ResourceScopes  *StringSetConstraint `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
 	ModelProfiles   *StringSetConstraint `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
@@ -279,6 +280,9 @@ func validateConstraints(constraints *AuthorityConstraints) error {
 			seen[value] = struct{}{}
 		}
 	}
+	if constraints.MaxModelCalls != nil && (*constraints.MaxModelCalls < 1 || *constraints.MaxModelCalls > 1000) {
+		return errors.New("invalid model call ceiling")
+	}
 	if constraints.MaxTimeout != nil && *constraints.MaxTimeout <= 0 {
 		return errors.New("authority constraint maxTimeout must be positive")
 	}
@@ -305,6 +309,10 @@ func cloneConstraints(constraints *AuthorityConstraints) *AuthorityConstraints {
 		return nil
 	}
 	copy := *constraints
+	if constraints.MaxModelCalls != nil {
+		value := *constraints.MaxModelCalls
+		copy.MaxModelCalls = &value
+	}
 	copy.Tools = cloneSet(constraints.Tools)
 	copy.ResourceScopes = cloneSet(constraints.ResourceScopes)
 	copy.ModelProfiles = cloneSet(constraints.ModelProfiles)

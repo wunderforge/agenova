@@ -123,7 +123,7 @@ func bindings(root string) ([]byte, error) {
 		switch t.Kind() {
 		case reflect.String:
 			return shape{Kind: "string"}
-		case reflect.Int, reflect.Uint64:
+		case reflect.Int, reflect.Int64, reflect.Uint64:
 			return shape{Kind: "number"}
 		case reflect.Bool:
 			return shape{Kind: "boolean"}
@@ -140,7 +140,7 @@ func bindings(root string) ([]byte, error) {
 			panic("unsupported v0 shape: " + t.String())
 		}
 	}
-	for _, t := range []reflect.Type{reflect.TypeFor[v0.ClaimRequest](), reflect.TypeFor[v0.IssuedState](), reflect.TypeFor[v0.AgentTemplate](), reflect.TypeFor[evidence.View]()} {
+	for _, t := range []reflect.Type{reflect.TypeFor[v0.ClaimRequest](), reflect.TypeFor[v0.IssuedState](), reflect.TypeFor[v0.AgentTemplate](), reflect.TypeFor[evidence.View](), reflect.TypeFor[evidence.ActivityContent]()} {
 		visit(t)
 	}
 	var tsType func(shape) string

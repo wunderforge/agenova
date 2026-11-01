@@ -54,7 +54,8 @@ type ClaimRequestSpec struct {
 // mappings — the same invariants are enforced on the document tree at parse
 // time and on decoded values in ValidateClaimRequest.
 type ClaimRequestTask struct {
-	Type  string         `json:"type" yaml:"type"`
+	// Type is optional compatibility metadata, not a required task router or grant.
+	Type  string         `json:"type,omitempty" yaml:"type,omitempty"`
 	Input map[string]any `json:"input,omitempty" yaml:"input,omitempty"`
 }
 
@@ -69,8 +70,9 @@ type ClaimRequestedAccess struct {
 }
 
 type ClaimRuntimeRequirements struct {
-	ProfileRef string    `json:"profileRef" yaml:"profileRef"`
-	Timeout    *Duration `json:"timeout" yaml:"timeout"`
+	MaxModelCalls *int      `json:"maxModelCalls,omitempty" yaml:"maxModelCalls,omitempty"`
+	ProfileRef    string    `json:"profileRef" yaml:"profileRef"`
+	Timeout       *Duration `json:"timeout" yaml:"timeout"`
 }
 
 // ParseClaimRequestYAML parses exactly one strict v0 ClaimRequest document
@@ -155,8 +157,8 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 	if request.Spec.Task == nil {
 		return validationError(ValidationCategoryRequiredField, "spec.task", "value is required")
 	}
-	if strings.TrimSpace(request.Spec.Task.Type) == "" {
-		return validationError(ValidationCategoryRequiredField, "spec.task.type", "value is required")
+	if request.Spec.Task.Type != "" && strings.TrimSpace(request.Spec.Task.Type) == "" {
+		return validationError(ValidationCategoryInvalidValue, "spec.task.type", "optional type must be non-blank when supplied")
 	}
 	if err := validateTaskInputValues("spec.task.input", request.Spec.Task.Input); err != nil {
 		return err
@@ -184,6 +186,9 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 	}
 	if time.Duration(*request.Spec.Runtime.Timeout) <= 0 {
 		return validationError(ValidationCategoryInvalidValue, "spec.runtime.timeout", "timeout must be positive")
+	}
+	if request.Spec.Runtime.MaxModelCalls != nil && (*request.Spec.Runtime.MaxModelCalls < 1 || *request.Spec.Runtime.MaxModelCalls > 1000) {
+		return validationError(ValidationCategoryInvalidValue, "spec.runtime.maxModelCalls", "model call limit must be between 1 and 1000")
 	}
 	return nil
 }
@@ -357,8 +362,9 @@ func validateClaimAccessShape(node *yaml.Node, path string) *ValidationError {
 
 func validateClaimRuntimeShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
-		"profileRef": nullable(validateStringScalar),
-		"timeout":    nullable(validateClaimTimeoutScalar),
+		"profileRef":    nullable(validateStringScalar),
+		"timeout":       nullable(validateClaimTimeoutScalar),
+		"maxModelCalls": validateModelCallsScalar,
 	}, nil)
 }
 

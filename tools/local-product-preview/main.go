@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
 	"github.com/wunderforge/agenova/internal/app"
@@ -25,6 +26,7 @@ import (
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"github.com/wunderforge/agenova/internal/workstore"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,7 +37,7 @@ import (
 	"time"
 )
 
-const address = "127.0.0.1:5210"
+var address = "127.0.0.1:5210"
 
 type localAuth struct{ store identitydb.Store }
 
@@ -222,7 +224,7 @@ func (e previewExecutor) Execute(ctx context.Context, identity v0.SandboxClaimBa
 		if tool.InputMode == "text" {
 			input = publicURLInTask(t.Objective)
 			if input == "" {
-				return "", errors.New("local public-page task requires a public HTTPS URL")
+				return "", workerprotocol.ErrSourceURLRequired
 			}
 			if len(input) > tool.MaxBytes {
 				return "", errors.New("local public page URL exceeds its byte bound")
@@ -276,9 +278,46 @@ func (e previewExecutor) Execute(ctx context.Context, identity v0.SandboxClaimBa
 }
 
 func main() {
+	listen := flag.String("listen", address, "loopback preview address")
+	database := flag.String("database", "postgres://postgres@127.0.0.1:55439/agenova_local?sslmode=disable", "dedicated local PostgreSQL URL")
+	advisorConfig := flag.String("advisor-config", "", "optional local Advisor configuration JSON")
+	advisorModel := flag.String("advisor-model", "qwen2.5-coder:7b", "existing local Ollama model")
+	volatile := flag.Bool("volatile", false, "explicit in-memory Advisor acceptance; synthetic task execution; no database")
+	liveWorker := flag.String("live-worker", "", "explicit trusted local Researcher executable; enables real Work inference/MCP with --volatile")
+	liveMCP := flag.String("live-mcp", ".tmp/local-mcp.exe", "trusted local MCP executable for real acceptance")
+	liveMCPListen := flag.String("live-mcp-listen", "127.0.0.1:5216", "dedicated loopback MCP address for real acceptance")
+	executionModel := flag.String("execution-model", "llama3.1:latest", "existing local Ollama model for Agent execution")
+	repaired := flag.Bool("researcher-repair", false, "explicit v4 local acceptance with content capture and bounded native local model")
+	executionEndpoint := flag.String("execution-endpoint", "", "optional trusted loopback OpenAI-compatible API base")
+	advisorEndpoint := flag.String("advisor-endpoint", "", "optional separate loopback Advisor API base")
+	flag.Parse()
+	useFastLocalModel = *repaired
+	localAdvisorEndpoint = *advisorEndpoint
+	if *liveWorker != "" && !*volatile {
+		log.Fatal("live Researcher acceptance requires --volatile")
+	}
+	host, _, listenErr := net.SplitHostPort(*listen)
+	if listenErr != nil || host != "127.0.0.1" || !strings.HasPrefix(*database, "postgres://postgres@127.0.0.1:") {
+		log.Fatal("local preview requires literal loopback endpoints")
+	}
+	address = *listen
+	planner, plannerErr := localAdvisor(*advisorConfig, *advisorModel)
+	if plannerErr != nil {
+		log.Fatal("local Advisor configuration failed: ", plannerErr)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	db, err := sql.Open("postgres", "postgres://postgres@127.0.0.1:55439/agenova_local?sslmode=disable")
+	if *volatile {
+		var live *liveConfig
+		if *liveWorker != "" {
+			live = &liveConfig{Worker: *liveWorker, MCP: *liveMCP, MCPListen: *liveMCPListen, Model: *executionModel, Repaired: *repaired, Endpoint: *executionEndpoint}
+		}
+		if e := serveVolatile(ctx, planner, live); e != nil {
+			log.Fatal(e)
+		}
+		return
+	}
+	db, err := sql.Open("postgres", *database)
 	if err != nil {
 		log.Fatal("local database unavailable")
 	}
@@ -298,6 +337,11 @@ func main() {
 	principal := v0.Principal{Subject: "local-owner", Team: "team-a", AuthenticationContext: "oidc"}
 	if err = seedResearch(ctx, store, principal); err != nil {
 		log.Fatal("research project seed failed")
+	}
+	if planner != nil {
+		if e := seedAdvisor(ctx, store, principal); e != nil {
+			log.Fatal("local Advisor template seed failed: ", e)
+		}
 	}
 	fallback := registration.NewMemoryStore()
 	for _, name := range []string{"engineer", "incident-reader"} {
@@ -397,7 +441,7 @@ func main() {
 		return view, e
 	}
 	backend := &previewRuntime{claims: map[string]string{}, released: map[string]bool{}, authority: map[string]runtime.NetworkAuthority{}}
-	service, err := console.NewServiceWithOptions(backend, previewExecutor{templateFor: backend.templateFor}, syntheticProvider{}, "", console.Options{ToolBackend: toolSet, Durable: durable, Access: store, Setup: base, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
+	service, err := console.NewServiceWithOptions(backend, previewExecutor{templateFor: backend.templateFor}, syntheticProvider{}, "", console.Options{Advisor: planner, ToolBackend: toolSet, Durable: durable, Access: store, Setup: base, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
 		return app.ResolvedLaunch{ProfileRef: "standard-isolated", TemplateRef: t.Metadata.Name}, nil
 	}, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 		req, parseErr := v0.ParseClaimRequestJSON(data)

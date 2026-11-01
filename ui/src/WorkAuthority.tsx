@@ -28,14 +28,17 @@ export function WorkContext({work}:{work:View}){
  </section>;
 }
 
+// Keep the top warning concise; every refusal remains in the per-turn audit.
+function latestRefusals(work:View){const byTarget=new Map<string,View['facts'][number]>();for(const fact of work.facts){if(fact.result==='Deny'||fact.decision?.result==='Deny')byTarget.set(fact.target||fact.operation||'Request',fact);}return [...byTarget.values()];}
+
 export function WorkRefusals({work,highlight=false}:{work:View;highlight?:boolean}){
- const denied=work.facts.filter(f=>f.result==='Deny'||f.decision?.result==='Deny');
+ const denied=latestRefusals(work);
  if(!denied.length)return null;
  return <section className={`portal-work-refusals${highlight?' portal-work-refusals-highlight':''}`} aria-label="Recorded refusals" role={highlight?'alert':undefined}>{denied.map(f=><div className="portal-blocked-event" key={f.id}><span>{highlight?`${f.target||f.operation||'Request'} blocked`:`Blocked · ${f.target||f.operation||'Request'}`}</span><a href={`#/work/${encodeURIComponent(work.requestRef)}/activity/${encodeURIComponent(f.id)}`}>{highlight?'Evidence':'View evidence'}</a></div>)}</section>;
 }
 
 export function WorkNotices({work}:{work:View}){
- const denied=work.facts.filter(f=>f.result==='Deny'||f.decision?.result==='Deny');
+ const denied=latestRefusals(work);
  const completion=work.outcome?.completion;
  const native=[...work.facts].reverse().find(f=>f.operation==='NativeHTTPSObservation');
  const target=completion?.target;
@@ -47,7 +50,7 @@ export function WorkNotices({work}:{work:View}){
  let failureEvent=failure?{id:'failure',text:work.outcome?.status==='Succeeded'?(incomplete?'Cleanup needs attention':'Task completed; cleanup needs attention'):failure,href:failureFact?`${activity}/${encodeURIComponent(failureFact.id)}`:activity,label:'Evidence'}:undefined;
  if(failureEvent&&denied.some(f=>{const target=f.target||f.operation||'Request';return [`${target} blocked`,`Blocked · ${target}`].some(text=>text.trim().toLowerCase()===failureEvent!.text.trim().toLowerCase());}))failureEvent=undefined;
  if(denied.length&&!native&&!unavailable&&!incomplete)return <><WorkRefusals work={work} highlight={work.outcome?.status!=='Succeeded'}/>{failureEvent&&<NoticeRows events={[failureEvent]}/>}</>;
- const events=denied.map(f=>({id:f.id,text:`${f.target||f.operation||'Request'} blocked`,href:`${activity}/${encodeURIComponent(f.id)}`,label:'Evidence'}));
+ const events=denied.map(f=>({id:f.id,text:f.reasonCode==='model-call-limit'?'Model-call limit reached':`${f.target||f.operation||'Request'} blocked`,href:`${activity}/${encodeURIComponent(f.id)}`,label:'Evidence'}));
  if(unavailable&&!denied.some(f=>f.target===target))events.push({id:'unavailable',text:`${target} unavailable`,href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});
  if(native)events.push({id:native.id,text:native.reasonCode?.endsWith('-timeout')?'Direct HTTPS timed out':'Direct HTTPS attempted',href:`${activity}/${encodeURIComponent(native.id)}`,label:'Evidence'});
  if(!events.length&&incomplete)events.push({id:'incomplete',text:completion.status==='partial'?'Task partially completed':'Task incomplete',href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});

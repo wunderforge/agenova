@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -80,7 +81,7 @@ func TestAuthenticatedOwnEvidenceAndRevocation(t *testing.T) {
 	if err := loader.Load(app.ReferencePolicy()); err != nil {
 		t.Fatal(err)
 	}
-	s, err := NewServiceWithOptions(b, httpExecutor{}, provider, app.ReferencePrincipalTeamA, Options{Setup: memberTestSetup, Configure: memberTestConfigure, Access: memberAccess{}, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
+	s, err := NewServiceWithOptions(b, httpExecutor{}, provider, app.ReferencePrincipalTeamA, Options{ActivityStore: NewMemoryActivityStore(64 << 10), Setup: memberTestSetup, Configure: memberTestConfigure, Access: memberAccess{}, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 		return app.PrepareAssignment(data, principalSource{p}, loader, registeredTemplate{})
 	}})
 	if err != nil {
@@ -107,6 +108,23 @@ func TestAuthenticatedOwnEvidenceAndRevocation(t *testing.T) {
 		awaitVertical(t, s, name)
 	}
 	alice, _ := s.QueryRequest("alice")
+	contentRef := s.captureActivity("alice", evidence.ActivityContent{Output: "owner-only actual content"})
+	path := "/api/requests/alice/content/" + contentRef
+	if got := httpCall(h, "GET", path, nil, headers("alice")); got.Code != 200 || !strings.Contains(got.Body.String(), "owner-only actual content") {
+		t.Fatal("owner content unavailable", got.Code)
+	}
+	for _, user := range []string{"bob", "anonymous"} {
+		if got := httpCall(h, "GET", path, nil, headers(user)); got.Code == 200 {
+			t.Fatal("foreign content exposed")
+		}
+	}
+	if got := httpCall(h, "GET", "/api/requests/bob/content/"+contentRef, nil, headers("bob")); got.Code != 404 {
+		t.Fatal("cross Work reference exposed")
+	}
+	if got := httpCall(h, "GET", "/api/requests", nil, headers("alice")); strings.Contains(got.Body.String(), "owner-only actual content") {
+		t.Fatal("content in list projection")
+	}
+
 	for _, path := range []string{"/api/requests/alice/evidence", "/api/claims/" + alice.State.Claim.ID + "/evidence", "/api/requests/missing/evidence"} {
 		got := httpCall(h, "GET", path, nil, headers("bob"))
 		if got.Code != 404 {

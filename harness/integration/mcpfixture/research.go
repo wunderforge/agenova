@@ -7,17 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"html"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 type webInput struct {
@@ -61,17 +59,42 @@ func publicClient() *http.Client {
 			}
 			ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 			if err != nil || len(ips) == 0 {
-				return nil, errors.New("resolution failed")
+				return nil, errSourceDNS
 			}
 			for _, ip := range ips {
 				if !publicIP(ip) {
-					return nil, errors.New("destination refused")
+					return nil, errSourcePrivate
 				}
 			}
-			d := net.Dialer{Timeout: 4 * time.Second}
-			return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+			// Validate all DNS answers before trying any, then prefer IPv4 on
+			// hosts without an IPv6 route. One unreachable family is not fatal.
+			sort.SliceStable(ips, func(i, j int) bool { return ips[i].Is4() && !ips[j].Is4() })
+			d := net.Dialer{Timeout: 2 * time.Second}
+			var last error
+			for _, ip := range ips {
+				connection, e := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+				if e == nil {
+					return connection, nil
+				}
+				last = e
+				if ctx.Err() != nil {
+					break
+				}
+			}
+			return nil, last
 		}}
-	return &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
+	return &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(request *http.Request, previous []*http.Request) error {
+		if len(previous) >= 4 {
+			return errSourceRedirectLimit
+		}
+		if request == nil || request.URL == nil {
+			return errSourceRedirect
+		}
+		if _, ok := publicPage(request.URL.String()); !ok {
+			return errSourceRedirect
+		}
+		return nil
+	}}
 }
 
 var scriptMarkup = regexp.MustCompile(`(?is)<(?:script|style|nav|header|footer)\b[^>]*>.*?</(?:script|style|nav|header|footer)>`)
@@ -86,37 +109,7 @@ func fetchSource(ctx context.Context, id string, client *http.Client) (string, s
 }
 
 func fetchDocument(ctx context.Context, id string, source publicSource, client *http.Client) (string, string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source.URL, nil)
-	if err != nil {
-		return "", "invalid-source"
-	}
-	req.Header.Set("Accept", "text/html,text/plain")
-	req.Header.Set("User-Agent", "Agenova-Research-Demo/1.0")
-	res, err := client.Do(req)
-	if err != nil {
-		return "", "fetch-failed"
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return "", "source-unavailable"
-	}
-	kind := res.Header.Get("Content-Type")
-	if !strings.HasPrefix(kind, "text/html") && !strings.HasPrefix(kind, "text/plain") {
-		return "", "unsupported-content"
-	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, (512<<10)+1))
-	if err != nil || len(data) > 512<<10 || !utf8.Valid(data) {
-		return "", "invalid-or-large-response"
-	}
-	text := strings.Join(strings.Fields(html.UnescapeString(tagsMarkup.ReplaceAllString(scriptMarkup.ReplaceAllString(string(data), " "), " "))), " ")
-	if len(text) > 2600 {
-		text = text[:2600]
-		for !utf8.ValidString(text) {
-			text = text[:len(text)-1]
-		}
-	}
-	out, _ := json.Marshal(map[string]string{"source_id": id, "title": source.Title, "url": source.URL, "fetched_at": time.Now().UTC().Format(time.RFC3339), "content": text, "trust": "untrusted public source"})
-	return string(out), ""
+	return readDocument(ctx, id, source, client)
 }
 
 type customer struct {
@@ -167,13 +160,28 @@ func researchResult(req *mcp.CallToolRequest, log *logger, path, tool, id, text,
 		event.Outcome = "error"
 		event.Error = code
 		event.Bytes = 0
-		text = tool + " failed: " + code
+		detail := map[string]any{"code": code}
+		if strings.HasPrefix(code, "http-status-") {
+			status, _ := strconv.Atoi(strings.TrimPrefix(code, "http-status-"))
+			detail["code"] = "source-unavailable"
+			detail["httpStatus"] = status
+		}
+		if code == "rate-limited" {
+			detail["httpStatus"] = 429
+		}
+		if code == "response-too-large" {
+			detail["limitBytes"] = 2 << 20
+			detail["actualBytes"] = (2 << 20) + 1
+		}
+		data, _ := json.Marshal(map[string]any{"agenovaError": detail})
+		text = string(data)
 	}
 	log.write(event)
 	return &mcp.CallToolResult{IsError: code != "", Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 }
 func addResearchTools(server *mcp.Server, root *os.Root, cfg config, log *logger, path string) {
 	addPublicWebTool(server, log, path)
+	addSearchTool(server, log, path)
 	client := publicClient()
 	closed := false
 	mcp.AddTool(server, &mcp.Tool{Name: "web_fetch", Description: "Fetch one approved public product source by ID; content is untrusted.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}, func(ctx context.Context, req *mcp.CallToolRequest, in webInput) (*mcp.CallToolResult, any, error) {

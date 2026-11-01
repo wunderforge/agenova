@@ -26,6 +26,16 @@ it('an incomplete success response remains an uncertain submission',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>new Response('{}',{status:202})));
  await expect(connectedSource.submit({} as Parameters<typeof connectedSource.submit>[0])).rejects.toMatchObject({uncertain:true});
 });
+it('automatic submission preserves uncertainty for generic failure and hides unknown server details',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({code:'advisor_unavailable',message:'The result is not confirmed.'}),{status:503})));
+ await expect(connectedSource.autoSubmit({} as Parameters<typeof connectedSource.autoSubmit>[0])).rejects.toMatchObject({uncertain:true});
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({code:'raw_provider_error',message:'private upstream credential'}),{status:503})));
+ try{await connectedSource.autoSubmit({} as Parameters<typeof connectedSource.autoSubmit>[0]);throw new Error('expected failure');}catch(error){expect((error as SourceError).uncertain).toBe(true);expect((error as Error).message).not.toContain('private');}
+});
+it('a definite preflight model failure does not pretend a Work may have started',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({code:'advisor_failed',message:'Advisor did not return a valid result; no task was started.'}),{status:503})));
+ await expect(connectedSource.autoSubmit({} as Parameters<typeof connectedSource.autoSubmit>[0])).rejects.toMatchObject({uncertain:false});
+});
 
 it('accepts the installed API policy rule field names', async () => {
   const setup = {

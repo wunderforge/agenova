@@ -55,8 +55,9 @@ type EffectiveAuthority struct {
 }
 
 type EffectiveAuthorityRuntime struct {
-	ProfileRef string   `json:"profileRef"`
-	Timeout    Duration `json:"timeout"`
+	MaxModelCalls int      `json:"maxModelCalls,omitempty"`
+	ProfileRef    string   `json:"profileRef"`
+	Timeout       Duration `json:"timeout"`
 }
 
 // SandboxClaimBackendIdentity is the system-allocated backend/worker binding.
@@ -271,6 +272,9 @@ func ValidateIssuedState(state *IssuedState) *ValidationError {
 			if id := state.Claim.BackendIdentity.AllocationID; id != "" && (strings.TrimSpace(id) != id || !utf8.ValidString(id) || len(id) > 256) {
 				return validationError(ValidationCategoryInvalidValue, "claim.backendIdentity.allocationID", "allocation identity must be bounded opaque UTF-8 without surrounding whitespace")
 			}
+		}
+		if n := state.EffectiveAuthority.Runtime.MaxModelCalls; n < 0 || n > 1000 {
+			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority.runtime.maxModelCalls", "must be omitted or between 1 and 1000")
 		}
 		if time.Duration(state.EffectiveAuthority.Runtime.Timeout) <= 0 {
 			return validationError(ValidationCategoryInvalidValue, "effectiveAuthority.runtime.timeout", "must be a positive duration")

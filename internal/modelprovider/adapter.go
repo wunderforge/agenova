@@ -39,6 +39,17 @@ type Result struct {
 	ResponseID   string
 	InputTokens  int
 	OutputTokens int
+	Thinking     string
+	FinishReason string
+	Timings      Timings
+}
+
+// Timings are optional observed durations, not an estimate of hidden reasoning.
+type Timings struct {
+	TotalMS    int64
+	LoadMS     int64
+	PromptMS   int64
+	GenerateMS int64
 }
 
 type Client interface {
@@ -74,6 +85,9 @@ type Adapter struct {
 }
 
 var _ Client = (*Adapter)(nil)
+
+// ConfiguredModel exposes only the safe configured model identifier, never credentials.
+func (a *Adapter) ConfiguredModel(profile string) string { return a.models[profile] }
 
 func New(cfg Config) (*Adapter, error) {
 	u, err := url.Parse(cfg.Endpoint)
@@ -200,9 +214,11 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
 		Choices []struct {
-			Message message `json:"message"`
+			Message      message `json:"message"`
+			FinishReason string  `json:"finish_reason"`
 		} `json:"choices"`
-		Usage struct {
+		Timings json.RawMessage `json:"timings"`
+		Usage   struct {
 			PromptTokens     int `json:"prompt_tokens"`
 			CompletionTokens int `json:"completion_tokens"`
 		} `json:"usage"`
@@ -215,12 +231,19 @@ func (a *Adapter) Complete(ctx context.Context, req Request) (Result, error) {
 	}
 	// Model identity is the private configured target, not an upstream-selected
 	// replacement. Response IDs and usage remain optional provider metadata.
-	return Result{Text: response.Choices[0].Message.Content, Model: model, ResponseID: response.ID, InputTokens: response.Usage.PromptTokens, OutputTokens: response.Usage.CompletionTokens}, nil
+	m := response.Choices[0].Message
+	thinking := string(m.Thinking)
+	if thinking == "" {
+		thinking = string(m.ReasoningContent)
+	}
+	return Result{Timings: providerTimings(response.Timings), Text: m.Content, Thinking: thinking, FinishReason: response.Choices[0].FinishReason, Model: model, ResponseID: response.ID, InputTokens: response.Usage.PromptTokens, OutputTokens: response.Usage.CompletionTokens}, nil
 }
 
 type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role             string       `json:"role"`
+	Content          string       `json:"content"`
+	Thinking         providerText `json:"thinking,omitempty"`
+	ReasoningContent providerText `json:"reasoning_content,omitempty"`
 }
 
 func requestFailure(ctx context.Context) error {
@@ -230,4 +253,35 @@ func requestFailure(ctx context.Context) error {
 	// Never return transport errors: they may contain endpoint credentials,
 	// response bodies, or details from a host-configured RoundTripper.
 	return errors.New("model provider request failed")
+}
+
+// Optional provider extensions must not break otherwise compatible completions.
+// Unsupported non-text reasoning representations are absent, never invented.
+type providerText string
+
+func (p *providerText) UnmarshalJSON(raw []byte) error {
+	var text string
+	if json.Unmarshal(raw, &text) != nil {
+		*p = ""
+		return nil
+	}
+	*p = providerText(text)
+	return nil
+}
+
+func providerTimings(raw json.RawMessage) Timings {
+	var v struct {
+		PromptMS   float64 `json:"prompt_ms"`
+		GenerateMS float64 `json:"predicted_ms"`
+	}
+	if json.Unmarshal(raw, &v) != nil {
+		return Timings{}
+	}
+	bounded := func(x float64) int64 {
+		if x < 0 || x > 120000 {
+			return 0
+		}
+		return int64(x)
+	}
+	return Timings{PromptMS: bounded(v.PromptMS), GenerateMS: bounded(v.GenerateMS)}
 }

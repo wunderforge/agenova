@@ -5,7 +5,7 @@ import type { View } from './connected-source';
 
 const categories: Record<string, string> = {
   RequestReceived: 'Request', RequestResolution: 'Request resolution',
-  AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway',
+  AuthorityResolved: 'Request resolution', ModelDecision: 'Model Gateway', ModelBudgetReservation: 'Model Gateway',
   ProviderAttempt: 'Model Gateway', ProviderOutcome: 'Model Gateway',
   ToolDecision: 'Tool Gateway', RunOutcome: 'Outcome',
   WorkerActivity: 'Worker',
@@ -13,7 +13,7 @@ const categories: Record<string, string> = {
 const operationLabels: Record<string, string> = {
   Pending: 'Request received', Bound: 'Worker assigned',
   BackendReady: 'Environment ready', Running: 'Work started',
-  Succeeded: 'Work completed', Failed: 'Work failed', Cancelled: 'Work cancelled',
+  Succeeded: 'Execution finished', Failed: 'Work failed', Cancelled: 'Work cancelled',
   TerminateSucceeded: 'Work stopped', CleanupSucceeded: 'Environment released',
   TerminateFailed: 'Stop failed', CleanupFailed: 'Cleanup failed',
   NetworkActivationAttempt: 'Network activation requested', NetworkActive: 'Network rules activated',
@@ -24,7 +24,8 @@ export const category = (fact: Observation) => fact.operation === 'tool.invoke' 
 export function recordTitle(fact: Observation): string {
   if(fact.operation==='NativeHTTPSAttempt')return 'Direct HTTPS · attempt started';
   if(fact.operation==='NativeHTTPSObservation')return 'Direct HTTPS · worker observation';
-  if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return `${fact.target || 'Agent'} · Action format checked`;
+  if(fact.kind==='ModelBudgetReservation')return 'Model call reserved';
+  if (fact.kind === 'WorkerActivity' && fact.operation === 'ActionValidated') return fact.actionKind?`${fact.target||'Agent'} · ${fact.actionKind==='tool'?`Selected ${fact.actionTool}`:fact.actionKind==='finish'?'Finish selected':'Direct HTTPS selected'}`:`${fact.target || 'Agent'} · Action format checked`;
   if (fact.kind === 'WorkerActivity') return `${fact.target || 'Agent'} · ${({TurnStarted:'Model turn started',ActionReceived:'Action received',ObservationReceived:'Tool observation received',FinalAnswer:'Final answer'} as Record<string,string>)[fact.operation || ''] || 'Recorded'}`;
   // Only the synthetic adapter records mock-* reason codes; a configured
   // provider call must never be presented as mock.

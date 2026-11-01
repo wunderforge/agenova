@@ -3,10 +3,45 @@
 // Generated from api/v1alpha1 by ui/contractgen. Do not edit.
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export interface AccessAdvice {
+  acceptedRequestDigest: string;
+  engine: string;
+  guideDigest: string;
+  guideVersion: string;
+  id: string;
+  intentDigest: string;
+  mode: string;
+  plannerInputTokens?: number;
+  plannerModel?: string;
+  plannerOutputTokens?: number;
+  profileID: string;
+}
 export interface Action {
   name: string;
   project: string;
   templateRef: string;
+}
+export interface ActivityContent {
+  decisionSummary?: string;
+  elapsedMs?: number;
+  finishReason?: string;
+  generateMs?: number;
+  input?: string;
+  inputTokens?: number;
+  kind: string;
+  loadMs?: number;
+  model?: string;
+  output?: string;
+  outputTokens?: number;
+  promptMs?: number;
+  source: string;
+  thinking?: string;
+  truncated?: boolean;
+}
+export interface AgentAccessGuide {
+  markdown?: string;
+  profiles: (Array<TaskAccessProfile> | null);
+  version: string;
 }
 export interface AgentTemplate {
   apiVersion: string;
@@ -18,6 +53,7 @@ export interface AgentTemplateArtifact {
   image: string;
 }
 export interface AgentTemplateCapabilityCeiling {
+  maxModelCalls?: (number | null);
   maxTimeout?: (string | null);
   memoryScopes?: (Array<string> | null);
   modelProfiles?: (Array<string> | null);
@@ -32,8 +68,10 @@ export interface AgentTemplateDefaults {
 }
 export interface AgentTemplateEntrypoint {
   command: (Array<string> | null);
+  protocol?: string;
 }
 export interface AgentTemplateSpec {
+  accessGuide?: (AgentAccessGuide | null);
   artifact: (AgentTemplateArtifact | null);
   capabilityCeiling: (AgentTemplateCapabilityCeiling | null);
   defaults?: AgentTemplateDefaults;
@@ -61,7 +99,7 @@ export interface ClaimRequestSpec {
 }
 export interface ClaimRequestTask {
   input?: Record<string, JsonValue> | null;
-  type: string;
+  type?: string;
 }
 export interface ClaimRequestedAccess {
   memoryScopes?: (Array<string> | null);
@@ -71,11 +109,13 @@ export interface ClaimRequestedAccess {
   tools?: (Array<string> | null);
 }
 export interface ClaimRuntimeRequirements {
+  maxModelCalls?: (number | null);
   profileRef: string;
   timeout: (string | null);
 }
 export interface Completion {
   reason?: string;
+  reportedBy?: string;
   status: string;
   target?: string;
 }
@@ -102,6 +142,7 @@ export interface EffectiveAuthority {
   tools?: (Array<string> | null);
 }
 export interface EffectiveAuthorityRuntime {
+  maxModelCalls?: number;
   profileRef: string;
   timeout: string;
 }
@@ -123,14 +164,21 @@ export interface EvidenceToolInvocation {
   toolName?: string;
 }
 export interface Fact {
+  actionKind?: string;
+  actionRef?: string;
+  actionResource?: string;
+  actionTool?: string;
   authorityChanges?: (Array<Change> | null);
   backendIdentity?: (SandboxClaimBackendIdentity | null);
   claimId?: string;
+  contentRef?: string;
   decision?: (Decision | null);
   effectiveAuthority?: (EffectiveAuthority | null);
   id: string;
   invocationId?: string;
   kind: string;
+  modelCallCount?: number;
+  modelCallLimit?: number;
   operation?: string;
   policyRef?: (PolicyReference | null);
   providerStatus?: string;
@@ -143,6 +191,7 @@ export interface Fact {
   target?: string;
   timestamp: string;
   truncated?: boolean;
+  turn?: number;
 }
 export interface IssuedState {
   action: Action;
@@ -197,7 +246,14 @@ export interface SandboxClaimBackendIdentity {
   backend: string;
   workerId: string;
 }
+export interface TaskAccessProfile {
+  description: string;
+  id: string;
+  requestedAccess: ClaimRequestedAccess;
+  taskType: string;
+}
 export interface View {
+  accessAdvice?: (AccessAdvice | null);
   diagnosis?: (Diagnosis | null);
   facts: (Array<Fact> | null);
   outcome?: (Outcome | null);
@@ -210,6 +266,69 @@ export interface View {
 }
 
 export const shapes = {
+  "AccessAdvice": {
+    "kind": "object",
+    "fields": {
+      "acceptedRequestDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "engine": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "guideDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "guideVersion": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "id": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "intentDigest": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "mode": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "plannerInputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "plannerModel": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "plannerOutputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "profileID": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "Action": {
     "kind": "object",
     "fields": {
@@ -224,6 +343,127 @@ export const shapes = {
         }
       },
       "templateRef": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
+  "ActivityContent": {
+    "kind": "object",
+    "fields": {
+      "decisionSummary": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "elapsedMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "finishReason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "generateMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "input": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "inputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "kind": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "loadMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "model": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "output": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "outputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "promptMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "source": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "thinking": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "truncated": {
+        "shape": {
+          "kind": "boolean"
+        },
+        "optional": true
+      }
+    }
+  },
+  "AgentAccessGuide": {
+    "kind": "object",
+    "fields": {
+      "markdown": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "profiles": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "array",
+            "item": {
+              "kind": "ref",
+              "ref": "TaskAccessProfile"
+            }
+          }
+        }
+      },
+      "version": {
         "shape": {
           "kind": "string"
         }
@@ -270,6 +510,15 @@ export const shapes = {
   "AgentTemplateCapabilityCeiling": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "number"
+          }
+        },
+        "optional": true
+      },
       "maxTimeout": {
         "shape": {
           "kind": "nullable",
@@ -389,12 +638,28 @@ export const shapes = {
             }
           }
         }
+      },
+      "protocol": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
       }
     }
   },
   "AgentTemplateSpec": {
     "kind": "object",
     "fields": {
+      "accessGuide": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AgentAccessGuide"
+          }
+        },
+        "optional": true
+      },
       "artifact": {
         "shape": {
           "kind": "nullable",
@@ -547,7 +812,8 @@ export const shapes = {
       "type": {
         "shape": {
           "kind": "string"
-        }
+        },
+        "optional": true
       }
     }
   },
@@ -613,6 +879,15 @@ export const shapes = {
   "ClaimRuntimeRequirements": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "number"
+          }
+        },
+        "optional": true
+      },
       "profileRef": {
         "shape": {
           "kind": "string"
@@ -632,6 +907,12 @@ export const shapes = {
     "kind": "object",
     "fields": {
       "reason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "reportedBy": {
         "shape": {
           "kind": "string"
         },
@@ -783,6 +1064,12 @@ export const shapes = {
   "EffectiveAuthorityRuntime": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
       "profileRef": {
         "shape": {
           "kind": "string"
@@ -894,6 +1181,30 @@ export const shapes = {
   "Fact": {
     "kind": "object",
     "fields": {
+      "actionKind": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionRef": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionResource": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionTool": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
       "authorityChanges": {
         "shape": {
           "kind": "nullable",
@@ -918,6 +1229,12 @@ export const shapes = {
         "optional": true
       },
       "claimId": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "contentRef": {
         "shape": {
           "kind": "string"
         },
@@ -958,6 +1275,18 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      },
+      "modelCallCount": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "modelCallLimit": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
       },
       "operation": {
         "shape": {
@@ -1030,6 +1359,12 @@ export const shapes = {
       "truncated": {
         "shape": {
           "kind": "boolean"
+        },
+        "optional": true
+      },
+      "turn": {
+        "shape": {
+          "kind": "number"
         },
         "optional": true
       }
@@ -1290,9 +1625,45 @@ export const shapes = {
       }
     }
   },
+  "TaskAccessProfile": {
+    "kind": "object",
+    "fields": {
+      "description": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "id": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "requestedAccess": {
+        "shape": {
+          "kind": "ref",
+          "ref": "ClaimRequestedAccess"
+        }
+      },
+      "taskType": {
+        "shape": {
+          "kind": "string"
+        }
+      }
+    }
+  },
   "View": {
     "kind": "object",
     "fields": {
+      "accessAdvice": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "ref",
+            "ref": "AccessAdvice"
+          }
+        },
+        "optional": true
+      },
       "diagnosis": {
         "shape": {
           "kind": "nullable",

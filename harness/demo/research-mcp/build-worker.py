@@ -32,10 +32,12 @@ def main():
     tag = "agenova-researcher:local-" + source_hash[:12]
     subprocess.run(["docker", "build", "--platform", "linux/amd64", "-f", str(context / dockerfile), "-t", tag, str(context)], check=True)
     task = {"claimId": "synthetic-image-check", "objective": "Research the meeting features", "modelProfile": "test", "mode": "react"}
-    unsupported = {"allowed": True, "text": json.dumps({"action": "finish", "answer": "Unsupported answer"})}
+    unsupported = {"allowed": True, "text": json.dumps({"action": "finish", "answer": "Unsupported answer", "completion": "completed"})}
     smoke = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=json.dumps(task) + "\n" + json.dumps(unsupported) + "\n", text=True, capture_output=True, timeout=30)
     messages = [json.loads(line) for line in smoke.stdout.splitlines()]
-    if smoke.returncode != 1 or len(messages) != 1 or "Researcher:" not in messages[0].get("operation", {}).get("prompt", "") or any(m.get("result") for m in messages):
+    # The current legacy Agent can ask the model once to repair an unsupported
+    # candidate. An extra model request is not an accepted final answer.
+    if smoke.returncode != 1 or not 1 <= len(messages) <= 2 or "Researcher:" not in messages[0].get("operation", {}).get("prompt", "") or any(m.get("result") or m.get("operation", {}).get("kind") != "model" for m in messages):
         raise RuntimeError("Exact Researcher image did not reject an unsupported answer")
     # The real-cloud defect had a successful but unrelated CRM observation.
     # Test that exact image path, not just a zero-observation scripted refusal.
@@ -51,6 +53,19 @@ def main():
         results = [record["result"] for record in records if "result" in record]
         if checked.returncode != expected_code or results != ([] if expected_code else [answer]) or not any(record.get("operation", {}).get("tool") == "crm.read" for record in records):
             raise RuntimeError("Exact Researcher image completion regression")
+    # Exercise discovery-v3 in the exact image as well as the legacy scenarios.
+    for denied in [False, True]:
+        goal = "Read https://example.org and report its contents."
+        task_v3 = {**task, "objective": goal, "templateToolDiscovery": True, "activityDiagnostics": True, "tools": [{"operation": "web.read", "description": "Read a public page", "resourceScope": "web:public-pages", "parameter": "url", "inputMode": "text", "maxBytes": 1024}]}
+        action = {"allowed": True, "text": json.dumps({"action": "tool", "tool": "web.read", "resource": "web:public-pages", "input": "https://example.org"})}
+        observed = {"allowed": False, "error": "tool access denied"} if denied else {"allowed": True, "text": '{"url":"https://example.org","content":"Observed example page."}'}
+        answer = "Page access denied." if denied else "Observed example page."
+        finish = {"allowed": True, "text": json.dumps({"action": "finish", "answer": answer, "completion": "incomplete" if denied else "completed", **({"reason": "tool-denied", "target": "web.read"} if denied else {})})}
+        stream = "".join(json.dumps(item) + "\n" for item in [task_v3, action, {"allowed": True}, observed, finish, {"allowed": True}])
+        checked = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=stream, text=True, capture_output=True, timeout=30)
+        records = [json.loads(line) for line in checked.stdout.splitlines()]
+        if checked.returncode or [r["result"] for r in records if "result" in r] != [answer] or not any(r.get("operation", {}).get("diagnosticCode") == "finish-accepted" for r in records):
+            raise RuntimeError("Exact discovery-v3 image completion regression")
     image_id = subprocess.run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"], capture_output=True, text=True, check=True).stdout.strip()
     summary = {"tag": tag, "image": image_id, "source_hash": source_hash, "public_source_hashes": hashes, "unsupported_answer_rejected": True, "blocked_after_observation_rejected": True, "observed_answer_preserved": True, "real_model": False, "pushed": False}
     (output / "image-check.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

@@ -4,11 +4,13 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { ClaimRequestedAccess, EffectiveAuthority, Fact as Observation, Principal } from './contracts.generated';
 import { connectedSource, workStatus, workTitle, type HistoryPage, type Setup, type View } from './connected-source';
 import { RunFlow } from './RunFlow';
+import { WorkProgress } from './WorkProgress';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions } from './worker-activity-model';
 import { category, recordTitle, recordReason, recordStatus, outcomeReason } from './record-presentation';
 import { useConnection } from './useConnection';
 import { WorkDetailLayout } from './WorkDetailLayout';
+import { AccessPlanningEvidence } from './AccessPlanningEvidence';
 import { TaskInstructions, CopyRequestID } from './TaskInstructions';
 import { WorkSubmissionCopy } from './WorkSubmission';
 import { ConfigurationContext, WorkComparison, PolicyRules, PolicyHistory } from './PresenterViews';
@@ -136,7 +138,7 @@ function WorkDetail({ work }: { work: View }) {
   const lastModel = latestFacts.find(fact => ['ProviderAttempt', 'ProviderOutcome'].includes(fact.kind) && fact.operation !== 'tool.invoke');
   const lastCleanup = latestFacts.find(fact => ['CleanupSucceeded', 'CleanupFailed'].includes(fact.operation || ''));
   const progress = work.facts.filter(fact =>
-    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision'].includes(fact.kind));
+    !['WorkerActivity', 'ModelDecision', 'ProviderAttempt', 'ProviderOutcome', 'ToolDecision', 'ModelBudgetReservation'].includes(fact.kind));
   const summary = work.recovery ? 'Execution interrupted by service restart' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : status==='Incomplete'?'Execution finished; task incomplete.':status==='Partial'?'Execution finished; task partially completed.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
@@ -147,7 +149,7 @@ function WorkDetail({ work }: { work: View }) {
     </nav>
     <Heading title={workTitle(work)} status={<Badge value={status}/>} action={<a className="portal-button" href={link(`work/new?copy=${encodeURIComponent(work.requestRef)}`)}>Copy as new Work</a>}/>
     {status!=='Succeeded'&&<WorkNotices work={work}/>}
-    <WorkPermissions work={work}/>
+    <WorkProgress work={work}/><WorkPermissions work={work}/><AccessPlanningEvidence work={work}/>
     {status==='Succeeded'&&<WorkNotices work={work}/>}
     <WorkContext work={work}/>
     <TaskInstructions text={work.request.spec.task?.input?.objective}/>
@@ -162,10 +164,7 @@ function WorkDetail({ work }: { work: View }) {
         : status === 'Failed' && lastModel?.kind === 'ProviderOutcome' && lastModel.providerStatus === 'Failed' ? 'Model'
         : ['Failed', 'Expired', 'Cancelled'].includes(status)
           ? work.facts.some(fact => fact.operation === 'Running') ? 'Worker' : 'Request' : undefined,
-    }}/>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)} failure={status === 'Failed' ? {
-          reason: outcomeReason(work),
-          href: link(`${workLink(work)}/activity/${encodeURIComponent(latestFacts.find(f => f.kind === 'RunOutcome')?.id || latestFacts.find(f => f.operation === 'Failed')?.id || '')}`),
-        } : undefined}/>} access={<aside className="portal-access-card">
+    }}/>} activity={<WorkerActivity actions={workerActions(work.facts, status, link(`${workLink(work)}/activity`))} status={status} activityHref={link(`${workLink(work)}/activity`)}/>} access={<aside className="portal-access-card">
         <h2>{state?.effectiveAuthority
           ? !ended && state.claim?.phase === 'Running' ? 'Active access' : 'Issued access' : 'No access issued'}</h2>
         <Access value={state?.effectiveAuthority}
@@ -176,7 +175,7 @@ function WorkDetail({ work }: { work: View }) {
           <a href={link(`policy?project=${encodeURIComponent(work.request.spec.projectRef || '')}&id=${encodeURIComponent(state?.policyRef.id || '')}&version=${encodeURIComponent(state?.policyRef.version || '')}`)}>View policy at authorization</a>
         </div>
       </aside>} result={work.outcome?.text && <section className="portal-result">
-      <h2>Result</h2><pre>{work.outcome.text}</pre>
+      <h2>{work.outcome.completion?.reportedBy==='platform'?'Execution summary':'Result'}</h2><pre>{work.outcome.text}</pre>
       <details className="portal-details"><summary>Related call evidence</summary>{work.facts.filter(fact=>fact.kind==='ProviderOutcome' && fact.providerStatus==='Succeeded').map(fact=><p key={fact.id}><a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{category(fact)} · {fact.target || fact.invocationId}</a>{fact.resultRef && <code> {fact.resultRef}</code>}</p>)}</details>
       {work.outcome.model && <p className="portal-source-note">
         Final model call: {work.outcome.model.model} · {work.outcome.model.inputTokens} input /
@@ -186,7 +185,7 @@ function WorkDetail({ work }: { work: View }) {
       {work.traceId && <div className="portal-trace-reference"><span>Trace ID: <code>{work.traceId}</code></span><button className="portal-button" onClick={() => void navigator.clipboard.writeText(work.traceId!)}>Copy trace ID</button></div>}
       <small className="portal-source-note">{time(work.facts.at(-1)?.timestamp)} last update</small>
       <ol className="portal-timeline">{progress.map(fact =>
-        <li key={fact.id} data-negative={recordStatus(fact) === 'Failed'}>
+        <li id={`work-fact-${fact.id}`} key={fact.id} data-negative={recordStatus(fact) === 'Failed'}>
           <a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.id)}`)}>{recordTitle(fact)}</a>
           {recordStatus(fact) === 'Failed' && <Badge value="Failed"/>}
           {(recordReason(fact) || (fact.kind === 'RunOutcome' && recordStatus(fact) === 'Failed')) && <p>{recordReason(fact) || outcomeReason(work)}</p>}
@@ -245,6 +244,13 @@ function Activity({ work, selected }: { work: View; selected?: string }) {
         <div className="portal-fact-grid">
           <Field label="Kind" value={category(fact)}/><Field label="Target" value={fact.target}/>
           <Field label="Permission" value={fact.result || fact.decision?.result}/>
+          {!!fact.turn&&<Field label="Turn" value={String(fact.turn)}/>}
+          {fact.actionKind&&<Field label="Selected action" value={fact.actionKind}/>}
+          {fact.actionTool&&<Field label="Tool" value={fact.actionTool}/>}
+          {fact.actionResource&&<Field label="Resource" value={fact.actionResource}/>}
+          {fact.actionRef&&<Field label="Model action" value={<a href={link(`${workLink(work)}/activity/${encodeURIComponent(fact.actionRef)}`)}>Selected action</a>}/>}
+          {!!fact.modelCallCount&&<Field label="Model calls reserved" value={`${fact.modelCallCount} / ${fact.modelCallLimit}`}/>}
+
           <Field label="Provider outcome" value={fact.providerStatus}/>
           {fact.resultRef && <Field label="Result reference" value={fact.resultRef}/>}
           {fact.truncated && <Field label="Observation" value="Truncated to the configured observation limit"/>}
@@ -355,7 +361,7 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
     content = <WorkList works={data.works}/>;
   } else if (section === 'work' && data.current) {
     content = parts[2] === 'access' ? <WorkAccess work={data.current}/>
-      : parts[2]==='completion'? <><nav className="portal-crumbs"><a href={link(workLink(data.current))}>{workTitle(data.current)}</a> / Completion</nav><Heading title="Task completion"/><section className="portal-panel"><h2>{data.current.outcome?.completion?.status||'Not reported'}</h2><p>{data.current.outcome?.text||'No explanation recorded.'}</p><Field label="Reason" value={data.current.outcome?.completion?.reason}/><Field label="Capability" value={data.current.outcome?.completion?.target}/><Field label="Execution status" value={data.current.outcome?.status}/><small>Agent-reported completion; not a Gateway decision or verified network verdict.</small></section><WorkPermissions work={data.current}/><a href={link(`${workLink(data.current)}/activity`)}>Activity &amp; evidence</a></>
+      : parts[2]==='completion'? <><nav className="portal-crumbs"><a href={link(workLink(data.current))}>{workTitle(data.current)}</a> / Completion</nav><Heading title="Task completion"/><section className="portal-panel"><h2>{data.current.outcome?.completion?.status||'Not reported'}</h2><p>{data.current.outcome?.text||'No explanation recorded.'}</p><Field label="Reason" value={data.current.outcome?.completion?.reason}/><Field label="Capability" value={data.current.outcome?.completion?.target}/><Field label="Execution status" value={data.current.outcome?.status}/><small>{data.current.outcome?.completion?.reportedBy==='platform'?'Platform-reported execution limit.':'Agent-reported outcome.'}</small></section><WorkPermissions work={data.current}/><a href={link(`${workLink(data.current)}/activity`)}>Activity &amp; evidence</a></>
       : parts[2] === 'activity' ? <Activity work={data.current} selected={parts[3]}/>
       : <WorkDetail key={data.current.requestRef} work={data.current}/>;
   } else if (section === 'history') {
@@ -367,6 +373,8 @@ export function ConnectedPortal({ parts, onDemo, onPrincipal }: { parts: string[
   else if (section === 'identity') content = <Identity setup={setup}/>;
   else content = <Heading title="Work not found"/>;
   return <>
+    {setup.installation.platform.startsWith('LOCAL LIVE RESEARCHER') && <p role="status" className="portal-local-warning">Local Researcher · real model, Agent process and MCP · synthetic identity, CRM data and runtime lifecycle · in-memory history · no infrastructure-isolation proof</p>}
+    {setup.installation.platform.startsWith('LOCAL ADVISOR ACCEPTANCE') && <p role="status" className="portal-local-warning">Local Advisor acceptance · real configured Advisor · synthetic task execution and tool data · in-memory Work history · no AWS or network-isolation test</p>}
     {setup.installation.platform.startsWith('LOCAL ACCEPTANCE') && <p role="status" className="portal-local-warning">Local acceptance · synthetic identity/runtime/model · real Go authorization / PostgreSQL · MCP and source status shown in Platform · not AWS or infrastructure verification</p>}
     {data.paused && <p role="status" className="portal-source-note">
       Automatic refresh paused. <button className="portal-button" onClick={retry}>Refresh progress</button>

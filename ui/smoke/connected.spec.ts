@@ -16,7 +16,7 @@ copy.effectiveAuthority!.runtime.timeout='15m';
  const facts:Fact[]=[{id:'f1',sequence:1,timestamp:'2026-09-15T02:00:00Z',kind:'RequestResolution',requestRef:copy.requestRef,decision:copy.decision,result:'Allow',reasonCode:'assignment-allow'},{id:'f2',sequence:2,timestamp:'2026-09-15T02:00:01Z',kind:'AuthorityResolved',requestRef:copy.requestRef,claimId:copy.claim!.id,effectiveAuthority:copy.effectiveAuthority,reasonCode:'template-policy-intersection'},{id:'f3',sequence:3,timestamp:'2026-09-15T02:00:02Z',kind:'Runtime',requestRef:copy.requestRef,claimId:copy.claim!.id,operation:phase}];
  return{version:'agenova.evidence/v0',requestRef:copy.requestRef,request:structuredClone(request),state:copy,facts,...(phase==='Succeeded'?{outcome:{status:'Succeeded',text:'Use a bounded retry with exponential backoff.',model:{invocationId:'model-1',model:'local-test-model',inputTokens:12,outputTokens:20}}}:{})};
 }
-async function inspectActivity(page:Page){const details=page.locator('.portal-work-evidence');if(await details.getAttribute('open')===null)await details.locator(':scope > summary').click();}
+async function inspectActivity(page:Page){await expect(page.locator('#work-activity')).toBeVisible();}
 async function api(page:Page,current:()=>View[],submitted?:(request:ClaimRequest)=>void,configured:Setup=setup){
  await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;
   if(path==='/api/setup')return route.fulfill({json:configured});
@@ -63,10 +63,21 @@ test('Work details shows requested permissions first; only ungranted requests ar
  const denied=table.locator('tr[data-permission="tools:git.write"]');await expect(denied.locator('td').last()).toHaveText('Not granted');
  await expect(denied.locator('td').first()).toHaveCSS('color','rgb(36, 35, 53)');await expect(denied.locator('td').last()).toHaveCSS('color','rgb(116, 109, 133)');
  const allowed=table.locator('tr[data-permission-state=granted] td');for(const value of await allowed.all()){await expect(value).toHaveCSS('color','rgb(36, 35, 53)');await expect(value).toHaveCSS('font-weight','400');}
- await expect(page.locator('.portal-work-evidence')).not.toHaveAttribute('open');await expect(page.getByText('Public web access goes through the Tool Gateway.',{exact:true})).toHaveCount(0);
+ await expect(page.locator('#work-activity')).toBeVisible();await expect(page.getByText('Public web access goes through the Tool Gateway.',{exact:true})).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Work details'})).toContainText(state.policyRef.id);await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible();
  await page.screenshot({path:info.outputPath('work-permissions-focused.png'),fullPage:true});
  await inspectActivity(page);await expect(page.getByRole('heading',{name:'Work status',exact:true})).toBeVisible();
+});
+
+test('top progress navigates to recorded evidence without replacing permission facts',async({page})=>{
+ const current=work('Succeeded');await api(page,()=>[current]);await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+ const permissions=page.getByRole('table',{name:'Requested and granted task permissions'});await expect(permissions).toBeVisible();
+ await page.getByRole('button',{name:/Authorized/}).click();
+ await expect(page.locator('.portal-work-execution')).toHaveAttribute('open','');
+ await expect(page.locator('#work-fact-f2')).toHaveClass(/portal-event-highlight/);
+ await expect(page.locator('#work-fact-f2')).toBeInViewport();
+ expect(await permissions.count()).toBe(1);
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 for(const failed of [true,false]){
  test(`recorded refusal highlights above permissions only for failed Work: failed=${failed}`,async({page},info)=>{
@@ -229,12 +240,12 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  );
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await inspectActivity(page);await expect(page.locator('.portal-agent-failure')).toContainText(reason);
- await expect(page.locator('.portal-agent-failure strong')).toHaveCSS('color','rgb(177, 65, 83)');
+ await inspectActivity(page);await expect(page.getByRole('alert')).toContainText(reason);
+ await expect(page.getByRole('alert')).toHaveClass(/portal-work-notices-highlight/);
  await expect(page.locator('.portal-worker-state.positive')).toHaveText('Succeeded');
  await expect(page.locator('.portal-worker-state.negative')).toHaveCount(0);
  await page.screenshot({path:info.outputPath('work-outcome-failed.png'),fullPage:true});
- await page.getByRole('link',{name:'View failure record'}).click();
+ await page.getByRole('alert').getByRole('link',{name:'Evidence',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Work failed',level:1,exact:true})).toBeVisible();
  await expect(page.locator('.portal-head .portal-badge.failed')).toHaveText('Failed');
  // Wait for record navigation; the previous Work page also has a Failed badge.
@@ -289,7 +300,7 @@ test('format retry explains the failing turn without counting checks as calls',a
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
  await expect(page.getByRole('alert')).toHaveCount(1);
  await inspectActivity(page);
- await expect(page.locator('.portal-turn summary')).toContainText('1 call');
+ await expect(page.locator('.portal-turn summary')).toContainText('2 records');
  await expect(page.locator('.portal-turn summary')).toContainText('Format retry');
  await expect(page.locator('li[data-retry=true]')).toContainText(issue);
  await expect(page.locator('li[data-retry=true] .portal-worker-lamp')).toHaveCSS('animation-name','none');
@@ -315,7 +326,7 @@ test('connected motion follows provider and cleanup evidence without resetting D
  current.facts.push({id:'provider-start',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'ProviderAttempt',requestRef:current.requestRef,invocationId:'call-1',providerStatus:'Attempted'});
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
- await inspectActivity(page);await expect(page.locator('.portal-flow-node.active')).toContainText('Agent');
+ await inspectActivity(page);await expect(page.locator('.portal-work-progress li[data-stage-state=active]')).toContainText('Agent');
  await expect(page.locator('.portal-worker')).toContainText('Waiting for a model response');
  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.getTiming().iterations===Infinity).length)).toBe(1);
  await page.screenshot({path:info.outputPath('connected-worker-waiting.png'),fullPage:true});
@@ -333,11 +344,11 @@ test('connected motion follows provider and cleanup evidence without resetting D
  expect(await page.evaluate(()=>document.querySelector('.portal-flow')===(window as unknown as {savedFlow:Element|null}).savedFlow)).toBe(true);
  expect(await page.evaluate(()=>scrollY)).toBe(position);
  current.state!.claim!.phase='Succeeded';
- await expect(page.locator('.portal-flow-node.active')).toContainText('Cleanup');
+ await expect(page.locator('.portal-work-progress li[data-stage-state=active]')).toContainText('Cleanup');
  current.outcome={status:'Succeeded',text:'A real response belongs here only after the provider returns.'};
  await expect(page.locator('.portal-result')).toContainText('A real response belongs here only after the provider returns.');
- await expect(page.locator('.portal-flow-node').last()).toContainText('No record');
- await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
+ await expect(page.locator('.portal-work-progress li').last()).toContainText('No record');
+ await expect(page.locator('.portal-work-progress li[data-stage-state=active]')).toHaveCount(0);
  await page.waitForTimeout(400);
  await page.screenshot({path:info.outputPath('connected-motion-result.png'),fullPage:true});
 });
@@ -519,7 +530,7 @@ test('pending live request never invents grant or result and malformed response 
  const pending:View={version:'agenova.evidence/v0',requestRef:request.metadata.name,request,facts:[]};
 await api(page,()=>[pending]);
 await page.goto(`/?mode=connected#/work/${pending.requestRef}`);
-await inspectActivity(page);await expect(page.getByText('Request received; waiting for authorization.')).toBeVisible();
+await inspectActivity(page);await expect(page.locator('.portal-work-progress')).toContainText('Resolving');
 await expect(page.getByRole('heading',{name:'Result'})).toHaveCount(0);
 await expect(page.getByText('Update invoice retry tests')).toHaveCount(0);
  await page.unroute('**/api/**');
@@ -547,7 +558,7 @@ test('terminal authority keeps refreshing until final result and cleanup report 
   await api(page, () => [finishing]);
   await page.goto(`/?mode=connected#/work/${finishing.requestRef}`);
   await inspectActivity(page);
-  await expect(page.getByText('Waiting for the final result and cleanup evidence.')).toBeVisible();
+  await expect(page.locator('.portal-work-progress')).toContainText('Finishing');
   await expect(page.getByRole('heading', {name:'Result',exact:true})).toHaveCount(0);
   finishing.outcome = {status:'Succeeded',text:'Final observed task result.'};
   await expect(page.getByText('Final observed task result.')).toBeVisible();
@@ -596,7 +607,7 @@ test('recovered interrupted work shows unknown model outcome without fabricated 
  await api(page,()=>[current]);
  await page.goto(`/?mode=connected#/work/${current.requestRef}`);
  await expect(page.locator('.portal-worker-state')).toHaveText('Outcome unknown');
- await expect(page.locator('.portal-agent-failure')).toContainText(reason);
+ await expect(page.getByRole('alert')).toContainText(reason);
  await expect(page.locator('.portal-worker-state.positive')).toHaveCount(0);
  await expect(page.getByText('Waiting for response',{exact:true})).toHaveCount(0);
  await page.screenshot({path:info.outputPath('recovered-work.png'),fullPage:true});
@@ -650,10 +661,10 @@ test('restart-interrupted evidence never renders historical Running authority as
  const interrupted:View={...work(),recovery:{code:'service-restarted',cleanup:'Unknown'},diagnosis:{stage:'recovery',code:'provider-outcome-unknown'}};
  await api(page,()=>[interrupted]);
  await page.goto(`/?mode=connected#/work/${interrupted.requestRef}`);
- await inspectActivity(page);await expect(page.getByText('Execution interrupted by service restart',{exact:true})).toBeVisible();
+ await inspectActivity(page);await expect(page.locator('.portal-work-progress')).toContainText('Interrupted');
  await expect(page.locator('.portal-head').getByText('Interrupted',{exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Active access',exact:true})).toHaveCount(0);
- await expect(page.locator('.portal-flow-node.active')).toHaveCount(0);
+ await expect(page.locator('.portal-work-progress li[data-stage-state=active]')).toHaveCount(0);
  await inspectActivity(page);await page.getByText('Access & limits',{exact:true}).click();
  await expect(page.getByRole('heading',{name:'Issued access',exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Active access',exact:true})).toHaveCount(0);

@@ -19,6 +19,9 @@ import (
 const lineLimit = 128 * 1024
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--gateway-only" {
+		allowNativeHTTPS = false
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--native-probe" {
 		report, _ := nativeHTTPS(workerprotocol.NativeTarget)
 		_ = json.NewEncoder(os.Stdout).Encode(report)
@@ -60,6 +63,9 @@ func run(input io.Reader, output io.Writer) error {
 }
 
 func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Task) error {
+	if agentRole == "researcher" && task.Diagnostics {
+		return fastResearchLoop(scanner, output, task)
+	}
 	if workerprotocol.ValidateTools(task.Tools) != nil {
 		return errors.New("invalid tool catalog")
 	}
@@ -68,15 +74,37 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 	readInputs := []string{}
 	seen := map[string]bool{}
 	nativeSeen := false
-	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
-		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, workerprotocol.MaxTurns, observations, readInputs)
+	limit := workerprotocol.MaxTurns
+	if task.Discovery || task.MaxModelCalls > workerprotocol.MaxTurns {
+		limit = workerprotocol.AgentSafetyTurns
+	}
+	if !task.Discovery && task.MaxModelCalls > 0 && task.MaxModelCalls < limit {
+		limit = task.MaxModelCalls
+	}
+	allowedCalls := limit
+	if task.Discovery && task.MaxModelCalls > 0 {
+		allowedCalls = task.MaxModelCalls
+	}
+	deniedTools := map[string]bool{}
+	for turn := 1; turn <= limit; turn++ {
+		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, allowedCalls, observations, readInputs)
 		promptTask := task
-		if len(readInputs) == workerprotocol.ToolInputs(task.Tools) || turn == workerprotocol.MaxTurns {
+		finishing := len(readInputs) == workerprotocol.ToolInputs(task.Tools) || turn >= allowedCalls
+		if finishing && !task.Discovery {
 			promptTask.Tools = nil
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
 		if agentRole == "researcher" {
 			prompt = researcherV1Prompt(promptTask, progress+transcript)
+			if !allowNativeHTTPS && hasPublicObservation(readInputs) {
+				prompt += "\nFinal answers must be at most 90 words, with a source citation and complete sentences. Answer the goal concisely; do not fill the response length limit."
+			}
+			if !allowNativeHTTPS && publicSourceRequired(task.Objective) && !callableCapability("web.read", task.Tools) {
+				prompt += "\n" + publicEvidenceFeedback(task)
+			}
+		}
+		if task.Discovery && finishing {
+			prompt += "\nThis is the final available model request. Return a finish action now, using actual observations. Supported descriptors remain visible but no further tool round is available in this run. A Gateway denial is tool-denied, a provider read failure is tool-failed; neither means the supported tool is missing. If no evidence was obtained, finish incomplete and state that limit rather than inventing facts."
 		}
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
@@ -84,6 +112,9 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		protocol := ""
 		if agentRole == "researcher" {
 			protocol = workerprotocol.ResearchProtocol
+			if task.Discovery {
+				protocol = workerprotocol.DiscoveryProtocol
+			}
 		}
 		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{AgentProtocol: protocol, ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
 			return err
@@ -97,16 +128,36 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		}
 		action, err := workerprotocol.ParseAgentAction(reply.Text, task.Tools, protocol)
 		if err != nil {
-			_, issue := workerprotocol.ActionIssue(reply.Text, task.Tools)
+			_, issue := workerprotocol.AgentActionIssue(reply.Text, task.Tools, protocol)
 			transcript += "\nObservation: " + issue + " Return only the allowed JSON schema."
 			continue
 		}
 		if action.Action == "finish" {
+			if task.Discovery && action.Reason == "tool-denied" && !deniedTools[action.Target] {
+				transcript += "\nObservation: no Gateway refusal was recorded for " + action.Target + ". Do not invent an access denial. Use actual successful observations, attempt the relevant supported tool, or explain an evidence limitation."
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && publicSourceRequired(task.Objective) && action.Completion != "incomplete" && !hasPublicObservation(readInputs) {
+				transcript += "\nObservation: " + publicEvidenceFeedback(task)
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Reason == "missing-capability" && callableCapability(action.Target, task.Tools) {
+				transcript += "\nObservation: " + action.Target + " IS available in your callable catalog. Do not report it missing. Choose its relevant input yourself if the objective needs it, or explain the actual evidence limitation."
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Completion != "incomplete" && missingSyntheticLabel(action.Answer, readInputs) {
+				transcript += "\nObservation: the customer-retention dataset is synthetic. Label the findings synthetic in your answer and complete every part of the original objective, including requested follow-up recommendations. Cite the observed customer IDs."
+				continue
+			}
+			if agentRole == "researcher" && !allowNativeHTTPS && action.Completion != "incomplete" && missingSourceCitation(action.Answer, readInputs) {
+				transcript += "\nObservation: your answer omitted its observed source URL. Cite at least one successfully read public URL in the final answer. Successfully read inputs: " + fmt.Sprintf("%q", readInputs)
+				continue
+			}
 			if agentRole == "researcher" && action.Completion == "" && (observations == 0 || action.Answer == researchBlocked) {
 				return workerprotocol.ErrNoFinalResult
 			}
-			if action.Completion == "completed" && observations == 0 {
-				transcript += "\nObservation: no successful evidence exists. Return an incomplete answer, not completed."
+			if observations == 0 && (action.Completion == "completed" || (!allowNativeHTTPS && action.Completion == "partial")) {
+				transcript += "\nObservation: no successful evidence exists yet. If a relevant callable tool is available, call it to obtain evidence. Otherwise explain what could not be verified with completion=incomplete; do not state unverified facts."
 				continue
 			}
 			if action.Completion == "" && (turn < 2 || (len(task.Tools) > 0 && observations == 0)) {
@@ -116,6 +167,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			return writeLine(output, workerprotocol.Message{Result: action.Answer})
 		}
 		if action.Action == "native_https" {
+			if !allowNativeHTTPS {
+				transcript += "\nObservation: direct networking is unavailable in this runtime. Use governed tools or finish incomplete."
+				continue
+			}
 			if nativeSeen {
 				transcript += "\nObservation: native HTTPS was already attempted. Finish using the observations."
 				continue
@@ -153,6 +208,11 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		key := action.Tool + "\x00" + action.Resource + "\x00" + action.Input
+		if agentRole == "researcher" && !allowNativeHTTPS && publicSourceRequired(task.Objective) && action.Tool == "crm.read" {
+			// Agent quality filtering, not a Gateway denial or infrastructure event.
+			transcript += "\nObservation: " + publicEvidenceFeedback(task)
+			continue
+		}
 		if seen[key] {
 			transcript += "\nObservation: input already read successfully; choose new evidence or finish."
 			continue
@@ -163,6 +223,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		var observation workerprotocol.Reply
 		if err := readLine(scanner, &observation); err != nil {
 			return err
+		}
+		if !observation.Allowed && observation.Error == "tool access denied" {
+			deniedTools[action.Tool] = true
+			transcript += "\nACTUAL GATEWAY DECISION: " + action.Tool + " was DENIED for this Work. The tool is installed and visible, but this Work does not have permission to invoke it. Its backend was not executed. If this evidence is required for the goal, finish incomplete with reason=tool-denied and target=" + action.Tool + ". Do not call this missing-capability or substitute an unrelated data source."
 		}
 		if observation.Allowed && observation.Error == "" && observation.Text != "" {
 			observations++
@@ -176,6 +240,9 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			Observation workerprotocol.Reply `json:"observation"`
 		}{action.Tool, action.Resource, action.Input, observation})
 		transcript += "\n" + string(data)
+		if !allowNativeHTTPS && action.Tool == "crm.read" && observation.Allowed && observation.Error == "" {
+			transcript += "\nCustomer field meanings: inactive_days is days since last activity, NOT the period over which usage_drop_percent was measured. The dataset does not specify that measurement period. Keep these signals separate and do not invent dates or intervals."
+		}
 		// A local model reads past the [TRUNCATED] marker in the text (L12), so
 		// the host's truncated flag is also said in words. It comes from the
 		// host's reply, never from tool text.

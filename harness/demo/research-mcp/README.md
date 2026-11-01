@@ -1,5 +1,24 @@
 # Research MCP — local implementation, not a deployment
 
+## Accepted cloud follow-through — 1 November
+
+The current candidate adds independent `web.search` / MCP `web_search` (query
+input), real bounded public-source extraction, concrete safe error causes and
+discovery-v3. Tool visibility comes from the immutable Template ceiling;
+invocation authority still comes from the Work and is checked by the Gateway.
+This supersedes the older granted-only catalog and fixed-reader descriptions
+below for new discovery-v3 templates only. Existing templates retain their
+protocol behavior. The current reader permits at most four redirects, each with
+public URL and dial-time DNS/address checks; no credentials or caller headers.
+
+The owner authorized cloud release and subsequent cluster shutdown. Follow
+[the release plan](../../../work/0211-task-access-advisor/cloud-release-20261101.md).
+Do not deploy the local preview, its synthetic identity or its loopback model.
+Production content capture is explicitly enabled by the host using
+`AGENOVA_ACTIVITY_CAPTURE=memory`; raw bodies are volatile and unavailable after
+restart/expiry. Durable facts and read access checks remain unchanged. A deployment
+or cloud-model success is not claimed until the release evidence is recorded.
+
 ## Real-model release candidate
 
 The owner authorized adapting and releasing this slice after the local

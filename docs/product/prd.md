@@ -1,5 +1,56 @@
 # Agenova MVP PRD
 
+Owner-approved cloud follow-through (1 November 2026): release the accepted
+Researcher/Advisor feature to the existing Neo AWS environment, verify it with
+the configured cloud model and MCP services, then close the restored cluster.
+Preserve database/state/retained infrastructure and Neo's access. No new model
+IAM, paid search provider or observability stack is implied. This supersedes
+the earlier local-only release restriction for this accepted feature; normal
+CI/review and credential-access boundaries remain in force. See the
+[cloud release plan](../../work/0211-task-access-advisor/cloud-release-20261101.md).
+
+Owner-approved local Researcher repair (1 November 2026, #211): real keyless
+public search/read, a bounded opt-in content store for actual provider responses
+and tool observations, typed safe error causes, explicit Agent feedback and
+fewer unnecessary reference-Agent calls. Only the new diagnostics protocol and
+local preview enable content capture; legacy images and authority stay unchanged.
+Local tests and feature-branch push only. See the
+[repair plan](../../work/0211-task-access-advisor/researcher-demo-repair-plan-20261101.md).
+
+Owner-approved local follow-up (1 November 2026, #211): remove Task preset from
+New Work; add configurable per-Work model-call budgets under server-owned limits;
+separate Template-supported tool discovery from actual Work invocation authority.
+The Gateway enforces every actual invocation independently. Display bounded
+public Agent actions, platform decisions and execution results per turn, with
+prominent lifecycle progress and unchanged requested/granted authority semantics.
+Improve Advisor model identification, general-purpose Researcher profile naming
+and consistent visual quality. Preserve legacy contracts and arbitrary compatible
+Agent images. Local implementation/testing and feature-branch backup only;
+no PR, merge, deployment or cloud recovery. See the
+[implementation plan](../../work/0211-task-access-advisor/implementation-plan-20261101.md).
+
+Owner-approved local walkthrough correction (31 October 2026, #211): ordinary
+tasks should require a selected Agent and goal, without user-selected semantic
+task categories or an obligatory source URL. Preserve optional legacy `task.type`
+compatibility and specialized inputs; classifications never grant authority.
+Use the existing real Researcher/model/tool loop for local business acceptance,
+keep execution and goal completion distinct, and retain safe failure diagnostics.
+No mandatory new Advisor/classifier, paid provider, merge or deployment is implied.
+See [follow-up scope and gates](../../work/0211-task-access-advisor/followups.md).
+
+Owner-approved optional local extension (30 October 2026, #211): an independent
+Task Access Advisor may propose canonical requestedAccess from task context,
+an immutable author-provided AgentTemplate access guide and visible capability
+catalog. Platform configuration enables allowed/default manual, suggest and
+automatic modes; each request may choose an allowed mode. Automatic mode may
+adopt a validated proposal and submit it without extra human confirmation, but
+cannot bypass current Policy, template/runtime limits or required approvals.
+Existing explicit upstream/CLI requests remain independent of Advisor. Planning
+identity, bounded calls and evidence are separate from worker claim authority.
+No worker image coupling, new claim lifecycle or generic Skills engine is implied.
+This covers local implementation/testing and feature-branch backup only, not PR,
+merge, cloud spend or deployment. See [task/spec/design](../../work/0211-task-access-advisor/task.md).
+
 Owner-approved final-demo follow-up (23 October 2026, #256): preserve useful
 partial/incomplete Agent output independently of execution phase; display
 evidence-backed reasons without manufacturing denial events. The reference

@@ -208,6 +208,9 @@ func (s *mcpSession) run(ctx context.Context, tool, parameter, value string) (st
 		return "", toolbackend.ErrProtocol
 	}
 	if result.IsError {
+		if len(result.Content) == 1 && result.Content[0].Type == "text" && result.Content[0].Text != nil {
+			return "", toolbackend.ParseDiagnostic(*result.Content[0].Text)
+		}
 		return "", toolbackend.ErrProvider
 	}
 	parts := make([]string, 0, len(result.Content))

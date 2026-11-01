@@ -117,6 +117,26 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 		timeout = v1alpha1.Duration(*caps.MaxTimeout)
 	}
 
+	ceilingCalls := v1alpha1.DefaultModelCalls
+	if ceiling.MaxModelCalls != nil {
+		ceilingCalls = *ceiling.MaxModelCalls
+	}
+	if caps != nil && caps.MaxModelCalls != nil && *caps.MaxModelCalls < ceilingCalls {
+		ceilingCalls = *caps.MaxModelCalls
+	}
+	calls := v1alpha1.DefaultModelCalls
+	if request.Spec.Runtime.MaxModelCalls != nil {
+		calls = *request.Spec.Runtime.MaxModelCalls
+		if calls > ceilingCalls {
+			return nil, invalid("spec.runtime.maxModelCalls", "requested model calls exceed the server ceiling")
+		}
+	} else if calls > ceilingCalls {
+		calls = ceilingCalls
+	}
+	encodedCalls := calls
+	if request.Spec.Runtime.MaxModelCalls == nil && calls == v1alpha1.DefaultModelCalls {
+		encodedCalls = 0
+	}
 	return &v1alpha1.EffectiveAuthority{
 		Tools:           tools,
 		ResourceScopes:  resources,
@@ -124,8 +144,9 @@ func Resolve(request *v1alpha1.ClaimRequest, template *v1alpha1.AgentTemplate, a
 		MemoryScopes:    memory,
 		NetworkProfiles: network,
 		Runtime: v1alpha1.EffectiveAuthorityRuntime{
-			ProfileRef: runtimeProfile,
-			Timeout:    timeout,
+			ProfileRef:    runtimeProfile,
+			MaxModelCalls: encodedCalls,
+			Timeout:       timeout,
 		},
 	}, nil
 }

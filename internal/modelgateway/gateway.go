@@ -50,9 +50,16 @@ type Gateway struct {
 	observer        func(Request, gateway.Decision) error
 	identity        *workloadidentity.Service
 	requireIdentity bool
+	reserveBudget   func(Request, app.ClaimAuthoritySnapshot, string) (bool, error)
 }
 
 type Option func(*Gateway)
+
+// WithCallBudget reserves a model request before dispatch in the host's shared,
+// durable accounting boundary. Missing accounting for explicit budgets fails closed.
+func WithCallBudget(reserve func(Request, app.ClaimAuthoritySnapshot, string) (bool, error)) Option {
+	return func(g *Gateway) { g.reserveBudget = reserve }
+}
 
 // WithObserver installs a trusted decision sink before any provider attempt.
 // A recording failure fails closed and does not invoke the provider.
@@ -175,6 +182,17 @@ func (g *Gateway) invoke(req Request) (gateway.Decision, error) {
 		return g.record(req, id, outcome)
 	}
 
+	if g.reserveBudget != nil {
+		ok, err := g.reserveBudget(req, snapshot, id)
+		if err != nil {
+			return gateway.Decision{}, errors.New("model budget reservation unavailable")
+		}
+		if !ok {
+			return g.record(req, id, gateway.Outcome{Result: gateway.ResultDeny, Category: "model-call-limit", Reason: "This Work has exhausted its model-call budget."})
+		}
+	} else if snapshot.EffectiveAuthority.Runtime.MaxModelCalls > 0 {
+		return g.record(req, id, gateway.Outcome{Result: gateway.ResultDeny, Category: "model-budget-unavailable", Reason: "Trusted model-call accounting is unavailable."})
+	}
 	allowed, recordErr := g.record(req, id, outcome)
 	if recordErr != nil {
 		return allowed, recordErr

@@ -5,6 +5,11 @@ import type { Fact } from './contracts.generated';
 import { category, recordStatus, recordTitle } from './record-presentation';
 const fact: Fact = {id:'action',sequence:1,timestamp:'2026-09-16T02:00:00Z',kind:'WorkerActivity',requestRef:'work-1',target:'Turn 4',operation:'ActionValidated',reasonCode:'agent-action-invalid'};
 describe('evidence presentation independent of React and transport',()=>{
+  it('shows a public selected action rather than confusing it with a format retry',()=>{
+    expect(recordTitle({...fact,turn:1,target:'Turn 1',actionKind:'tool',actionTool:'crm.read',actionResource:'crm:customer-retention',reasonCode:'agent-action-tool'})).toBe('Turn 1 · Selected crm.read');
+    expect(recordTitle({...fact,kind:'ModelBudgetReservation',operation:'model.invoke'})).toBe('Model call reserved');
+    expect(category({...fact,kind:'ModelBudgetReservation',operation:'model.invoke'})).toBe('Model Gateway');
+  });
   it('keeps network configuration evidence distinct from packet or tool observations',()=>{
     expect(recordTitle({...fact,kind:'Runtime',operation:'NetworkActive'})).toBe('Network rules activated');
     expect(recordTitle({...fact,kind:'Runtime',operation:'NetworkRevocationFailed'})).toBe('Network withdrawal failed');

@@ -1,0 +1,18 @@
+apiVersion: agenova.io/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: researcher-advisor-v2
+spec:
+  artifact:
+    image: example.invalid/agenova/researcher-local:source
+  entrypoint:
+    command: ["/agenova-workerctl", "serve"]
+  defaults:
+    modelProfile: approved-coding-model
+  capabilityCeiling:
+    tools: [web.read, crm.read]
+    resourceScopes: [web:public-pages, crm:customer-retention]
+    modelProfiles: [approved-coding-model]
+    runtimeProfiles: [standard-isolated]
+    networkProfiles: []
+    maxTimeout: 5m

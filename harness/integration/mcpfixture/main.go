@@ -167,6 +167,7 @@ func newHandler(root *os.Root, cfg config, log *logger) http.Handler {
 		mux.Handle(tokenPath, receipts(newStream(root, cfg, log, tokenPath), log, tokenPath, cfg.tokenDigest, true))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Agenova-Fixture-Instance", bounded(cfg.pod))
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	return mux

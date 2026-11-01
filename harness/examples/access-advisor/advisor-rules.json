@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "allowedModes": ["manual", "suggest", "automatic"],
+  "defaultMode": "suggest",
+  "engine": "rules",
+  "maxCalls": 24,
+  "maxConcurrent": 1,
+  "maxRecords": 64,
+  "timeout": "5s"
+}

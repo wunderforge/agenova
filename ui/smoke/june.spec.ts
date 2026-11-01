@@ -16,8 +16,8 @@ test('June layout stays light in either system theme and fits mobile', async ({ 
   await page.getByRole('button', { name: /^Inspect / }).first().click();
   const inspector = page.getByRole('complementary', { name: 'Selected activity' });
   await expect(inspector).toBeVisible();
-  await expect(inspector).toContainText('Access decisions are not proof of execution');
-  await expect(inspector.getByRole('link', { name: 'Open evidence record' })).toHaveAttribute('href', /\/activity\//);
+  await expect(inspector).toContainText('Recorded status');
+  await expect(inspector.getByRole('link', { name: 'Evidence' })).toHaveAttribute('href', /\/activity\//);
   await page.screenshot({ path: info.outputPath('june-detail-desktop.png'), fullPage: true });
   await page.getByRole('button', { name: /^Inspect / }).last().focus();
   await page.keyboard.press('Enter');

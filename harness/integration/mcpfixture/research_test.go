@@ -43,9 +43,9 @@ func TestResearchSourceBoundary(t *testing.T) {
 		t.Fatal(text, code)
 	}
 	client.Transport = responseTransport(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/plain"}}, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", (512<<10)+1)))}, nil
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/plain"}}, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", (2<<20)+1)))}, nil
 	})
-	if _, code = fetchSource(context.Background(), "product-a", client); code != "invalid-or-large-response" {
+	if _, code = fetchSource(context.Background(), "product-a", client); code != "response-too-large" {
 		t.Fatal(code)
 	}
 	if publicClient().CheckRedirect(nil, nil) == nil {
@@ -71,7 +71,7 @@ func TestResearchMCPRetainsLegacyAndQueriesSyntheticCRM(t *testing.T) {
 	}
 	defer session.Close()
 	list, err := session.ListTools(ctx, nil)
-	if err != nil || len(list.Tools) != 4 {
+	if err != nil || len(list.Tools) != 5 {
 		t.Fatal(list, err)
 	}
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "crm_read", Arguments: map[string]any{"dataset_id": "customer-retention"}})

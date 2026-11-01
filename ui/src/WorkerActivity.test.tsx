@@ -6,6 +6,18 @@ import type { Fact } from './contracts.generated';
 import { WorkerActivity } from './WorkerActivity';
 import { workerActions, demoWorkerActions, groupWorkerTurns } from './worker-activity-model';
 afterEach(cleanup);
+it('keeps an earlier concrete tool failure visible when the Work later finishes',()=>{
+ const actions=workerActions([
+  {...fact('a',1,'ProviderAttempt','one'),operation:'tool.invoke',target:'web.read'},
+  {...fact('o',2,'ProviderOutcome','one','Failed'),operation:'tool.invoke',reason:'The source returned an unsuccessful HTTP status. HTTP 404.'},
+  {...fact('b',3,'ProviderAttempt','two'),operation:'tool.invoke',target:'web.read'},
+  {...fact('p',4,'ProviderOutcome','two','Succeeded'),operation:'tool.invoke'},
+ ],'Succeeded','#/activity');
+ render(<WorkerActivity actions={actions} status="Succeeded" activityHref="#/activity"/>);
+ expect(screen.getByRole('status').textContent).toBe('Finished · 1 tool call failed');
+ fireEvent.click(screen.getAllByRole('button',{name:'Inspect Tool call: web.read'})[0]);
+ expect(screen.getByRole('complementary',{name:'Selected activity'}).textContent).toContain('HTTP 404');
+});
 it('inspects selected evidence and follows updated facts without inventing completion', () => {
   const actions = workerActions([
     {...fact('read',1,'ProviderAttempt','r'),operation:'tool.invoke',target:'repo.read'},
@@ -120,4 +132,12 @@ it('shows interrupted calls as unknown and unattempted grants as not started',()
  expect(actions.find(a=>a.id==='attempt-b')).toMatchObject({state:'Outcome unknown',active:false});
  expect(actions.some(a=>a.state==='Succeeded')).toBe(false);
  expect(workerActions(records,'Running','#/activity').find(a=>a.id==='attempt-b')?.state).toBe('Waiting for response');
+});
+
+it('does not label an evidence-quality rejection as a format failure',()=>{
+ const actions=workerActions([{...fact('feedback',1,'WorkerActivity'),operation:'AgentFeedback',target:'Turn 1',reasonCode:'evidence-missing',reason:'No observed source.'}],'Running','#/activity');
+ const view=render(<WorkerActivity actions={actions} status="Running" activityHref="#/activity"/>);
+ expect(view.container.querySelector('.portal-turn summary')?.textContent).toContain('Agent retry');
+ expect(view.container.querySelector('.portal-turn summary')?.textContent).not.toContain('Format retry');
+ expect(view.container.textContent).toContain('No observed source.');
 });

@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	v0 "github.com/wunderforge/agenova/api/v1alpha1"
+	"github.com/wunderforge/agenova/internal/accessadvisor"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/history"
@@ -27,6 +28,7 @@ const maxSubmissionBytes = 128 << 10
 
 // Setup describes operator configuration, not a live health assessment.
 type Setup struct {
+	AccessAdvisor      *accessadvisor.Info  `json:"accessAdvisor,omitempty"`
 	PlatformInfo       *PlatformInfo        `json:"platformInfo,omitempty"`
 	SubmissionProjects *[]string            `json:"submissionProjects,omitempty"`
 	Organization       *OrganizationInfo    `json:"organization,omitempty"`
@@ -124,6 +126,9 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			}
 		}
 		switch r.URL.Path {
+		case "/api/access-advice", "/api/access-submit":
+			advisorHTTP(w, r, service, principal, sessionCheck)
+			return
 		case "/api/agents":
 			if !requireMethod(w, r, http.MethodGet) {
 				return
@@ -197,6 +202,16 @@ func handler(service *Service, auth Authenticator) http.Handler {
 			if setup.Policy.Rules == nil {
 				setup.Policy.Rules = []policy.Rule{}
 			}
+			capabilities := make(map[string]string, len(setup.Capabilities)+1)
+			for key, value := range setup.Capabilities {
+				capabilities[key] = value
+			}
+			capabilities["modelCallBudget"] = "per-work"
+			setup.Capabilities = capabilities
+			if service.advisor != nil {
+				info := service.advisor.Info()
+				setup.AccessAdvisor = &info
+			}
 			writeJSON(w, 200, setup)
 		case "/api/history":
 			if !requireMethod(w, r, http.MethodGet) {
@@ -252,6 +267,10 @@ func handler(service *Service, auth Authenticator) http.Handler {
 				writeError(w, 405, "method_not_allowed", "This method is not supported.")
 			}
 		default:
+			if strings.HasPrefix(r.URL.Path, "/api/access-advice/") {
+				advisorHTTP(w, r, service, principal, sessionCheck)
+				return
+			}
 			if strings.HasPrefix(r.URL.Path, "/api/submissions/") && strings.HasSuffix(r.URL.Path, "/evidence") {
 				if !requireMethod(w, r, http.MethodGet) {
 					return
@@ -289,6 +308,34 @@ func handler(service *Service, auth Authenticator) http.Handler {
 					continue
 				}
 				if !requireMethod(w, r, http.MethodGet) {
+					return
+				}
+				if !route.claim && strings.Contains(strings.TrimPrefix(r.URL.Path, route.prefix), "/content/") {
+					if auth == nil {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, route.prefix), "/content/", 2)
+					if len(parts) != 2 || !validReference(parts[0]) || !strings.HasPrefix(parts[1], "content:") || len(parts[1]) != 40 {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					var err error
+					if auth != nil {
+						_, err = service.QueryFor(principal, parts[0], false)
+					} else {
+						_, err = service.QueryRequest(parts[0])
+					}
+					if err != nil {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					content, err := service.activityContent(parts[0], parts[1])
+					if err != nil {
+						writeError(w, 404, "content_unavailable", "Content was not captured, expired or is unavailable.")
+						return
+					}
+					writeJSON(w, 200, content)
 					return
 				}
 				if !strings.HasSuffix(r.URL.Path, "/evidence") {
@@ -354,7 +401,19 @@ func submitHTTP(w http.ResponseWriter, r *http.Request, service *Service, princi
 	}
 	var view evidence.View
 	if principal.Subject != "" {
-		view, err = service.submitForSession(data, principal, sessionCheck)
+		var receipt *evidence.AccessAdvice
+		if id := r.Header.Get("X-Agenova-Advice-ID"); id != "" {
+			if !service.advisor.Allows("suggest") {
+				advisorError(w, &accessadvisor.Error{Code: "mode_disabled", Message: "Suggestion confirmation is disabled."})
+				return
+			}
+			receipt, err = service.acceptAdvice(r.Context(), principal, request, id, "suggest", sessionCheck)
+			if err != nil {
+				advisorError(w, err)
+				return
+			}
+		}
+		view, err = service.submitForSessionPlanned(data, principal, sessionCheck, receipt)
 	} else {
 		view, err = service.Submit(data)
 	}

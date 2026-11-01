@@ -33,3 +33,21 @@ func TestMCPExplicitTextProfileAndLegacyDefaults(t *testing.T) {
 		t.Fatal("mixed constraints allowed")
 	}
 }
+
+func TestSideBySideLocalAcceptanceEndpointRemainsCredentialFree(t *testing.T) {
+	backend := map[string]any{"transport": "streamable-http", "protocol-version": "2025-06-18", "endpoint": "http://127.0.0.1:5217/mcp", "timeout": "5s", "max-request-bytes": "8192", "max-response-bytes": "65536", "max-observation-bytes": "4096", "max-concurrent-calls": "2"}
+	if _, err := canonicalizeMCPInstance(platform.CapabilityTool, backend); err != nil {
+		t.Fatal(err)
+	}
+	backend[mcpTokenSecretKey] = "test-token/value"
+	if _, err := canonicalizeMCPInstance(platform.CapabilityTool, backend); err == nil {
+		t.Fatal("local route accepted credential reference")
+	}
+	delete(backend, mcpTokenSecretKey)
+	for _, endpoint := range []string{"http://127.0.0.1:5218/mcp", "http://localhost:5217/mcp", "http://127.0.0.1:5217/mcp-token"} {
+		backend["endpoint"] = endpoint
+		if _, err := canonicalizeMCPInstance(platform.CapabilityTool, backend); err == nil {
+			t.Fatal("arbitrary cleartext route accepted", endpoint)
+		}
+	}
+}

@@ -18,6 +18,18 @@ import (
 const ReAct = "react"
 const MaxTurns = 6
 const MaxOperations = MaxTurns * 2
+const AgentSafetyTurns = 20
+const DiscoveryProtocol = "research-discovery-v2"
+const DiagnosticsProtocol = "research-discovery-v3"
+
+var ErrModelBudget = errors.New("model-call budget exhausted")
+
+func ConversationLimit(task Task) int {
+	if task.Discovery || task.MaxModelCalls > MaxTurns {
+		return 1000
+	}
+	return MaxTurns
+}
 
 // MaxSchemaBytes matches the model provider's output-schema budget.
 const MaxSchemaBytes = 8192
@@ -27,6 +39,9 @@ var ErrTurnLimit = errors.New("agent turn limit reached")
 var ErrNoFinalResult = errors.New("agent exited without a final result")
 var ErrInvalidFinalResult = errors.New("agent final result did not match governed evidence")
 var ErrToolCatalog = errors.New("worker tool catalog is invalid or exceeds the schema budget")
+var ErrSourceURLRequired = errors.New("agent requires a source URL")
+var ErrWorkerStart = errors.New("agent process could not start")
+var ErrWorkerTransport = errors.New("agent process communication failed")
 
 // The finishing phase must not advertise stale tool choices in the grammar.
 const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"tool":{"type":"string","enum":[""]},"resource":{"type":"string","enum":[""]},"input":{"type":"string","enum":[""]},"answer":{"type":"string"}},"required":["action","tool","resource","input","answer"],"additionalProperties":false}`
@@ -35,8 +50,9 @@ const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","
 // models generate keys in schema order; with alphabetical keys llama3.1
 // writes "answer":"" first and then leaves resource empty.
 type stringSchema struct {
-	Type string   `json:"type"`
-	Enum []string `json:"enum,omitempty"`
+	Type      string   `json:"type"`
+	Enum      []string `json:"enum,omitempty"`
+	MaxLength int      `json:"maxLength,omitempty"`
 }
 
 type actionProperties struct {
@@ -143,14 +159,15 @@ func ActionIssue(text string, tools []Tool) (string, string) {
 
 // Action intentionally excludes private reasoning. Agent semantics live at this demo edge.
 type Action struct {
-	Completion string `json:"completion,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-	Target     string `json:"target,omitempty"`
-	Action     string `json:"action"`
-	Tool       string `json:"tool,omitempty"`
-	Resource   string `json:"resource,omitempty"`
-	Input      string `json:"input,omitempty"`
-	Answer     string `json:"answer,omitempty"`
+	DecisionSummary string `json:"decisionSummary,omitempty"`
+	Completion      string `json:"completion,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Target          string `json:"target,omitempty"`
+	Action          string `json:"action"`
+	Tool            string `json:"tool,omitempty"`
+	Resource        string `json:"resource,omitempty"`
+	Input           string `json:"input,omitempty"`
+	Answer          string `json:"answer,omitempty"`
 }
 
 // ParseAction accepts a finish action, or a tool action whose tool, resource
@@ -160,7 +177,7 @@ func ParseAction(text string, tools []Tool) (Action, error) {
 	if err != nil {
 		return a, err
 	}
-	if a.Completion != "" || a.Reason != "" || a.Target != "" {
+	if a.Completion != "" || a.Reason != "" || a.Target != "" || a.DecisionSummary != "" {
 		return a, errors.New("unexpected completion metadata")
 	}
 	if a.Action == "tool" && a.Answer == "" {
