@@ -123,6 +123,9 @@ func AgentActionIssue(text string, tools []Tool, protocol string) (string, strin
 	if err == nil {
 		return "", ""
 	}
+	if _, decodeErr := decodeAction(text); decodeErr != nil {
+		return "agent-action-invalid", "The model response did not match the required Agent action JSON. The agent must retry."
+	}
 	if a.Action == "tool" && (a.Answer != "" || a.Completion != "" || a.Reason != "" || a.Target != "") {
 		return "agent-action-invalid", "A tool call must leave answer, completion, reason and target empty. Completion metadata is only for finish actions. The agent must retry."
 	}

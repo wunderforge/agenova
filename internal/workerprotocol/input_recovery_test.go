@@ -19,6 +19,10 @@ func TestRawChoiceDiagnosticsAndSchemaDoNotAcceptWrappers(t *testing.T) {
 	if !strings.Contains(reason, "Invalid input for crm.read") || !strings.Contains(ToolInputRepair(bad, []Tool{tool}), `"input":"customer-retention"`) {
 		t.Fatal("missing exact correction")
 	}
+	_, reason = AgentActionIssue(strings.Replace(bad, `"action":"tool"`, `"unknown":"x","action":"tool"`, 1), []Tool{tool}, DiagnosticsProtocol)
+	if strings.Contains(reason, "Invalid input for") {
+		t.Fatal("malformed JSON was mislabeled as an input-value error")
+	}
 	for _, text := range []string{strings.Replace(bad, "crm.read", "unknown.read", 1), strings.Replace(bad, "crm:customer-retention", "foreign:scope", 1)} {
 		if ToolInputRepair(text, []Tool{tool}) != "" {
 			t.Fatal("invented a route for unknown tool/scope")
