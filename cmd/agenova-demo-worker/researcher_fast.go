@@ -89,6 +89,16 @@ Tools: ` + catalog.String() + "\n"
 		if turn == limit {
 			prompt += "\nLast model call: finish now with available evidence and honest limits."
 		}
+		if len(denied) > 0 {
+			var target string
+			for tool := range denied {
+				target = tool
+				break
+			}
+			prompt += "\nREQUIRED NEXT RESPONSE: the Gateway denied " + target + ". Do not answer the blocked question from memory. Use exactly this finish shape, replacing only answer and decisionSummary with brief text: {\"action\":\"finish\",\"tool\":\"\",\"resource\":\"\",\"input\":\"\",\"answer\":\"Explain the observed denial and any already verified findings.\",\"completion\":\"incomplete\",\"reason\":\"tool-denied\",\"target\":\"" + target + "\",\"decisionSummary\":\"Report the denied request\"}. completion MUST be incomplete, never completed."
+		} else if observed && (!currentWeatherTask(task.Objective) || weatherRead) && (!explicitSourceTask(task.Objective) || weatherRead) {
+			prompt += "\nNEXT RESPONSE FORMAT: {\"action\":\"finish\",\"tool\":\"\",\"resource\":\"\",\"input\":\"\",\"answer\":\"Findings from the observations, with the observed source.\",\"completion\":\"completed\",\"reason\":\"\",\"target\":\"\",\"decisionSummary\":\"Summarize the verified finding\"}. Replace only answer and decisionSummary."
+		}
 		response, err := exchange(workerprotocol.Operation{Kind: "model", AgentProtocol: workerprotocol.DiagnosticsProtocol, Profile: task.ModelProfile, Prompt: prompt})
 		if err != nil {
 			return err
@@ -159,6 +169,9 @@ Tools: ` + catalog.String() + "\n"
 				if !result.Allowed {
 					denied[action.Tool] = true
 				}
+				// A real observation starts a new format-repair window. Two mistakes
+				// on either side of valid tool progress are not consecutive failures.
+				invalid = 0
 				if result.Allowed && result.Error == "" {
 					observed = true
 					if sourceSynthetic(result.Text) {

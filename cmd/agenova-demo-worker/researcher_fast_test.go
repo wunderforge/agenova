@@ -73,6 +73,28 @@ func TestDiagnosticAgentRepairsCloudFinishFieldMixing(t *testing.T) {
 	}
 }
 
+func TestDiagnosticAgentRepairsSeparateMistakesAcrossActualToolProgress(t *testing.T) {
+	researcherRole(t)
+	var in, out bytes.Buffer
+	e := json.NewEncoder(&in)
+	e.Encode(workerprotocol.Task{ClaimID: "c", ModelProfile: "m", Objective: "When is the festival?", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct, MaxModelCalls: 6, Tools: []workerprotocol.Tool{{Operation: "web.search", ResourceScope: "web:public-pages", Description: "search", Parameter: "query", InputMode: "text", MaxBytes: 512}}})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.search","resource":"web:public-pages","input":"festival date","completion":"incomplete"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.search","resource":"web:public-pages","input":"festival date"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	e.Encode(workerprotocol.Reply{Allowed: false, Error: "tool access denied"})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"A remembered date","completion":"completed","reason":"tool-denied","target":"web.search"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Unable to verify; web.search was denied.","completion":"incomplete","reason":"tool-denied","target":"web.search"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	if err := run(&in, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), `"kind":"model"`) != 4 || strings.Count(out.String(), `"kind":"tool"`) != 1 || !strings.Contains(out.String(), `"result":"Unable to verify; web.search was denied."`) {
+		t.Fatal("separate bounded repairs must preserve one actual denied call and honest final result")
+	}
+}
+
 func TestDiagnosticExplicitPageMustActuallyBeAttempted(t *testing.T) {
 	researcherRole(t)
 	var in, out bytes.Buffer

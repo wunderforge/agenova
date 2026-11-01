@@ -47,6 +47,15 @@ recovery from the observed cloud finish-field defect. The unchanged Windows
 full/race/browser gates and exact rebuilt OCI image tests must pass before using
 the new candidate. Cloud positive/negative/Advisor/legacy acceptance is pending.
 
+An isolated real Nova Micro protocol probe then completed the public-source
+answer and an honest incomplete answer after a simulated denial, using three
+model calls each. The first output needed one format repair. A singular next-step
+finish example after actual feedback prevents contradictory completion fields;
+valid tool progress resets the consecutive-error window, while model-call and
+consecutive-error bounds remain. This probe used the reference Agent and a
+previously observed public search result; it is **not** a governed Work or proof
+of a real Gateway denial. Those checks remain required against the rebuilt images.
+
 Separately, initial restoration used the wrong Kubernetes API service IP in a
 controller-only network rule. The operational composition now reads the actual
 `default/kubernetes` Service IP and verifies it against the EKS service CIDR;
