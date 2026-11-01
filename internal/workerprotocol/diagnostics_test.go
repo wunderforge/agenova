@@ -71,6 +71,20 @@ func TestDiagnosticObjectGrammarKeepsLegacyShapeAndArgumentLimits(t *testing.T) 
 	if bytes.Contains(shape.Properties["action"], []byte(`"tool"`)) {
 		t.Fatal("finishing schema re-enabled a tool action")
 	}
+	shared := []Tool{tool, {Operation: "web.read", ResourceScope: "web:public-pages", Description: "read", Parameter: "url", InputMode: "text", MaxBytes: 1024}}
+	rawShared, _ := DiagnosticsSchema(shared, false)
+	sharedSchema, err := GatewayResearchSchema(rawShared, shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.Unmarshal(sharedSchema, &shape)
+	var resource struct {
+		Enum []string `json:"enum"`
+	}
+	json.Unmarshal(shape.Properties["resource"], &resource)
+	if len(resource.Enum) != 2 {
+		t.Fatal("shared resource produced duplicate provider enum values")
+	}
 	if _, err := ParseAgentAction(`{"action":"finish","answer":"A","completion":"completed","decisionSummary":"actual explanation"}`, nil, DiscoveryProtocol); err == nil {
 		t.Fatal("legacy parser accepts new content")
 	}

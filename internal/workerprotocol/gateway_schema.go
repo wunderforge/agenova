@@ -107,8 +107,12 @@ func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessa
 		if !allowTool || !containsSchemaValue(base.Properties.Tool.Enum, tool.Operation) || !containsSchemaValue(base.Properties.Resource.Enum, tool.ResourceScope) {
 			continue
 		}
-		tools = append(tools, tool.Operation)
-		resources = append(resources, tool.ResourceScope)
+		if !containsSchemaValue(tools, tool.Operation) {
+			tools = append(tools, tool.Operation)
+		}
+		if !containsSchemaValue(resources, tool.ResourceScope) {
+			resources = append(resources, tool.ResourceScope)
+		}
 		maxInput = max(maxInput, tool.MaxBytes)
 		for _, value := range tool.AllowedValues {
 			maxInput = max(maxInput, len(value))
