@@ -20,7 +20,17 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     name: release artifact smoke (no cloud)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    services:
+      recovery-postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: recovery-fixture-only
+          POSTGRES_DB: agenova_recovery_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -32,12 +42,26 @@ jobs:
       - name: Test separate MCP module
         working-directory: harness/integration/mcpfixture
         run: go test ./...
+      - name: Verify additive credential recovery with disposable PostgreSQL
+        env:
+          AGENOVA_RECOVERY_TEST_DSN: postgres://postgres:recovery-fixture-only@127.0.0.1:5432/agenova_recovery_ci?sslmode=disable
+        run: go test ./tools/member-service-recovery -count=1
       - name: Build actual MCP image
         run: docker build --platform linux/amd64 -t agenova-mcp:ci harness/integration/mcpfixture
       - name: Build Researcher image and verify legacy and discovery-v3 exchanges
         run: python3 harness/demo/research-mcp/build-worker.py
       - name: Build actual authenticated control-plane and Portal image
         run: docker build --platform linux/amd64 -f deploy/production/release.Dockerfile -t agenova-control-plane:ci .
+      - name: Build trusted credential initializer image
+        run: docker build --platform linux/amd64 -f harness/demo/research-mcp/recover.Dockerfile -t agenova-member-recovery:ci .
+      - name: Export verified public images for controlled first-install delivery
+        run: bash scripts/release/export-demo-images.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-images-${{ github.sha }}
+          path: .tmp/verified-images
+          include-hidden-files: true
+          retention-days: 2
 
   baseline:
     if: >-
