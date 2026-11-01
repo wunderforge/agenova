@@ -5,6 +5,8 @@ package workerprotocol
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 )
 
 type researchProperties struct {
@@ -103,6 +105,9 @@ func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessa
 	base.Properties.Action = stringSchema{Type: "string", Enum: []string{"finish"}}
 	tools, resources := []string{""}, []string{""}
 	maxInput := 0
+	fixedOnly := true
+	inputs := []string{""}
+	var inputHints []string
 	for _, tool := range catalog {
 		if !allowTool || !containsSchemaValue(base.Properties.Tool.Enum, tool.Operation) || !containsSchemaValue(base.Properties.Resource.Enum, tool.ResourceScope) {
 			continue
@@ -114,8 +119,18 @@ func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessa
 			resources = append(resources, tool.ResourceScope)
 		}
 		maxInput = max(maxInput, tool.MaxBytes)
+		if tool.InputMode == "text" {
+			fixedOnly = false
+			inputHints = append(inputHints, tool.Operation+": nonempty raw text or URL")
+		} else {
+			values, _ := json.Marshal(tool.AllowedValues)
+			inputHints = append(inputHints, fmt.Sprintf("%s: raw JSON string from %s (do not include %s=)", tool.Operation, values, tool.Parameter))
+		}
 		for _, value := range tool.AllowedValues {
 			maxInput = max(maxInput, len(value))
+			if !containsSchemaValue(inputs, value) {
+				inputs = append(inputs, value)
+			}
 		}
 	}
 	if len(tools) > 1 {
@@ -124,6 +139,10 @@ func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessa
 	base.Properties.Tool = stringSchema{Type: "string", Enum: tools}
 	base.Properties.Resource = stringSchema{Type: "string", Enum: resources}
 	base.Properties.Input = stringSchema{Type: "string", MaxLength: maxInput}
+	base.Properties.Input.Description = "Tool-specific raw input value, never a key=value wrapper. " + strings.Join(inputHints, "; ")
+	if fixedOnly {
+		base.Properties.Input.Enum = inputs
+	}
 	if len(tools) == 1 {
 		base.Properties.Input.Enum = []string{""}
 	}
@@ -133,6 +152,16 @@ func diagnosticObjectSchema(base researchVariant, catalog []Tool) (json.RawMessa
 	base.Required = []string{"action", "tool", "resource", "input", "answer", "completion", "reason", "target", "decisionSummary"}
 	base.AdditionalProperties = false
 	out, err := json.Marshal(base)
+	if len(out) > MaxSchemaBytes {
+		base.Properties.Input.Description = ""
+		out, err = json.Marshal(base)
+	}
+	if len(out) > MaxSchemaBytes && len(tools) > 1 {
+		// Match ActionSchema's bounded fallback for large fixed catalogs. The
+		// strict parser still validates the exact route and input value.
+		base.Properties.Input.Enum = nil
+		out, err = json.Marshal(base)
+	}
 	if len(out) > MaxSchemaBytes {
 		return nil, ErrToolCatalog
 	}

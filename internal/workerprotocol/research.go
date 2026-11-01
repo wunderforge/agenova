@@ -5,6 +5,7 @@ package workerprotocol
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 )
@@ -132,9 +133,48 @@ func AgentActionIssue(text string, tools []Tool, protocol string) (string, strin
 		return "agent-action-invalid", "A finish action requires an answer and valid completion metadata. The agent must retry."
 	}
 	if a.Action == "tool" {
+		for _, tool := range tools {
+			if tool.Operation == a.Tool && tool.ResourceScope == a.Resource {
+				if _, valid := FindTool(tools, a.Tool, a.Resource, a.Input); valid {
+					break
+				}
+				if tool.InputMode == "text" {
+					return "agent-action-invalid", "The selected tool requires a nonempty text input within its catalog limit."
+				}
+				return "agent-action-invalid", fmt.Sprintf("Invalid input for %s. Pass an allowed raw catalog value without a parameter-name prefix.", tool.Operation)
+			}
+		}
 		return "agent-action-invalid", "A tool call must select an available tool, its resource and a permitted nonempty input. The agent must retry."
 	}
 	return "agent-action-invalid", "The model response did not match the required Agent action JSON. The agent must retry."
+}
+
+// ToolInputRepair supplies an exact example only for an already selected,
+// catalogued operation/scope. It never accepts or rewrites a model action.
+func ToolInputRepair(text string, tools []Tool) string {
+	a, err := decodeAction(text)
+	if err != nil || a.Action != "tool" {
+		return ""
+	}
+	for _, tool := range tools {
+		if tool.Operation != a.Tool || tool.ResourceScope != a.Resource || tool.InputMode != "" || len(tool.AllowedValues) == 0 {
+			continue
+		}
+		if _, ok := FindTool(tools, a.Tool, a.Resource, a.Input); ok {
+			return ""
+		}
+		return "RAW INPUT REPAIR: input is the JSON string value alone, never key=value or a JSON object. Use this complete tool-action example with one allowed catalog value: " + ToolInputExample(tool)
+	}
+	return ""
+}
+
+// ToolInputExample contains only the issued catalog, not observed model text.
+func ToolInputExample(tool Tool) string {
+	if tool.InputMode != "" || len(tool.AllowedValues) == 0 {
+		return ""
+	}
+	data, _ := json.Marshal(map[string]string{"action": "tool", "tool": tool.Operation, "resource": tool.ResourceScope, "input": tool.AllowedValues[0], "answer": "", "completion": "", "reason": "", "target": "", "decisionSummary": "Read the selected dataset"})
+	return string(data)
 }
 
 func ParseAgentAction(text string, tools []Tool, protocol string) (Action, error) {

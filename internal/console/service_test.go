@@ -87,7 +87,7 @@ func TestRunFailureReasonsAreRecordedAndSanitized(t *testing.T) {
 		code string
 	}{
 		{"turn-limit", workerprotocol.ErrTurnLimit, "agent-turn-limit"},
-		{"no-result", workerprotocol.ErrNoFinalResult, "agent-no-final-result"},
+		{"no-result", workerprotocol.ErrNoFinalResult, "agent-invalid-action"},
 		{"invalid-result", workerprotocol.ErrInvalidFinalResult, "agent-invalid-final-result"},
 		{"source-input", workerprotocol.ErrSourceURLRequired, "agent-source-url-required"},
 		{"process-start", workerprotocol.ErrWorkerStart, "agent-process-start-failed"},
@@ -138,6 +138,20 @@ func TestActionRetryLimitRetainsSpecificFailureProvenance(t *testing.T) {
 	code, _ = runFailure(workerprotocol.ErrTurnLimit, recorded)
 	if code != "agent-turn-limit" {
 		t.Fatal("blamed an earlier recovered format failure")
+	}
+}
+
+func TestNoFinalResultClassifiesOnlyUnrecoveredActionFailure(t *testing.T) {
+	invalid := facts.Fact{Kind: "WorkerActivity", Operation: "ActionValidated", ReasonCode: "agent-action-invalid", Reason: "Invalid input for crm.read. Pass an allowed raw catalog value without a parameter-name prefix."}
+	code, _ := runFailure(workerprotocol.ErrNoFinalResult, []facts.Fact{invalid})
+	if code != "agent-invalid-action" {
+		t.Fatal("lost terminal validation cause", code)
+	}
+	for _, later := range []facts.Fact{{Kind: "WorkerActivity", Operation: "ActionValidated", ReasonCode: "agent-action-tool"}, {Kind: "ProviderOutcome", ProviderStatus: "Failed"}, {Kind: "ToolDecision", Result: v0.DecisionResultDeny}, {Kind: "WorkerActivity", Operation: "ObservationReceived"}} {
+		code, _ = runFailure(workerprotocol.ErrNoFinalResult, []facts.Fact{invalid, later})
+		if code != "agent-no-final-result" {
+			t.Fatal("blamed an earlier action", code)
+		}
 	}
 }
 

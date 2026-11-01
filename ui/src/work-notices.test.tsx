@@ -5,7 +5,27 @@ import {render,screen,cleanup} from '@testing-library/react';
 import {WorkNotices} from './WorkAuthority';
 import {workStatus,isTerminal,type View} from './connected-source';
 import {PlatformOverview} from './ProductPages';
+import {outcomeReason,terminalActionFailure} from './record-presentation';
 afterEach(cleanup);
+const invalidReason='Invalid input for crm.read. Pass an allowed raw catalog value without a parameter-name prefix.';
+const invalidWork=()=>{const w=work();w.outcome={status:'Failed',failure:'The agent exited without returning a final answer.'};w.facts=[{id:'invalid',sequence:1,timestamp:'2026-11-01T00:00:00Z',kind:'WorkerActivity',requestRef:'w',operation:'ActionValidated',reasonCode:'agent-action-invalid',reason:invalidReason},{id:'end',sequence:2,timestamp:'2026-11-01T00:00:01Z',kind:'RunOutcome',requestRef:'w',operation:'Failed',reasonCode:'agent-no-final-result',reason:w.outcome.failure}];return w;};
+it('highlights the terminal host validation cause in historical no-result failures',()=>{
+ const w=invalidWork();render(<WorkNotices work={w}/>);
+ expect(screen.getByRole('alert').textContent).toBe('crm.read · Invalid inputEvidence');
+ expect(screen.getByRole('link',{name:'Evidence'}).getAttribute('href')).toBe('#/work/w/activity/invalid');
+ expect(outcomeReason(w)).toBe(invalidReason);expect(w.facts[1].reasonCode).toBe('agent-no-final-result');
+});
+it.each(['valid','provider','denied','observation','success'])('does not blame a recovered action: %s',later=>{
+ const w=invalidWork();
+ if(later==='success')w.outcome!.status='Succeeded';
+ else w.facts.splice(1,0,{id:'later',sequence:2,timestamp:'2026-11-01T00:00:00Z',requestRef:'w',...({valid:{kind:'WorkerActivity',operation:'ActionValidated',reasonCode:'agent-action-tool'},provider:{kind:'ProviderOutcome',providerStatus:'Failed'},denied:{kind:'ToolDecision',result:'Deny'},observation:{kind:'WorkerActivity',operation:'ObservationReceived'}} as const)[later as 'valid'|'provider'|'denied'|'observation']});
+ expect(terminalActionFailure(w)).toBeUndefined();
+ render(<WorkNotices work={w}/>);expect(screen.queryByText('crm.read · Invalid input')).toBeNull();
+});
+it('never derives the terminal cause from untrusted Agent feedback',()=>{
+ const w=invalidWork();w.facts[0]={...w.facts[0],operation:'ActionReceived'};
+ expect(terminalActionFailure(w)).toBeUndefined();
+});
 const work=()=>({requestRef:'w',request:{spec:{requestedAccess:{tools:[]}}},state:{decision:{result:'Allow'},effectiveAuthority:{tools:[]},claim:{phase:'Succeeded'}},facts:[],outcome:{status:'Succeeded',text:'No tool available.',completion:{status:'incomplete',reason:'missing-capability',target:'web.read'}}} as unknown as View);
 it('incomplete is terminal but is not green business success',()=>{expect(workStatus(work())).toBe('Incomplete');expect(isTerminal(work())).toBe(true);});
 it('missing capability notice is not a fabricated denial',()=>{render(<WorkNotices work={work()}/>);expect(screen.getByRole('alert').textContent).toBe('web.read unavailableDetails');expect(screen.queryByText('web.read blocked')).toBeNull();expect(screen.getByRole('link').getAttribute('href')).toBe('#/work/w/completion');});

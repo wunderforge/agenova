@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { View } from './connected-source';
 import { workPermissions } from './work-permissions';
+import {terminalActionFailure} from './record-presentation';
 
 export function WorkPermissions({work}:{work:View}){
  const rows=workPermissions(work);
@@ -47,7 +48,12 @@ export function WorkNotices({work}:{work:View}){
  const activity=`#/work/${encodeURIComponent(work.requestRef)}/activity`;
  const failure=work.outcome?.failure;
  const failureFact=[...work.facts].reverse().find(f=>f.kind==='RunOutcome');
+ const actionFailure=terminalActionFailure(work);
  let failureEvent=failure?{id:'failure',text:work.outcome?.status==='Succeeded'?(incomplete?'Cleanup needs attention':'Task completed; cleanup needs attention'):failure,href:failureFact?`${activity}/${encodeURIComponent(failureFact.id)}`:activity,label:'Evidence'}:undefined;
+ if(actionFailure){
+  const tool=/^Invalid input for ([a-zA-Z0-9._-]+)\./.exec(actionFailure.reason||'')?.[1];
+  failureEvent={id:actionFailure.id,text:tool?`${tool} · Invalid input`:'Invalid tool or finish response',href:`${activity}/${encodeURIComponent(actionFailure.id)}`,label:'Evidence'};
+ }
  if(failureEvent&&denied.some(f=>{const target=f.target||f.operation||'Request';return [`${target} blocked`,`Blocked · ${target}`].some(text=>text.trim().toLowerCase()===failureEvent!.text.trim().toLowerCase());}))failureEvent=undefined;
  if(denied.length&&!native&&!unavailable&&!incomplete)return <><WorkRefusals work={work} highlight={work.outcome?.status!=='Succeeded'}/>{failureEvent&&<NoticeRows events={[failureEvent]}/>}</>;
  const events=denied.map(f=>({id:f.id,text:f.reasonCode==='model-call-limit'?'Model-call limit reached':`${f.target||f.operation||'Request'} blocked`,href:`${activity}/${encodeURIComponent(f.id)}`,label:'Evidence'}));
