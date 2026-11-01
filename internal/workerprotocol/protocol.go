@@ -28,13 +28,15 @@ type Tool struct {
 }
 
 type Task struct {
-	ClaimID      string `json:"claimId"`
-	ModelToken   string `json:"modelToken,omitempty"`
-	ToolToken    string `json:"toolToken,omitempty"`
-	Objective    string `json:"objective"`
-	ModelProfile string `json:"modelProfile"`
-	Mode         string `json:"mode,omitempty"`
-	Tools        []Tool `json:"tools,omitempty"`
+	Discovery     bool   `json:"templateToolDiscovery,omitempty"`
+	MaxModelCalls int    `json:"maxModelCalls,omitempty"`
+	ClaimID       string `json:"claimId"`
+	ModelToken    string `json:"modelToken,omitempty"`
+	ToolToken     string `json:"toolToken,omitempty"`
+	Objective     string `json:"objective"`
+	ModelProfile  string `json:"modelProfile"`
+	Mode          string `json:"mode,omitempty"`
+	Tools         []Tool `json:"tools,omitempty"`
 }
 
 type Operation struct {

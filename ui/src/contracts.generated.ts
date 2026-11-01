@@ -36,6 +36,7 @@ export interface AgentTemplateArtifact {
   image: string;
 }
 export interface AgentTemplateCapabilityCeiling {
+  maxModelCalls?: (number | null);
   maxTimeout?: (string | null);
   memoryScopes?: (Array<string> | null);
   modelProfiles?: (Array<string> | null);
@@ -50,6 +51,7 @@ export interface AgentTemplateDefaults {
 }
 export interface AgentTemplateEntrypoint {
   command: (Array<string> | null);
+  protocol?: string;
 }
 export interface AgentTemplateSpec {
   accessGuide?: (AgentAccessGuide | null);
@@ -90,11 +92,13 @@ export interface ClaimRequestedAccess {
   tools?: (Array<string> | null);
 }
 export interface ClaimRuntimeRequirements {
+  maxModelCalls?: (number | null);
   profileRef: string;
   timeout: (string | null);
 }
 export interface Completion {
   reason?: string;
+  reportedBy?: string;
   status: string;
   target?: string;
 }
@@ -121,6 +125,7 @@ export interface EffectiveAuthority {
   tools?: (Array<string> | null);
 }
 export interface EffectiveAuthorityRuntime {
+  maxModelCalls?: number;
   profileRef: string;
   timeout: string;
 }
@@ -142,6 +147,10 @@ export interface EvidenceToolInvocation {
   toolName?: string;
 }
 export interface Fact {
+  actionKind?: string;
+  actionRef?: string;
+  actionResource?: string;
+  actionTool?: string;
   authorityChanges?: (Array<Change> | null);
   backendIdentity?: (SandboxClaimBackendIdentity | null);
   claimId?: string;
@@ -150,6 +159,8 @@ export interface Fact {
   id: string;
   invocationId?: string;
   kind: string;
+  modelCallCount?: number;
+  modelCallLimit?: number;
   operation?: string;
   policyRef?: (PolicyReference | null);
   providerStatus?: string;
@@ -162,6 +173,7 @@ export interface Fact {
   target?: string;
   timestamp: string;
   truncated?: boolean;
+  turn?: number;
 }
 export interface IssuedState {
   action: Action;
@@ -387,6 +399,15 @@ export const shapes = {
   "AgentTemplateCapabilityCeiling": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "number"
+          }
+        },
+        "optional": true
+      },
       "maxTimeout": {
         "shape": {
           "kind": "nullable",
@@ -506,6 +527,12 @@ export const shapes = {
             }
           }
         }
+      },
+      "protocol": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
       }
     }
   },
@@ -741,6 +768,15 @@ export const shapes = {
   "ClaimRuntimeRequirements": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "nullable",
+          "item": {
+            "kind": "number"
+          }
+        },
+        "optional": true
+      },
       "profileRef": {
         "shape": {
           "kind": "string"
@@ -760,6 +796,12 @@ export const shapes = {
     "kind": "object",
     "fields": {
       "reason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "reportedBy": {
         "shape": {
           "kind": "string"
         },
@@ -911,6 +953,12 @@ export const shapes = {
   "EffectiveAuthorityRuntime": {
     "kind": "object",
     "fields": {
+      "maxModelCalls": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
       "profileRef": {
         "shape": {
           "kind": "string"
@@ -1022,6 +1070,30 @@ export const shapes = {
   "Fact": {
     "kind": "object",
     "fields": {
+      "actionKind": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionRef": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionResource": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "actionTool": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
       "authorityChanges": {
         "shape": {
           "kind": "nullable",
@@ -1086,6 +1158,18 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      },
+      "modelCallCount": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "modelCallLimit": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
       },
       "operation": {
         "shape": {
@@ -1158,6 +1242,12 @@ export const shapes = {
       "truncated": {
         "shape": {
           "kind": "boolean"
+        },
+        "optional": true
+      },
+      "turn": {
+        "shape": {
+          "kind": "number"
         },
         "optional": true
       }

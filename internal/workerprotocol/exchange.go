@@ -71,7 +71,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			if modelTurns > 0 && op.AgentProtocol != protocol {
 				return "", errors.New("agent protocol changed during execution")
 			}
-			if op.AgentProtocol != "" && op.AgentProtocol != ResearchProtocol {
+			if op.AgentProtocol != "" && op.AgentProtocol != ResearchProtocol && !(task.Discovery && op.AgentProtocol == DiscoveryProtocol) {
 				return "", errors.New("unsupported agent protocol")
 			}
 			protocol = op.AgentProtocol
@@ -84,7 +84,10 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			expectedToken = task.ToolToken
 		}
 		limit := executionOperationLimit
-		if protocol == ResearchProtocol {
+		if task.Discovery || task.MaxModelCalls > MaxTurns {
+			limit = ConversationLimit(task)*3 + 4
+		}
+		if protocol == ResearchProtocol || protocol == DiscoveryProtocol {
 			limit += 2
 		}
 		if operations > limit || op.ClaimID != task.ClaimID || op.WorkloadToken != expectedToken {
@@ -98,7 +101,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 		if (op.Kind != "model" && op.Kind != "tool" && !native) || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) || (!native && op.Native != nil) {
 			return "", errors.New("worker operation shape rejected")
 		}
-		if task.Mode == ReAct && op.Kind == "model" && modelTurns >= MaxTurns {
+		if task.Mode == ReAct && op.Kind == "model" && modelTurns >= ConversationLimit(task) {
 			return "", ErrTurnLimit
 		}
 		if task.Mode == ReAct && op.Kind == "tool" {
@@ -131,6 +134,9 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 		}
 		reply, err := handle(ctx, op)
 		if err != nil {
+			if errors.Is(err, ErrModelBudget) {
+				return "", err
+			}
 			return "", errors.New("worker governed operation failed")
 		}
 		if err := ctx.Err(); err != nil {
@@ -138,7 +144,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 		}
 		if op.Kind == "model" {
 			modelTurns++
-			if task.Mode == ReAct && modelTurns > MaxTurns {
+			if task.Mode == ReAct && modelTurns > ConversationLimit(task) {
 				return "", ErrTurnLimit
 			}
 			if !reply.Allowed || strings.TrimSpace(reply.Text) == "" || reply.Error != "" {
@@ -172,7 +178,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 		return "", errors.New("worker output malformed or exceeds limit")
 	}
 	if result == "" {
-		if task.Mode == ReAct && modelTurns >= MaxTurns {
+		if task.Mode == ReAct && modelTurns >= ConversationLimit(task) {
 			return "", ErrTurnLimit
 		}
 		return "", ErrNoFinalResult

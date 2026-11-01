@@ -67,8 +67,8 @@ func (syntheticAdviceTool) Invoke(_ context.Context, in toolbackend.Invocation) 
 func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *liveConfig) error {
 	templatePath, guidePath := "harness/examples/access-advisor/researcher.yaml", "harness/examples/access-advisor/ACCESS.md"
 	if live != nil {
-		templatePath = "harness/examples/access-advisor/researcher-live.yaml"
-		guidePath = "harness/examples/access-advisor/ACCESS-live.md"
+		templatePath = "harness/examples/access-advisor/researcher-discovery.yaml"
+		guidePath = "harness/examples/access-advisor/ACCESS-discovery.md"
 	}
 	data, e := os.ReadFile(templatePath)
 	if e != nil {

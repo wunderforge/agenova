@@ -47,7 +47,7 @@ export function WorkNotices({work}:{work:View}){
  let failureEvent=failure?{id:'failure',text:work.outcome?.status==='Succeeded'?(incomplete?'Cleanup needs attention':'Task completed; cleanup needs attention'):failure,href:failureFact?`${activity}/${encodeURIComponent(failureFact.id)}`:activity,label:'Evidence'}:undefined;
  if(failureEvent&&denied.some(f=>{const target=f.target||f.operation||'Request';return [`${target} blocked`,`Blocked · ${target}`].some(text=>text.trim().toLowerCase()===failureEvent!.text.trim().toLowerCase());}))failureEvent=undefined;
  if(denied.length&&!native&&!unavailable&&!incomplete)return <><WorkRefusals work={work} highlight={work.outcome?.status!=='Succeeded'}/>{failureEvent&&<NoticeRows events={[failureEvent]}/>}</>;
- const events=denied.map(f=>({id:f.id,text:`${f.target||f.operation||'Request'} blocked`,href:`${activity}/${encodeURIComponent(f.id)}`,label:'Evidence'}));
+ const events=denied.map(f=>({id:f.id,text:f.reasonCode==='model-call-limit'?'Model-call limit reached':`${f.target||f.operation||'Request'} blocked`,href:`${activity}/${encodeURIComponent(f.id)}`,label:'Evidence'}));
  if(unavailable&&!denied.some(f=>f.target===target))events.push({id:'unavailable',text:`${target} unavailable`,href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});
  if(native)events.push({id:native.id,text:native.reasonCode?.endsWith('-timeout')?'Direct HTTPS timed out':'Direct HTTPS attempted',href:`${activity}/${encodeURIComponent(native.id)}`,label:'Evidence'});
  if(!events.length&&incomplete)events.push({id:'incomplete',text:completion.status==='partial'?'Task partially completed':'Task incomplete',href:`#/work/${encodeURIComponent(work.requestRef)}/completion`,label:'Details'});

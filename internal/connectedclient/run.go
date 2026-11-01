@@ -342,6 +342,9 @@ func validEvidenceView(view evidence.View, ref string) bool {
 	nativeSelected, nativeStarted, nativeObserved := false, false, false
 	nativeFinishInvocation := ""
 	nativeFinalAnswer := false
+	budgetCount := 0
+	budgetIDs := map[string]bool{}
+	actionFacts := map[string]facts.Fact{}
 	runtimeEvents := make([]string, 0)
 	for _, fact := range view.Facts {
 		// RunOutcome is appended after worker teardown. No further activity for
@@ -368,7 +371,7 @@ func validEvidenceView(view evidence.View, ref string) bool {
 			return false
 		}
 		switch fact.Kind {
-		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
+		case "RequestReceived", "RequestResolution", "AuthorityResolved", "Runtime", "WorkerActivity", "ModelBudgetReservation", "ModelDecision", "ToolDecision", "ProviderAttempt", "ProviderOutcome", "RunOutcome":
 		default:
 			return false
 		}
@@ -558,15 +561,51 @@ func validEvidenceView(view evidence.View, ref string) bool {
 				return false
 			}
 		}
+		if fact.Turn < 0 || fact.Turn > 1000 {
+			return false
+		}
+		if fact.ActionRef != "" {
+			a, ok := actionFacts[fact.ActionRef]
+			if !ok || fact.Kind != "ToolDecision" || a.ClaimID != fact.ClaimID || a.Turn != fact.Turn || a.ActionKind != "tool" || a.ActionTool != fact.Target {
+				return false
+			}
+		}
+		if fact.ActionKind != "" || fact.ActionTool != "" || fact.ActionResource != "" {
+			if fact.Kind != "WorkerActivity" || fact.Operation != "ActionValidated" || fact.Turn < 1 || (fact.ActionKind != "tool" && fact.ActionKind != "finish" && fact.ActionKind != "native_https") || len(fact.ActionTool) > 128 || len(fact.ActionResource) > 256 {
+				return false
+			}
+			if fact.ActionKind == "tool" && (fact.ActionTool == "" || fact.ActionResource == "") || fact.ActionKind != "tool" && (fact.ActionTool != "" || fact.ActionResource != "") {
+				return false
+			}
+			actionFacts[fact.ID] = fact
+		}
+		if fact.Kind != "ModelBudgetReservation" && (fact.ModelCallCount != 0 || fact.ModelCallLimit != 0) {
+			return false
+		}
 		if fact.Kind == "ToolDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || !slices.Contains(view.State.EffectiveAuthority.Tools, fact.Target)) {
 			return false
+		}
+		if fact.Kind == "ModelDecision" {
+			requiresBudget := budgetCount > 0 || view.State.EffectiveAuthority != nil && view.State.EffectiveAuthority.Runtime.MaxModelCalls > 0 || view.Request.Spec.Runtime != nil && view.Request.Spec.Runtime.MaxModelCalls != nil
+			if requiresBudget && fact.Result == v0.DecisionResultAllow && !budgetIDs[fact.InvocationID] {
+				return false
+			}
+			if fact.ReasonCode == "model-call-limit" && (fact.Result != v0.DecisionResultDeny || view.State.EffectiveAuthority == nil || budgetCount != v0.ModelCallLimit(view.State.EffectiveAuthority.Runtime.MaxModelCalls)) {
+				return false
+			}
 		}
 		if fact.Kind == "ModelDecision" && fact.Result == v0.DecisionResultAllow &&
 			(view.State == nil || view.State.EffectiveAuthority == nil || fact.Target == "" || fact.Target != view.State.EffectiveAuthority.ModelProfile) {
 			return false
 		}
 		switch fact.Kind {
+		case "ModelBudgetReservation":
+			if fact.Operation != "model.invoke" || fact.InvocationID == "" || fact.ModelCallCount != budgetCount+1 || budgetIDs[fact.InvocationID] || view.State == nil || view.State.EffectiveAuthority == nil || fact.ModelCallLimit != v0.ModelCallLimit(view.State.EffectiveAuthority.Runtime.MaxModelCalls) || fact.ModelCallCount > fact.ModelCallLimit || fact.ReasonCode != "model-call-reserved" {
+				return false
+			}
+			budgetCount++
+			budgetIDs[fact.InvocationID] = true
 		case "WorkerActivity":
 			switch fact.Operation {
 			case "NativeHTTPSAttempt", "NativeHTTPSObservation":
@@ -730,6 +769,23 @@ func validEvidenceView(view evidence.View, ref string) bool {
 		return false
 	}
 	if view.Outcome != nil {
+		if c := view.Outcome.Completion; c != nil && c.ReportedBy != "" {
+			if c.ReportedBy != "platform" || c.Status != "incomplete" || c.Reason != "model-call-limit" || c.Target != "model.invoke" || budgetCount == 0 || view.State.EffectiveAuthority == nil || budgetCount != v0.ModelCallLimit(view.State.EffectiveAuthority.Runtime.MaxModelCalls) {
+				return false
+			}
+			denied := false
+			for _, f := range view.Facts {
+				if f.Kind == "ModelDecision" && f.Result == v0.DecisionResultDeny && f.ReasonCode == "model-call-limit" {
+					denied = true
+				}
+				if f.Operation == "FinalAnswer" {
+					return false
+				}
+			}
+			if !denied {
+				return false
+			}
+		}
 		if view.Outcome.Status == "Succeeded" && nativeStarted &&
 			(!nativeObserved || !nativeFinalAnswer || view.Outcome.Model == nil || view.Outcome.Model.InvocationID != nativeFinishInvocation) {
 			return false

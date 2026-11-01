@@ -9,13 +9,13 @@ export function WorkDetailLayout({ status, failure, result, activity, access, de
 }) {
   if(compact)return <div className="portal-work-reading portal-work-focused">
     {failure}{result}
-    <details className="portal-details portal-work-evidence"><summary>Activity &amp; evidence</summary>
-      <div className="portal-disclosure-body">{status}{activity}
+    <section id="work-activity" className="portal-work-evidence" aria-label="Activity and evidence">
+      <div className="portal-disclosure-body">{activity}
         <details className="portal-details portal-work-access"><summary>Access &amp; limits</summary><div className="portal-disclosure-body">{access}</div></details>
         <details className="portal-details portal-work-execution"><summary>Execution details</summary><div className="portal-disclosure-body">{details}</div></details>
         <a className="portal-full-record" href={activityHref}>Full activity record</a>
       </div>
-    </details>
+    </section>
   </div>;
   return <div className="portal-work-reading">
     {status}

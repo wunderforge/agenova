@@ -75,6 +75,9 @@ type Adapter struct {
 
 var _ Client = (*Adapter)(nil)
 
+// ConfiguredModel exposes only the safe configured model identifier, never credentials.
+func (a *Adapter) ConfiguredModel(profile string) string { return a.models[profile] }
+
 func New(cfg Config) (*Adapter, error) {
 	u, err := url.Parse(cfg.Endpoint)
 	if err != nil || u == nil || u.Opaque != "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(cfg.Endpoint, "#") {

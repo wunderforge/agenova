@@ -7,7 +7,6 @@ import './access-advice.css';
 import type { ClaimRequest } from './contracts.generated';
 import { maxWorkName } from './work-name';
 import { requestedMinutes } from './duration';
-import { taskPresets } from './task-presets';
 
 const pendingKey = 'agenova.pending-request';
 function pendingReference(){try{return sessionStorage.getItem(pendingKey)||'';}catch{return '';}}
@@ -34,7 +33,6 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const [tools, setTools] = useState<string[]>((copy?.request.spec.requestedAccess?.tools || []).filter(tool=>initial.template?.spec.capabilityCeiling?.tools?.includes(tool)));
  const [taskType, setTaskType] = useState(copy?.request.spec.task?.type || '');
  const [formKey, setFormKey] = useState(0);
- const [preset,setPreset]=useState('');
  const [objective,setObjective]=useState(String(copy?.request.spec.task?.input?.objective||''));
  const [scopes,setScopes]=useState(copy?.request.spec.requestedAccess?.resourceScopes?.filter(value=>initial.template?.spec.capabilityCeiling?.resourceScopes?.includes(value)).join(', ')||'');
  const contextRequest = useRef<AbortController | null>(null);
@@ -43,14 +41,12 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const ceiling = template?.spec.capabilityCeiling;
  const original = copy?.request;
  const input = original?.spec.task?.input;
- const presets=taskPresets(ceiling?.tools||[],ceiling?.resourceScopes||[]);
- const selectedPreset=presets.find(p=>p.id===preset);
  useEffect(() => () => contextRequest.current?.abort(), []);
  useEffect(()=>{if(copy && (copy.request.spec.projectRef!==initial.project || copy.request.spec.templateRef!==initial.template?.metadata.name))void select(copy.request.spec.projectRef || '',copy.request.spec.templateRef,true);},[copy?.requestRef]);
  async function select(project: string, name?: string,copying=false) {
   invalidateAdvice();setAccessMode('manual');
   contextRequest.current?.abort(); const controller = new AbortController(); contextRequest.current = controller;
-  setLoading(true); setError(''); setTools([]); setDraft(undefined);setPreset('');setObjective(copying?String(input?.objective||''):'');setScopes('');setTaskType(copying?original?.spec.task?.type||'':'');
+  setLoading(true); setError(''); setTools([]); setDraft(undefined);setObjective(copying?String(input?.objective||''):'');setScopes('');setTaskType(copying?original?.spec.task?.type||'':'');
   try {
    const next = await connectedSource.setup(controller.signal, { project, template: name });
    if (controller.signal.aborted) return;
@@ -87,18 +83,10 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
    task: {...(taskType?{type:taskType}:{}), input: {objective: text('objective'), ...(text('workName') ? {workName: text('workName')} : {}),
     ...(text('repository') ? {repository: text('repository'), baseBranch: text('branch') || 'main'} : {})}},
    requestedAccess: {tools, resourceScopes: list('scopes'), modelProfile: text('model'), memoryScopes: list('memory'), ...(text('network') ? {networkProfiles: [text('network')]} : {})},
-   runtime: {profileRef: text('runtime'), timeout: `${text('timeout')}m`},
+   runtime: {profileRef: text('runtime'), timeout: `${text('timeout')}m`, maxModelCalls:Number(text('maxModelCalls'))},
   }};
   if(planning)request.spec.requestedAccess={};
   return request;
- }
- function choosePreset(value:string){
-  const chosen=presets.find(p=>p.id===value);
-  setPreset(value);setTools(chosen?[chosen.tool]:[]);setScopes(chosen?.scope||'');
-  const rules=chosen&&setup.accessAdvisor?.engine==='rules'
-   ?template?.spec.accessGuide?.profiles?.filter(p=>p.requestedAccess.tools?.includes(chosen.tool)&&p.requestedAccess.resourceScopes?.includes(chosen.scope))||[]:[];
-  // An ambiguous rules configuration must clarify, never choose the first rule.
-  setTaskType(rules.length===1?rules[0].taskType||'':'');
  }
  async function suggest(){
   if(locked||!template||!formRef.current)return;const form=formRef.current;
@@ -125,7 +113,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
    <button className="portal-button" disabled={busy} onClick={() => void reconcile()}>Check existing request</button>{draft && <button className="portal-button" disabled={busy} onClick={() => void send(draft,draftAutomatic)}>Retry identical request</button>}
    <button className="portal-button" disabled={busy} onClick={()=>{if(window.confirm('This does not stop or cancel the earlier Work. It may still execute. Abandon this reference and intentionally prepare a different task?')){clearPending();setDraft(undefined);setError('Earlier request was not cancelled. This will be a new logical task.');}}}>Prepare a different task…</button>
    </section>}
-  <form ref={formRef} className="portal-form portal-new-work" onSubmit={event => void submit(event)} onChange={event=>{const name=(event.target as unknown as HTMLInputElement).name;if(['objective','workName','taskType','runtime','timeout','repository','branch','preset'].includes(name))invalidateAdvice();}}>
+  <form ref={formRef} className="portal-form portal-new-work" onSubmit={event => void submit(event)} onChange={event=>{const name=(event.target as unknown as HTMLInputElement).name;if(['objective','workName','taskType','runtime','timeout','maxModelCalls','repository','branch'].includes(name))invalidateAdvice();}}>
    <fieldset disabled={locked} className="portal-form-context"><legend className="portal-new-work-sr-only">Assignment context</legend><div className="portal-field-row">
     <label>Project<select name="project" value={project} onChange={event => void select(event.target.value)} required><option value="" disabled>Choose a project</option>{allowedProjects.map(value => <option key={value}>{value}</option>)}</select></label>
     <label>Agent<select value={template?.metadata.name || ''} onChange={event => void select(project, event.target.value)}><option value="" disabled>Choose an agent</option>{(setup.templates || (template ? [template.metadata.name] : [])).map(name => <option key={name}>{name}</option>)}</select></label>
@@ -135,8 +123,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
    <fieldset key={formKey} disabled={locked || !template} className="portal-task-fields"><legend className="portal-new-work-sr-only">Work configuration</legend>
     <section className="portal-new-work-card" aria-labelledby="new-work-task-heading"><h2 id="new-work-task-heading">Task</h2>
      <label>Work name (optional)<input name="workName" maxLength={maxWorkName} defaultValue={String(input?.workName || '')} placeholder="A short name for this task"/></label>
-     <label>What should it do?<textarea name="objective" required value={objective} onChange={e=>setObjective(e.target.value)} placeholder={selectedPreset?.example||'Describe the outcome you need.'}/></label>
-     <label className="portal-new-work-preset">Task preset<select name="preset" value={preset} onChange={e=>choosePreset(e.target.value)}><option value="">Custom task</option>{presets.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+     <label>What should it do?<textarea name="objective" required value={objective} onChange={e=>setObjective(e.target.value)} placeholder="Describe the outcome you need."/></label>
      {(ceiling?.resourceScopes?.some(scope=>scope.startsWith('repo:'))||original?.spec.task?.type==='repository-change') && <div className="portal-field-row"><label>Repository<input name="repository" defaultValue={String(input?.repository || '')}/></label><label>Base branch<input name="branch" defaultValue={String(input?.baseBranch || 'main')}/></label></div>}
     </section>
     <section className="portal-new-work-card" aria-labelledby="new-work-permissions-heading"><h2 id="new-work-permissions-heading">Permissions</h2>
@@ -156,7 +143,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
       </div>
      </div>
     </section>
-    <section className="portal-new-work-card" aria-labelledby="new-work-runtime-heading"><h2 id="new-work-runtime-heading">Run settings</h2><div className="portal-field-row"><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label></div></section>
+    <section className="portal-new-work-card" aria-labelledby="new-work-runtime-heading"><h2 id="new-work-runtime-heading">Run settings</h2><div className="portal-field-row portal-runtime-settings"><label>Runtime profile<select name="runtime">{ceiling?.runtimeProfiles?.map(value => <option key={value}>{value}</option>)}</select></label><label>Time limit (minutes)<input name="timeout" type="number" min="0.000001" max="120" step="any" defaultValue={minutes} required/></label><label>Max model calls<input name="maxModelCalls" type="number" min="1" max={ceiling?.maxModelCalls||6} step="1" defaultValue={original?.spec.runtime?.maxModelCalls||Math.min(6,ceiling?.maxModelCalls||6)} required/></label></div></section>
    </fieldset>
    <details className="portal-new-work-config"><summary>Configuration details</summary><dl><dt>Policy</dt><dd>{setup.policy.ID} / {setup.policy.Version}</dd><dt>Agent image</dt><dd>{template?.spec.artifact?.image || 'Not recorded'}</dd><dt>Organization</dt><dd>{setup.organization?.displayName || setup.principal.team}</dd><dt>Requested by</dt><dd>{setup.principal.subject}</dd></dl></details>
    {error && <p role="alert" className="portal-form-error">{error}{error.includes('Sign in') && <a href="/login"> Sign in</a>}</p>}

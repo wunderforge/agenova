@@ -7,7 +7,7 @@ for(const variant of ['missing-tool','wrong-scope','no-tools'] as const){
  test(`web research ${variant}: real refusal, no provider attempts, no false result`,async({page},info)=>{
   await page.goto('/login');await page.locator('select[name=identity]').selectOption('owner');await page.getByRole('button',{name:'Enter local workspace'}).click();
   await page.goto('/?mode=connected&project=research&template=researcher-v2#/work/new');
-  await page.getByRole('combobox',{name:'Task preset',exact:true}).selectOption('web');
+  await page.getByLabel('web.read',{exact:true}).check();await page.getByLabel('Resource scopes',{exact:true}).fill('web:public-pages');
   await page.getByLabel('Work name (optional)').fill('Web access denied · '+variant);
   await page.getByLabel('What should it do?').fill('Read https://jitsi.org/jitsi-meet/ and summarize meeting features for a consulting team.');
   if(variant!=='wrong-scope')await page.getByRole('checkbox',{name:'web.read',exact:true}).uncheck();

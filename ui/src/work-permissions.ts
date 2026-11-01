@@ -22,5 +22,6 @@ export function workPermissions(work:View):PermissionRow[]{
  add('model','Model',requested?.modelProfile,authority?.modelProfile);
  add('runtime','Runtime',work.request.spec.runtime?.profileRef,authority?.runtime?.profileRef);
  add('timeout','Time limit',work.request.spec.runtime?.timeout,authority?.runtime?.timeout);
+ if(work.request.spec.runtime?.maxModelCalls!==undefined)add('modelCalls','Model calls',String(work.request.spec.runtime.maxModelCalls),authority?String(authority.runtime.maxModelCalls||6):undefined);
  return rows;
 }

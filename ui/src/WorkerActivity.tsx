@@ -1,6 +1,6 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { groupWorkerTurns, toolCallLabels, type WorkerAction } from './worker-activity-model';
 
 export function WorkerActivity({ actions, status, activityHref, failure }: { actions: WorkerAction[]; status: string; activityHref: string; failure?: {reason: string; href: string} }) {
@@ -10,6 +10,8 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
   const pending = actions.filter(a => a.active);
   const groups = groupWorkerTurns(actions);
   const latest = groups.at(-1)?.id;
+  useEffect(()=>{const inspect=(event:Event)=>{const id=(event as CustomEvent<string>).detail;const group=groupWorkerTurns(actions).find(g=>g.calls.some(a=>a.id===id));if(group){setFollowLatest(false);setChosen(group.id);setSelected(id);}};window.addEventListener('agenova:inspect-fact',inspect);return()=>window.removeEventListener('agenova:inspect-fact',inspect);},[actions]);
+
   const turn = [...actions].reverse().find(a => a.label === 'Agent turn')?.target;
   const turns = actions.filter(a => a.label === 'Agent turn' && a.state === 'Started').length;
   const observations = actions.filter(a => a.label === 'Agent turn' && a.state === 'Observation received').length;
@@ -30,17 +32,15 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
       const failures = group.calls.filter(a => /failed/i.test(a.state)).length;
       const blocked = group.calls.filter(a => /deny|denied/i.test(a.state)).length;
       const retries = group.calls.filter(a => a.state === 'Retry required').length;
-      const callCount = group.calls.length - retries;
-      const noun = group.calls.every(a => ['Tool access', 'Model access'].includes(a.label)) && group.calls.length ? 'check' : 'call';
       return <details className="portal-turn" key={group.id} open={open} data-active={group.active} data-negative={failures > 0 || blocked > 0}>
         <summary onClick={event => {
           event.preventDefault();
           setFollowLatest(!open && group.id === latest);
           setChosen(open ? undefined : group.id);
         }}>
-          <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${callCount} ${noun}${callCount === 1 ? '' : 's'}`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{retries > 0 && <span className="portal-turn-retry"> · Format retry</span>}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-blocked"> · {blocked} blocked</span>}</span>
+          <strong>{group.id}</strong><span>{group.active ? 'In progress' : `${group.calls.length} records`}{group.observations > 0 && ` · ${group.observations} ${group.observations === 1 ? 'observation' : 'observations'}`}{retries > 0 && <span className="portal-turn-retry"> · Format retry</span>}{failures > 0 && <span className="portal-turn-failed"> · {failures} failed</span>}{blocked > 0 && <span className="portal-turn-blocked"> · {blocked} blocked</span>}</span>
         </summary>
-        <ul className="portal-worker-actions">{group.calls.map(a => <li key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-denied={/deny|denied/i.test(a.state)} data-kind={toolCallLabels.includes(a.label) ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
+        <ul className="portal-worker-actions">{group.calls.map(a => <li id={`work-fact-${a.id}`} key={a.id} data-active={a.active} data-retry={a.state === 'Retry required'} data-denied={/deny|denied/i.test(a.state)} data-kind={toolCallLabels.includes(a.label) ? 'tool' : a.label === 'Model request' ? 'model' : 'access'} data-negative={/deny|denied|failed|cancelled/i.test(a.state)}>
           <span className="portal-worker-lamp" aria-hidden="true"/>
           <div><a href={a.href}>{a.label}</a><small>{a.target}</small></div>
           <span className={`portal-worker-state ${/deny|denied|failed|cancelled/i.test(a.state) ? 'negative' : /^(succeeded|allowed|allow)$/i.test(a.state) ? 'positive' : ''}`}>{a.state}</span>
@@ -50,9 +50,8 @@ export function WorkerActivity({ actions, status, activityHref, failure }: { act
       </details>;
     })}</div>{inspected && <aside className="portal-call-inspector" aria-label="Selected activity">
       <span className="portal-inspector-eyebrow">SELECTED RECORD</span><h3>{inspected.label}</h3>
-      <dl><dt>Target</dt><dd>{inspected.target}</dd><dt>Recorded status</dt><dd>{inspected.state}</dd><dt>Turn</dt><dd>{inspected.turn || 'Not recorded'}</dd></dl>
-      <a href={inspected.href}>Open evidence record →</a>
-      <p>Access decisions are not proof of execution. Only recorded calls and outcomes are shown.</p>
+      <dl><dt>Target</dt><dd>{inspected.target}</dd><dt>Recorded status</dt><dd>{inspected.state}</dd><dt>Turn</dt><dd>{inspected.turn || 'Not reported'}</dd>{inspected.reason&&<><dt>Reason</dt><dd>{inspected.reason}</dd></>}</dl>
+      <a href={inspected.href}>Evidence</a>
     </aside>}</div>
     {failure && <div className="portal-agent-failure" role="alert">
       <strong>Work failed</strong><p>{failure.reason}</p><a href={failure.href}>View failure record</a>

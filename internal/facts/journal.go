@@ -18,6 +18,13 @@ import (
 // Fact is an immutable observation, not a source of permission. Sequence owns
 // ordering; timestamps alone do not order concurrent or same-time events.
 type Fact struct {
+	Turn             int                             `json:"turn,omitempty"`
+	ActionRef        string                          `json:"actionRef,omitempty"`
+	ModelCallCount   int                             `json:"modelCallCount,omitempty"`
+	ModelCallLimit   int                             `json:"modelCallLimit,omitempty"`
+	ActionKind       string                          `json:"actionKind,omitempty"`
+	ActionTool       string                          `json:"actionTool,omitempty"`
+	ActionResource   string                          `json:"actionResource,omitempty"`
 	ID               string                          `json:"id"`
 	Sequence         uint64                          `json:"sequence"`
 	Timestamp        time.Time                       `json:"timestamp"`
@@ -74,6 +81,7 @@ func uriScheme(s string) bool {
 // Journal supplies the strict correlation spine for the application path.
 // Legacy Store remains compatible; it is not an alternate authority owner.
 type Journal struct {
+	budgetMu         sync.Mutex
 	startSequence    uint64
 	commit           func(Fact) error
 	mu               sync.RWMutex
@@ -173,6 +181,57 @@ func (j *Journal) append(fact Fact, commit func(Fact) error) (Fact, error) {
 	}
 	if fact.ClaimID != "" && j.claims[fact.ClaimID] != fact.RequestRef {
 		return Fact{}, fmt.Errorf("claim/request correlation mismatch")
+	}
+	if fact.Turn < 0 || fact.Turn > 1000 {
+		return Fact{}, fmt.Errorf("invalid action turn")
+	}
+	if fact.ActionKind != "" || fact.ActionTool != "" || fact.ActionResource != "" {
+		if fact.Kind != "WorkerActivity" || fact.Operation != "ActionValidated" || fact.Turn < 1 || !strings.HasPrefix(fact.ReasonCode, "agent-action-") {
+			return Fact{}, fmt.Errorf("public action requires a validated model action")
+		}
+		if fact.ActionKind != "tool" && fact.ActionKind != "finish" && fact.ActionKind != "native_https" {
+			return Fact{}, fmt.Errorf("invalid public action")
+		}
+		if len(fact.ActionTool) > 128 || len(fact.ActionResource) > 256 || strings.ContainsAny(fact.ActionTool+fact.ActionResource, "\r\n\x00") {
+			return Fact{}, fmt.Errorf("unbounded public action")
+		}
+		if fact.ActionKind == "tool" && (fact.ActionTool == "" || fact.ActionResource == "") {
+			return Fact{}, fmt.Errorf("tool action requires bounded target")
+		}
+		if fact.ActionKind != "tool" && (fact.ActionTool != "" || fact.ActionResource != "") {
+			return Fact{}, fmt.Errorf("non-tool action cannot declare tool target")
+		}
+	}
+	if fact.ActionRef != "" {
+		matched := false
+		for _, prior := range j.facts {
+			if prior.ID == fact.ActionRef && prior.RequestRef == fact.RequestRef && prior.ClaimID == fact.ClaimID && prior.Operation == "ActionValidated" && prior.ActionKind == "tool" && prior.ActionTool == fact.Target && prior.Turn == fact.Turn {
+				matched = true
+				break
+			}
+		}
+		if fact.Kind != "ToolDecision" || !matched {
+			return Fact{}, fmt.Errorf("tool decision/action correlation mismatch")
+		}
+	}
+	if fact.Kind == "ModelBudgetReservation" {
+		if fact.ClaimID == "" || fact.InvocationID == "" || fact.Operation != "model.invoke" || fact.ReasonCode != "model-call-reserved" || fact.ModelCallLimit < 1 || fact.ModelCallLimit > 1000 || fact.ModelCallCount < 1 || fact.ModelCallCount > fact.ModelCallLimit {
+			return Fact{}, fmt.Errorf("invalid budget fact")
+		}
+		count := 0
+		for _, prior := range j.facts {
+			if prior.Kind == "ModelBudgetReservation" && prior.RequestRef == fact.RequestRef {
+				count++
+				if prior.InvocationID == fact.InvocationID || prior.ModelCallLimit != fact.ModelCallLimit {
+					return Fact{}, fmt.Errorf("duplicate or changed budget fact")
+				}
+			}
+		}
+		if fact.ModelCallCount != count+1 {
+			return Fact{}, fmt.Errorf("budget count is not monotonic")
+		}
+	} else if fact.ModelCallCount != 0 || fact.ModelCallLimit != 0 {
+		return Fact{}, fmt.Errorf("budget fields require reservation")
 	}
 	if fact.Decision != nil {
 		d := fact.Decision

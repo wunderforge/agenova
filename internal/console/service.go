@@ -515,15 +515,21 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		if err != nil {
 			return errors.New("tool workload identity could not be issued")
 		}
+		turn := 0
+		selectedActionID := ""
+		selectedActionTool := ""
+		selectedActionResource := ""
 		adapter := &completionAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef}
-		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithWorkloadIdentity(s.workload), modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
+		gw := modelgateway.NewGateway(s.runner, nil, s.store, modelgateway.WithCallBudget(func(_ modelgateway.Request, snapshot app.ClaimAuthoritySnapshot, id string) (bool, error) {
+			return s.journal.ReserveModelCall(ref, claimID, id, v0.ModelCallLimit(snapshot.EffectiveAuthority.Runtime.MaxModelCalls))
+		}), modelgateway.WithWorkloadIdentity(s.workload), modelgateway.WithAdapter(adapter), modelgateway.WithObserver(func(req modelgateway.Request, d gateway.Decision) error {
 			s.telemetry.Decision(ctx, "model", string(d.Result))
 			code, reason := string(d.Category), d.Reason
 			if code == "" && d.Result == v0.DecisionResultAllow {
 				code = "within-effective-authority"
 				reason = "Allowed within the active claim's effective authority."
 			}
-			_, err := s.journal.Append(facts.Fact{Kind: "ModelDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "model.invoke", Target: req.Profile})
+			_, err := s.journal.Append(facts.Fact{Kind: "ModelDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "model.invoke", Target: req.Profile, Turn: turn})
 			return err
 		}))
 		mock := &mockReadAdapter{ctx: ctx, service: s, ref: ref, claimID: claimID, policy: p.Issued.PolicyRef, results: map[string]workerprotocol.Reply{}}
@@ -543,18 +549,22 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				code = "within-effective-authority"
 				reason = "Allowed tool within active claim authority."
 			}
-			if _, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action}); err != nil {
+			if _, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action, Turn: turn, ActionRef: matchingActionRef(selectedActionID, selectedActionTool, selectedActionResource, req.Tool+"."+req.Action, req.ResourceScope)}); err != nil {
 				return errToolEvidence
 			}
 			return nil
 		}))
-		workTools := s.workCatalog(&snapshot.EffectiveAuthority)
+		workTools, discovery := s.executionCatalog(p.Template, &snapshot.EffectiveAuthority)
+		callLimit := v0.ModelCallLimit(snapshot.EffectiveAuthority.Runtime.MaxModelCalls)
+		taskLimit := 0
+		if discovery {
+			taskLimit = callLimit
+		}
 		workSchema, err := workerprotocol.ActionSchema(workTools)
 		if err != nil {
 			return err
 		}
 		adapter.outputSchema = json.RawMessage(workSchema)
-		turn := 0
 		readInputs := map[string]bool{}
 		step := func(operation string) error {
 			_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Operation: operation, Target: fmt.Sprintf("Turn %d", turn), ReasonCode: "agent-action-observed"})
@@ -562,7 +572,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		}
 		workerCtx, endWorker := s.telemetry.Start(ctx, "worker.execute", ref, claimID, "")
 
-		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools, Discovery: discovery, MaxModelCalls: taskLimit}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -628,7 +638,8 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, errors.New("unsupported operation")
 			}
 			turn++
-			if turn > workerprotocol.MaxTurns {
+			selectedActionID, selectedActionTool, selectedActionResource = "", "", ""
+			if turn > callLimit+1 {
 				return workerprotocol.Reply{}, workerprotocol.ErrTurnLimit
 			}
 			if err := step("TurnStarted"); err != nil {
@@ -636,19 +647,19 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if op.AgentProtocol == workerprotocol.ResearchProtocol {
+			if op.AgentProtocol == workerprotocol.ResearchProtocol || (discovery && op.AgentProtocol == workerprotocol.DiscoveryProtocol) {
 				if configuredTool != nil {
 					configuredTool.recoverable = true
 				}
 				exhausted := len(workTools) > 0 && len(readInputs) == workerprotocol.ToolInputs(workTools)
-				schema, err := workerprotocol.ResearchSchema(workTools, turn == workerprotocol.MaxTurns || exhausted)
+				schema, err := workerprotocol.ResearchSchema(workTools, turn >= callLimit || exhausted)
 				if err != nil {
 					return workerprotocol.Reply{}, err
 				}
 				adapter.outputSchema = json.RawMessage(schema)
 			} else if op.AgentProtocol != "" {
 				return workerprotocol.Reply{}, errors.New("unsupported agent protocol")
-			} else if len(workTools) == 0 || turn == workerprotocol.MaxTurns || len(readInputs) == workerprotocol.ToolInputs(workTools) {
+			} else if len(workTools) == 0 || turn >= callLimit || len(readInputs) == workerprotocol.ToolInputs(workTools) {
 				adapter.outputSchema = json.RawMessage(workerprotocol.FinishSchema)
 			}
 			d, err := gw.InvokeAuthenticated(modelgateway.Request{ClaimID: op.ClaimID, Profile: op.Profile, Parameters: map[string]string{"prompt": op.Prompt}}, op.WorkloadToken)
@@ -656,6 +667,9 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				return workerprotocol.Reply{}, errors.New("model execution failed; see evidence")
 			}
 			if d.Result != v0.DecisionResultAllow {
+				if d.Category == "model-call-limit" {
+					return workerprotocol.Reply{}, workerprotocol.ErrModelBudget
+				}
 				return workerprotocol.Reply{Allowed: false, Error: "model access was not allowed"}, nil
 			}
 			result, ok := adapter.result(d.InvocationID)
@@ -683,11 +697,20 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 					completion = &evidence.Completion{Status: c.Status, Reason: c.Reason, Target: c.Target}
 				}
 			}
-			if _, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason}); err != nil {
+			if actionFact, err := s.journal.Append(facts.Fact{Turn: turn, Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason, ActionKind: safeActionKind(action, parseErr), ActionTool: safeActionTool(action, parseErr), ActionResource: safeActionResource(action, parseErr)}); err != nil {
 				return workerprotocol.Reply{}, err
+			} else if parseErr == nil && action.Action == "tool" {
+				selectedActionID, selectedActionTool, selectedActionResource = actionFact.ID, action.Tool, action.Resource
 			}
 			return workerprotocol.Reply{Allowed: true, Text: result.Text}, nil
 		})
+
+		budgetEnded := errors.Is(err, workerprotocol.ErrModelBudget)
+		if budgetEnded && observed != nil && ctx.Err() == nil {
+			completion = &evidence.Completion{ReportedBy: "platform", Status: "incomplete", Reason: "model-call-limit", Target: "model.invoke"}
+			text = "Model-call limit reached. No final Agent answer was recorded."
+			err = nil
+		}
 		endWorker(err == nil)
 		// A lost tool record fails the Work even if the worker carried on.
 		if toolEvidenceFailed {
@@ -705,8 +728,10 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 		}
 		modelText = text
-		if err := step("FinalAnswer"); err != nil {
-			return err
+		if !budgetEnded {
+			if err := step("FinalAnswer"); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -781,10 +806,41 @@ func (s *Service) checkWorkCatalog(p app.PreparedAssignment) error {
 	if p.Admission.Decision.Result != v0.DecisionResultAllow || p.Issued == nil || p.Issued.EffectiveAuthority == nil {
 		return nil
 	}
-	if _, err := workerprotocol.ActionSchema(s.workCatalog(p.Issued.EffectiveAuthority)); err != nil {
+	catalog, discovery := s.executionCatalog(p.Template, p.Issued.EffectiveAuthority)
+	_, catalogErr := workerprotocol.ActionSchema(catalog)
+	if catalogErr == nil && discovery {
+		var schema []byte
+		schema, catalogErr = workerprotocol.ResearchSchema(catalog, false)
+		if catalogErr == nil {
+			_, catalogErr = workerprotocol.GatewayResearchSchema(schema, catalog)
+		}
+	}
+	if err := catalogErr; err != nil {
 		return &SubmissionError{Code: "tool_catalog_unsupported", Message: "Granted tools and resource scopes exceed the worker tool catalog limits; narrow the template or the requested resource scopes.", Cause: err}
 	}
 	return nil
+}
+
+// Discovery describes a trusted Template ceiling; the immutable issued authority
+// continues to gate every real invocation independently.
+func (s *Service) executionCatalog(template *v0.AgentTemplate, authority *v0.EffectiveAuthority) ([]workerprotocol.Tool, bool) {
+	discovery := template != nil && template.Spec.Entrypoint != nil && template.Spec.Entrypoint.Protocol == workerprotocol.DiscoveryProtocol && s.tools != nil
+	if discovery {
+		ceiling := template.Spec.CapabilityCeiling
+		// Materialize only installed concrete scopes from the validated Template
+		// ceiling. These are discovery hints, never Work grants.
+		scopes := []string{}
+		for _, entry := range s.tools.Catalog().Entries() {
+			for _, scope := range ceiling.ResourceScopes {
+				if entry.ResourceScope == scope || strings.HasSuffix(scope, "*") && strings.HasPrefix(entry.ResourceScope, strings.TrimSuffix(scope, "*")) {
+					scopes = append(scopes, entry.ResourceScope)
+					break
+				}
+			}
+		}
+		return s.workCatalog(&v0.EffectiveAuthority{Tools: ceiling.Tools, ResourceScopes: scopes}), true
+	}
+	return s.workCatalog(authority), false
 }
 
 // workCatalog intersects the installed catalog with the claim's effective
@@ -813,6 +869,8 @@ func (s *Service) workCatalog(authority *v0.EffectiveAuthority) []workerprotocol
 // provider, model output or operating-system error text to the browser.
 func runFailure(err error, recorded []facts.Fact) (string, string) {
 	switch {
+	case errors.Is(err, workerprotocol.ErrModelBudget):
+		return "model-call-limit", "This Work reached its approved model-call limit. No further model request was dispatched."
 	case errors.Is(err, workerprotocol.ErrSourceURLRequired):
 		return "agent-source-url-required", "This Agent requires a public HTTPS source URL in its task input."
 	case errors.Is(err, workerprotocol.ErrWorkerStart):

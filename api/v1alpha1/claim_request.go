@@ -70,8 +70,9 @@ type ClaimRequestedAccess struct {
 }
 
 type ClaimRuntimeRequirements struct {
-	ProfileRef string    `json:"profileRef" yaml:"profileRef"`
-	Timeout    *Duration `json:"timeout" yaml:"timeout"`
+	MaxModelCalls *int      `json:"maxModelCalls,omitempty" yaml:"maxModelCalls,omitempty"`
+	ProfileRef    string    `json:"profileRef" yaml:"profileRef"`
+	Timeout       *Duration `json:"timeout" yaml:"timeout"`
 }
 
 // ParseClaimRequestYAML parses exactly one strict v0 ClaimRequest document
@@ -185,6 +186,9 @@ func ValidateClaimRequest(request *ClaimRequest) *ValidationError {
 	}
 	if time.Duration(*request.Spec.Runtime.Timeout) <= 0 {
 		return validationError(ValidationCategoryInvalidValue, "spec.runtime.timeout", "timeout must be positive")
+	}
+	if request.Spec.Runtime.MaxModelCalls != nil && (*request.Spec.Runtime.MaxModelCalls < 1 || *request.Spec.Runtime.MaxModelCalls > 1000) {
+		return validationError(ValidationCategoryInvalidValue, "spec.runtime.maxModelCalls", "model call limit must be between 1 and 1000")
 	}
 	return nil
 }
@@ -358,8 +362,9 @@ func validateClaimAccessShape(node *yaml.Node, path string) *ValidationError {
 
 func validateClaimRuntimeShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
-		"profileRef": nullable(validateStringScalar),
-		"timeout":    nullable(validateClaimTimeoutScalar),
+		"profileRef":    nullable(validateStringScalar),
+		"timeout":       nullable(validateClaimTimeoutScalar),
+		"maxModelCalls": validateModelCallsScalar,
 	}, nil)
 }
 

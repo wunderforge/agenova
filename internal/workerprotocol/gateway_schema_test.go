@@ -83,3 +83,28 @@ func TestGatewayDecoderSeparatesCallsFromCompletionWithoutOfferingNative(t *test
 		t.Fatal("non-Researcher schema accepted")
 	}
 }
+
+func TestMixedDiscoveryPreservesEachToolsArgumentContract(t *testing.T) {
+	tools := []Tool{{Operation: "web.read", Description: "Public page", ResourceScope: "web:public-pages", Parameter: "url", InputMode: "text", MaxBytes: 1024}, {Operation: "crm.read", Description: "Customer dataset", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}, MaxBytes: 64}}
+	raw, _ := ResearchSchema(tools, false)
+	bounded, err := GatewayResearchSchema(raw, tools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shape struct {
+		AnyOf []researchVariant `json:"anyOf"`
+	}
+	_ = json.Unmarshal(bounded, &shape)
+	if len(shape.AnyOf) != 3 {
+		t.Fatal("tools not separated")
+	}
+	for _, route := range shape.AnyOf[1:] {
+		p := route.Properties
+		if len(p.Tool.Enum) != 1 || len(p.Resource.Enum) != 1 {
+			t.Fatal("cross-product schema permits mismatched targets")
+		}
+		if p.Tool.Enum[0] == "crm.read" && !reflect.DeepEqual(p.Input.Enum, []string{"customer-retention"}) {
+			t.Fatal("free-form URL erased CRM dataset contract")
+		}
+	}
+}

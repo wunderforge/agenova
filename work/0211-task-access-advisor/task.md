@@ -74,8 +74,7 @@ No cloud requests, merge/deploy or credential-file reads. Preserve debug.log, ol
 - [x] Remove Task type from the primary UI, remove ordinary-task dependence on
   explicit categories, and preserve existing API/CLI compatibility (confirmed
   requirement; implemented locally). Preserve registered CRM type-name compatibility.
-- [ ] Review Task preset presentation separately; its final placement/removal
-  remains open.
+- [ ] Remove Task preset under the 1 November owner-approved follow-up batch.
 
 See [recorded findings and acceptance criteria](followups.md). The subsequent
 owner instruction authorizes complete local implementation/testing and commit/push
@@ -85,3 +84,14 @@ Planned order: failure diagnosis → category-dependency/API compatibility → r
 Researcher execution → simplified form → joint local/legacy regression and owner
 walkthrough. The independent Gateway denial test and Agent no-attempt case must
 remain separate evidence. A local process is not a Kubernetes enforcement proof.
+
+## Owner-authorized follow-up implementation — 1 November
+
+Implement the recorded [TODOs](followups.md) under the
+[ordered development and acceptance plan](implementation-plan-20261101.md).
+Scope includes model-call limits, independent tool discovery/Gateway authority,
+per-turn public action evidence, the proposed progress UI, removal of Task preset,
+Advisor model identification, generic Researcher model-profile naming and visual
+consistency. Local implementation/tests and commit/push to the same feature branch
+are authorized. No PR, merge, deployment or cloud access. Keep 5224 history intact;
+provide a separate new local acceptance build. Owner acceptance remains pending.

@@ -18,7 +18,7 @@
 
 ## Compatibility and Non-goals
 
-Only optional fields on template/Platform/evidence. ClaimRequest/EffectiveAuthority/lifecycle unchanged; old documents remain valid. Registries keep immutable semantics. No SQL migration, generic Skill/Task lifecycle, cross-Work elevation or cloud rollout.
+The original Advisor adds optional template/Platform/evidence fields. The 1 November follow-up adds optional runtime.maxModelCalls on ClaimRequest, optional maxModelCalls ceilings on Template/Policy, and issued runtime.maxModelCalls. Old documents remain valid; an omitted request defaults to six or a stricter ceiling. The legacy omitted-six issued representation remains unchanged. Lifecycle semantics remain unchanged. Registries keep immutable semantics. No SQL migration, generic Skill/Task lifecycle, cross-Work elevation or cloud rollout.
 
 Owner-approved follow-up (31 October): ordinary `task.type` may be omitted/empty;
 it has no routing or authority requirement. Nonempty legacy types retain their
@@ -26,7 +26,7 @@ serialization and meaning. Omitted/empty forms canonicalize to omission without
 inventing a classifier; explicit requests remain independent of the Advisor.
 Whitespace-only types are invalid. Rules planning remains an explicitly typed
 workflow contract; model planning accepts a generic objective. Remove the primary
-type selector while preserving repository inputs and legacy typed copies/presets.
+type selector while preserving repository inputs and legacy typed copies and registered Advisor profiles.
 See followups.md for failure diagnosis and real local Researcher acceptance.
 
 ## Negative Cases
@@ -36,3 +36,32 @@ Disabled mode; missing/oversized/over-ceiling guide; unknown/ambiguous task/prof
 ## Open Decisions
 
 None blocking local work. Persistent rejected-advice audit, monthly monetary caps and multiple-profile composition are later scope, not delivered claims.
+
+## Authorized 1 November extension
+
+- Image safety limit: twenty for the opt-in reference Researcher; trusted per-Work
+  limit: six by default, user selectable within Template/Policy ceilings. Explicit
+  over-ceiling requests fail before allocation. The platform counts every reserved
+  model dispatch, including failed provider attempts; Advisor planning is separate.
+- Persist each reservation before model dispatch. Shared accounting serializes
+  concurrent Gateway attempts within the existing single-writer service. Storage
+  failure prevents dispatch. Recovery never resumes an interrupted Work or resets
+  its authority; this is not a distributed/HA counter or a monetary spending cap.
+- A refused extra model call produces actual ModelDecision Deny. If earlier model
+  calls exist, retain a platform-reported incomplete summary with no invented
+  final Agent answer. Normal reference Agents can finish within their limit.
+- Entrypoint protocol `research-discovery-v2` explicitly opts a compatible image
+  into safe registered Template tool discovery independently of current Work
+  grants. Omitted protocol retains legacy grant-filtered discovery. Existing
+  arbitrary images are not required to inherit a base image or migrate together.
+- No tool descriptors from unrelated templates or secrets/endpoints are exposed.
+  Schema shape validates catalog choices; actual identity/Work/operation/resource
+  authorization stays in the Gateway at invocation. Denied calls reach no backend.
+- Evidence adds bounded selected-action fields, turn and optional actionRef, not
+  raw prompts, private reasoning, credentials or unbounded tool arguments.
+- New Work removes presets, adds model-call settings beside timeout. Work details
+  adds recorded progress and open activity above secondary context; requested vs
+  granted remains intact. Configured Advisor model identity is read-only.
+- New local immutable Researcher identity uses approved-general-model. Existing
+  coding profile names, registrations, request hashes and historical evidence stay
+  valid. No automatic global rename or wildcard model alias.

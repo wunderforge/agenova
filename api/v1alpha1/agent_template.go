@@ -76,7 +76,8 @@ type AgentTemplateArtifact struct {
 }
 
 type AgentTemplateEntrypoint struct {
-	Command []string `json:"command" yaml:"command"`
+	Protocol string   `json:"protocol,omitempty" yaml:"protocol,omitempty"`
+	Command  []string `json:"command" yaml:"command"`
 }
 
 type AgentTemplateDefaults struct {
@@ -85,6 +86,7 @@ type AgentTemplateDefaults struct {
 }
 
 type AgentTemplateCapabilityCeiling struct {
+	MaxModelCalls   *int      `json:"maxModelCalls,omitempty" yaml:"maxModelCalls,omitempty"`
 	Tools           []string  `json:"tools,omitempty" yaml:"tools,omitempty"`
 	ResourceScopes  []string  `json:"resourceScopes,omitempty" yaml:"resourceScopes,omitempty"`
 	ModelProfiles   []string  `json:"modelProfiles,omitempty" yaml:"modelProfiles,omitempty"`
@@ -178,6 +180,9 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 	if strings.TrimSpace(template.Spec.Artifact.Image) == "" {
 		return validationError(ValidationCategoryRequiredField, "spec.artifact.image", "value is required")
 	}
+	if template.Spec.Entrypoint != nil && template.Spec.Entrypoint.Protocol != "" && template.Spec.Entrypoint.Protocol != "research-discovery-v2" {
+		return validationError(ValidationCategoryInvalidValue, "spec.entrypoint.protocol", "unsupported execution protocol")
+	}
 	if template.Spec.Entrypoint == nil {
 		return validationError(ValidationCategoryRequiredField, "spec.entrypoint", "value is required")
 	}
@@ -210,6 +215,9 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 	}
 	if err := validateNetworkProfiles("spec.capabilityCeiling.networkProfiles", ceiling.NetworkProfiles, ValidationCategoryInvalidCapabilityCeiling); err != nil {
 		return err
+	}
+	if ceiling.MaxModelCalls != nil && (*ceiling.MaxModelCalls < 1 || *ceiling.MaxModelCalls > 1000) {
+		return validationError(ValidationCategoryInvalidValue, "spec.capabilityCeiling.maxModelCalls", "model call ceiling must be between 1 and 1000")
 	}
 	if ceiling.MaxTimeout != nil && time.Duration(*ceiling.MaxTimeout) <= 0 {
 		return validationError(ValidationCategoryInvalidCapabilityCeiling, "spec.capabilityCeiling.maxTimeout", "duration must be positive")
@@ -293,7 +301,8 @@ func validateArtifactShape(node *yaml.Node, path string) *ValidationError {
 
 func validateEntrypointShape(node *yaml.Node, path string) *ValidationError {
 	return validateMapping(node, path, map[string]nodeValidator{
-		"command": validateStringSequence,
+		"command":  validateStringSequence,
+		"protocol": validateStringScalar,
 	}, nil)
 }
 
@@ -316,6 +325,7 @@ func validateCapabilityCeilingShape(node *yaml.Node, path string) *ValidationErr
 		"runtimeProfiles": validateCapabilitySequence,
 		"networkProfiles": validateCapabilitySequence,
 		"maxTimeout":      validatePositiveDurationScalar,
+		"maxModelCalls":   validateModelCallsScalar,
 	}, nil)
 }
 

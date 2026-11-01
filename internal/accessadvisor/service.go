@@ -23,6 +23,7 @@ func (e *Error) Error() string          { return e.Message }
 func reject(code, message string) error { return &Error{code, message} }
 
 type Info struct {
+	PlannerModel string   `json:"plannerModel,omitempty"`
 	Enabled      bool     `json:"enabled"`
 	AllowedModes []string `json:"allowedModes"`
 	DefaultMode  string   `json:"defaultMode"`
@@ -55,14 +56,15 @@ type entry struct {
 	done   chan struct{}
 }
 type Service struct {
-	cfg      v0.AccessAdvisorConfig
-	selector Selector
-	mu       sync.Mutex
-	entries  map[string]*entry
-	ids      map[string]*entry
-	calls    int
-	slots    chan struct{}
-	now      func() time.Time
+	plannerModel string
+	cfg          v0.AccessAdvisorConfig
+	selector     Selector
+	mu           sync.Mutex
+	entries      map[string]*entry
+	ids          map[string]*entry
+	calls        int
+	slots        chan struct{}
+	now          func() time.Time
 }
 
 func New(c *v0.AccessAdvisorConfig, selector Selector) (*Service, error) {
@@ -81,7 +83,7 @@ func (s *Service) Info() Info {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Info{s.cfg.Enabled, append([]string(nil), s.cfg.AllowedModes...), s.cfg.DefaultMode, s.cfg.Engine, s.calls, s.cfg.MaxCalls}
+	return Info{Enabled: s.cfg.Enabled, AllowedModes: append([]string(nil), s.cfg.AllowedModes...), DefaultMode: s.cfg.DefaultMode, Engine: s.cfg.Engine, CallsUsed: s.calls, MaxCalls: s.cfg.MaxCalls, PlannerModel: s.plannerModel}
 }
 func (s *Service) Allows(mode string) bool {
 	if s == nil || !s.cfg.Enabled {

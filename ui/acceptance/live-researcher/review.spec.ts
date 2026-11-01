@@ -18,7 +18,7 @@ for(const [index,ref] of refs.entries())test(`review stored local Work ${index+1
  const response=await page.request.get(`/api/requests/${ref}/evidence`);expect(response.ok()).toBe(true);
  const view=await response.json() as View;expect(view.outcome?.status).toBe('Succeeded');
  expect(view.facts.some(f=>(f.operation||'').startsWith('NativeHTTPS'))).toBe(false);
- await page.goto(`/?mode=connected&project=research&template=researcher-advisor-v2#/work/${ref}`);
+ await page.goto(`/?mode=connected&project=research&template=researcher-advisor-v3#/work/${ref}`);
  await expect(page.getByRole('heading',{name:'Result',exact:true})).toBeVisible({timeout:15000});
  await expect(page.locator('.portal-title-line')).toContainText(view.outcome?.completion?.status==='incomplete'?'Incomplete':'Succeeded');
  await expect(page.getByRole('table',{name:'Requested and granted task permissions'})).toBeVisible();

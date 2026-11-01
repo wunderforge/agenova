@@ -51,9 +51,10 @@ type Outcome struct {
 // Completion is the Agent's reported goal outcome, separate from execution.
 // It cannot establish authority or independently verified network enforcement.
 type Completion struct {
-	Status string `json:"status"`
-	Reason string `json:"reason,omitempty"`
-	Target string `json:"target,omitempty"`
+	ReportedBy string `json:"reportedBy,omitempty"`
+	Status     string `json:"status"`
+	Reason     string `json:"reason,omitempty"`
+	Target     string `json:"target,omitempty"`
 }
 
 // ModelResult is observed provider metadata, never an authorization input.

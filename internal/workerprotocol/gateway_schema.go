@@ -52,34 +52,32 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 		if len(selected) == 0 {
 			return nil, ErrToolCatalog
 		}
-		callRaw, err := ActionSchema(selected)
-		if err != nil {
-			return nil, err
-		}
-		var callShape actionSchema
-		if json.Unmarshal(callRaw, &callShape) != nil {
-			return nil, ErrToolCatalog
-		}
-		call := base
-		call.Properties.actionProperties = callShape.Properties
-		call.Properties.Action = stringSchema{Type: "string", Enum: []string{"tool"}}
-		call.Properties.Tool.Enum = nonemptySchemaValues(call.Properties.Tool.Enum)
-		call.Properties.Resource.Enum = nonemptySchemaValues(call.Properties.Resource.Enum)
-		if len(call.Properties.Input.Enum) > 0 {
-			call.Properties.Input.Enum = nonemptySchemaValues(call.Properties.Input.Enum)
-		}
-		if len(call.Properties.Input.Enum) == 0 {
-			for _, tool := range selected {
-				if tool.MaxBytes > call.Properties.Input.MaxLength {
-					call.Properties.Input.MaxLength = tool.MaxBytes
-				}
+		for _, route := range selected {
+			callRaw, err := ActionSchema([]Tool{route})
+			if err != nil {
+				return nil, err
 			}
+			var callShape actionSchema
+			if json.Unmarshal(callRaw, &callShape) != nil {
+				return nil, ErrToolCatalog
+			}
+			call := base
+			call.Properties.actionProperties = callShape.Properties
+			call.Properties.Action = stringSchema{Type: "string", Enum: []string{"tool"}}
+			call.Properties.Tool.Enum = nonemptySchemaValues(call.Properties.Tool.Enum)
+			call.Properties.Resource.Enum = nonemptySchemaValues(call.Properties.Resource.Enum)
+			if len(call.Properties.Input.Enum) > 0 {
+				call.Properties.Input.Enum = nonemptySchemaValues(call.Properties.Input.Enum)
+			}
+			if len(call.Properties.Input.Enum) == 0 {
+				call.Properties.Input.MaxLength = route.MaxBytes
+			}
+			call.Properties.Answer = empty
+			call.Properties.Completion = empty
+			call.Properties.Reason = empty
+			call.Properties.Target = empty
+			variants = append(variants, call)
 		}
-		call.Properties.Answer = empty
-		call.Properties.Completion = empty
-		call.Properties.Reason = empty
-		call.Properties.Target = empty
-		variants = append(variants, call)
 	}
 	// Do not mix properties and anyOf at the same level: llama.cpp does not
 	// support that combination. Normal validation still checks tool/scope pairing.

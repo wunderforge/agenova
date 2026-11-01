@@ -22,6 +22,42 @@ func TestSourceCitationCheckIsAnAgentQualityRule(t *testing.T) {
 	}
 }
 
+func TestDiscoveryAgentRetainsDescriptorsAndReportsActualGatewayRefusal(t *testing.T) {
+	researcherRole(t)
+	previous := allowNativeHTTPS
+	allowNativeHTTPS = false
+	t.Cleanup(func() { allowNativeHTTPS = previous })
+	var input, output bytes.Buffer
+	e := json.NewEncoder(&input)
+	e.Encode(workerprotocol.Task{ClaimID: "c", Objective: "Summarize our customer declines.", ModelProfile: "m", Mode: workerprotocol.ReAct, Discovery: true, MaxModelCalls: 2, Tools: []workerprotocol.Tool{{Operation: "crm.read", Description: "Internal customers", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention","answer":"","completion":"","reason":"","target":""}`})
+	e.Encode(workerprotocol.Reply{Allowed: false, Error: "tool access denied"})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","tool":"","resource":"","input":"","answer":"Customer access was denied for this Work.","completion":"incomplete","reason":"tool-denied","target":"crm.read"}`})
+	if err := run(&input, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"kind":"tool"`) || !strings.Contains(output.String(), `"result":"Customer access was denied`) {
+		t.Fatal("missing real attempt or truthful incomplete answer")
+	}
+	scanner := json.NewDecoder(&output)
+	modelRequests := 0
+	for scanner.More() {
+		var m workerprotocol.Message
+		if scanner.Decode(&m) != nil {
+			break
+		}
+		if m.Operation != nil && m.Operation.Kind == "model" {
+			modelRequests++
+			if !strings.Contains(m.Operation.Prompt, "crm.read") {
+				t.Fatal("last-turn budget erased discovery")
+			}
+		}
+	}
+	if modelRequests != 2 {
+		t.Fatal("extra hidden inference", modelRequests)
+	}
+}
+
 func TestReferenceAgentDoesNotUseCustomerRecordsForAnExplicitWebsiteGoal(t *testing.T) {
 	researcherRole(t)
 	previous := allowNativeHTTPS

@@ -29,13 +29,13 @@ export interface Setup {
   capabilities: Record<string, string>;
 }
 export type AccessMode = 'manual' | 'suggest' | 'automatic';
-export interface AdvisorInfo {enabled:boolean;allowedModes:AccessMode[];defaultMode:AccessMode;engine?:string;callsUsed:number;maxCalls:number}
+export interface AdvisorInfo {plannerModel?:string;enabled:boolean;allowedModes:AccessMode[];defaultMode:AccessMode;engine?:string;callsUsed:number;maxCalls:number}
 export interface AccessPlan {id:string;status:'ready'|'clarification'|'failed';request?:ClaimRequest;profileID?:string;explanation:string;questions:string[];engine:string;guideDigest:string;guideVersion:string;intentDigest:string;model?:{name:string;inputTokens:number;outputTokens:number}}
 export interface ConnectionInfo {category:string;name:string;backend?:string;adapter?:string;model?:string;operation?:string;scope?:string;tool?:string;endpoint?:string;status?:string}
 export interface AgentEntry {project:string;template:AgentTemplate;canSubmit:boolean}
 export interface PolicyRule {
   subject?: string; team: string; action: string; project: string; templateRef: string;
-  constraints?: { tools?: { values: string[] | null }; resourceScopes?: { values: string[] | null }; networkProfiles?: { values: string[] | null }; memoryScopes?: { values: string[] | null }; modelProfiles?: { values: string[] | null }; runtimeProfiles?: { values: string[] | null }; maxTimeout?: string | number };
+  constraints?: { tools?: { values: string[] | null }; resourceScopes?: { values: string[] | null }; networkProfiles?: { values: string[] | null }; memoryScopes?: { values: string[] | null }; modelProfiles?: { values: string[] | null }; runtimeProfiles?: { values: string[] | null }; maxModelCalls?: number; maxTimeout?: string | number };
 }
 // Display-shape validation only; the Go policy engine remains the authority.
 export function validPolicyRule(value: unknown): value is PolicyRule {
@@ -44,7 +44,7 @@ export function validPolicyRule(value: unknown): value is PolicyRule {
  if(![rule.team,rule.action,rule.project,rule.templateRef].every(item=>typeof item==='string') || rule.subject!==undefined&&typeof rule.subject!=='string')return false;
  if(rule.constraints===undefined)return true;
  if(!rule.constraints || typeof rule.constraints!=='object' || Array.isArray(rule.constraints))return false;
- return Object.entries(rule.constraints).every(([key,cap])=>key==='maxTimeout'
+ return Object.entries(rule.constraints).every(([key,cap])=>key==='maxModelCalls' ? typeof cap==='number'&&Number.isInteger(cap)&&cap>=1&&cap<=1000 : key==='maxTimeout'
   ? typeof cap==='string'||typeof cap==='number'&&Number.isFinite(cap)
   : !!cap && typeof cap==='object' && 'values' in cap && (cap.values===null || Array.isArray(cap.values) && cap.values.every((item:unknown)=>typeof item==='string')));
 }

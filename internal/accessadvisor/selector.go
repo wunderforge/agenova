@@ -81,7 +81,13 @@ func Configured(c *v0.AccessAdvisorConfig, provider modelprovider.Client) (*Serv
 		}
 		selector = ModelSelector{Client: provider, Profile: cfg.ModelProfile}
 	}
-	return New(c, selector)
+	service, err := New(c, selector)
+	if err == nil && cfg.Engine == "model" {
+		if source, ok := provider.(interface{ ConfiguredModel(string) string }); ok {
+			service.plannerModel = source.ConfiguredModel(cfg.ModelProfile)
+		}
+	}
+	return service, err
 }
 
 func (s ModelSelector) Select(ctx context.Context, c SelectionContext) (Choice, error) {

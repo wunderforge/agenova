@@ -97,3 +97,29 @@ required task/access controls are not hidden in disclosures. Local browser
 acceptance checks order, mode-to-fields proximity, no duplicated permission list,
 unchanged draft/submit behavior, keyboard focus and mobile overflow. Review
 screenshots in both desktop/mobile layouts. This is a local UI refinement only.
+
+## 1 November: discovery, budgets and public action evidence
+
+The implementation is staged in [the local plan](implementation-plan-20261101.md).
+Reuse the existing Template ceiling, authority resolver, workload-bound Gateways,
+durable fact journal and stdio exchange; no new scheduling or permission engine.
+MCP tools/list describes supported operations; it is not an authorization grant.
+The explicit entrypoint protocol negotiates wider discovery while older images
+retain their previous task envelope and six-turn behavior. The Gateway remains
+the authoritative boundary, even if an Agent ignores its task hints.
+
+The per-Work budget reservation lives in the trusted fact journal, under a shared
+lock; durable writes complete before an external model call can start. This fits
+the current single-writer recovery model, which interrupts rather than replays
+old Work. A failed call consumes its reservation; a pre-dispatch recording failure
+does not dispatch. A separate Advisor quota never borrows Worker allowance.
+
+Public selected action and actual Gateway response are distinct facts. actionRef
+only links a matching observed tool/scope/turn. An Agent abstaining creates no
+Gateway denial. Correlation does not imply private reasoning was observed or CNI
+packet isolation was verified. The deterministic same-Gateway negative and live
+model negative remain separate acceptance evidence.
+
+Local ports 5225/5217 allow side-by-side acceptance without resetting 5224. The
+MCP adapter's second exact loopback acceptance route is credential-free; other
+cleartext hosts/ports and token-bearing loopback routes remain rejected.

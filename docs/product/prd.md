@@ -1,5 +1,17 @@
 # Agenova MVP PRD
 
+Owner-approved local follow-up (1 November 2026, #211): remove Task preset from
+New Work; add configurable per-Work model-call budgets under server-owned limits;
+separate Template-supported tool discovery from actual Work invocation authority.
+The Gateway enforces every actual invocation independently. Display bounded
+public Agent actions, platform decisions and execution results per turn, with
+prominent lifecycle progress and unchanged requested/granted authority semantics.
+Improve Advisor model identification, general-purpose Researcher profile naming
+and consistent visual quality. Preserve legacy contracts and arbitrary compatible
+Agent images. Local implementation/testing and feature-branch backup only;
+no PR, merge, deployment or cloud recovery. See the
+[implementation plan](../../work/0211-task-access-advisor/implementation-plan-20261101.md).
+
 Owner-approved local walkthrough correction (31 October 2026, #211): ordinary
 tasks should require a selected Agent and goal, without user-selected semantic
 task categories or an obligatory source URL. Preserve optional legacy `task.type`

@@ -126,7 +126,7 @@ func ParseAgentAction(text string, tools []Tool, protocol string) (Action, error
 	if protocol == "" {
 		return ParseAction(text, tools)
 	}
-	if protocol != ResearchProtocol {
+	if protocol != ResearchProtocol && protocol != DiscoveryProtocol {
 		return Action{}, errors.New("unsupported agent protocol")
 	}
 	// Use the same bounded JSON decoder and strict field checks as ordinary actions.

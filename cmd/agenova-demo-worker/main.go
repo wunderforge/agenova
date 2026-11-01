@@ -71,10 +71,23 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 	readInputs := []string{}
 	seen := map[string]bool{}
 	nativeSeen := false
-	for turn := 1; turn <= workerprotocol.MaxTurns; turn++ {
-		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, workerprotocol.MaxTurns, observations, readInputs)
+	limit := workerprotocol.MaxTurns
+	if task.Discovery || task.MaxModelCalls > workerprotocol.MaxTurns {
+		limit = workerprotocol.AgentSafetyTurns
+	}
+	if !task.Discovery && task.MaxModelCalls > 0 && task.MaxModelCalls < limit {
+		limit = task.MaxModelCalls
+	}
+	allowedCalls := limit
+	if task.Discovery && task.MaxModelCalls > 0 {
+		allowedCalls = task.MaxModelCalls
+	}
+	deniedTools := map[string]bool{}
+	for turn := 1; turn <= limit; turn++ {
+		progress := fmt.Sprintf("Current model turn: %d of %d. Successful observations: %d. Already read inputs: %q.\n", turn, allowedCalls, observations, readInputs)
 		promptTask := task
-		if len(readInputs) == workerprotocol.ToolInputs(task.Tools) || turn == workerprotocol.MaxTurns {
+		finishing := len(readInputs) == workerprotocol.ToolInputs(task.Tools) || turn >= allowedCalls
+		if finishing && !task.Discovery {
 			promptTask.Tools = nil
 		}
 		prompt := workerprotocol.LoopPrompt(promptTask, progress+transcript)
@@ -87,12 +100,18 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 				prompt += "\n" + publicEvidenceFeedback(task)
 			}
 		}
+		if task.Discovery && finishing {
+			prompt += "\nThis is the final available model request. Return a finish action now, using actual observations. Supported descriptors remain visible but no further tool round is available in this run. A Gateway denial is tool-denied, a provider read failure is tool-failed; neither means the supported tool is missing. If no evidence was obtained, finish incomplete and state that limit rather than inventing facts."
+		}
 		if len(prompt) > 60<<10 {
 			return errors.New("transcript limit reached")
 		}
 		protocol := ""
 		if agentRole == "researcher" {
 			protocol = workerprotocol.ResearchProtocol
+			if task.Discovery {
+				protocol = workerprotocol.DiscoveryProtocol
+			}
 		}
 		if err := writeLine(output, workerprotocol.Message{Operation: &workerprotocol.Operation{AgentProtocol: protocol, ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: prompt}}); err != nil {
 			return err
@@ -111,6 +130,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 			continue
 		}
 		if action.Action == "finish" {
+			if task.Discovery && action.Reason == "tool-denied" && !deniedTools[action.Target] {
+				transcript += "\nObservation: no Gateway refusal was recorded for " + action.Target + ". Do not invent an access denial. Use actual successful observations, attempt the relevant supported tool, or explain an evidence limitation."
+				continue
+			}
 			if agentRole == "researcher" && !allowNativeHTTPS && publicSourceRequired(task.Objective) && action.Completion != "incomplete" && !hasPublicObservation(readInputs) {
 				transcript += "\nObservation: " + publicEvidenceFeedback(task)
 				continue
@@ -197,6 +220,10 @@ func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Tas
 		var observation workerprotocol.Reply
 		if err := readLine(scanner, &observation); err != nil {
 			return err
+		}
+		if !observation.Allowed && observation.Error == "tool access denied" {
+			deniedTools[action.Tool] = true
+			transcript += "\nACTUAL GATEWAY DECISION: " + action.Tool + " was DENIED for this Work. The tool is installed and visible, but this Work does not have permission to invoke it. Its backend was not executed. If this evidence is required for the goal, finish incomplete with reason=tool-denied and target=" + action.Tool + ". Do not call this missing-capability or substitute an unrelated data source."
 		}
 		if observation.Allowed && observation.Error == "" && observation.Text != "" {
 			observations++

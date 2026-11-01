@@ -25,7 +25,6 @@
 .portal-new-work .portal-chips{margin:-6px 0 20px}
 .portal-new-work .portal-new-work-mode-hint{font-size:12px;color:var(--portal-muted,#777189);margin:0}
 .portal-new-work-suggest{margin:0 0 16px}
-.portal-new-work-preset{max-width:340px}
 .portal-new-work-config{font-size:12px;margin:24px 0}
 .portal-new-work-config summary{color:var(--portal-muted,#777189);cursor:pointer}
 .portal-new-work-config dl{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px 24px;margin:18px 0 0;line-height:1.6}
@@ -33,3 +32,6 @@
 .portal-new-work-config dd{margin:0;overflow-wrap:anywhere}
 .portal-new-work-actions{padding:0 0 16px}
 @media(max-width:760px){.portal-advice-heading{align-items:flex-start;flex-direction:column;gap:6px}.portal-advice-values{grid-template-columns:110px minmax(0,1fr)}.portal-new-work .portal-new-work-card{padding:20px}.portal-new-work-config dl{grid-template-columns:100px minmax(0,1fr);gap:12px}}
+
+.portal-new-work .portal-runtime-settings{grid-template-columns:1.2fr 1fr 1fr;align-items:start}
+@media(max-width:760px){.portal-new-work .portal-runtime-settings{grid-template-columns:1fr}.portal-new-work .portal-runtime-settings label{margin-bottom:12px}}

@@ -18,6 +18,17 @@ import (
 const ReAct = "react"
 const MaxTurns = 6
 const MaxOperations = MaxTurns * 2
+const AgentSafetyTurns = 20
+const DiscoveryProtocol = "research-discovery-v2"
+
+var ErrModelBudget = errors.New("model-call budget exhausted")
+
+func ConversationLimit(task Task) int {
+	if task.Discovery || task.MaxModelCalls > MaxTurns {
+		return 1000
+	}
+	return MaxTurns
+}
 
 // MaxSchemaBytes matches the model provider's output-schema budget.
 const MaxSchemaBytes = 8192

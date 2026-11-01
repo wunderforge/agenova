@@ -5,7 +5,7 @@ import type { WorkEvent } from './portal-data';
 
 export interface WorkerAction {
   id: string; label: string; target: string; href: string;
-  state: string; active: boolean; turn?: string;
+  state: string; active: boolean; turn?: string; reason?:string;
 }
 export const toolCallLabels = ['Tool call', 'Tool call (mock)'];
 // Correlate calls independently. Allow/Deny is not evidence of tool execution.
@@ -23,7 +23,8 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
   return ordered.filter(f => ['WorkerActivity', 'ProviderAttempt', 'ProviderOutcome', 'ModelDecision', 'ToolDecision'].includes(f.kind))
     .filter(f => f.kind !== 'ProviderOutcome' || !f.invocationId || (firstAttempt.get(f.invocationId) ?? Infinity) >= f.sequence)
     .map(f => {
-      if (f.kind === 'WorkerActivity' && f.target?.startsWith('Turn ')) turn = f.target;
+      if(f.turn)turn=`Turn ${f.turn}`;
+      else if (f.kind === 'WorkerActivity' && f.target?.startsWith('Turn ')) turn = f.target;
       const candidate = f.kind === 'ProviderAttempt' && f.invocationId ? outcomes.get(f.invocationId) : undefined;
       const outcome = candidate && candidate.sequence > f.sequence ? candidate : undefined;
       const active = f.kind === 'ProviderAttempt' && !!f.invocationId && !outcome && status === 'Running';
@@ -34,9 +35,9 @@ export function workerActions(facts: Fact[], status: string, activityHref: strin
       const mock = toolCall && [f, outcome].some(r => r?.reasonCode?.startsWith('mock-'));
       const step = f.kind === 'WorkerActivity';
       const native=f.operation==='NativeHTTPSAttempt'||f.operation==='NativeHTTPSObservation';
-      return { id: f.id, turn, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
-        label: native?'Direct HTTPS':step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? mock ? 'Tool call (mock)' : 'Tool call' : 'Model request',
-        target: f.operation === 'ActionValidated' ? f.reason || 'Action format checked' : f.target || f.invocationId || 'Target not recorded', active,
+      return { id: f.id, turn, reason:f.reason||outcome?.reason, href: `${activityHref}/${encodeURIComponent(outcome?.id || f.id)}`,
+        label: f.operation==='ActionValidated'&&f.actionKind?'Agent action':native?'Direct HTTPS':step && f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Action check' : step ? 'Agent turn' : decision ? f.kind === 'ToolDecision' ? 'Tool access' : 'Model access' : toolCall ? mock ? 'Tool call (mock)' : 'Tool call' : 'Model request',
+        target: f.operation === 'ActionValidated' ? (f.actionKind ? `${f.actionKind}${f.actionTool?' · '+f.actionTool:''}${f.actionResource?' · '+f.actionResource:''}` : f.reason || 'Action format checked') : f.target || f.invocationId || 'Target not recorded', active,
         state: native?f.operation==='NativeHTTPSAttempt'?'Attempt started':f.reasonCode?.endsWith('-timeout')?'Timed out (worker report)':'Worker observation':step ? f.operation === 'ActionValidated' && f.reasonCode === 'agent-action-invalid' ? 'Retry required' : ({TurnStarted:'Started',ActionReceived:'Action received',ObservationReceived:'Observation received',FinalAnswer:'Final answer'} as Record<string,string>)[f.operation || ''] || 'Recorded' : active ? 'Waiting for response' : decision ? recovered && f.result === 'Allow' && !!f.invocationId && !firstAttempt.has(f.invocationId) ? 'Not started' : f.result || 'Recorded'
           : outcome?.providerStatus || (f.kind === 'ProviderOutcome' ? f.providerStatus : undefined) || (recovered ? 'Outcome unknown' : 'No completion recorded'),
       };
@@ -55,7 +56,7 @@ export function groupWorkerTurns(actions: WorkerAction[]): WorkerTurn[] {
   const groups = new Map<string, WorkerTurn>();
   for (const action of actions) {
     // Access decisions remain inspectable records, not redundant execution rows.
-    if ((recordedTurns || recordedCalls) && ['Tool access', 'Model access'].includes(action.label)) continue;
+    if ((recordedTurns || recordedCalls) && ['Tool access', 'Model access'].includes(action.label) && !/deny|denied/i.test(action.state)) continue;
     const id = action.turn || (recordedTurns ? 'Earlier calls' : recordedCalls ? 'Recorded calls' : 'Recorded access checks');
     const group = groups.get(id) || {id, calls: [], observations: 0, active: false};
     if (action.label !== 'Agent turn') group.calls.push(action);
