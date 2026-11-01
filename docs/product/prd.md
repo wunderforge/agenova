@@ -1,5 +1,14 @@
 # Agenova MVP PRD
 
+Owner-approved cloud follow-through (1 November 2026): release the accepted
+Researcher/Advisor feature to the existing Neo AWS environment, verify it with
+the configured cloud model and MCP services, then close the restored cluster.
+Preserve database/state/retained infrastructure and Neo's access. No new model
+IAM, paid search provider or observability stack is implied. This supersedes
+the earlier local-only release restriction for this accepted feature; normal
+CI/review and credential-access boundaries remain in force. See the
+[cloud release plan](../../work/0211-task-access-advisor/cloud-release-20261101.md).
+
 Owner-approved local Researcher repair (1 November 2026, #211): real keyless
 public search/read, a bounded opt-in content store for actual provider responses
 and tool observations, typed safe error causes, explicit Agent feedback and

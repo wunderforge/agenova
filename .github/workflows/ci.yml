@@ -16,6 +16,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  release-artifact-smoke:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    name: release artifact smoke (no cloud)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: harness/integration/mcpfixture/go.sum
+      - name: Test separate MCP module
+        working-directory: harness/integration/mcpfixture
+        run: go test ./...
+      - name: Build actual MCP image
+        run: docker build --platform linux/amd64 -t agenova-mcp:ci harness/integration/mcpfixture
+      - name: Build Researcher image and verify legacy and discovery-v3 exchanges
+        run: python3 harness/demo/research-mcp/build-worker.py
+      - name: Build actual authenticated control-plane and Portal image
+        run: docker build --platform linux/amd64 -f deploy/production/release.Dockerfile -t agenova-control-plane:ci .
+
   baseline:
     if: >-
       !(github.event_name == 'workflow_dispatch' &&

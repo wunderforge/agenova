@@ -1,5 +1,12 @@
 # Task: Optional task access advisor
 
+Latest owner decision (1 November): local acceptance is complete. Release this
+feature, verify real cloud services, then cleanly close the restored cluster,
+preserving Neo's access and retained database/infrastructure. Follow
+[the cloud release gates](cloud-release-20261101.md). This supersedes earlier
+local-only constraints for this release; no branch-protection bypass or new
+credential access is inferred.
+
 Latest owner planning request (1 November): address public-research capability,
 answer quality, response latency, per-turn model/thinking/tool content and precise
 error/recovery evidence. The [new repair plan](researcher-demo-repair-plan-20261101.md)

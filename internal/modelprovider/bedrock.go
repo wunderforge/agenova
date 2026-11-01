@@ -167,9 +167,12 @@ func (b *Bedrock) Complete(ctx context.Context, req Request) (Result, error) {
 		return Result{}, errors.New("Bedrock completion is empty or oversized")
 	}
 	requestID, _ := awsmiddleware.GetRequestIDMetadata(output.ResultMetadata)
-	return Result{Text: text, Model: model, ResponseID: requestID, InputTokens: int(*output.Usage.InputTokens), OutputTokens: int(*output.Usage.OutputTokens)}, nil
+	return Result{Text: text, FinishReason: string(output.StopReason), Model: model, ResponseID: requestID, InputTokens: int(*output.Usage.InputTokens), OutputTokens: int(*output.Usage.OutputTokens)}, nil
 }
 
 // InvocationCount reports actual SDK Converse entries in this process. The
 // configured SDK has retries disabled; it is diagnostic evidence, not billing.
 func (b *Bedrock) InvocationCount() uint64 { return b.attempts.Load() }
+
+// ConfiguredModel reports only the host-selected model identifier, never AWS credentials.
+func (b *Bedrock) ConfiguredModel(profile string) string { return b.config.Models[profile] }

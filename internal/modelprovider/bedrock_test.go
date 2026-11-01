@@ -62,7 +62,7 @@ func TestBedrockUsesConfiguredModelAndBoundsCall(t *testing.T) {
 	b := newBedrock(cfg, f)
 	cfg.Models["approved"] = "changed"
 	result, err := b.Complete(context.Background(), Request{Profile: "approved", Prompt: "hello"})
-	if err != nil || result.Text != "ok" || result.Model != "amazon.nova-micro-v1:0" || f.calls != 1 || b.InvocationCount() != 1 {
+	if err != nil || result.Text != "ok" || result.Model != "amazon.nova-micro-v1:0" || result.FinishReason != "end_turn" || b.ConfiguredModel("approved") != result.Model || b.ConfiguredModel("unknown") != "" || f.calls != 1 || b.InvocationCount() != 1 {
 		t.Fatalf("%+v %v", result, err)
 	}
 }

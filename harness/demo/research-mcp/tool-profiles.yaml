@@ -1,6 +1,17 @@
 # Merge these profiles into the existing Platform services.toolProfiles list;
 # keep the existing repo.read/git.read profiles. Not an independently applied API.
 toolProfiles:
+  - name: public-web-search
+    backendRef: incident-evidence
+    config:
+      logical-operation: web.search
+      resource-scope: web:public-pages
+      mcp-tool: web_search
+      parameter-name: query
+      parameter-mode: text
+      parameter-max-bytes: "512"
+      parameter-allowed-values: ""
+      description: Search public pages by query; returns bounded untrusted titles, links and snippets.
   - name: public-web-reader
     backendRef: incident-evidence
     config:

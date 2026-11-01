@@ -51,6 +51,19 @@ def main():
         results = [record["result"] for record in records if "result" in record]
         if checked.returncode != expected_code or results != ([] if expected_code else [answer]) or not any(record.get("operation", {}).get("tool") == "crm.read" for record in records):
             raise RuntimeError("Exact Researcher image completion regression")
+    # Exercise discovery-v3 in the exact image as well as the legacy scenarios.
+    for denied in [False, True]:
+        goal = "Read https://example.org and report its contents."
+        task_v3 = {**task, "objective": goal, "discovery": True, "diagnostics": True, "tools": [{"operation": "web.read", "description": "Read a public page", "resourceScope": "web:public-pages", "parameter": "url", "inputMode": "text", "maxBytes": 1024}]}
+        action = {"allowed": True, "text": json.dumps({"action": "tool", "tool": "web.read", "resource": "web:public-pages", "input": "https://example.org"})}
+        observed = {"allowed": False, "error": "tool access denied"} if denied else {"allowed": True, "text": '{"url":"https://example.org","content":"Observed example page."}'}
+        answer = "Page access denied." if denied else "Observed example page."
+        finish = {"allowed": True, "text": json.dumps({"action": "finish", "answer": answer, "completion": "incomplete" if denied else "completed", **({"reason": "tool-denied", "target": "web.read"} if denied else {})})}
+        stream = "".join(json.dumps(item) + "\n" for item in [task_v3, action, {"allowed": True}, observed, finish, {"allowed": True}])
+        checked = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=stream, text=True, capture_output=True, timeout=30)
+        records = [json.loads(line) for line in checked.stdout.splitlines()]
+        if checked.returncode or [r["result"] for r in records if "result" in r] != [answer] or not any(r.get("operation", {}).get("diagnosticCode") == "finish-accepted" for r in records):
+            raise RuntimeError("Exact discovery-v3 image completion regression")
     image_id = subprocess.run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"], capture_output=True, text=True, check=True).stdout.strip()
     summary = {"tag": tag, "image": image_id, "source_hash": source_hash, "public_source_hashes": hashes, "unsupported_answer_rejected": True, "blocked_after_observation_rejected": True, "observed_answer_preserved": True, "real_model": False, "pushed": False}
     (output / "image-check.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

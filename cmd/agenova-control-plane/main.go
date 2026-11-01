@@ -449,6 +449,10 @@ func configuredServiceWithDurable(path string, access console.AccessAuthorizer, 
 	}
 	options.Access = access
 	options.Durable = durable
+	if err := configureActivityCapture(&options, os.Getenv("AGENOVA_ACTIVITY_CAPTURE")); err != nil {
+		closeResources()
+		return nil, err
+	}
 	if durable != nil {
 		recoveryCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		_, recoveryErr := console.RecoverDurableWork(recoveryCtx, durable, adapter)
