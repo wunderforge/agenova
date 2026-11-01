@@ -142,7 +142,7 @@ function WorkDetail({ work }: { work: View }) {
   const summary = work.recovery ? 'Execution interrupted by service restart' : status === 'Finishing' ? 'Waiting for the final result and cleanup evidence.'
     : status==='Incomplete'?'Execution finished; task incomplete.':status==='Partial'?'Execution finished; task partially completed.'
     : work.outcome?.status === 'Succeeded' ? 'Task completed.'
-    : work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
+    : status==='Failed'?outcomeReason(work):work.outcome?.failure || (status === 'Running' ? 'Agent is working. Current calls are shown below.' : status === 'Starting' ? 'Starting the agent.' : state?.decision.reason) || 'Request received; waiting for authorization.';
   return <>
     <nav className="portal-crumbs" aria-label="Breadcrumb">
       <a href={link('work')}>Work</a> / Details

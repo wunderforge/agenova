@@ -254,6 +254,28 @@ test('failed work shows a separate red outcome, reason and failed detail record 
  await page.getByRole('link',{name:'Activity',exact:true}).click();
  await expect(page.locator('.portal-record-row').filter({hasText:'Work failed'}).locator('.portal-badge.failed')).toHaveCount(2);
 });
+test('terminal invalid CRM input is prominent and opens exact validation evidence',async({page},info)=>{
+ const current=work();current.state!.claim!.phase='Failed';
+ const reason='Invalid input for crm.read. Pass an allowed raw catalog value without a parameter-name prefix.';
+ current.outcome={status:'Failed',failure:'The agent exited without returning a final answer.'};
+ current.facts.push({id:'invalid-crm',sequence:4,timestamp:'2026-09-15T02:00:03Z',kind:'WorkerActivity',requestRef:current.requestRef,operation:'ActionValidated',reasonCode:'agent-action-invalid',reason,target:'Turn 2'},
+ {id:'failed',sequence:5,timestamp:'2026-09-15T02:00:04Z',kind:'RunOutcome',requestRef:current.requestRef,operation:'Failed',reasonCode:'agent-no-final-result',reason:current.outcome.failure});
+ await api(page,()=>[current]);
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:1000});await page.goto(`/?mode=connected#/work/${current.requestRef}`);
+  const notice=page.getByRole('alert');await expect(notice).toHaveText('crm.read · Invalid inputEvidence');
+  await expect(page.getByRole('table',{name:'Requested and granted task permissions'})).toBeVisible();
+  expect(await notice.evaluate(e=>e.getBoundingClientRect().bottom)).toBeLessThan(650);
+  expect(await notice.evaluate(e=>e.getBoundingClientRect().top)).toBeLessThan(await page.getByRole('table',{name:'Requested and granted task permissions'}).evaluate(e=>e.getBoundingClientRect().top));
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath(`invalid-crm-${width}.png`),fullPage:true});
+  await notice.getByRole('link',{name:'Evidence',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'What this record says',exact:true})).toBeVisible();
+  await expect(page.getByText(reason,{exact:true})).toBeVisible();
+  await page.screenshot({path:info.outputPath(`invalid-crm-evidence-${width}.png`),fullPage:true});
+ }
+});
+
 test('connected June explorer and inspector use only loaded API evidence', async ({page},info) => {
  const current=work();
  current.facts.push(

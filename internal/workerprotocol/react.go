@@ -50,9 +50,10 @@ const FinishSchema = `{"type":"object","properties":{"action":{"type":"string","
 // models generate keys in schema order; with alphabetical keys llama3.1
 // writes "answer":"" first and then leaves resource empty.
 type stringSchema struct {
-	Type      string   `json:"type"`
-	Enum      []string `json:"enum,omitempty"`
-	MaxLength int      `json:"maxLength,omitempty"`
+	Type        string   `json:"type"`
+	Description string   `json:"description,omitempty"`
+	Enum        []string `json:"enum,omitempty"`
+	MaxLength   int      `json:"maxLength,omitempty"`
 }
 
 type actionProperties struct {

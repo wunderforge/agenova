@@ -925,6 +925,21 @@ func runFailure(err error, recorded []facts.Fact) (string, string) {
 		}
 		return "agent-turn-limit", "The agent reached its model-turn limit without a final answer."
 	case errors.Is(err, workerprotocol.ErrNoFinalResult):
+		for i := len(recorded) - 1; i >= 0; i-- {
+			f := recorded[i]
+			if f.Kind == "ProviderOutcome" && f.ProviderStatus == "Failed" {
+				break
+			}
+			if f.Result == "Deny" || (f.Decision != nil && f.Decision.Result == "Deny") || (f.Kind == "WorkerActivity" && (f.Operation == "ObservationReceived" || f.Operation == "FinalAnswer")) {
+				break
+			}
+			if f.Kind == "WorkerActivity" && f.Operation == "ActionValidated" {
+				if f.ReasonCode == "agent-action-invalid" {
+					return "agent-invalid-action", "The Agent stopped after invalid model actions. Open the action evidence for the exact validation failure."
+				}
+				break
+			}
+		}
 		return "agent-no-final-result", "The agent exited without returning a final answer."
 	case errors.Is(err, workerprotocol.ErrInvalidFinalResult):
 		return "agent-invalid-final-result", "The agent returned a result that did not match its governed model and tool evidence."

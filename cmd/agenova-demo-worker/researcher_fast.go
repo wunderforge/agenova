@@ -45,7 +45,13 @@ func fastResearchLoop(scanner *bufio.Scanner, output io.Writer, task workerproto
 	}
 	var catalog strings.Builder
 	for _, tool := range task.Tools {
-		fmt.Fprintf(&catalog, "%s | resource=%s | input parameter=%s | choices=%v\n", tool.Operation, tool.ResourceScope, tool.Parameter, tool.AllowedValues)
+		if tool.InputMode == "text" {
+			fmt.Fprintf(&catalog, "%s | resource=%s | input is raw nonempty text or URL, max %d bytes; do not prefix it with %s=\n", tool.Operation, tool.ResourceScope, tool.MaxBytes, tool.Parameter)
+			continue
+		}
+		values, _ := json.Marshal(tool.AllowedValues)
+		fmt.Fprintf(&catalog, "%s | resource=%s | input values=%s | pass the value alone; %s is the downstream parameter name, NOT part of input\n", tool.Operation, tool.ResourceScope, values, tool.Parameter)
+		fmt.Fprintf(&catalog, "Exact tool-action example: %s\n", workerprotocol.ToolInputExample(tool))
 	}
 
 	prefix := workerprotocol.PromptPrefix(task) + "\nTime: " + task.Now + `
@@ -117,6 +123,7 @@ Tools: ` + catalog.String() + "\n"
 				return workerprotocol.ErrNoFinalResult
 			}
 			history += "\nFORMAT REPAIR: " + issue + " Always include action and all nine keys. For finish use action=finish and tool, resource, input empty. For a tool call answer, completion, reason, target must be empty."
+			history += "\n" + workerprotocol.ToolInputRepair(response.Text, task.Tools)
 			continue
 		}
 		reject := ""

@@ -43,7 +43,22 @@ export const recordStatus = (fact: Observation) => fact.result || fact.providerS
     : ['Runtime', 'RunOutcome'].includes(fact.kind) && /Failed$/.test(fact.operation || '') ? 'Failed'
     : fact.kind === 'RunOutcome' && ['Succeeded', 'Cancelled', 'Expired'].includes(fact.operation || '') ? fact.operation! : 'Recorded');
 export const outcomeReason = (work: View) => {
+  const action=terminalActionFailure(work);
+  if(action?.reason)return action.reason;
   const reason = [...work.facts].reverse().find(f => f.kind === 'RunOutcome')?.reason || work.outcome?.failure;
   return reason && !/^Execution or cleanup failed;/.test(reason) ? reason
     : 'No specific failure reason was recorded for this work.';
 };
+
+// Derived from recorded host validation, never arbitrary Agent feedback or
+// reconstructed model text. A later valid action/provider failure supersedes it.
+export function terminalActionFailure(work:View):Observation|undefined {
+ if(work.outcome?.status!=='Failed')return;
+ const code=work.diagnosis?.code||[...work.facts].reverse().find(f=>f.kind==='RunOutcome')?.reasonCode;
+ if(!['agent-no-final-result','agent-invalid-action','agent-invalid-action-limit'].includes(code||''))return;
+ for(const f of [...work.facts].reverse()){
+  if(f.kind==='ProviderOutcome'&&f.providerStatus==='Failed'||f.result==='Deny'||f.decision?.result==='Deny')return;
+  if(f.kind==='WorkerActivity'&&['ObservationReceived','FinalAnswer'].includes(f.operation||''))return;
+  if(f.kind==='WorkerActivity'&&f.operation==='ActionValidated')return f.reasonCode==='agent-action-invalid'?f:undefined;
+ }
+}
