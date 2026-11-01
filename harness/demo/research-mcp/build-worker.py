@@ -56,7 +56,7 @@ def main():
     # Exercise discovery-v3 in the exact image as well as the legacy scenarios.
     for denied in [False, True]:
         goal = "Read https://example.org and report its contents."
-        task_v3 = {**task, "objective": goal, "discovery": True, "diagnostics": True, "tools": [{"operation": "web.read", "description": "Read a public page", "resourceScope": "web:public-pages", "parameter": "url", "inputMode": "text", "maxBytes": 1024}]}
+        task_v3 = {**task, "objective": goal, "templateToolDiscovery": True, "activityDiagnostics": True, "tools": [{"operation": "web.read", "description": "Read a public page", "resourceScope": "web:public-pages", "parameter": "url", "inputMode": "text", "maxBytes": 1024}]}
         action = {"allowed": True, "text": json.dumps({"action": "tool", "tool": "web.read", "resource": "web:public-pages", "input": "https://example.org"})}
         observed = {"allowed": False, "error": "tool access denied"} if denied else {"allowed": True, "text": '{"url":"https://example.org","content":"Observed example page."}'}
         answer = "Page access denied." if denied else "Observed example page."
