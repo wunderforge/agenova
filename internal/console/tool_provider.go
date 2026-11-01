@@ -5,9 +5,13 @@ package console
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/wunderforge/agenova/internal/app"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/facts"
 	"github.com/wunderforge/agenova/internal/telemetry"
 	"github.com/wunderforge/agenova/internal/toolbackend"
@@ -18,6 +22,7 @@ import (
 // providerToolAdapter is a consumer of the neutral provider contract. Only
 // the Tool Gateway calls it, after successful decision recording.
 type providerToolAdapter struct {
+	capture      func(string, evidence.ActivityContent) string
 	recoverable  bool
 	telemetry    *telemetry.Telemetry
 	ctx          context.Context
@@ -70,6 +75,7 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		return errToolEvidence
 	}
 	providerCtx, endProvider := a.telemetry.Start(a.ctx, "tool.invoke", a.ref, a.claimID, id)
+	started := time.Now()
 	result, invokeErr := a.tools.Invoke(providerCtx, toolbackend.Invocation{ID: id, ClaimID: a.claimID, Operation: operation, ResourceScope: req.ResourceScope, Parameters: req.Parameters})
 	endProvider(invokeErr == nil)
 	fact.Kind = "ProviderOutcome"
@@ -111,6 +117,28 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 			fact.ReasonCode = "tool-credential-rejected"
 			fact.Reason = "Configured tool server rejected the credential; no retry or fallback was used."
 		}
+		if detail := toolbackend.ErrorDiagnostic(invokeErr); detail != nil && a.ctx.Err() == nil && fact.ProviderStatus == "Failed" {
+			fact.ReasonCode = detail.Code
+			fact.Reason = detail.Message
+			if detail.HTTPStatus != 0 {
+				fact.Reason += fmt.Sprintf(" HTTP %d.", detail.HTTPStatus)
+			}
+			if detail.LimitBytes != 0 {
+				fact.Reason += fmt.Sprintf(" Limit: %d bytes.", detail.LimitBytes)
+			}
+		}
+	}
+	if a.capture != nil {
+		args, _ := json.Marshal(req.Parameters)
+		output := result.Text
+		if invokeErr != nil {
+			output = fact.ReasonCode + ": " + fact.Reason
+			if detail := toolbackend.ErrorDiagnostic(invokeErr); detail != nil && a.ctx.Err() == nil {
+				raw, _ := json.Marshal(detail)
+				output = string(raw)
+			}
+		}
+		fact.ContentRef = a.capture(a.ref, evidence.ActivityContent{Kind: "tool-response", Source: "configured-tool", Input: activityInput(operation, req.ResourceScope, string(args)), Output: output, ElapsedMS: time.Since(started).Milliseconds(), Truncated: result.Truncated})
 	}
 	if _, err := a.appendFact(fact); err != nil {
 		return errToolEvidence
@@ -127,7 +155,7 @@ func (a *providerToolAdapter) Invoke(id string, req toolgateway.Request) error {
 		}
 		// Decision/attempt/outcome are committed; ordinary tool failure is an
 		// observation, not a reason to terminate the whole agent process.
-		a.results[id] = workerprotocol.Reply{Allowed: true, Error: fact.ReasonCode}
+		a.results[id] = workerprotocol.Reply{Allowed: true, Error: fact.ReasonCode, Text: fact.Reason}
 		return nil
 	}
 	prefix := "[UNTRUSTED TOOL DATA]\n"

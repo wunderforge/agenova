@@ -287,7 +287,12 @@ func main() {
 	liveMCP := flag.String("live-mcp", ".tmp/local-mcp.exe", "trusted local MCP executable for real acceptance")
 	liveMCPListen := flag.String("live-mcp-listen", "127.0.0.1:5216", "dedicated loopback MCP address for real acceptance")
 	executionModel := flag.String("execution-model", "llama3.1:latest", "existing local Ollama model for Agent execution")
+	repaired := flag.Bool("researcher-repair", false, "explicit v4 local acceptance with content capture and bounded native local model")
+	executionEndpoint := flag.String("execution-endpoint", "", "optional trusted loopback OpenAI-compatible API base")
+	advisorEndpoint := flag.String("advisor-endpoint", "", "optional separate loopback Advisor API base")
 	flag.Parse()
+	useFastLocalModel = *repaired
+	localAdvisorEndpoint = *advisorEndpoint
 	if *liveWorker != "" && !*volatile {
 		log.Fatal("live Researcher acceptance requires --volatile")
 	}
@@ -305,7 +310,7 @@ func main() {
 	if *volatile {
 		var live *liveConfig
 		if *liveWorker != "" {
-			live = &liveConfig{Worker: *liveWorker, MCP: *liveMCP, MCPListen: *liveMCPListen, Model: *executionModel}
+			live = &liveConfig{Worker: *liveWorker, MCP: *liveMCP, MCPListen: *liveMCPListen, Model: *executionModel, Repaired: *repaired, Endpoint: *executionEndpoint}
 		}
 		if e := serveVolatile(ctx, planner, live); e != nil {
 			log.Fatal(e)

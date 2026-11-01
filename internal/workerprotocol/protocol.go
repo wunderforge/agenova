@@ -12,8 +12,9 @@ import "context"
 const MaxTools = 32
 const MaxInputBytes = 4096
 
-// Tool is one logical operation/resource pair a Work may call, already
-// intersected with its effective authority. It carries no endpoint,
+// Tool is a logical operation/resource descriptor. Opt-in discovery Tasks
+// advertise the Template ceiling; invocation still checks Work authority.
+// Legacy catalogs are intersected with authority. It carries no endpoint,
 // transport, provider-native name or credential.
 type Tool struct {
 	Operation     string   `json:"operation"`
@@ -28,6 +29,8 @@ type Tool struct {
 }
 
 type Task struct {
+	Now           string `json:"currentTime,omitempty"`
+	Diagnostics   bool   `json:"activityDiagnostics,omitempty"`
 	Discovery     bool   `json:"templateToolDiscovery,omitempty"`
 	MaxModelCalls int    `json:"maxModelCalls,omitempty"`
 	ClaimID       string `json:"claimId"`
@@ -40,6 +43,7 @@ type Task struct {
 }
 
 type Operation struct {
+	DiagnosticCode string `json:"diagnosticCode,omitempty"`
 	// AgentProtocol opts into a composition-edge schema, never authority.
 	AgentProtocol string             `json:"agentProtocol,omitempty"`
 	Native        *NativeObservation `json:"native,omitempty"`

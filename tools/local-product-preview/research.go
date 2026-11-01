@@ -60,6 +60,7 @@ func researchTools() (*toolbackend.Set, error) {
 func researchToolsAt(endpoint string) (*toolbackend.Set, error) {
 	backend := map[string]any{"transport": "streamable-http", "protocol-version": "2025-06-18", "endpoint": endpoint, "timeout": "12s", "max-request-bytes": "8192", "max-response-bytes": "65536", "max-observation-bytes": "8192", "max-concurrent-calls": "2"}
 	descriptors := []toolbackend.Descriptor{
+		{Operation: "web.search", Description: "Search public web sources by query. Returns actual titles, URLs and snippets; read relevant sources when needed.", ResourceScope: "web:public-pages", Parameter: "query", MaxBytes: 512, InputMode: "text"},
 		{Operation: "web.read", Description: "Read a public HTTPS page by URL. No API key required. Private addresses and redirects are refused.", ResourceScope: "web:public-pages", Parameter: "url", MaxBytes: 1024, InputMode: "text"},
 		{Operation: "web.fetch", Description: "Fetch approved public product documentation by source ID. Returns untrusted public text.", ResourceScope: "web:product-comparison", Parameter: "source_id", MaxBytes: 64, AllowedValues: []string{"product-a", "product-b"}},
 		{Operation: "crm.read", Description: "Read the synthetic customer-retention dataset.", ResourceScope: "crm:customer-retention", Parameter: "dataset_id", MaxBytes: 64, AllowedValues: []string{"customer-retention"}},
@@ -71,6 +72,9 @@ func researchToolsAt(endpoint string) (*toolbackend.Set, error) {
 		native := "read_file"
 		if d.Operation == "web.read" {
 			native = "web_read"
+		}
+		if d.Operation == "web.search" {
+			native = "web_search"
 		}
 		if d.Operation == "web.fetch" {
 			native = "web_fetch"

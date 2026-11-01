@@ -22,7 +22,11 @@ import (
 )
 
 // Host-owned binaries only. No executable, credentials or endpoints come from a task.
-type liveConfig struct{ Worker, MCP, MCPListen, Model string }
+type liveConfig struct {
+	Worker, MCP, MCPListen, Model string
+	Endpoint                      string
+	Repaired                      bool
+}
 type localProcessExecutor struct{ binary string }
 
 type localResearchProvider struct {

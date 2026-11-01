@@ -12,6 +12,7 @@ import (
 	"github.com/wunderforge/agenova/internal/app"
 	"github.com/wunderforge/agenova/internal/authentication"
 	"github.com/wunderforge/agenova/internal/console"
+	"github.com/wunderforge/agenova/internal/evidence"
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/policy"
 	"github.com/wunderforge/agenova/internal/registration"
@@ -69,6 +70,10 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *li
 	if live != nil {
 		templatePath = "harness/examples/access-advisor/researcher-discovery.yaml"
 		guidePath = "harness/examples/access-advisor/ACCESS-discovery.md"
+		if live.Repaired {
+			templatePath = "harness/examples/access-advisor/researcher-search.yaml"
+			guidePath = "harness/examples/access-advisor/ACCESS-search.md"
+		}
 	}
 	data, e := os.ReadFile(templatePath)
 	if e != nil {
@@ -111,6 +116,10 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *li
 		defer stop()
 		executor = localProcessExecutor{binary: live.Worker}
 		provider, e = modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{template.Spec.Defaults.ModelProfile: live.Model}, MaxTokens: 512, Timeout: 2 * time.Minute})
+		if live.Repaired || live.Endpoint != "" {
+			provider, e = newPreviewProvider(live.Endpoint, template.Spec.Defaults.ModelProfile, live.Model, 256)
+		}
+
 		if e != nil {
 			return e
 		}
@@ -131,12 +140,20 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *li
 			view.Installation.Platform = "LOCAL LIVE RESEARCHER · volatile Work history"
 			view.Capabilities["model"] = "real-local-model"
 			view.Capabilities["tool"] = "real-local-mcp"
+			modelBackend := "local-ollama"
+			if live.Endpoint != "" {
+				modelBackend = "local-openai-compatible"
+			}
 			view.PlatformInfo = &console.PlatformInfo{Connections: []console.ConnectionInfo{
-				{Category: "model", Name: template.Spec.Defaults.ModelProfile, Backend: "local-ollama", Model: live.Model},
+				{Category: "model", Name: template.Spec.Defaults.ModelProfile, Backend: modelBackend, Model: live.Model},
 				{Category: "tool", Name: "public-web-reader", Backend: "local-real-mcp", Operation: "web.read", Scope: "web:public-pages", Tool: "web_read", Endpoint: "http://" + live.MCPListen + "/mcp"},
 				{Category: "tool", Name: "synthetic-customer-retention", Backend: "local-real-mcp", Operation: "crm.read", Scope: "crm:customer-retention", Tool: "crm_read", Endpoint: "http://" + live.MCPListen + "/mcp"},
 				{Category: "runtime", Name: "standard-isolated", Backend: "local-worker-process-simulated-lifecycle", Status: "No OS/Pod isolation proof"},
 			}}
+
+			if live.Repaired {
+				view.PlatformInfo.Connections = append(view.PlatformInfo.Connections, console.ConnectionInfo{Category: "tool", Name: "public-web-search", Backend: "local-real-mcp", Operation: "web.search", Scope: "web:public-pages", Tool: "web_search", Endpoint: "http://" + live.MCPListen + "/mcp", Status: "Live keyless search; best-effort public provider"})
+			}
 		}
 		return view, nil
 	}
@@ -154,7 +171,11 @@ func serveVolatile(ctx context.Context, planner *accessadvisor.Service, live *li
 	} else {
 		executor = previewExecutor{templateFor: backend.templateFor}
 	}
-	service, e := console.NewServiceWithOptions(backend, executor, provider, "", console.Options{Advisor: planner, ToolBackend: tools, Access: auth, Setup: func() (console.Setup, error) { return setup(ctx, v0.Principal{}, "", "") }, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
+	var activityStore evidence.ActivityStore
+	if live != nil && live.Repaired {
+		activityStore = console.NewMemoryActivityStore(16 << 20)
+	}
+	service, e := console.NewServiceWithOptions(backend, executor, provider, "", console.Options{ActivityStore: activityStore, Advisor: planner, ToolBackend: tools, Access: auth, Setup: func() (console.Setup, error) { return setup(ctx, v0.Principal{}, "", "") }, SetupFor: setup, Configure: func(t *v0.AgentTemplate) (app.ResolvedLaunch, error) {
 		return app.ResolvedLaunch{ProfileRef: "standard-isolated", TemplateRef: t.Metadata.Name}, nil
 	}, PrepareFor: func(data []byte, p v0.Principal) (app.PreparedAssignment, error) {
 		return app.PrepareAssignment(data, source{p}, loader, volatileTemplates{registry})

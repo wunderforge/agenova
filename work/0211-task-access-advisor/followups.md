@@ -1,5 +1,17 @@
 # Walkthrough follow-ups — local implementation authorized
 
+## Latest planning addendum — 1 November: fast, inspectable Researcher Demo
+
+The owner reported unsuccessful weather/calendar questions, excessive latency,
+unrelated CRM recovery attempts, missing model/observation content, hidden finish
+rejections and flattened tool errors. These are newly open acceptance issues;
+earlier checked boxes do not mean these cases passed.
+
+See [the repair design, ordered TODOs and acceptance gates](researcher-demo-repair-plan-20261101.md).
+This latest instruction authorizes recording and solution design only. It does
+not start this repair batch or authorize a commit/push, PR, merge or deployment.
+Existing 5225 records and prior previews must be preserved.
+
 Recorded: 31 October 2026 (Australia/Sydney).
 
 Owner initially requested recording only. Subsequent instruction on 31 October
@@ -526,3 +538,14 @@ the earlier recording/design-only status. Track development and evidence in
 [the implementation plan](implementation-plan-20261101.md). Owner acceptance is
 still pending. Platform configuration editing/toggles, a search provider, remote
 recovery and deployment remain outside this batch. Do not access remote infrastructure.
+
+
+## Latest authorized repair batch — 1 November
+
+The later owner request explicitly authorizes local implementation/testing and
+feature-branch backup of the [Researcher repair plan](researcher-demo-repair-plan-20261101.md),
+including real keyless search, source reading, bounded actual per-turn content,
+safe concrete failures and reference-Agent quality/latency fixes. This supersedes
+the earlier search-provider exclusion for this local batch only. Operator Platform
+editing/toggles, remote recovery, PR/merge and deployment remain excluded.
+See [current local acceptance](repair-local-acceptance-20261101.md).

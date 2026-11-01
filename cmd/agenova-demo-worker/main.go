@@ -63,6 +63,9 @@ func run(input io.Reader, output io.Writer) error {
 }
 
 func reactLoop(scanner *bufio.Scanner, output io.Writer, task workerprotocol.Task) error {
+	if agentRole == "researcher" && task.Diagnostics {
+		return fastResearchLoop(scanner, output, task)
+	}
 	if workerprotocol.ValidateTools(task.Tools) != nil {
 		return errors.New("invalid tool catalog")
 	}

@@ -223,3 +223,20 @@ html[data-input-modality=pointer] .portal-shell select:focus{outline:none;box-sh
 @media(max-width:650px){.portal-work-progress{padding:16px 12px}.portal-work-progress ol{gap:6px}.portal-progress-head{align-items:baseline}.portal-progress-head>span{font-size:11px}.portal-work-progress li>button>span:nth-child(2){font-size:11px}.portal-work-progress li small{font-size:10px}.portal-progress-head small{margin-left:2px}}
 
 .portal-shell :is(input,textarea,select):focus{box-shadow:none}.portal-shell :is(input,textarea,select):focus-visible{outline:2px solid #8b6cf0;outline-offset:2px}html[data-input-modality=pointer] .portal-shell :is(input,textarea,select):focus{outline:none}
+
+/* Activity inspection uses the same Pearl typography and restrained hierarchy. */
+.portal-call-inspector {min-width:0; max-height:780px; overflow:auto;}
+.portal-activity-content {margin-top:20px; border-top:1px solid var(--portal-line,#ebe7f4); padding-top:16px; font-size:13px; line-height:1.6;}
+.portal-activity-content section+section {margin-top:18px;}
+.portal-activity-content h4 {font-size:12px; font-weight:600; margin:0 0 8px; color:inherit;}
+.portal-activity-content h4 small {font-weight:400; font-size:11px; color:var(--portal-muted,#777187); margin-left:6px;}
+.portal-activity-content pre {font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; margin:0; padding:12px; background:#faf9fc; border:1px solid #eeeaf5; border-radius:8px;}
+.portal-content-metrics {display:flex;flex-wrap:wrap;gap:6px 14px;color:#777187;font-size:11px;margin-bottom:16px;}
+.portal-content-note {font-size:12px; color:#777187; margin-top:14px;}
+.portal-content-block {margin:14px 0;}
+.portal-content-block summary {cursor:pointer; font-size:12px; padding:6px 0;}
+.portal-activity-content p {margin:0;}
+
+@media(min-width:1001px){.portal-trace-layout{grid-template-columns:minmax(0,1.05fr) minmax(300px,1fr);gap:24px;}}
+
+.portal-call-duration{white-space:nowrap;color:var(--portal-muted,#777187);font-variant-numeric:tabular-nums}.portal-content-timing{font-variant-numeric:tabular-nums;}

@@ -21,6 +21,23 @@ export interface Action {
   project: string;
   templateRef: string;
 }
+export interface ActivityContent {
+  decisionSummary?: string;
+  elapsedMs?: number;
+  finishReason?: string;
+  generateMs?: number;
+  input?: string;
+  inputTokens?: number;
+  kind: string;
+  loadMs?: number;
+  model?: string;
+  output?: string;
+  outputTokens?: number;
+  promptMs?: number;
+  source: string;
+  thinking?: string;
+  truncated?: boolean;
+}
 export interface AgentAccessGuide {
   markdown?: string;
   profiles: (Array<TaskAccessProfile> | null);
@@ -154,6 +171,7 @@ export interface Fact {
   authorityChanges?: (Array<Change> | null);
   backendIdentity?: (SandboxClaimBackendIdentity | null);
   claimId?: string;
+  contentRef?: string;
   decision?: (Decision | null);
   effectiveAuthority?: (EffectiveAuthority | null);
   id: string;
@@ -328,6 +346,99 @@ export const shapes = {
         "shape": {
           "kind": "string"
         }
+      }
+    }
+  },
+  "ActivityContent": {
+    "kind": "object",
+    "fields": {
+      "decisionSummary": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "elapsedMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "finishReason": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "generateMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "input": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "inputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "kind": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "loadMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "model": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "output": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "outputTokens": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "promptMs": {
+        "shape": {
+          "kind": "number"
+        },
+        "optional": true
+      },
+      "source": {
+        "shape": {
+          "kind": "string"
+        }
+      },
+      "thinking": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "truncated": {
+        "shape": {
+          "kind": "boolean"
+        },
+        "optional": true
       }
     }
   },
@@ -1118,6 +1229,12 @@ export const shapes = {
         "optional": true
       },
       "claimId": {
+        "shape": {
+          "kind": "string"
+        },
+        "optional": true
+      },
+      "contentRef": {
         "shape": {
           "kind": "string"
         },

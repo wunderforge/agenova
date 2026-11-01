@@ -156,6 +156,9 @@ func (s *Set) Invoke(ctx context.Context, call Invocation) (Result, error) {
 		return Result{}, ctx.Err()
 	}
 	if err != nil {
+		if detail := ErrorDiagnostic(err); detail != nil {
+			return Result{}, &DiagnosticError{Detail: *detail}
+		}
 		for _, safe := range []error{ErrUnavailable, ErrTimeout, ErrResponseTooLarge, ErrProtocol, ErrCredentialUnavailable, ErrCredentialRejected} {
 			if errors.Is(err, safe) {
 				return Result{}, safe

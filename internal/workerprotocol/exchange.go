@@ -31,6 +31,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 	var result, modelText string
 	operations := 0
 	modelTurns, observations := 0, 0
+	feedbackCount := 0
 	protocol := ""
 	nativeStarted, nativeFinished := false, false
 	if task.Mode != "" && task.Mode != ReAct {
@@ -55,7 +56,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			if task.Mode == ReAct {
 				a, err := ParseAgentAction(modelText, task.Tools, protocol)
 				legacyPremature := a.Completion == "" && (modelTurns < 2 || (len(task.Tools) > 0 && observations == 0))
-				if err != nil || a.Action != "finish" || legacyPremature || (a.Completion == "completed" && observations == 0) || (nativeStarted && !nativeFinished) {
+				if err != nil || a.Action != "finish" || legacyPremature || (!task.Diagnostics && a.Completion == "completed" && observations == 0) || (nativeStarted && !nativeFinished) {
 					return "", ErrInvalidFinalResult
 				}
 				expected = a.Answer
@@ -71,7 +72,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			if modelTurns > 0 && op.AgentProtocol != protocol {
 				return "", errors.New("agent protocol changed during execution")
 			}
-			if op.AgentProtocol != "" && op.AgentProtocol != ResearchProtocol && !(task.Discovery && op.AgentProtocol == DiscoveryProtocol) {
+			if op.AgentProtocol != "" && op.AgentProtocol != ResearchProtocol && !(task.Discovery && op.AgentProtocol == DiscoveryProtocol) && !(task.Diagnostics && op.AgentProtocol == DiagnosticsProtocol) {
 				return "", errors.New("unsupported agent protocol")
 			}
 			protocol = op.AgentProtocol
@@ -90,6 +91,9 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 		if protocol == ResearchProtocol || protocol == DiscoveryProtocol {
 			limit += 2
 		}
+		if task.Diagnostics {
+			limit = ConversationLimit(task)*5 + 4
+		}
 		if operations > limit || op.ClaimID != task.ClaimID || op.WorkloadToken != expectedToken {
 			return "", errors.New("worker operation limit or claim binding rejected")
 		}
@@ -98,7 +102,14 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			promptOK = strings.HasPrefix(op.Prompt, PromptPrefix(task)) && len(op.Prompt) <= 60<<10
 		}
 		native := op.Kind == "native-start" || op.Kind == "native-end"
-		if (op.Kind != "model" && op.Kind != "tool" && !native) || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) || (!native && op.Native != nil) {
+		feedback := op.Kind == "feedback" && task.Diagnostics && protocol == DiagnosticsProtocol && modelTurns > 0 && ValidFeedback(op)
+		if feedback {
+			feedbackCount++
+			if feedbackCount > 3 {
+				return "", errors.New("Agent feedback limit reached")
+			}
+		}
+		if (op.Kind != "model" && op.Kind != "tool" && !native && !feedback) || (op.Kind == "model" && (op.Profile != task.ModelProfile || !promptOK)) || (!native && op.Native != nil) || (op.Kind != "feedback" && op.DiagnosticCode != "") {
 			return "", errors.New("worker operation shape rejected")
 		}
 		if task.Mode == ReAct && op.Kind == "model" && modelTurns >= ConversationLimit(task) {
@@ -143,6 +154,7 @@ func Exchange(ctx context.Context, reader io.Reader, writer io.Writer, task Task
 			return "", err
 		}
 		if op.Kind == "model" {
+			feedbackCount = 0
 			modelTurns++
 			if task.Mode == ReAct && modelTurns > ConversationLimit(task) {
 				return "", ErrTurnLimit

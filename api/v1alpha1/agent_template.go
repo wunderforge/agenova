@@ -180,7 +180,7 @@ func ValidateAgentTemplate(template *AgentTemplate) *ValidationError {
 	if strings.TrimSpace(template.Spec.Artifact.Image) == "" {
 		return validationError(ValidationCategoryRequiredField, "spec.artifact.image", "value is required")
 	}
-	if template.Spec.Entrypoint != nil && template.Spec.Entrypoint.Protocol != "" && template.Spec.Entrypoint.Protocol != "research-discovery-v2" {
+	if template.Spec.Entrypoint != nil && template.Spec.Entrypoint.Protocol != "" && template.Spec.Entrypoint.Protocol != "research-discovery-v2" && template.Spec.Entrypoint.Protocol != "research-discovery-v3" {
 		return validationError(ValidationCategoryInvalidValue, "spec.entrypoint.protocol", "unsupported execution protocol")
 	}
 	if template.Spec.Entrypoint == nil {

@@ -310,6 +310,34 @@ func handler(service *Service, auth Authenticator) http.Handler {
 				if !requireMethod(w, r, http.MethodGet) {
 					return
 				}
+				if !route.claim && strings.Contains(strings.TrimPrefix(r.URL.Path, route.prefix), "/content/") {
+					if auth == nil {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, route.prefix), "/content/", 2)
+					if len(parts) != 2 || !validReference(parts[0]) || !strings.HasPrefix(parts[1], "content:") || len(parts[1]) != 40 {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					var err error
+					if auth != nil {
+						_, err = service.QueryFor(principal, parts[0], false)
+					} else {
+						_, err = service.QueryRequest(parts[0])
+					}
+					if err != nil {
+						writeError(w, 404, "not_found", "The record was not found.")
+						return
+					}
+					content, err := service.activityContent(parts[0], parts[1])
+					if err != nil {
+						writeError(w, 404, "content_unavailable", "Content was not captured, expired or is unavailable.")
+						return
+					}
+					writeJSON(w, 200, content)
+					return
+				}
 				if !strings.HasSuffix(r.URL.Path, "/evidence") {
 					writeError(w, 404, "not_found", "The record was not found.")
 					return

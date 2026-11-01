@@ -54,6 +54,7 @@ type record struct {
 }
 
 type Service struct {
+	activity   evidence.ActivityStore
 	advisor    *accessadvisor.Service
 	repository history.Repository
 	revision   string
@@ -94,14 +95,15 @@ type AccessAuthorizer interface {
 }
 
 type Options struct {
-	Advisor     *accessadvisor.Service
-	Repository  history.Repository
-	Revision    string
-	Telemetry   *telemetry.Telemetry
-	OnClose     func()
-	ToolBackend *toolbackend.Set
-	Durable     DurableWork
-	Access      AccessAuthorizer
+	ActivityStore evidence.ActivityStore
+	Advisor       *accessadvisor.Service
+	Repository    history.Repository
+	Revision      string
+	Telemetry     *telemetry.Telemetry
+	OnClose       func()
+	ToolBackend   *toolbackend.Set
+	Durable       DurableWork
+	Access        AccessAuthorizer
 	// PrepareFor selects authenticated mode; reference Submit is then disabled.
 	PrepareFor func([]byte, v0.Principal) (app.PreparedAssignment, error)
 	Prepare    func([]byte) (app.PreparedAssignment, error)
@@ -158,6 +160,7 @@ func NewServiceWithOptions(backend runtime.RuntimeBackend, executor Executor, pr
 	}
 	s := &Service{tools: options.ToolBackend, durable: options.Durable, preset: preset, setup: options.Setup, setupFor: options.SetupFor, prepare: options.Prepare, prepareFor: options.PrepareFor, access: options.Access, configure: options.Configure, executor: executor, provider: provider, journal: facts.NewJournal(), store: facts.NewStore(), records: map[string]*record{}, order: []string{}, executeMu: make(chan struct{}, 1)}
 	s.advisor = options.Advisor
+	s.activity = options.ActivityStore
 	var key [32]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		return nil, errors.New("workload identity entropy unavailable")
@@ -538,7 +541,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		var configuredTool *providerToolAdapter
 		results := mock.results
 		if s.tools != nil {
-			configured := &providerToolAdapter{telemetry: s.telemetry, ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
+			configured := &providerToolAdapter{capture: s.captureActivity, telemetry: s.telemetry, ctx: ctx, claims: s.runner, appendFact: s.appendTool, ref: ref, claimID: claimID, tools: s.tools, results: map[string]workerprotocol.Reply{}}
 			configuredTool = configured
 			selected, results = configured, configured.results
 		}
@@ -549,12 +552,15 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 				code = "within-effective-authority"
 				reason = "Allowed tool within active claim authority."
 			}
-			if _, err := s.appendTool(facts.Fact{Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action, Turn: turn, ActionRef: matchingActionRef(selectedActionID, selectedActionTool, selectedActionResource, req.Tool+"."+req.Action, req.ResourceScope)}); err != nil {
+			args, _ := json.Marshal(req.Parameters)
+			contentRef := s.captureActivity(ref, evidence.ActivityContent{Kind: "tool-request", Source: "gateway-observed", Input: activityInput(req.Tool+"."+req.Action, req.ResourceScope, string(args)), Output: string(d.Result) + ": " + reason})
+			if _, err := s.appendTool(facts.Fact{ContentRef: contentRef, Kind: "ToolDecision", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Result: d.Result, ReasonCode: code, Reason: reason, PolicyRef: &p.Issued.PolicyRef, Operation: "tool.invoke", Target: req.Tool + "." + req.Action, Turn: turn, ActionRef: matchingActionRef(selectedActionID, selectedActionTool, selectedActionResource, req.Tool+"."+req.Action, req.ResourceScope)}); err != nil {
 				return errToolEvidence
 			}
 			return nil
 		}))
 		workTools, discovery := s.executionCatalog(p.Template, &snapshot.EffectiveAuthority)
+		diagnostics := discovery && p.Template.Spec.Entrypoint.Protocol == workerprotocol.DiagnosticsProtocol
 		callLimit := v0.ModelCallLimit(snapshot.EffectiveAuthority.Runtime.MaxModelCalls)
 		taskLimit := 0
 		if discovery {
@@ -572,7 +578,11 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 		}
 		workerCtx, endWorker := s.telemetry.Start(ctx, "worker.execute", ref, claimID, "")
 
-		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools, Discovery: discovery, MaxModelCalls: taskLimit}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
+		taskNow := ""
+		if diagnostics {
+			taskNow = time.Now().UTC().Format(time.RFC3339)
+		}
+		text, err := s.executor.Execute(workerCtx, *snapshot.Claim.BackendIdentity, workerprotocol.Task{Now: taskNow, ClaimID: claimID, ModelToken: modelToken, ToolToken: toolToken, Objective: objective, ModelProfile: snapshot.EffectiveAuthority.ModelProfile, Mode: workerprotocol.ReAct, Tools: workTools, Discovery: discovery, Diagnostics: p.Template.Spec.Entrypoint != nil && p.Template.Spec.Entrypoint.Protocol == workerprotocol.DiagnosticsProtocol, MaxModelCalls: taskLimit}, func(callCtx context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 			if op.ClaimID != claimID || callCtx.Err() != nil {
 				return workerprotocol.Reply{}, errors.New("worker session binding or context rejected")
 			}
@@ -581,6 +591,14 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			if err := app.RequireRunningClaim(s.runner, claimID); err != nil {
 				return workerprotocol.Reply{}, err
+			}
+			if op.Kind == "feedback" {
+				if !diagnostics || !workerprotocol.ValidFeedback(op) || op.WorkloadToken != modelToken {
+					return workerprotocol.Reply{}, errors.New("Agent diagnostic rejected")
+				}
+				contentRef := s.captureActivity(ref, evidence.ActivityContent{Kind: "agent-feedback", Source: "agent-reported", Output: op.Input})
+				_, err := s.journal.Append(facts.Fact{Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, Turn: turn, Operation: "AgentFeedback", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: op.DiagnosticCode, Reason: safeFeedbackReason(op.DiagnosticCode), ContentRef: contentRef})
+				return workerprotocol.Reply{Allowed: err == nil}, err
 			}
 			if op.Kind == "native-start" || op.Kind == "native-end" {
 				if op.Input != workerprotocol.NativeTarget {
@@ -647,12 +665,15 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 			}
 			// Trusted demo-edge state chooses the output format. The gateway and
 			// RuntimeBackend remain agent/provider agnostic; no prompt matching.
-			if op.AgentProtocol == workerprotocol.ResearchProtocol || (discovery && op.AgentProtocol == workerprotocol.DiscoveryProtocol) {
+			if op.AgentProtocol == workerprotocol.ResearchProtocol || (discovery && op.AgentProtocol == workerprotocol.DiscoveryProtocol) || (diagnostics && op.AgentProtocol == workerprotocol.DiagnosticsProtocol) {
 				if configuredTool != nil {
 					configuredTool.recoverable = true
 				}
 				exhausted := len(workTools) > 0 && len(readInputs) == workerprotocol.ToolInputs(workTools)
 				schema, err := workerprotocol.ResearchSchema(workTools, turn >= callLimit || exhausted)
+				if diagnostics {
+					schema, err = workerprotocol.DiagnosticsSchema(workTools, turn >= callLimit)
+				}
 				if err != nil {
 					return workerprotocol.Reply{}, err
 				}
@@ -697,7 +718,7 @@ func (s *Service) run(ctx context.Context, p app.PreparedAssignment, launch app.
 					completion = &evidence.Completion{Status: c.Status, Reason: c.Reason, Target: c.Target}
 				}
 			}
-			if actionFact, err := s.journal.Append(facts.Fact{Turn: turn, Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason, ActionKind: safeActionKind(action, parseErr), ActionTool: safeActionTool(action, parseErr), ActionResource: safeActionResource(action, parseErr)}); err != nil {
+			if actionFact, err := s.journal.Append(facts.Fact{ContentRef: adapter.contentRef(d.InvocationID), Turn: turn, Kind: "WorkerActivity", RequestRef: ref, ClaimID: claimID, InvocationID: d.InvocationID, Operation: "ActionValidated", Target: fmt.Sprintf("Turn %d", turn), ReasonCode: code, Reason: reason, ActionKind: safeActionKind(action, parseErr), ActionTool: safeActionTool(action, parseErr), ActionResource: safeActionResource(action, parseErr)}); err != nil {
 				return workerprotocol.Reply{}, err
 			} else if parseErr == nil && action.Action == "tool" {
 				selectedActionID, selectedActionTool, selectedActionResource = actionFact.ID, action.Tool, action.Resource
@@ -824,7 +845,7 @@ func (s *Service) checkWorkCatalog(p app.PreparedAssignment) error {
 // Discovery describes a trusted Template ceiling; the immutable issued authority
 // continues to gate every real invocation independently.
 func (s *Service) executionCatalog(template *v0.AgentTemplate, authority *v0.EffectiveAuthority) ([]workerprotocol.Tool, bool) {
-	discovery := template != nil && template.Spec.Entrypoint != nil && template.Spec.Entrypoint.Protocol == workerprotocol.DiscoveryProtocol && s.tools != nil
+	discovery := template != nil && template.Spec.Entrypoint != nil && (template.Spec.Entrypoint.Protocol == workerprotocol.DiscoveryProtocol || template.Spec.Entrypoint.Protocol == workerprotocol.DiagnosticsProtocol) && s.tools != nil
 	if discovery {
 		ceiling := template.Spec.CapabilityCeiling
 		// Materialize only installed concrete scopes from the validated Template
@@ -947,6 +968,7 @@ type completionAdapter struct {
 	policy       v0.PolicyReference
 	mu           sync.Mutex
 	results      map[string]modelprovider.Result
+	contentRefs  map[string]string
 	outputSchema json.RawMessage
 }
 
@@ -964,6 +986,7 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 		return err
 	}
 	providerCtx, endProvider := a.service.telemetry.Start(a.ctx, "model.invoke", a.ref, a.claimID, id)
+	started := time.Now()
 	result, providerErr := a.service.provider.Complete(providerCtx, modelprovider.Request{Profile: req.Profile, Prompt: req.Parameters["prompt"], OutputSchema: a.outputSchema})
 	endProvider(providerErr == nil)
 	status := "Succeeded"
@@ -988,7 +1011,12 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 	if status == "Cancelled" {
 		reasonCode, reason = "model-call-cancelled", "The model call was cancelled or its claim became inactive."
 	}
-	if _, err := a.service.journal.Append(facts.Fact{Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: status, Reason: reason, ReasonCode: reasonCode}); err != nil {
+	var summary struct {
+		DecisionSummary string `json:"decisionSummary"`
+	}
+	_ = json.Unmarshal([]byte(result.Text), &summary)
+	contentRef := a.service.captureActivity(a.ref, evidence.ActivityContent{DecisionSummary: summary.DecisionSummary, Kind: "model-response", Source: "model-provider", Output: result.Text, Thinking: result.Thinking, Model: result.Model, FinishReason: result.FinishReason, InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, ElapsedMS: time.Since(started).Milliseconds(), LoadMS: result.Timings.LoadMS, PromptMS: result.Timings.PromptMS, GenerateMS: result.Timings.GenerateMS})
+	if _, err := a.service.journal.Append(facts.Fact{ContentRef: contentRef, Kind: "ProviderOutcome", RequestRef: a.ref, ClaimID: a.claimID, InvocationID: id, PolicyRef: &a.policy, Operation: "model.invoke", Target: req.Profile, ProviderStatus: status, Reason: reason, ReasonCode: reasonCode}); err != nil {
 		return err
 	}
 	if providerErr != nil {
@@ -999,8 +1027,17 @@ func (a *completionAdapter) Invoke(id string, req modelgateway.Request) error {
 		a.results = map[string]modelprovider.Result{}
 	}
 	a.results[id] = result
+	if a.contentRefs == nil {
+		a.contentRefs = map[string]string{}
+	}
+	a.contentRefs[id] = contentRef
 	a.mu.Unlock()
 	return nil
+}
+func (a *completionAdapter) contentRef(id string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.contentRefs[id]
 }
 func (a *completionAdapter) result(id string) (modelprovider.Result, bool) {
 	a.mu.Lock()

@@ -325,3 +325,15 @@ func TestTransportErrorIsSanitized(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestOptionalProviderMetadataDoesNotBreakCompatibleAnswer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"choices":[{"message":{"content":"answer","thinking":{"unsupported":"representation"},"reasoning_content":["opaque"]},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":1},"timings":{"prompt_ms":2.5,"predicted_ms":4.1}}`))
+	}))
+	defer server.Close()
+	p := newTestAdapter(t, Config{Endpoint: server.URL})
+	r, err := p.Complete(context.Background(), Request{Profile: "approved-local", Prompt: "goal"})
+	if err != nil || r.Text != "answer" || r.Thinking != "" || r.Timings.PromptMS != 2 || r.Timings.GenerateMS != 4 {
+		t.Fatalf("optional fields broke compatibility: %+v %v", r, err)
+	}
+}

@@ -1,5 +1,12 @@
 # Task: Optional task access advisor
 
+Latest owner planning request (1 November): address public-research capability,
+answer quality, response latency, per-turn model/thinking/tool content and precise
+error/recovery evidence. The [new repair plan](researcher-demo-repair-plan-20261101.md)
+records the target experience, architecture, development order and gates. The
+owner has now authorized complete local implementation, tests, commit and
+feature-branch push of this addendum; no PR, merge or deployment.
+
 - Ticket: [#211](https://github.com/wunderforge/agenova/issues/211)
 - Mission: translate task context and an Agent's access guide into reviewable requests, optionally submitting automatically through existing authorization.
 - Target: v1alpha1 optional guide/config, internal/accessadvisor, console, CLI packaging, Connected Portal, local acceptance.

@@ -14,6 +14,7 @@ import (
 	"github.com/wunderforge/agenova/internal/modelprovider"
 	"github.com/wunderforge/agenova/internal/policy"
 	"io"
+	"net/url"
 	"os"
 	"time"
 )
@@ -96,6 +97,22 @@ func seedAdvisor(ctx context.Context, store identitydb.Store, p v0.Principal) er
 	return e
 }
 
+var useFastLocalModel bool
+var localAdvisorEndpoint string
+
 func newLocalAdvisorProvider(profile, model string) (modelprovider.Client, error) {
+	return newPreviewProvider(localAdvisorEndpoint, profile, model, 128)
+}
+func newPreviewProvider(endpoint, profile, model string, tokens int) (modelprovider.Client, error) {
+	if endpoint != "" {
+		u, err := url.Parse(endpoint)
+		if err != nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" {
+			return nil, errors.New("preview requires literal loopback model endpoints")
+		}
+		return modelprovider.New(modelprovider.Config{Endpoint: endpoint, Models: map[string]string{profile: model}, MaxTokens: tokens, Timeout: time.Minute})
+	}
+	if useFastLocalModel {
+		return modelprovider.NewOllama(modelprovider.Config{Endpoint: "http://127.0.0.1:11434", Models: map[string]string{profile: model}, MaxTokens: tokens, Timeout: time.Minute}, 2048)
+	}
 	return modelprovider.New(modelprovider.Config{Endpoint: "http://127.0.0.1:11434/v1", Models: map[string]string{profile: model}, MaxTokens: 256, Timeout: time.Minute})
 }

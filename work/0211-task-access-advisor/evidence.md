@@ -187,3 +187,18 @@ are recorded in the layout cases under `.tmp/advisor-browser/`. The existing
 Advisor/layout cases passed; final neutral-focus desktop/mobile screenshots were
 inspected. No backend or authorization contract changed. The existing port 5221
 process was kept running, so in-memory Work history was not reset for this UI update.
+
+
+## Researcher source, activity and latency repair — 1 November
+
+The new local candidate and its exact gates are documented in
+[repair-local-acceptance-20261101.md](repair-local-acceptance-20261101.md).
+This is a separate opt-in reference protocol/preview. Old evidence above remains
+historical; neither a local Go process nor synthetic runtime lifecycle is a fresh
+AWS packet-enforcement result. Owner acceptance is pending; no PR/merge/deploy.
+
+Final developer gate: 10/10 real-model mixed cases; warm API P50 13.95 s /
+P95 17.31 s, two execution calls each. Additional actual 404 and Melbourne weather
+checks pass. Frontend 185 unit / 95 standard smoke / 4 live acceptance cases pass.
+Full Go testing remains non-green solely on the known unchanged Windows Owner
+bootstrap delivery test; exact boundaries and evidence are in the linked guide.

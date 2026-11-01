@@ -87,15 +87,30 @@ func ResearchSchema(tools []Tool, finishing bool) ([]byte, error) {
 	// Keep action/tool/input before answer and completion, like ActionSchema.
 	// Alphabetical map serialization asks local constrained decoders to write the
 	// answer before choosing a tool, encouraging contradictory call metadata.
-	b, err := json.Marshal(researchVariant{Type: "object", Properties: researchProperties{v.Properties,
-		stringSchema{Type: "string", Enum: []string{"", "completed", "partial", "incomplete"}},
-		stringSchema{Type: "string", Enum: []string{"", "missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}},
-		stringSchema{Type: "string"}},
+	b, err := json.Marshal(researchVariant{Type: "object", Properties: researchProperties{actionProperties: v.Properties,
+		Completion: stringSchema{Type: "string", Enum: []string{"", "completed", "partial", "incomplete"}},
+		Reason:     stringSchema{Type: "string", Enum: []string{"", "missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}},
+		Target:     stringSchema{Type: "string"}},
 		Required: []string{"action", "tool", "resource", "input", "answer", "completion", "reason", "target"}})
 	if err == nil && len(b) > MaxSchemaBytes {
 		return nil, ErrToolCatalog
 	}
 	return b, err
+}
+
+// DiagnosticsSchema is explicit opt-in; older schemas retain their wire shape.
+func DiagnosticsSchema(tools []Tool, finishing bool) ([]byte, error) {
+	raw, err := ResearchSchema(tools, finishing)
+	if err != nil {
+		return nil, err
+	}
+	var shape researchVariant
+	if err = json.Unmarshal(raw, &shape); err != nil {
+		return nil, err
+	}
+	shape.Properties.DecisionSummary = &stringSchema{Type: "string", MaxLength: 180}
+	shape.Required = append(shape.Required, "decisionSummary")
+	return json.Marshal(shape)
 }
 
 // AgentActionIssue reports bounded shape diagnostics, never model text.
@@ -126,13 +141,16 @@ func ParseAgentAction(text string, tools []Tool, protocol string) (Action, error
 	if protocol == "" {
 		return ParseAction(text, tools)
 	}
-	if protocol != ResearchProtocol && protocol != DiscoveryProtocol {
+	if protocol != ResearchProtocol && protocol != DiscoveryProtocol && protocol != DiagnosticsProtocol {
 		return Action{}, errors.New("unsupported agent protocol")
 	}
 	// Use the same bounded JSON decoder and strict field checks as ordinary actions.
 	a, err := decodeAction(text)
 	if err != nil {
 		return a, err
+	}
+	if len(a.DecisionSummary) > 512 || (protocol != DiagnosticsProtocol && a.DecisionSummary != "") {
+		return a, errors.New("unsupported decision summary")
 	}
 	if !ValidCompletion(a.CompletionValue()) {
 		return a, errors.New("invalid completion metadata")

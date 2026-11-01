@@ -1,5 +1,13 @@
 # Agenova MVP PRD
 
+Owner-approved local Researcher repair (1 November 2026, #211): real keyless
+public search/read, a bounded opt-in content store for actual provider responses
+and tool observations, typed safe error causes, explicit Agent feedback and
+fewer unnecessary reference-Agent calls. Only the new diagnostics protocol and
+local preview enable content capture; legacy images and authority stay unchanged.
+Local tests and feature-branch push only. See the
+[repair plan](../../work/0211-task-access-advisor/researcher-demo-repair-plan-20261101.md).
+
 Owner-approved local follow-up (1 November 2026, #211): remove Task preset from
 New Work; add configurable per-Work model-call budgets under server-owned limits;
 separate Template-supported tool discovery from actual Work invocation authority.

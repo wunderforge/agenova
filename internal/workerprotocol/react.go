@@ -20,6 +20,7 @@ const MaxTurns = 6
 const MaxOperations = MaxTurns * 2
 const AgentSafetyTurns = 20
 const DiscoveryProtocol = "research-discovery-v2"
+const DiagnosticsProtocol = "research-discovery-v3"
 
 var ErrModelBudget = errors.New("model-call budget exhausted")
 
@@ -158,14 +159,15 @@ func ActionIssue(text string, tools []Tool) (string, string) {
 
 // Action intentionally excludes private reasoning. Agent semantics live at this demo edge.
 type Action struct {
-	Completion string `json:"completion,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-	Target     string `json:"target,omitempty"`
-	Action     string `json:"action"`
-	Tool       string `json:"tool,omitempty"`
-	Resource   string `json:"resource,omitempty"`
-	Input      string `json:"input,omitempty"`
-	Answer     string `json:"answer,omitempty"`
+	DecisionSummary string `json:"decisionSummary,omitempty"`
+	Completion      string `json:"completion,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Target          string `json:"target,omitempty"`
+	Action          string `json:"action"`
+	Tool            string `json:"tool,omitempty"`
+	Resource        string `json:"resource,omitempty"`
+	Input           string `json:"input,omitempty"`
+	Answer          string `json:"answer,omitempty"`
 }
 
 // ParseAction accepts a finish action, or a tool action whose tool, resource
@@ -175,7 +177,7 @@ func ParseAction(text string, tools []Tool) (Action, error) {
 	if err != nil {
 		return a, err
 	}
-	if a.Completion != "" || a.Reason != "" || a.Target != "" {
+	if a.Completion != "" || a.Reason != "" || a.Target != "" || a.DecisionSummary != "" {
 		return a, errors.New("unexpected completion metadata")
 	}
 	if a.Action == "tool" && a.Answer == "" {

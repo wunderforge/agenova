@@ -25,7 +25,7 @@ func TestPublicWebReaderAcceptsURLsWithoutKeysAndRefusesUnsafeTargets(t *testing
 		t.Fatal(result, code)
 	}
 	for _, url := range []string{"", "http://example.org/", "https://user:pass@example.org/", "https://127.0.0.1/", "https://169.254.169.254/latest/meta-data", "https://10.1.2.3/", "https://[::1]/", "https://localhost/", "https://example.local/", "https://example.org:8443/", "https://example.org/#fragment", "https://example.org/\nx"} {
-		if _, code := readPublicPage(context.Background(), url, client); code != "public-url-refused" {
+		if _, code := readPublicPage(context.Background(), url, client); code != "public-url-refused" && code != "url-malformed" && code != "url-not-https" && code != "private-address-refused" {
 			t.Fatal("unsafe URL dispatched", url, code)
 		}
 	}

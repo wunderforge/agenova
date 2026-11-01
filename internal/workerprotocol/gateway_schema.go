@@ -9,9 +9,10 @@ import (
 
 type researchProperties struct {
 	actionProperties
-	Completion stringSchema `json:"completion"`
-	Reason     stringSchema `json:"reason"`
-	Target     stringSchema `json:"target"`
+	DecisionSummary *stringSchema `json:"decisionSummary,omitempty"`
+	Completion      stringSchema  `json:"completion"`
+	Reason          stringSchema  `json:"reason"`
+	Target          stringSchema  `json:"target"`
 }
 type researchVariant struct {
 	Type                 string             `json:"type"`
@@ -28,6 +29,9 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 	var base researchVariant
 	if json.Unmarshal(raw, &base) != nil || base.Type != "object" || base.Properties.Completion.Type != "string" {
 		return nil, errors.New("expected research action schema")
+	}
+	if base.Properties.DecisionSummary != nil {
+		return compactDiagnosticsSchema(base, catalog)
 	}
 	empty := stringSchema{Type: "string", Enum: []string{""}}
 	finish := base
@@ -83,6 +87,47 @@ func GatewayResearchSchema(raw json.RawMessage, catalog []Tool) (json.RawMessage
 	// support that combination. Normal validation still checks tool/scope pairing.
 	out, err := json.Marshal(struct {
 		AnyOf []researchVariant `json:"anyOf"`
+	}{variants})
+	if len(out) > MaxSchemaBytes {
+		return nil, ErrToolCatalog
+	}
+	return out, err
+}
+
+// Only the new opt-in grammar omits redundant empty call/finish fields. The
+// semantic parser and exact model/action binding remain unchanged.
+func compactDiagnosticsSchema(base researchVariant, catalog []Tool) (json.RawMessage, error) {
+	type variant struct {
+		Type                 string         `json:"type"`
+		Properties           map[string]any `json:"properties"`
+		Required             []string       `json:"required"`
+		AdditionalProperties bool           `json:"additionalProperties"`
+	}
+	field := func(v string) stringSchema { return stringSchema{Type: "string", Enum: []string{v}} }
+	variants := []variant{{Type: "object", Properties: map[string]any{"action": field("finish"), "answer": stringSchema{Type: "string", MaxLength: 700}, "completion": stringSchema{Type: "string", Enum: []string{"completed", "partial", "incomplete"}}, "reason": base.Properties.Reason, "target": stringSchema{Type: "string", MaxLength: 128}, "decisionSummary": stringSchema{Type: "string", MaxLength: 100}}, Required: []string{"action", "answer", "completion", "reason", "target", "decisionSummary"}}}
+	for _, status := range []string{"partial", "incomplete"} {
+		props := make(map[string]any)
+		for k, v := range variants[0].Properties {
+			props[k] = v
+		}
+		props["completion"] = field(status)
+		props["reason"] = stringSchema{Type: "string", Enum: []string{"missing-capability", "tool-denied", "tool-failed", "network-unavailable", "insufficient-evidence"}}
+		variants = append(variants, variant{Type: "object", Properties: props, Required: variants[0].Required})
+	}
+	variants[0].Properties["completion"] = field("completed")
+	variants[0].Properties["reason"] = field("")
+	variants[0].Properties["target"] = field("")
+	if len(base.Properties.Action.Enum) > 1 {
+		for _, t := range catalog {
+			if !containsSchemaValue(base.Properties.Tool.Enum, t.Operation) || !containsSchemaValue(base.Properties.Resource.Enum, t.ResourceScope) {
+				continue
+			}
+			input := stringSchema{Type: "string", Enum: t.AllowedValues, MaxLength: t.MaxBytes}
+			variants = append(variants, variant{Type: "object", Properties: map[string]any{"action": field("tool"), "tool": field(t.Operation), "resource": field(t.ResourceScope), "input": input, "decisionSummary": stringSchema{Type: "string", MaxLength: 100}}, Required: []string{"action", "tool", "resource", "input", "decisionSummary"}})
+		}
+	}
+	out, err := json.Marshal(struct {
+		AnyOf []variant `json:"anyOf"`
 	}{variants})
 	if len(out) > MaxSchemaBytes {
 		return nil, ErrToolCatalog

@@ -42,7 +42,21 @@ func publicPage(raw string) (publicSource, bool) {
 func readPublicPage(ctx context.Context, raw string, client *http.Client) (string, string) {
 	source, ok := publicPage(raw)
 	if !ok {
-		return "", "public-url-refused"
+		u, e := url.Parse(raw)
+		if e != nil || u == nil || strings.TrimSpace(raw) != raw {
+			return "", "url-malformed"
+		}
+		if u.Scheme != "https" {
+			return "", "url-not-https"
+		}
+		host := strings.ToLower(u.Hostname())
+		if host == "localhost" || strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".local") {
+			return "", "private-address-refused"
+		}
+		if ip, e := netip.ParseAddr(host); e == nil && !publicIP(ip) {
+			return "", "private-address-refused"
+		}
+		return "", "url-malformed"
 	}
 	// Dial-time DNS/IP validation and hostname TLS checks are in publicClient.
 	// No proxy, redirects, custom headers or API key.

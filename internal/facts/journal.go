@@ -25,6 +25,7 @@ type Fact struct {
 	ActionKind       string                          `json:"actionKind,omitempty"`
 	ActionTool       string                          `json:"actionTool,omitempty"`
 	ActionResource   string                          `json:"actionResource,omitempty"`
+	ContentRef       string                          `json:"contentRef,omitempty"`
 	ID               string                          `json:"id"`
 	Sequence         uint64                          `json:"sequence"`
 	Timestamp        time.Time                       `json:"timestamp"`
@@ -175,6 +176,11 @@ func (j *Journal) AppendWithCommit(fact Fact, commit func(Fact) error) (Fact, er
 func (j *Journal) append(fact Fact, commit func(Fact) error) (Fact, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if fact.ContentRef != "" {
+		if len(fact.ContentRef) != 40 || !strings.HasPrefix(fact.ContentRef, "content:") || strings.Trim(fact.ContentRef[8:], "0123456789abcdef") != "" {
+			return Fact{}, fmt.Errorf("invalid activity content reference")
+		}
+	}
 	principal, ok := j.requests[fact.RequestRef]
 	if !ok || fact.Kind == "" {
 		return Fact{}, fmt.Errorf("registered request and fact kind are required")
