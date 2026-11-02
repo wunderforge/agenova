@@ -46,11 +46,11 @@ Malformed JSON cannot execute a tool or produce a result. Repair cannot expand a
 
 - [x] Scout current code and bounded latest production evidence through the normal authenticated API; retain raw records locally only.
 - [x] Self-review scope, acceptance, negative cases and stable authority boundaries.
-- [ ] Implement bounded repair and regression cases.
-- [ ] Implement latest-version directory and rendered acceptance.
+- [x] Implement bounded repair and regression cases.
+- [x] Implement latest-version directory and rendered acceptance.
 - [ ] Exercise the actual Worker image with synthetic governed responses.
-- [ ] Run focused gates and `./scripts/check.ps1 -All`.
-- [ ] Review diff, record exact residual failures, commit and push feature branch.
+- [x] Run focused gates and `./scripts/check.ps1 -All`; record the existing Windows invitation-delivery failure.
+- [x] Review diff, record exact residual failures, commit and push feature branch.
 
 ## Quality Gates
 

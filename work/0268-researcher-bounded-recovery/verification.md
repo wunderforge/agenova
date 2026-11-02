@@ -7,7 +7,7 @@
 - TypeScript typecheck and production Vite build: PASS.
 - Focused rendered catalog smoke: PASS, desktop and 390px mobile. Dark browser preference stays light. Older versions remain explicitly discoverable; exact registration identity and project links are retained.
 - `./scripts/check.ps1 -All`: FAIL only at the existing Windows `TestOwnerBootstrapDeliveryGuards` invitation-delivery test. Other Go packages pass; formatter, module metadata, vet, architecture and documentation gates passed. Frontend was run separately after this stop.
-- Whole browser smoke suite: running; final result will be added before handoff.
+- Whole browser smoke suite: 97 tests PASS (1.7 minutes), including the new directory behavior and existing task/authority/activity flows.
 
 ## Exact image gate
 
