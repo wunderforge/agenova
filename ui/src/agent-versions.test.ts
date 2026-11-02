@@ -22,3 +22,12 @@ it('does not hide an only visible old version or infer versions from arbitrary n
   const entries=[registration('researcher-advisor-v3'),registration('researcher-experimental'),registration('invoice-v0'),registration('invoice-vnext'),registration('python3')];
   expect(latestAgentVersions(entries)).toEqual(entries);
 });
+
+it('does not mistake a higher legacy suffix for a newer reference release series',()=>{
+  for(const entries of [[registration('researcher-v7'),registration('researcher-advisor-v6')],[registration('researcher-advisor-v6'),registration('researcher-v7')]]) {
+    expect(latestAgentVersions(entries).map(e=>e.template.metadata.name)).toEqual(['researcher-advisor-v6']);
+  }
+  // Visibility is server-owned: never invent an Advisor registration in a
+  // project where only the older reference series is actually visible.
+  expect(latestAgentVersions([registration('researcher-v7')])[0].template.metadata.name).toBe('researcher-v7');
+});

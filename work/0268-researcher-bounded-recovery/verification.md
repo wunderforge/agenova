@@ -3,7 +3,7 @@
 ## Local results (2 November 2026)
 
 - `go test ./cmd/agenova-demo-worker ./internal/workerprotocol`: PASS. Includes consecutive malformed finishes, mixed format/duplicate-read errors, denial preservation, Work/image call bounds and actual host/Worker exchange.
-- Frontend unit suite: 195 tests / 19 files PASS.
+- Frontend unit suite: 196 tests / 19 files PASS.
 - TypeScript typecheck and production Vite build: PASS.
 - Focused rendered catalog smoke: PASS, desktop and 390px mobile. Dark browser preference stays light. Older versions remain explicitly discoverable; exact registration identity and project links are retained.
 - `./scripts/check.ps1 -All`: FAIL only at the existing Windows `TestOwnerBootstrapDeliveryGuards` invitation-delivery test. Other Go packages pass; formatter, module metadata, vet, architecture and documentation gates passed. Frontend was run separately after this stop.
@@ -17,4 +17,4 @@ The existing PR CI runs `harness/demo/research-mcp/build-worker.py`, including f
 
 Regression model replies and browser catalogs are synthetic. Production traces were read through the existing authenticated API to diagnose the defect, retained only in ignored local files and never copied into fixtures, this packet or the PR. No image push, template deletion, ECR cleanup, Policy activation, merge, application deployment or AWS resource change is part of these local results.
 
-Version selection is a display convention, not image attestation or a grant. Highest numeric -vN registration is selected per project/family; known reference researcher/researcher-advisor aliases are one family. An unversioned sole registration remains visible. Explicit older-version mode keeps historical registrations reachable.
+Version selection is a display convention, not image attestation or a grant. Highest numeric -vN registration is selected within a project/family and release series; the known Advisor series succeeds legacy Researcher, so advisor-v6 wins over legacy v7 in either API order. An unversioned sole registration remains visible. Explicit older-version mode keeps historical registrations reachable.

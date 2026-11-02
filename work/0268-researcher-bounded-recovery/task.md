@@ -67,4 +67,5 @@ Operation counts and output from scripted Worker conversations; exact-image acce
 
 - 2 Nov: fresh v6 evidence confirms successful CRM observation followed by two malformed finishes; shared two-error counter exits after only 3/6 model calls. Another captured sequence mixes a malformed finish with duplicate-read rejection. Use existing Work budget/safety/deadline bounds instead of this premature counter.
 - 2 Nov: discovery is display-only. Version grouping is project-qualified and numeric; known reference researcher / researcher-advisor registrations form one family. No registration or image is deleted.
+- Live catalog check: the Advisor series succeeds the legacy Researcher series; its v6 must win over legacy v7 regardless of API order. Numeric comparison applies within each series, not across that known series transition. Independently named diagnostic Agents remain discoverable.
 - 2 Nov: known Windows full-suite baseline includes TestOwnerBootstrapDeliveryGuards; report its current result explicitly. Independent review remains a PR gate; no new administrator-merge authorization exists.
