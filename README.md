@@ -5,6 +5,7 @@
 Agenova gives each AI agent job a clear, temporary, and auditable operating boundary.
 
 [Open the team Portal](https://app.agenova.app/) ·
+[Install / upgrade CLI](docs/cli-installation.md) ·
 [Team Quick Guide](docs/team-quick-guide.md) ·
 [Run locally](docs/reference-cli-kind-ollama.md) ·
 [UI development](ui/README.md)
@@ -45,8 +46,19 @@ The canonical application input is a declarative `ClaimRequest` in YAML or equiv
 
 ## Start Here
 
+**Install or upgrade the CLI:** the current preview is **`0.1.0-preview.20261102.1`**.
+Download the [Windows x64 ZIP](https://github.com/wunderforge/agenova/releases/download/v0.1.0-preview.20261102.1/agenova_0.1.0-preview.20261102.1_windows_amd64.zip)
+or [Linux x64 archive](https://github.com/wunderforge/agenova/releases/download/v0.1.0-preview.20261102.1/agenova_0.1.0-preview.20261102.1_linux_amd64.tar.gz)
+from the [upstream release](https://github.com/wunderforge/agenova/releases/tag/v0.1.0-preview.20261102.1).
+The [installation guide](docs/cli-installation.md) covers checksums, Windows
+installation and in-place upgrades, and a pinned macOS source-build route.
+Run `agenova --version` after upgrading. The separately maintained Homebrew tap
+still points to an older preview; `brew upgrade` does not install this version.
+Packages are unsigned previews: Windows was tested natively, Linux was cross-built,
+and the macOS source-build route has not been tested for this release.
+
 **Using the hosted team service:** start with the [Team Quick Guide](docs/team-quick-guide.md)
-for Google sign-in, approval, macOS Homebrew / Windows installation and common CLI
+for Google sign-in, approval, CLI installation and common CLI
 commands. [Installation details](docs/cli-installation.md) and
 [team use cases](docs/team-use-cases.zh-CN.md) cover troubleshooting and permissions.
 Ordinary members do not need AWS access; infrastructure operators follow the
