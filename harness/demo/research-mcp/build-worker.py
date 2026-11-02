@@ -66,8 +66,37 @@ def main():
         records = [json.loads(line) for line in checked.stdout.splitlines()]
         if checked.returncode or [r["result"] for r in records if "result" in r] != [answer] or not any(r.get("operation", {}).get("diagnosticCode") == "finish-accepted" for r in records):
             raise RuntimeError("Exact discovery-v3 image completion regression")
+    # Replay mixed cloud failure shapes in the built binary. These are synthetic
+    # responses, not a real provider test, and cannot grant extra authority.
+    recovery_checks = []
+    for case in ["two-format-errors", "mixed-duplicate-read", "denied-repair", "budget-exhausted"]:
+        crm = {**crm_task, "objective": "Identify risky internal customers.", "templateToolDiscovery": True, "activityDiagnostics": True, "maxModelCalls": 6}
+        ok = {"allowed": True}
+        malformed = {"allowed": True, "text": '{"answer":"Synthetic customer C001","completion":"completed","input":"customer-retention"}'}
+        denied = case == "denied-repair"
+        final = {"allowed": True, "text": json.dumps({"action": "finish", "answer": "crm.read denied." if denied else "Synthetic customer C001 needs follow-up.", "completion": "incomplete" if denied else "completed", **({"reason": "tool-denied", "target": "crm.read"} if denied else {})})}
+        if case == "budget-exhausted":
+            sequence = [crm] + [r for _ in range(6) for r in [malformed, ok]] + [ok]
+            expected_models, expected_tools = 6, 0
+        else:
+            observed = {"allowed": False, "error": "tool access denied"} if denied else observation
+            second = crm_call if case == "mixed-duplicate-read" else malformed
+            sequence = [crm, crm_call, ok, observed, malformed, ok, second, ok, final, ok]
+            expected_models, expected_tools = 4, 1
+        stream = "".join(json.dumps(item) + "\n" for item in sequence)
+        checked = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/agenova-demo-worker", tag], input=stream, text=True, capture_output=True, timeout=30)
+        records = [json.loads(line) for line in checked.stdout.splitlines()]
+        models = sum(r.get("operation", {}).get("kind") == "model" for r in records)
+        tools = sum(r.get("operation", {}).get("kind") == "tool" for r in records)
+        results = [r["result"] for r in records if "result" in r]
+        exhausted = case == "budget-exhausted"
+        if checked.returncode != int(exhausted) or models != expected_models or tools != expected_tools or results != ([] if exhausted else [json.loads(final["text"])["answer"]]):
+            raise RuntimeError("Exact image recovery regression: " + case)
+        if exhausted and not any(r.get("operation", {}).get("diagnosticCode") == "format-retry-limit" for r in records):
+            raise RuntimeError("Exact image lost exhaustion evidence")
+        recovery_checks.append(case)
     image_id = subprocess.run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"], capture_output=True, text=True, check=True).stdout.strip()
-    summary = {"tag": tag, "image": image_id, "source_hash": source_hash, "public_source_hashes": hashes, "unsupported_answer_rejected": True, "blocked_after_observation_rejected": True, "observed_answer_preserved": True, "real_model": False, "pushed": False}
+    summary = {"tag": tag, "image": image_id, "source_hash": source_hash, "public_source_hashes": hashes, "unsupported_answer_rejected": True, "blocked_after_observation_rejected": True, "observed_answer_preserved": True, "real_model": False, "pushed": False, "bounded_recovery_checks": recovery_checks}
     (output / "image-check.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k != "public_source_hashes"}))
 

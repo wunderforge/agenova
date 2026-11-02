@@ -7,6 +7,7 @@ import './access-advice.css';
 import type { ClaimRequest } from './contracts.generated';
 import { maxWorkName } from './work-name';
 import { requestedMinutes } from './duration';
+import {agentPickerNames,latestAgentNames} from './agent-versions';
 
 const pendingKey = 'agenova.pending-request';
 function pendingReference(){try{return sessionStorage.getItem(pendingKey)||'';}catch{return '';}}
@@ -38,6 +39,9 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
  const contextRequest = useRef<AbortController | null>(null);
  const locked = busy || loading || !!pending;
  const template = setup.template;
+ const registeredNames=setup.templates || (template ? [template.metadata.name] : []);
+ const latestNames=latestAgentNames(registeredNames);
+ const pickerNames=agentPickerNames(registeredNames,template?.metadata.name);
  const ceiling = template?.spec.capabilityCeiling;
  const original = copy?.request;
  const input = original?.spec.task?.input;
@@ -117,7 +121,7 @@ export function WorkSubmission({ setup: initial, created, copy }: { setup: Setup
   <form ref={formRef} className="portal-form portal-new-work" onSubmit={event => void submit(event)} onChange={event=>{const name=(event.target as unknown as HTMLInputElement).name;if(['objective','workName','taskType','runtime','timeout','maxModelCalls','repository','branch'].includes(name))invalidateAdvice();}}>
    <fieldset disabled={locked} className="portal-form-context"><legend className="portal-new-work-sr-only">Assignment context</legend><div className="portal-field-row">
     <label>Project<select name="project" value={project} onChange={event => void select(event.target.value)} required><option value="" disabled>Choose a project</option>{allowedProjects.map(value => <option key={value}>{value}</option>)}</select></label>
-    <label>Agent<select value={template?.metadata.name || ''} onChange={event => void select(project, event.target.value)}><option value="" disabled>Choose an agent</option>{(setup.templates || (template ? [template.metadata.name] : [])).map(name => <option key={name}>{name}</option>)}</select></label>
+    <label>Agent<select value={template?.metadata.name || ''} onChange={event => void select(project, event.target.value)}><option value="" disabled>Choose an agent</option>{pickerNames.map(name => <option key={name} value={name}>{name}{latestNames.includes(name)?'':' · previous version'}</option>)}</select></label>
    </div></fieldset>
    {loading && <p role="status">Loading configuration…</p>}
    {!loading && !template && <p role="alert">No approved template is available in this project.</p>}

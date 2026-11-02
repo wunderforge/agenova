@@ -1,0 +1,75 @@
+# Task: Recover malformed Researcher actions within Work budgets
+
+- Ticket: [#268](https://github.com/wunderforge/agenova/issues/268)
+- Mission: recover invalid reference-Agent actions without premature exit, and default Agent discovery/selection to the latest registered version per project/family.
+- Target: reference Researcher loop, exact-image harness, Agent directory and selectors.
+- User value: transient formatting mistakes no longer end a demo with unused call budget; old registrations no longer overwhelm discovery.
+- PRD outcome: [Researcher repair and discovery](../../docs/product/prd.md).
+
+## Context to Read
+
+- [Architecture contract](../../docs/product/architecture-contract.md).
+- [Start a GitHub Ticket](../../docs/harness/playbooks.md).
+- `cmd/agenova-demo-worker/researcher_fast.go` and its behavioral tests.
+- `internal/workerprotocol/feedback.go`, `exchange.go`, `research.go`.
+- `harness/demo/research-mcp/build-worker.py`.
+- `ui/src/ProductPages.tsx`, `connected-source.ts`.
+- `ui/src/WorkSubmission.tsx`, `PresenterViews.tsx` for matching selection behavior.
+
+## Scope
+
+In scope:
+
+- Strict validation, followed by a fresh governed model request with precise repair guidance while calls remain.
+- Preserve observations and actual denials; suppress duplicate successful reads without changing denied authority.
+- Distinguish final exhaustion from an announced retry that never occurs.
+- Default catalog to latest numeric version per project/family, with an older-versions control. Preserve exact registration identity and server-filtered visibility.
+- User confirmed directory cleanup only; retain ECR images, rollback artifacts, registrations and historical Work.
+- Follow-up: apply the same latest-version convention to New Work and configuration selectors. Preserve an explicitly selected historical registration with a previous-version label; never silently substitute a different image or copy old authority into a new version.
+
+Out of scope: model IAM/provider changes, authority or protocol relaxation, infrastructure changes, marketplace, native Codex/Claude integration, automatic merge/deployment.
+
+## Acceptance Criteria
+
+- Successful read -> malformed finish -> malformed finish -> valid finish recovers with one actual read and four governed model calls.
+- Malformed finish -> repeated successful read -> valid finish also recovers without duplicating the read.
+- Denied tool remains denied after repair, never becomes a completed or unrelated-data answer; no backend execution on denial.
+- Permanent invalid output stops at min(Work model-call budget, reference safety limit), emits exhaustion evidence and no result.
+- Provider/transport denial stops immediately; a feedback recording failure does not launch another model call.
+- Happy path remains one model call for ordinary knowledge or two for a single successful read.
+- Directory keeps separate projects/families, sorts v10 after v9, retains unrelated unversioned Agents and exposes all registrations on request. Viewing/running remain independently authorized.
+- New Work offers only the latest version per family by default. Copying a historical Work keeps its exact selected version visibly labeled; selecting a newer registration still reloads the server snapshot and clears prior permissions.
+- Rendered UI proof and exact-image subprocess acceptance cover the changed paths.
+
+## Negative Case
+
+Malformed JSON cannot execute a tool or produce a result. Repair cannot expand authority, reset the Work budget, bypass denied operations or invent observations. Catalog filtering cannot expose records excluded by the server.
+
+## Execution Todo
+
+- [x] Scout current code and bounded latest production evidence through the normal authenticated API; retain raw records locally only.
+- [x] Self-review scope, acceptance, negative cases and stable authority boundaries.
+- [x] Implement bounded repair and regression cases.
+- [x] Implement latest-version directory and rendered acceptance.
+- [x] Exercise the actual Worker image with synthetic governed responses in credential-free Linux CI (run 41427196532).
+- [x] Run focused gates and `./scripts/check.ps1 -All`; record the existing Windows invitation-delivery failure.
+- [x] Review diff, record exact residual failures, commit and push feature branch.
+
+## Quality Gates
+
+- `go test ./cmd/agenova-demo-worker ./internal/workerprotocol`.
+- `py -3 harness/demo/research-mcp/build-worker.py` (local build; no push).
+- UI focused tests, typecheck/build and rendered catalog smoke.
+- `.\scripts\check.ps1 -All`.
+
+## Evidence Required
+
+Operation counts and output from scripted Worker conversations; exact-image acceptance; catalog screenshot/interactions; full-gate result. Scripted model replies are local regression evidence, not proof of cloud model quality. Live verification is a separate release gate.
+
+## Decisions and Blockers
+
+- 2 Nov: fresh v6 evidence confirms successful CRM observation followed by two malformed finishes; shared two-error counter exits after only 3/6 model calls. Another captured sequence mixes a malformed finish with duplicate-read rejection. Use existing Work budget/safety/deadline bounds instead of this premature counter.
+- 2 Nov: discovery is display-only. Version grouping is project-qualified and numeric; known reference researcher / researcher-advisor registrations form one family. No registration or image is deleted.
+- Live catalog check: the Advisor series succeeds the legacy Researcher series; its v6 must win over legacy v7 regardless of API order. Numeric comparison applies within each series, not across that known series transition. Independently named diagnostic Agents remain discoverable.
+- 2 Nov: known Windows full-suite baseline includes TestOwnerBootstrapDeliveryGuards; report its current result explicitly. Independent review remains a PR gate; no new administrator-merge authorization exists.
+- Latest owner steering: defer Chinese Advisor planning; use English for the demo. No Advisor, model or authorization change belongs to this follow-up.
