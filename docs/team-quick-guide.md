@@ -38,31 +38,36 @@ Model configuration changes are not part of the existing image-only upgrade comm
 
 ## 2. Install and use the Agenova CLI
 
-See [platform installation instructions](cli-installation.md) for macOS, Linux, WSL2 and Windows.
+Current upstream CLI preview: **`0.1.0-preview.20261102.1`**. See
+[installation and upgrade instructions](cli-installation.md) for Windows,
+Linux, macOS source builds, WSL2 and checksums.
 
 The same `agenova` commands work on macOS and Windows; only installation differs.
 
-### macOS (Homebrew)
+### macOS
 
-With [Homebrew](https://brew.sh/) installed:
-
-```bash
-brew install Leo1piece/agenova/agenova
-agenova --version
-```
+The separately maintained Homebrew tap still contains an older preview;
+`brew upgrade` does not install the current upstream release. Follow the
+[pinned source-build instructions](cli-installation.md#macos-current-version-from-source)
+for the current version. This release has not had native macOS acceptance.
 
 ### Windows (PowerShell)
 
-Download [install-windows.ps1](https://github.com/Leo1piece/homebrew-agenova/releases/download/v0.1.0-preview.20261013.1/install-windows.ps1), review it, then run from your Downloads directory:
+Download [install-windows.ps1](https://github.com/wunderforge/agenova/releases/download/v0.1.0-preview.20261102.1/install-windows.ps1), review it, then run from your Downloads directory:
 
 ```powershell
 .\install-windows.ps1
 agenova --version
 ```
 
+Expected version: `agenova 0.1.0-preview.20261102.1`. For an existing custom
+installation, follow the [in-place upgrade steps](cli-installation.md#upgrade-an-existing-installation)
+so the old executable does not remain first on PATH.
+
 No WSL, Homebrew or administrator shell is needed. If your execution policy blocks
 scripts, use the verified ZIP method in the installation guide instead. Windows
-interactive login still needs a real Windows acceptance check.
+CLI and installer regression checks passed; live login still needs a running
+service and your approved account.
 
 ### All platforms: login and run
 
@@ -71,9 +76,10 @@ agenova login --server https://app.agenova.app
 ```
 
 Complete Google login in the browser using your approved account. The CLI
-remembers the server after successful login. The public tap currently distributes
-a preview release. See the installation guide for platform prerequisites and
-verification limits.
+remembers the server after successful login. Packages are unsigned previews.
+Installation and version checks work offline; login and remote Work require the
+team service to be running. See the installation guide for prerequisites and
+platform verification limits.
 
 ```bash
 agenova work list
