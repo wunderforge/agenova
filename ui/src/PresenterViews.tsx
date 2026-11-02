@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from 'react';
 import { connectedSource, validPolicyRule, workTitle, workStatus, type Setup, type View, type PolicyRule } from './connected-source';
+import {agentPickerNames,latestAgentNames} from './agent-versions';
 
 export function ConfigurationContext({ setup }: { setup: Setup }) {
+ const names=setup.templates||[];const latest=latestAgentNames(names);const choices=agentPickerNames(names,setup.template?.metadata.name);
  const navigate = (project: string, template?: string) => { const url = new URL(window.location.href); url.searchParams.set('project',project); template ? url.searchParams.set('template',template) : url.searchParams.delete('template'); window.location.assign(url.href); };
  return <div className="portal-context"><span>{setup.organization?.displayName || setup.principal.team}</span><label>Configuration project<select value={setup.project || setup.projects?.[0] || ''} onChange={e => navigate(e.target.value)}>{(setup.projects || [...new Set(setup.policy.Rules.map(rule => rule.project))]).map(project => <option key={project}>{project}</option>)}</select></label>
-  {setup.templates && setup.templates.length > 0 && <label>Registered agent<select value={setup.template?.metadata.name || ''} onChange={e => navigate(setup.project || '',e.target.value)}>{setup.templates.map(name => <option key={name}>{name}</option>)}</select></label>}<small>Configuration visibility is not permission to run.</small></div>;
+  {setup.templates && setup.templates.length > 0 && <label>Registered agent<select value={setup.template?.metadata.name || ''} onChange={e => navigate(setup.project || '',e.target.value)}>{choices.map(name => <option key={name} value={name}>{name}{latest.includes(name)?'':' · previous version'}</option>)}</select></label>}<small>Configuration visibility is not permission to run.</small></div>;
 }
 
 export function AgentCatalog({ setup }: { setup: Setup }) {

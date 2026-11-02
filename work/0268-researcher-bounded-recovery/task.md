@@ -1,8 +1,8 @@
 # Task: Recover malformed Researcher actions within Work budgets
 
 - Ticket: [#268](https://github.com/wunderforge/agenova/issues/268)
-- Mission: recover invalid reference-Agent actions without premature exit, and default the Agent directory to the latest registered version per project/family.
-- Target: reference Researcher loop, exact-image harness, Agent directory.
+- Mission: recover invalid reference-Agent actions without premature exit, and default Agent discovery/selection to the latest registered version per project/family.
+- Target: reference Researcher loop, exact-image harness, Agent directory and selectors.
 - User value: transient formatting mistakes no longer end a demo with unused call budget; old registrations no longer overwhelm discovery.
 - PRD outcome: [Researcher repair and discovery](../../docs/product/prd.md).
 
@@ -14,6 +14,7 @@
 - `internal/workerprotocol/feedback.go`, `exchange.go`, `research.go`.
 - `harness/demo/research-mcp/build-worker.py`.
 - `ui/src/ProductPages.tsx`, `connected-source.ts`.
+- `ui/src/WorkSubmission.tsx`, `PresenterViews.tsx` for matching selection behavior.
 
 ## Scope
 
@@ -24,6 +25,7 @@ In scope:
 - Distinguish final exhaustion from an announced retry that never occurs.
 - Default catalog to latest numeric version per project/family, with an older-versions control. Preserve exact registration identity and server-filtered visibility.
 - User confirmed directory cleanup only; retain ECR images, rollback artifacts, registrations and historical Work.
+- Follow-up: apply the same latest-version convention to New Work and configuration selectors. Preserve an explicitly selected historical registration with a previous-version label; never silently substitute a different image or copy old authority into a new version.
 
 Out of scope: model IAM/provider changes, authority or protocol relaxation, infrastructure changes, marketplace, native Codex/Claude integration, automatic merge/deployment.
 
@@ -36,6 +38,7 @@ Out of scope: model IAM/provider changes, authority or protocol relaxation, infr
 - Provider/transport denial stops immediately; a feedback recording failure does not launch another model call.
 - Happy path remains one model call for ordinary knowledge or two for a single successful read.
 - Directory keeps separate projects/families, sorts v10 after v9, retains unrelated unversioned Agents and exposes all registrations on request. Viewing/running remain independently authorized.
+- New Work offers only the latest version per family by default. Copying a historical Work keeps its exact selected version visibly labeled; selecting a newer registration still reloads the server snapshot and clears prior permissions.
 - Rendered UI proof and exact-image subprocess acceptance cover the changed paths.
 
 ## Negative Case
@@ -48,7 +51,7 @@ Malformed JSON cannot execute a tool or produce a result. Repair cannot expand a
 - [x] Self-review scope, acceptance, negative cases and stable authority boundaries.
 - [x] Implement bounded repair and regression cases.
 - [x] Implement latest-version directory and rendered acceptance.
-- [ ] Exercise the actual Worker image with synthetic governed responses.
+- [x] Exercise the actual Worker image with synthetic governed responses in credential-free Linux CI (run 41427196532).
 - [x] Run focused gates and `./scripts/check.ps1 -All`; record the existing Windows invitation-delivery failure.
 - [x] Review diff, record exact residual failures, commit and push feature branch.
 
@@ -69,3 +72,4 @@ Operation counts and output from scripted Worker conversations; exact-image acce
 - 2 Nov: discovery is display-only. Version grouping is project-qualified and numeric; known reference researcher / researcher-advisor registrations form one family. No registration or image is deleted.
 - Live catalog check: the Advisor series succeeds the legacy Researcher series; its v6 must win over legacy v7 regardless of API order. Numeric comparison applies within each series, not across that known series transition. Independently named diagnostic Agents remain discoverable.
 - 2 Nov: known Windows full-suite baseline includes TestOwnerBootstrapDeliveryGuards; report its current result explicitly. Independent review remains a PR gate; no new administrator-merge authorization exists.
+- Latest owner steering: defer Chinese Advisor planning; use English for the demo. No Advisor, model or authorization change belongs to this follow-up.

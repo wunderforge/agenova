@@ -1,7 +1,7 @@
 // Copyright 2026 Agenova contributors.
 // SPDX-License-Identifier: Apache-2.0
 import {expect,it} from 'vitest';
-import {latestAgentVersions} from './agent-versions';
+import {agentPickerNames,latestAgentVersions} from './agent-versions';
 import type {AgentEntry} from './connected-source';
 
 export function registration(name:string,project='research',canSubmit=true):AgentEntry {
@@ -30,4 +30,11 @@ it('does not mistake a higher legacy suffix for a newer reference release series
   // Visibility is server-owned: never invent an Advisor registration in a
   // project where only the older reference series is actually visible.
   expect(latestAgentVersions([registration('researcher-v7')])[0].template.metadata.name).toBe('researcher-v7');
+});
+
+it('uses the same latest names in pickers and retains only an explicitly selected historical identity',()=>{
+  const names=['engineer','researcher-advisor-v4','researcher-advisor-v5','researcher-advisor-v6','researcher-v2','researcher-v7'];
+  expect(agentPickerNames(names,'researcher-advisor-v6')).toEqual(['engineer','researcher-advisor-v6']);
+  expect(agentPickerNames(names,'researcher-advisor-v4')).toEqual(['engineer','researcher-advisor-v6','researcher-advisor-v4']);
+  expect(agentPickerNames(names)).toEqual(['engineer','researcher-advisor-v6']);
 });

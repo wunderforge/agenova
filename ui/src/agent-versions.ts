@@ -13,15 +13,30 @@ function version(name: string): {family: string; number: bigint; advisor: boolea
   return {family: match?.[1] || name, number: BigInt(match?.[2] || '0'), advisor: false};
 }
 
-export function latestAgentVersions(entries: AgentEntry[]): AgentEntry[] {
-  const latest = new Map<string, AgentEntry>();
+function latestPerFamily<T>(entries: T[], name: (entry:T)=>string, project: (entry:T)=>string): T[] {
+  const latest = new Map<string, T>();
   for (const entry of entries) {
-    const candidate = version(entry.template.metadata.name);
-    const key = JSON.stringify([entry.project, candidate.family]);
+    const candidate = version(name(entry));
+    const key = JSON.stringify([project(entry), candidate.family]);
     const previous = latest.get(key);
-    const current = previous && version(previous.template.metadata.name);
+    const current = previous === undefined ? undefined : version(name(previous));
     if (!current || candidate.advisor && !current.advisor || candidate.advisor === current.advisor && candidate.number > current.number) latest.set(key, entry);
   }
   const chosen = new Set(latest.values());
   return entries.filter(entry => chosen.has(entry));
+}
+
+export function latestAgentVersions(entries: AgentEntry[]): AgentEntry[] {
+  return latestPerFamily(entries, entry=>entry.template.metadata.name, entry=>entry.project);
+}
+
+export function latestAgentNames(names: string[]): string[] {
+  return latestPerFamily(names, name=>name, ()=>'');
+}
+
+// Keep an explicitly selected old registration visible rather than displaying
+// the new one while silently submitting the original immutable identity.
+export function agentPickerNames(names: string[], selected?: string): string[] {
+  const latest = latestAgentNames(names);
+  return selected && !latest.includes(selected) ? [...latest, selected] : latest;
 }
