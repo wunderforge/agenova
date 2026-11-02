@@ -1,0 +1,108 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "v1",
+            "count": 2,
+            "eventTime": null,
+            "firstTimestamp": "2026-10-26T11:04:49Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{control-plane}",
+                "kind": "Pod",
+                "name": "agenova-control-plane-777ddf44-r5xpg",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77004",
+                "uid": "93dac99f-205c-48d0-af8b-895b2e3d2461"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-10-26T11:05:06Z",
+            "message": "Failed to pull image \"docker.io/library/agenova-control-plane@sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc\": failed to pull and unpack image \"docker.io/library/agenova-control-plane@sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc\": failed to resolve reference \"docker.io/library/agenova-control-plane@sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc\": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed",
+            "metadata": {
+                "creationTimestamp": "2026-10-26T11:04:49Z",
+                "name": "agenova-control-plane-777ddf44-r5xpg.18e20f8aa3edac46",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77080",
+                "uid": "363b957a-2e59-4264-b66b-e17cf103a484"
+            },
+            "reason": "Failed",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "agenova-e15-strict-20261022-control-plane",
+            "source": {
+                "component": "kubelet",
+                "host": "agenova-e15-strict-20261022-control-plane"
+            },
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 2,
+            "eventTime": null,
+            "firstTimestamp": "2026-10-26T11:04:49Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{control-plane}",
+                "kind": "Pod",
+                "name": "agenova-control-plane-777ddf44-r5xpg",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77004",
+                "uid": "93dac99f-205c-48d0-af8b-895b2e3d2461"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-10-26T11:05:06Z",
+            "message": "Error: ErrImagePull",
+            "metadata": {
+                "creationTimestamp": "2026-10-26T11:04:49Z",
+                "name": "agenova-control-plane-777ddf44-r5xpg.18e20f8aa3f0d120",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77081",
+                "uid": "5dc114f3-fd0b-4913-95f2-801b3b845aff"
+            },
+            "reason": "Failed",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "agenova-e15-strict-20261022-control-plane",
+            "source": {
+                "component": "kubelet",
+                "host": "agenova-e15-strict-20261022-control-plane"
+            },
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-10-26T11:04:50Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{control-plane}",
+                "kind": "Pod",
+                "name": "agenova-control-plane-777ddf44-r5xpg",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77004",
+                "uid": "93dac99f-205c-48d0-af8b-895b2e3d2461"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-10-26T11:04:50Z",
+            "message": "Error: ImagePullBackOff",
+            "metadata": {
+                "creationTimestamp": "2026-10-26T11:04:50Z",
+                "name": "agenova-control-plane-777ddf44-r5xpg.18e20f8abe64994c",
+                "namespace": "agenova-e15-ready-20261022",
+                "resourceVersion": "77037",
+                "uid": "b629c73b-ec4b-4919-ba03-863add7a3238"
+            },
+            "reason": "Failed",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "agenova-e15-strict-20261022-control-plane",
+            "source": {
+                "component": "kubelet",
+                "host": "agenova-e15-strict-20261022-control-plane"
+            },
+            "type": "Warning"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

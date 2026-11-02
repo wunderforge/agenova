@@ -1,0 +1,9 @@
+import json,subprocess,secrets,base64
+from pathlib import Path
+p=Path('.tmp/e15-readiness-20261022'); k=['kubectl','--kubeconfig',str(p/'kubeconfig'),'--context','kind-agenova-e15-strict-20261022']
+def apply(o):subprocess.run(k+['apply','-f','-'],input=json.dumps(o),text=True,check=True,stdout=subprocess.DEVNULL)
+for ns,selector in [('agenova-e15-ready-20261022',{'matchLabels':{'app.kubernetes.io/name':'agenova-control-plane'}}),('agenova-e16',{})]:
+ apply({'apiVersion':'v1','kind':'Namespace','metadata':{'name':ns}})
+ apply({'apiVersion':'networking.k8s.io/v1','kind':'NetworkPolicy','metadata':{'name':'test-service-connectivity','namespace':ns},'spec':{'podSelector':selector,'policyTypes':['Ingress','Egress'],'ingress':[{}],'egress':[{}]}})
+apply({'apiVersion':'v1','kind':'Secret','metadata':{'name':'e16-mcp-token','namespace':'agenova-e16'},'type':'Opaque','data':{'token':base64.b64encode(secrets.token_bytes(32).hex().encode()).decode()}})
+print('Created only test namespaces, service-specific connectivity and synthetic fixture credential; value not retained')

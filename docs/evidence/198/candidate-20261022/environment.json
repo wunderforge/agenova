@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-22",
+  "sourceHead": "84fe4cfeb39504268df2765891715be3745dc004",
+  "productMain": "58d951cd8c0bb293fe820263894e490027ce1c2c",
+  "productPathsMatchMain": [
+    "api",
+    "internal",
+    "cmd",
+    "deploy",
+    "ui"
+  ],
+  "cluster": "agenova-e15-strict-20261022",
+  "kubernetes": "v1.37.0",
+  "architecture": "arm64",
+  "cilium": "1.20.3",
+  "policyEnforcementMode": "always",
+  "agentSandbox": "v0.4.6",
+  "model": "llama3.1:latest",
+  "provider": "local Ollama",
+  "fixture": "official MCP SDK synthetic read_file, credential-free /mcp",
+  "scope": "candidate reference mode; not final Demo acceptance, EKS, identity-provider or hostile-agent certification",
+  "rawArchives": "raw/",
+  "excluded": [
+    "kubeconfig",
+    "local CLI state",
+    "credential values",
+    "downloaded tools",
+    "container binaries"
+  ]
+}

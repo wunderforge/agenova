@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-198-tool"
+  },
+  "spec": {
+    "templateRef": "engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=tool"
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "git.read"
+      ],
+      "resourceScopes": [
+        "repo:acme/payments"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

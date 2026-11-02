@@ -1,0 +1,58 @@
+[
+  {
+    "scenario": "tool-only",
+    "origin": "resolution: no requested tool survives template intersection; contrast with mixed-tool narrowing",
+    "startedUTC": "2026-10-21T23:30:02.641980+00:00",
+    "requestRef": "e15-g3-tool-only-20261022",
+    "runExit": 1,
+    "showExit": 1,
+    "phase": null,
+    "principal": null,
+    "policyRef": null,
+    "requestedAccess": {
+      "tools": [
+        "repo.write"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": null,
+    "outcome": null,
+    "diagnosis": null,
+    "delta": {
+      "model": 0,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 89,
+      "mcp": 14
+    },
+    "countsAfter": {
+      "model": 89,
+      "mcp": 14
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 0,
+        "MODIFIED": 0,
+        "DELETED": 0,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 0,
+        "MODIFIED": 0,
+        "DELETED": 0,
+        "ERROR": 0
+      }
+    },
+    "decisions": [],
+    "providerAttempts": {
+      "model.invoke": 0,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  }
+]

@@ -218,3 +218,7 @@ Following the maintainer's calibration on [#52](https://github.com/wunderforge/a
 None blocks merging this spec.
 
 - Whether the caller-side negatives (SR-5, SR-7, ES-2, ES-4, RI-1, TM-5) become one E15-ID ticket after #172, or join E14 tickets.
+
+## Additional evidence routing — 22 October 2026
+
+The [#198 candidate packet](../../docs/evidence/198/candidate-20261022/summary.md) routes SR-3 (pre-allocation refusal), SR-4 / AC-1 / AC-2 (requested/effective scope and Policy-cap qualification), AC-4 (terminal access), FL-1 (B fact integrity) and ES-1 (CLI evidence). This is a dated evidence index, not a mutable replacement for the matrix's original baseline or GitHub ticket state. Installed observations, component-only replay and untriggered real-model attacks remain distinct. Concurrent Running-claim / cross-claim-ID acceptance and external identity negatives are not supplied by this candidate packet.

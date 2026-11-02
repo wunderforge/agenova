@@ -1,0 +1,14 @@
+import subprocess,json
+from pathlib import Path
+p=Path('.tmp/e15-readiness-20261022'); k=['kubectl','--kubeconfig',str(p/'kubeconfig'),'--context','kind-agenova-e15-strict-20261022']
+def apply(o): subprocess.run(k+['apply','-f','-'],input=json.dumps(o),text=True,check=True)
+for ns in ['e15-probe-target','e15-probe-workers']: apply({'apiVersion':'v1','kind':'Namespace','metadata':{'name':ns}})
+for ns,selector in [('e15-probe-target',{}),('e15-probe-workers',{'matchLabels':{'role':'positive'}})]:
+ apply({'apiVersion':'networking.k8s.io/v1','kind':'NetworkPolicy','metadata':{'name':'positive-only','namespace':ns},'spec':{'podSelector':selector,'policyTypes':['Ingress','Egress'],'ingress':[{}],'egress':[{}]}})
+def pod(name,ns,args,env,labels={}):
+ return {'apiVersion':'v1','kind':'Pod','metadata':{'name':name,'namespace':ns,'labels':labels},'spec':{'automountServiceAccountToken':False,'restartPolicy':'Never','containers':[{'name':'probe','image':'agenova-e15-cni-probe:20261022','imagePullPolicy':'Never','args':args,'env':[{'name':n,'value':v} for n,v in env.items()]}]}}
+apply(pod('target','e15-probe-target',['server'],{}))
+subprocess.run(k+['wait','--for=condition=Ready','pod/target','-n','e15-probe-target','--timeout=50s'],check=True)
+ip=subprocess.check_output(k+['get','pod','target','-n','e15-probe-target','-o','jsonpath={.status.podIP}'],text=True)
+for name,label in [('positive',{'role':'positive'}),('startup-denied',{})]: apply(pod(name,'e15-probe-workers',[],{'TARGET':'http://'+ip+':8080','PROBE_ID':name},label))
+(p/'target-ip.txt').write_text(ip+'\n')

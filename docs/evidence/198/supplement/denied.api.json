@@ -1,0 +1,101 @@
+{
+  "version": "agenova.evidence/v0",
+  "requestRef": "e15-198-supplement-denied-1792382992227273000",
+  "request": {
+    "apiVersion": "agenova.io/v1alpha1",
+    "kind": "ClaimRequest",
+    "metadata": {
+      "name": "e15-198-supplement-denied-1792382992227273000"
+    },
+    "spec": {
+      "templateRef": "engineer",
+      "projectRef": "billing",
+      "task": {
+        "type": "investigation",
+        "input": {
+          "objective": "e15-scenario=control"
+        }
+      },
+      "requestedAccess": {
+        "modelProfile": "coding-standard"
+      },
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    }
+  },
+  "state": {
+    "requestRef": "e15-198-supplement-denied-1792382992227273000",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "action": {
+      "name": "claim.create",
+      "project": "billing",
+      "templateRef": "engineer"
+    },
+    "policyRef": {
+      "id": "reference-default-deny",
+      "version": "1"
+    },
+    "decision": {
+      "id": "decision:e15-198-supplement-denied-1792382992227273000:authorization:eeb8ca19fb153499f1f70ae074656ba3",
+      "principalRef": "user:team-a-engineer",
+      "action": "claim.create",
+      "result": "Deny",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      },
+      "reason": "no exact policy rule matched the trusted principal and requested assignment"
+    },
+    "evidence": {
+      "requestRef": "e15-198-supplement-denied-1792382992227273000",
+      "decisionIds": [
+        "decision:e15-198-supplement-denied-1792382992227273000:authorization:eeb8ca19fb153499f1f70ae074656ba3"
+      ],
+      "runtimeEvents": [],
+      "toolInvocations": [],
+      "modelInvocations": []
+    }
+  },
+  "facts": [
+    {
+      "id": "fact:7",
+      "sequence": 7,
+      "timestamp": "2026-10-19T04:09:52.403974888Z",
+      "kind": "RequestReceived",
+      "requestRef": "e15-198-supplement-denied-1792382992227273000"
+    },
+    {
+      "id": "fact:8",
+      "sequence": 8,
+      "timestamp": "2026-10-19T04:09:52.403988722Z",
+      "kind": "RequestResolution",
+      "requestRef": "e15-198-supplement-denied-1792382992227273000",
+      "decision": {
+        "id": "decision:e15-198-supplement-denied-1792382992227273000:authorization:eeb8ca19fb153499f1f70ae074656ba3",
+        "principalRef": "user:team-a-engineer",
+        "action": "claim.create",
+        "result": "Deny",
+        "policyRef": {
+          "id": "reference-default-deny",
+          "version": "1"
+        },
+        "reason": "no exact policy rule matched the trusted principal and requested assignment"
+      },
+      "result": "Deny",
+      "reasonCode": "assignment-deny",
+      "policyRef": {
+        "id": "reference-default-deny",
+        "version": "1"
+      }
+    }
+  ],
+  "outcome": {
+    "status": "Deny"
+  }
+}

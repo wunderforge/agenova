@@ -1,0 +1,9 @@
+Current-source local rehearsal uses the maintained harness/security/run-demo-groups.py.
+Build deploy/reference/Dockerfile and harness/security/scriptedworker/Dockerfile from 6571f9c.
+Load/tag immutable digests in the explicitly owned kind node. Apply the saved public
+platform/template/policy configuration with an explicitly selected kubeconfig and private state.
+Re-verify CNI using same-path allow/deny probes before --verified-strict-cni.
+Run groups sequentially with fresh prefixes, independent Ollama log and MCP receipts.
+The historical reproduction guide remains the substrate/ownership procedure; do not use
+historical image references or reuse existing prefixes. CLI state, kubeconfig and ownership
+receipt remain private. This campaign used no production endpoint or cloud mutation.

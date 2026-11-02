@@ -1,0 +1,98 @@
+# Test-only #198 round-2 Platform. Disposable namespaces; never the reference install.
+apiVersion: agenova.io/v1alpha1
+kind: Platform
+metadata:
+  name: e15-198-r2
+spec:
+  adapters:
+    - name: kubernetes-deployment
+      id: agenova.io/deployment/kubernetes
+      version: 0.1.0
+    - name: agent-sandbox-runtime
+      id: agenova.io/runtime/agent-sandbox
+      version: 0.1.0
+    - name: openai-compatible-backend
+      id: agenova.io/model/openai-compatible
+      version: 0.1.0
+    - name: mcp-http-tool
+      id: agenova.io/tool/mcp-http
+      version: 0.1.0
+  infrastructure:
+    deployment:
+      name: control-plane
+      adapterRef: kubernetes-deployment
+      config:
+        context: kind-agenova-k8s-lab
+        namespace: agenova-e15-198-r2
+        control-plane-image: docker.io/library/agenova-control-plane@sha256:fb4e522e6e0399cea4b44b65500955372eb7dfb39112f2f30eac415cfe237e39
+        image-pull-policy: IfNotPresent
+    runtimeBackends:
+      - name: primary-runtime
+        adapterRef: agent-sandbox-runtime
+        config:
+          connection:
+            mode: in-cluster
+            namespace: agenova-e15-198-r2
+    runtimeProfiles:
+      - name: standard-isolated
+        backendRef: primary-runtime
+        config:
+          isolation: dedicated
+  services:
+    modelBackends:
+      - name: local-ollama
+        adapterRef: openai-compatible-backend
+        config:
+          endpoint: http://host.docker.internal:11434/v1
+    modelProfiles:
+      - name: coding-standard
+        backendRef: local-ollama
+        config:
+          model: llama3.1:latest
+    toolBackends:
+      - name: e15-mcp
+        adapterRef: mcp-http-tool
+        config:
+          transport: streamable-http
+          protocol-version: "2025-06-18"
+          endpoint: http://e16-mcp.agenova-e16.svc.cluster.local:8080/mcp
+          timeout: 5s
+          max-request-bytes: "8192"
+          max-response-bytes: "65536"
+          max-observation-bytes: "4096"
+          max-concurrent-calls: "4"
+    toolProfiles:
+      - name: e15-work-a
+        backendRef: e15-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:e15/work-a
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            README.md
+            src/retry.txt
+      - name: e15-work-b
+        backendRef: e15-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:e15/work-b
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            logs/timeout.log
+      - name: e15-work-c
+        backendRef: e15-mcp
+        config:
+          logical-operation: repo.read
+          resource-scope: repo:e15/work-c
+          mcp-tool: read_file
+          parameter-name: file
+          parameter-max-bytes: "128"
+          parameter-allowed-values: |-
+            notes/incident-timeline.md
+  initialPolicyRef:
+    id: reference-default-deny
+    version: "1"

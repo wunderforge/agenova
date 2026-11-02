@@ -1,0 +1,37 @@
+import subprocess,json,os,time,hashlib,datetime
+from pathlib import Path
+p=Path('.tmp/e15-readiness-20261022').resolve();out=p/'group3-tool-only';out.mkdir(exist_ok=False)
+k=['kubectl','--kubeconfig',str(p/'kubeconfig'),'--context','kind-agenova-e15-strict-20261022'];env=dict(os.environ,KUBECONFIG=str(p/'kubeconfig'));cli=[str(p/'agenova'),'--state-dir',str(p/'state')]
+def runcli(args,name,timeout=230):
+ r=subprocess.run(cli+args,env=env,text=True,capture_output=True,timeout=timeout);(out/(name+'.json')).write_text(r.stdout);(out/(name+'.stderr')).write_text(r.stderr);return r
+# Restore known immutable Policy before tests, independent of previous commands.
+r=runcli(['policy','apply','-f',str(p/'policy.yaml'),'--json'],'baseline-policy')
+if r.returncode:raise SystemExit('Cannot activate baseline policy')
+def modelcount():return sum('[GIN]' in l and '/v1/chat/completions' in l for l in (Path.home()/'.ollama/logs/server.log').read_text().splitlines())
+def mcplog():return subprocess.check_output(k+['-n','agenova-e16','logs','deploy/e16-mcp'],text=True)
+def req(scene,obj):return {'apiVersion':'agenova.io/v1alpha1','kind':'ClaimRequest','metadata':{'name':'e15-g1-'+scene+'-20261022'},'spec':{'templateRef':'e15-engineer','projectRef':'payments','task':{'type':'investigation','input':{'objective':obj}},'requestedAccess':{'tools':['repo.read'],'resourceScopes':['repo:e15/work-b' if scene=='b' else 'repo:e15/work-a'],'modelProfile':'coding-standard'},'runtime':{'profileRef':'standard-isolated','timeout':'3m'}}}
+rows=[]
+def submit(scene,body,origin):
+ watches=[]
+ for resource,base in [('pods','/api/v1'),('sandboxclaims','/apis/extensions.agents.x-k8s.io/v1alpha1')]:
+  url=base+'/namespaces/agenova-e15-ready-20261022/'+resource;snap=json.loads(subprocess.check_output(k+['get','--raw',url]));rv=snap['metadata']['resourceVersion'];(out/(scene+'.'+resource+'.before.json')).write_text(json.dumps(snap))
+  f=(out/(scene+'.'+resource+'.watch.jsonstream')).open('w');ef=(out/(scene+'.'+resource+'.watch.stderr')).open('w');proc=subprocess.Popen(k+['get','--raw',url+'?watch=true&resourceVersion='+rv+'&timeoutSeconds=300'],stdout=f,stderr=ef);watches.append((resource,proc,f,ef))
+ time.sleep(1);before={'model':modelcount(),'mcp':mcplog().count('"event":"tool"')};path=out/(scene+'.request.json');path.write_text(json.dumps(body,indent=2)+'\n');start=datetime.datetime.now(datetime.timezone.utc).isoformat()
+ try:
+  r=runcli(['run','-f',str(path),'--json'],scene+'.run');time.sleep(2);after={'model':modelcount(),'mcp':mcplog().count('"event":"tool"')}
+ finally:
+  for _,proc,f,ef in watches:
+   if proc.poll() is not None:raise RuntimeError('Watch exited before end of observation')
+   proc.terminate();proc.wait();f.close();ef.close()
+ show=runcli(['work','show',body['metadata']['name'],'--json'],scene+'.show');view=json.loads(show.stdout) if show.returncode==0 and show.stdout.strip() else {};state=view.get('state',{});facts=view.get('facts',[]);events={}
+ for resource,_,_,_ in watches:
+  es=[json.loads(l) for l in (out/(scene+'.'+resource+'.watch.jsonstream')).read_text().splitlines() if l.strip()];events[resource]={t:sum(e.get('type')==t for e in es) for t in ['ADDED','MODIFIED','DELETED','ERROR']}
+ receiptlog=mcplog();(out/(scene+'.mcp.log')).write_text(receiptlog);tools=[json.loads(l) for l in receiptlog.splitlines() if json.loads(l).get('event')=='tool'];newtools=tools[before['mcp']:after['mcp']];ids=[f.get('invocationId') for f in facts if f.get('kind')=='ToolDecision' and f.get('result')=='Allow']
+ row={'scenario':scene,'origin':origin,'startedUTC':start,'requestRef':body['metadata']['name'],'runExit':r.returncode,'showExit':show.returncode,'phase':state.get('claim',{}).get('phase'),'principal':state.get('principal'),'policyRef':state.get('policyRef'),'requestedAccess':body['spec']['requestedAccess'],'effectiveAuthority':state.get('effectiveAuthority'),'outcome':view.get('outcome'),'diagnosis':view.get('diagnosis'),'delta':{n:after[n]-before[n] for n in before},'countsBefore':before,'countsAfter':after,'watchEvents':events,'decisions':[{key:f.get(key) for key in ['kind','result','reasonCode','policyRef','claimId','invocationId','target']} for f in facts if f.get('kind') in ['ModelDecision','ToolDecision']],'providerAttempts':{op:sum(f.get('kind')=='ProviderAttempt' and f.get('operation')==op for f in facts) for op in ['model.invoke','tool.invoke']},'mcpToolReceipts':newtools,'receiptIDsMatch':sorted(ids)==sorted(x.get('correlation') for x in newtools)}
+ rows.append(row);(out/'summary.json').write_text(json.dumps(rows,indent=2)+'\n');print(json.dumps({key:row[key] for key in ['scenario','origin','phase','delta','providerAttempts','receiptIDsMatch','diagnosis']}),flush=True)
+ if any(v['ERROR'] for v in events.values()):raise RuntimeError('Watch error')
+ if row['delta']['model']!=row['providerAttempts']['model.invoke'] or row['delta']['mcp']!=row['providerAttempts']['tool.invoke'] or not row['receiptIDsMatch']:raise RuntimeError('Independent oracle mismatch')
+ return row,view
+
+b=req('tool-only','e15-scenario=control');b['metadata']['name']='e15-g3-tool-only-20261022';b['spec']['requestedAccess']['tools']=['repo.write']
+submit('tool-only',b,'resolution: no requested tool survives template intersection; contrast with mixed-tool narrowing')

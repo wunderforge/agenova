@@ -1,0 +1,18 @@
+{
+  "exit": 1,
+  "unsupportedField": "constraints",
+  "activePolicyUnchanged": true,
+  "activePolicy": {
+    "ID": "reference-default-deny",
+    "Version": "1",
+    "Rules": [
+      {
+        "team": "team-a",
+        "action": "claim.create",
+        "project": "payments",
+        "templateRef": "engineer"
+      }
+    ]
+  },
+  "interpretation": "Policy constraint schema not implemented; template narrowing observed separately"
+}

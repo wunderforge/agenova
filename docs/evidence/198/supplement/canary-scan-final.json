@@ -1,0 +1,59 @@
+{
+  "markerKind": "synthetic canary",
+  "resources": {
+    "deployments": {
+      "objects": 1,
+      "matchingObjectNames": []
+    },
+    "configmaps": {
+      "objects": 5,
+      "matchingObjectNames": []
+    },
+    "pods": {
+      "objects": 2,
+      "matchingObjectNames": []
+    },
+    "sandboxclaims": {
+      "objects": 0,
+      "matchingObjectNames": []
+    },
+    "sandboxes": {
+      "objects": 1,
+      "matchingObjectNames": []
+    },
+    "sandboxtemplates": {
+      "objects": 1,
+      "matchingObjectNames": []
+    },
+    "sandboxwarmpools": {
+      "objects": 1,
+      "matchingObjectNames": []
+    },
+    "serviceaccounts": {
+      "objects": 2,
+      "matchingObjectNames": []
+    }
+  },
+  "logs": {
+    "agenova-control-plane-5b5dd9555-mrql9/control-plane": {
+      "readable": true,
+      "canaryPresent": false
+    },
+    "agenova-pool-pool-engineer-d6rfs/agent": {
+      "readable": true,
+      "canaryPresent": false
+    }
+  },
+  "environment": {
+    "agenova-pool-pool-engineer-d6rfs/agent": {
+      "readable": true,
+      "canaryPresent": false
+    }
+  },
+  "excluded": [
+    "Secret values",
+    "host filesystem",
+    "other namespaces",
+    "Kubernetes audit logs"
+  ]
+}

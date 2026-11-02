@@ -1,0 +1,100 @@
+Skip to content
+A
+Agenova
+Work
+Agents
+Policy
+Platform
+Connected view
+Current server session
+Work
+Demo
+Connected
+Server data
+View identity
+Work
+/ Details
+e15-scenario=control
+Succeeded
+Team
+team-a
+Agent
+engineer
+Requested by
+user:team-a-engineer
+Task instructions
+Work status
+
+Task completed.
+
+✓
+Request
+Received
+✓
+Access
+Resolved
+✓
+Agent
+Started
+✓
+Result
+Completed
+✓
+Cleanup
+Released
+Result
+No specific action or data has been provided to analyze.
+
+Final model call: llama3.1:latest · 102 input / 24 output tokens
+
+Agent activity
+
+Model calls and tool results, grouped by turn.
+
+View records
+
+Turn 2 · No active calls
+
+2 model turns · 0 tool observations
+
+Turn 1
+1 call
+Turn 2
+1 call
+Model request
+coding-standard
+Succeeded
+Access & limits
+Scope, tools and time limit
+Execution details
+Lifecycle, identifiers and policy version
+15:10:00 last update
+Request received
+Request resolution
+
+exact policy rule matched the trusted principal and requested assignment
+
+Access resolved
+
+runtime.timeout capped from 10m0s to 5m0s.
+
+Request received
+Worker assigned
+Environment ready
+Work started
+Work completed
+Work stopped
+Environment released
+Work completed
+Request ID
+e15-198-supplement-control-1792382992227273000
+Claim ID
+claim:e15-198-supplement-control-1792382992227273000:issuance:d3851a6b9a659a5790e082f010d46fdb
+Runtime backend
+agent-sandbox
+Worker ID
+agenova-pool-pool-engineer-zpkk2
+Policy version
+reference-default-deny / 1
+Copy request ID
+Full activity record

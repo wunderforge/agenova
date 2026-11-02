@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-replay-g2-20261022-expired"
+  },
+  "spec": {
+    "templateRef": "e15-engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=after-expiry wait=30s"
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "15s"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"labels\":{\"app.kubernetes.io/managed-by\":\"agenova\",\"app.kubernetes.io/part-of\":\"agenova\"},\"name\":\"agenova-e15-198-a\"}}\n"
+        },
+        "creationTimestamp": "2026-10-18T13:07:37Z",
+        "labels": {
+            "app.kubernetes.io/managed-by": "agenova",
+            "app.kubernetes.io/part-of": "agenova",
+            "kubernetes.io/metadata.name": "agenova-e15-198-a"
+        },
+        "name": "agenova-e15-198-a",
+        "resourceVersion": "89822",
+        "uid": "8f9b9a4a-6163-4054-9402-192ae0a1ca4d"
+    },
+    "spec": {
+        "finalizers": [
+            "kubernetes"
+        ]
+    },
+    "status": {
+        "phase": "Active"
+    }
+}

@@ -1,0 +1,35 @@
+usage: run-demo-groups.py [-h] [--execute] [--verified-strict-cni]
+                          --group {1,2,3} --state-dir STATE_DIR
+                          --output OUTPUT --namespace NAMESPACE
+                          --context CONTEXT --kubeconfig KUBECONFIG --cli CLI
+                          --owner-receipt OWNER_RECEIPT --policy POLICY
+                          --prefix PREFIX --ollama-log OLLAMA_LOG
+                          [--policy-cap POLICY_CAP] [--template TEMPLATE]
+                          [--mcp-namespace MCP_NAMESPACE]
+
+Opt-in E15 candidate probes against an already installed disposable cluster.
+No install/delete, provider stop, credential output or automatic retry. Group
+2 captures terminal quiet windows only; it is not an installed late-token
+replay. See docs/evidence/198/candidate-20261022/reproduction.md for
+prerequisite evidence.
+
+options:
+  -h, --help            show this help message and exit
+  --execute
+  --verified-strict-cni
+                        Operator attestation after independent fresh-Pod
+                        packet probes; never set merely to bypass a check
+  --group {1,2,3}
+  --state-dir STATE_DIR
+  --output OUTPUT
+  --namespace NAMESPACE
+  --context CONTEXT
+  --kubeconfig KUBECONFIG
+  --cli CLI
+  --owner-receipt OWNER_RECEIPT
+  --policy POLICY
+  --prefix PREFIX
+  --ollama-log OLLAMA_LOG
+  --policy-cap POLICY_CAP
+  --template TEMPLATE
+  --mcp-namespace MCP_NAMESPACE

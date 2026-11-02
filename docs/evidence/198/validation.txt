@@ -1,0 +1,21 @@
+2026-10-19 Australia/Melbourne
+PASS go test ./harness/security/... ./internal/workerprotocol ./internal/runtime/agentsandbox ./internal/console ./internal/modelgateway ./internal/toolgateway
+PASS go vet ./harness/security/...
+PASS pwsh -NoProfile -File scripts/check.ps1 -All (exit 0; 52 browser smoke tests passed; full output in check-all.log)
+PASS pwsh -NoProfile -File scripts/check.ps1 -Docs (exit 0)
+PASS Python AST syntax for both campaign scripts
+PASS all nonempty captured JSON parses
+PASS same-install target facts exactly unchanged
+PASS cross-install target facts exactly unchanged
+PASS test namespaces absent; original reference pods healthy and status changes=[]
+No live post-terminal operation, A2 injection, or same-install two-Running-claim proof is implied.
+
+Follow-up feasibility tests (same date):
+PASS go test -race -count=1 -v ./harness/security/boundaryprobe
+  Two available workers: A Running / B Pending until A finishes.
+  Succeeded/Failed/Expired: fresh-context model+tool attempts refused, synthetic provider delta 0, rejection fact delta 0.
+  Executor seam only: profile/scope Gateway Deny has policy+reason, synthetic provider delta 0 after positive control.
+PASS pwsh -NoProfile -File scripts/check.ps1 -All (exit 0; 52 browser smoke tests; check-all-followup.log)
+These are supplementary in-memory tests; no installed-kind/A2 acceptance is waived.
+
+Supplement: live resource watches/canary scan and real CLI/API/UI parity PASS; Policy constraints probe confirms unsupported baseline. Full All gate exit 0, 52 smoke tests; see supplement/validation.txt and supplement/check-all.log.

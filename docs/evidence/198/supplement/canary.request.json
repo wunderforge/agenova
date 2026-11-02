@@ -1,0 +1,27 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-198-supplement-canary-1792382992227273000"
+  },
+  "spec": {
+    "templateRef": "engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=control",
+        "apiKey": "E15_198_SUPPLEMENT_SYNTHETIC_CANARY_NOT_A_SECRET"
+      }
+    },
+    "requestedAccess": {
+      "tools": [],
+      "resourceScopes": [],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

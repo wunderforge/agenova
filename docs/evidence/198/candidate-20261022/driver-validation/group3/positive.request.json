@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-replay-g3-20261022-positive"
+  },
+  "spec": {
+    "templateRef": "e15-engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=reference Read README.md in repo:e15/work-a and summarize it in one sentence."
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

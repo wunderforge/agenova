@@ -1,0 +1,84 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.38kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 1.6s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+#3 resolve docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e done
+#3 CACHED
+
+#4 [internal] load metadata for docker.io/library/golang:1.27.2-alpine
+#4 ...
+
+#5 [internal] load metadata for gcr.io/distroless/static-debian12:nonroot
+#5 DONE 1.1s
+
+#4 [internal] load metadata for docker.io/library/golang:1.27.2-alpine
+#4 DONE 1.4s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 188B done
+#6 DONE 0.0s
+
+#7 [build 1/9] FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d
+#7 resolve docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d done
+#7 DONE 0.0s
+
+#8 [stage-1 1/3] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#8 resolve gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab done
+#8 DONE 0.0s
+
+#9 [internal] load build context
+#9 transferring context: 2.61MB 0.0s done
+#9 DONE 0.0s
+
+#10 [build 3/9] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [build 4/9] RUN --mount=type=secret,id=build_ca_bundle     if [ -f /run/secrets/build_ca_bundle ]; then cat /run/secrets/build_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; fi &&     go mod download
+#11 CACHED
+
+#12 [build 2/9] WORKDIR /src
+#12 CACHED
+
+#13 [build 5/9] COPY api ./api
+#13 CACHED
+
+#14 [build 6/9] COPY internal ./internal
+#14 DONE 0.0s
+
+#15 [build 7/9] COPY cmd/agenova-control-plane ./cmd/agenova-control-plane
+#15 DONE 0.0s
+
+#16 [build 8/9] RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/agenova-control-plane ./cmd/agenova-control-plane
+#16 DONE 8.1s
+
+#17 [build 9/9] RUN case "arm64" in       amd64) expected=629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7 ;;       arm64) expected=59f7ee8e477fae658447607dc3c8790ac17a1b016c01c622c12070e969e2d4e7 ;;       *) echo "unsupported kubectl architecture: arm64" >&2; exit 1 ;;     esac &&     wget -q "https://dl.k8s.io/release/v1.36.1/bin/linux/arm64/kubectl" -O /out/kubectl &&     echo "${expected}  /out/kubectl" | sha256sum -c - && chmod +x /out/kubectl
+#17 1.685 /out/kubectl: OK
+#17 DONE 1.8s
+
+#8 [stage-1 1/3] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#8 CACHED
+
+#18 [stage-1 2/3] COPY --from=build /out/agenova-control-plane /agenova-control-plane
+#18 DONE 0.1s
+
+#19 [stage-1 3/3] COPY --from=build /out/kubectl /usr/local/bin/kubectl
+#19 DONE 0.1s
+
+#20 exporting to image
+#20 exporting layers
+#20 exporting layers 2.2s done
+#20 exporting manifest sha256:9032f07c27973a48012fb59acc3f86ecbc10e38a66f01d4f17a890cb87f2d210
+#20 exporting manifest sha256:9032f07c27973a48012fb59acc3f86ecbc10e38a66f01d4f17a890cb87f2d210 0.0s done
+#20 exporting config sha256:d5e55836e96ac5096ad5c20c9494331ee327ebba3853d6b36871615912d6c689 0.0s done
+#20 exporting attestation manifest sha256:6e26af85d05c2412c68d52c32b60b66b82c1645365107f828768325015348c45 0.0s done
+#20 exporting manifest list sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc 0.0s done
+#20 naming to docker.io/library/agenova-control-plane:e15-20261026 done
+#20 unpacking to docker.io/library/agenova-control-plane:e15-20261026
+#20 unpacking to docker.io/library/agenova-control-plane:e15-20261026 0.4s done
+#20 DONE 2.7s

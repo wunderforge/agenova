@@ -1,0 +1,4 @@
+{
+  "agenova-control-plane": "docker.io/library/agenova-control-plane@sha256:33e830c55a7069076558d356ec211ff900c85371f08816e73b0700dbfea7e540",
+  "agenova-e15-scriptedworker": "docker.io/library/agenova-e15-scriptedworker@sha256:a9c53a2bcccfe82b850b35da3ed8d7b00091994068af69dbd5bbafcfdc157cf2"
+}

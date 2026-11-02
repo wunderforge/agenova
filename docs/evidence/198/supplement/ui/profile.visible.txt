@@ -1,0 +1,101 @@
+Skip to content
+A
+Agenova
+Work
+Agents
+Policy
+Platform
+Connected view
+Current server session
+Work
+Demo
+Connected
+Server data
+View identity
+Work
+/ Details
+e15-scenario=profile
+Failed
+Team
+team-a
+Agent
+engineer
+Requested by
+user:team-a-engineer
+Task instructions
+Work status
+
+Execution failed; no more specific failure reason was recorded.
+
+✓
+Request
+Received
+✓
+Access
+Resolved
+×
+Agent
+Failed
+4
+Result
+No record
+✓
+Cleanup
+Released
+Agent activity
+
+Model calls and tool results, grouped by turn.
+
+View records
+
+The model selected a tool-read action. · Work failed · Inspect the recorded failure
+
+1 model turns · 0 tool observations
+
+Turn 1
+1 call
+Model request
+coding-standard
+Succeeded
+Work failed
+
+Execution failed; no more specific failure reason was recorded.
+
+View failure record
+Access & limits
+Scope, tools and time limit
+Execution details
+Lifecycle, identifiers and policy version
+15:10:02 last update
+Request received
+Request resolution
+
+exact policy rule matched the trusted principal and requested assignment
+
+Access resolved
+
+git.write excluded by the template ceiling. runtime.timeout capped from 10m0s to 5m0s.
+
+Request received
+Worker assigned
+Environment ready
+Work started
+Work failedFailed
+Work stopped
+Environment released
+Work failedFailed
+
+Execution failed; no more specific failure reason was recorded.
+
+Request ID
+e15-198-supplement-profile-1792382992227273000
+Claim ID
+claim:e15-198-supplement-profile-1792382992227273000:issuance:9a0ed3fe6ef3b4012eb93339c50dd5d2
+Runtime backend
+agent-sandbox
+Worker ID
+agenova-pool-pool-engineer-8gtpj
+Policy version
+reference-default-deny / 1
+Copy request ID
+Full activity record

@@ -1,0 +1,254 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "agenova.io/platform-revision": "sha256:1432c0135bfad434f19d38756b391c94229b3af75830fd398cd06cf0bce5376f"
+        },
+        "creationTimestamp": "2026-10-26T11:06:02Z",
+        "generateName": "agenova-control-plane-66b7fb7664-",
+        "generation": 1,
+        "labels": {
+          "app.kubernetes.io/managed-by": "agenova",
+          "app.kubernetes.io/name": "agenova-control-plane",
+          "pod-template-hash": "66b7fb7664"
+        },
+        "name": "agenova-control-plane-66b7fb7664-gkx65",
+        "namespace": "agenova-e15-ready-20261026",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "agenova-control-plane-66b7fb7664",
+            "uid": "e621c069-e26a-4427-9ed9-8449fce3a96d"
+          }
+        ],
+        "resourceVersion": "77390",
+        "uid": "e234e55b-d701-4b7e-91d9-00dbd8807654"
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "AGENOVA_PLATFORM_NAME",
+                "value": "e15-ready-20261026"
+              },
+              {
+                "name": "AGENOVA_PLATFORM_REVISION",
+                "value": "sha256:1432c0135bfad434f19d38756b391c94229b3af75830fd398cd06cf0bce5376f"
+              },
+              {
+                "name": "AGENOVA_POLICY_REF",
+                "value": "reference-default-deny@1"
+              }
+            ],
+            "image": "docker.io/library/agenova-control-plane@sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "control-plane",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/readyz",
+                "port": "http",
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 1,
+              "periodSeconds": 2,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/etc/agenova",
+                "name": "platform",
+                "readOnly": true
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "service-token",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "agenova-e15-strict-20261022-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "agenova-control-plane",
+        "serviceAccountName": "agenova-control-plane",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "configMap": {
+              "defaultMode": 420,
+              "name": "agenova-platform"
+            },
+            "name": "platform"
+          },
+          {
+            "name": "service-token",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3600,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-26T11:06:02Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-26T11:06:02Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-26T11:06:03Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-26T11:06:03Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-26T11:06:02Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "containerID": "containerd://6f5ec8f87d27200db82dd42f5f19fb49b88572617901ebdace7fc56c713f8c42",
+            "image": "docker.io/library/agenova-control-plane:e15-20261026",
+            "imageID": "docker.io/library/agenova-control-plane@sha256:34eb49ce7abf4fe587edaa25768cc04011c93e3c6e41e649d2a962bc293487bc",
+            "lastState": {},
+            "name": "control-plane",
+            "ready": true,
+            "resources": {},
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-26T11:06:02Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 65532,
+                "supplementalGroups": [
+                  65532
+                ],
+                "uid": 65532
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/etc/agenova",
+                "name": "platform",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              },
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "service-token",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.18.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.18.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.245.0.236",
+        "podIPs": [
+          {
+            "ip": "10.245.0.236"
+          }
+        ],
+        "qosClass": "BestEffort",
+        "resources": {},
+        "startTime": "2026-10-26T11:06:02Z"
+      }
+    }
+  ],
+  "kind": "List",
+  "metadata": {
+    "resourceVersion": ""
+  }
+}

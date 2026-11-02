@@ -1,0 +1,12 @@
+[
+  {
+    "namespace": "e15-probe-target",
+    "uid": "64aa3ef7-5987-4207-a42b-d51912e1a3b0",
+    "deletionRequested": true
+  },
+  {
+    "namespace": "e15-probe-workers",
+    "uid": "60c299bd-8b0f-4b0e-8c89-66ebbe86a98f",
+    "deletionRequested": true
+  }
+]

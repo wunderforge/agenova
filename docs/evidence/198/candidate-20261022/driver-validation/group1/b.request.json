@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-replay-g1-20261022-b"
+  },
+  "spec": {
+    "templateRef": "e15-engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=reference Read logs/timeout.log in repo:e15/work-b and summarize it in one sentence."
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-b"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

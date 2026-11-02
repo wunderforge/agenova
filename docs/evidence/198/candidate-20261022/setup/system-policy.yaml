@@ -1,0 +1,14 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: e15-test-system-connectivity
+spec:
+  endpointSelector:
+    matchExpressions:
+    - key: k8s:io.kubernetes.pod.namespace
+      operator: In
+      values: [kube-system, local-path-storage, agent-sandbox-system]
+  ingress:
+  - fromEntities: [all]
+  egress:
+  - toEntities: [all]

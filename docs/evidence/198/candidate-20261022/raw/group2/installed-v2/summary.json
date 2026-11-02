@@ -1,0 +1,365 @@
+[
+  {
+    "scenario": "succeeded",
+    "origin": "A2 actual Ollama + bundled reference Worker; installed service",
+    "startedUTC": "2026-10-21T23:24:45.608352+00:00",
+    "requestRef": "e15-g2-succeeded-20261022-v2",
+    "runExit": 0,
+    "showExit": 0,
+    "phase": "Succeeded",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "outcome": {
+      "status": "Succeeded",
+      "text": "The reference dataset for the Agenova E16 MCP fixture describes one incident in a small payment client with a retry loop summary.",
+      "model": {
+        "invocationId": "inv-2cac108759bab1f8830c13939b3d80bb",
+        "model": "llama3.1:latest",
+        "responseId": "chatcmpl-9",
+        "inputTokens": 437,
+        "outputTokens": 56
+      }
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "run-Succeeded"
+    },
+    "delta": {
+      "model": 3,
+      "mcp": 2
+    },
+    "countsBefore": {
+      "model": 78,
+      "mcp": 8
+    },
+    "countsAfter": {
+      "model": 81,
+      "mcp": 10
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+        "invocationId": "inv-eb7db2957bb6803580c4277b70e9cd2b",
+        "target": "coding-standard"
+      },
+      {
+        "kind": "ToolDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+        "invocationId": "inv-2a49ed0c4eecdc03c41973d118f6cd5b",
+        "target": "repo.read"
+      },
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+        "invocationId": "inv-b9bca4f58a27c0116bd4bc2822824552",
+        "target": "coding-standard"
+      },
+      {
+        "kind": "ToolDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+        "invocationId": "inv-ddf2ceb57d416ceb7f753c8cd1ea0090",
+        "target": "repo.read"
+      },
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-succeeded-20261022-v2:issuance:341bf074c696daef3356675fc596504b",
+        "invocationId": "inv-2cac108759bab1f8830c13939b3d80bb",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 3,
+      "tool.invoke": 2
+    },
+    "mcpToolReceipts": [
+      {
+        "time": "2026-10-21T23:24:47.28306622Z",
+        "pod": "e16-mcp-6547c9cb5f-rrtpm",
+        "event": "tool",
+        "path": "/mcp",
+        "tool": "read_file",
+        "file": "README.md",
+        "correlation": "inv-2a49ed0c4eecdc03c41973d118f6cd5b",
+        "outcome": "ok",
+        "bytes": 490
+      },
+      {
+        "time": "2026-10-21T23:24:48.028569137Z",
+        "pod": "e16-mcp-6547c9cb5f-rrtpm",
+        "event": "tool",
+        "path": "/mcp",
+        "tool": "read_file",
+        "file": "src/retry.txt",
+        "correlation": "inv-ddf2ceb57d416ceb7f753c8cd1ea0090",
+        "outcome": "ok",
+        "bytes": 307
+      }
+    ],
+    "receiptIDsMatch": true
+  },
+  {
+    "scenario": "failed",
+    "origin": "A1 scripted Worker, actual Ollama, installed CLI/service/Agent Sandbox",
+    "startedUTC": "2026-10-21T23:25:02.363169+00:00",
+    "requestRef": "e15-g2-failed-20261022-v2",
+    "runExit": 1,
+    "showExit": 0,
+    "phase": "Failed",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-g2-failed-20261022-v2:issuance:f88b444921f506accd9b81b8bf2cedae",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "3m0s"
+      }
+    },
+    "outcome": {
+      "status": "Failed",
+      "failure": "The agent returned a result that did not match its governed model and tool evidence."
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "agent-invalid-final-result"
+    },
+    "delta": {
+      "model": 1,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 81,
+      "mcp": 10
+    },
+    "countsAfter": {
+      "model": 82,
+      "mcp": 10
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-failed-20261022-v2:issuance:f88b444921f506accd9b81b8bf2cedae",
+        "invocationId": "inv-fc267a6698657466601e4e7deaed37a8",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 1,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  },
+  {
+    "scenario": "expired",
+    "origin": "A1 scripted Worker, actual Ollama, installed CLI/service/Agent Sandbox",
+    "startedUTC": "2026-10-21T23:25:17.088480+00:00",
+    "requestRef": "e15-g2-expired-20261022-v2",
+    "runExit": 1,
+    "showExit": 0,
+    "phase": "Expired",
+    "principal": {
+      "subject": "user:team-a-engineer",
+      "team": "team-a",
+      "authenticationContext": "reference:local"
+    },
+    "policyRef": {
+      "id": "e15-198-r2",
+      "version": "2"
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "effectiveAuthority": {
+      "id": "authority:e15-g2-expired-20261022-v2:issuance:d6f61308f3972ab6dc2c1512b25dae7b",
+      "tools": [
+        "repo.read"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard",
+      "runtime": {
+        "profileRef": "standard-isolated",
+        "timeout": "15s"
+      }
+    },
+    "outcome": {
+      "status": "Expired",
+      "failure": "The work exceeded its execution time limit."
+    },
+    "diagnosis": {
+      "stage": "execution",
+      "code": "run-deadline"
+    },
+    "delta": {
+      "model": 1,
+      "mcp": 0
+    },
+    "countsBefore": {
+      "model": 82,
+      "mcp": 10
+    },
+    "countsAfter": {
+      "model": 83,
+      "mcp": 10
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 9,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 5,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "decisions": [
+      {
+        "kind": "ModelDecision",
+        "result": "Allow",
+        "reasonCode": "within-effective-authority",
+        "policyRef": {
+          "id": "e15-198-r2",
+          "version": "2"
+        },
+        "claimId": "claim:e15-g2-expired-20261022-v2:issuance:d6f61308f3972ab6dc2c1512b25dae7b",
+        "invocationId": "inv-c3a3e48ed7d3c03adf291c0209d33ff3",
+        "target": "coding-standard"
+      }
+    ],
+    "providerAttempts": {
+      "model.invoke": 1,
+      "tool.invoke": 0
+    },
+    "mcpToolReceipts": [],
+    "receiptIDsMatch": true
+  }
+]

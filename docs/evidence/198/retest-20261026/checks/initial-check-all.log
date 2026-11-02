@@ -1,0 +1,270 @@
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /Users/yue/Desktop/AI/AI_Project/Projects/agenova/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] formatter batches every file and preserves findings/errors
+[pass] current Go files are formatted
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.367s
+ok  	github.com/wunderforge/agenova/cmd/agenova	28.112s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.838s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	1.607s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	1.667s
+--- FAIL: TestExistingMemberSessionAndInstallationAreTheOnlyAuthority (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 22 [running]:
+testing.tRunner.func1.2({0x103369368, 0x3e2c58a4b6f0})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x103369368?, 0x3e2c58a4b6f0?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewTLSServer({0x103414ae0, 0x3e2c588a2900})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:459 +0x28
+github.com/wunderforge/agenova/cmd/agenova-grafana-proxy.TestExistingMemberSessionAndInstallationAreTheOnlyAuthority(0x3e2c58985448)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/cmd/agenova-grafana-proxy/main_test.go:15 +0x98
+testing.tRunner(0x3e2c58985448, 0x10341faf8)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/cmd/agenova-grafana-proxy	2.143s
+ok  	github.com/wunderforge/agenova/examples/engineer	3.209s
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/harness/demo/incident-mcp/acceptance	2.502s
+--- FAIL: TestLocalPositiveControlsAndHeldConnectionUseVerifiedTLS (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 36 [running]:
+testing.tRunner.func1.2({0x105518468, 0x75dac7c8e750})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x105518468?, 0x75dac7c8e750?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewTLSServer({0x10556cd00, 0x75dac7c8a348})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:459 +0x28
+github.com/wunderforge/agenova/harness/demo/incident-mcp/acceptance/netprobe.TestLocalPositiveControlsAndHeldConnectionUseVerifiedTLS(0x75dac7cd66c8)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/harness/demo/incident-mcp/acceptance/netprobe/main_test.go:137 +0xa4
+testing.tRunner(0x75dac7cd66c8, 0x105571348)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/harness/demo/incident-mcp/acceptance/netprobe	0.868s
+ok  	github.com/wunderforge/agenova/harness/e2e	3.659s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	2.917s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	1.263s
+ok  	github.com/wunderforge/agenova/harness/integration/e16	4.020s
+ok  	github.com/wunderforge/agenova/harness/integration/e16/evidence	4.444s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+ok  	github.com/wunderforge/agenova/harness/security/boundaryprobe	5.750s
+ok  	github.com/wunderforge/agenova/harness/security/scriptedworker	4.886s
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	5.196s
+--- FAIL: TestMCPClientJSONSessionCarriesCorrelationAndClosesSession (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 82 [running]:
+testing.tRunner.func1.2({0x102f782a8, 0x789ed374d330})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x102f782a8?, 0x789ed374d330?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewServer({0x102fd7360, 0x789ed3728700})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:267 +0x28
+github.com/wunderforge/agenova/internal/adapters/bundled.startFake(0x789ed3780008, 0x789ed3388e40)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/adapters/bundled/mcp_client_test.go:110 +0xb8
+github.com/wunderforge/agenova/internal/adapters/bundled.TestMCPClientJSONSessionCarriesCorrelationAndClosesSession(0x789ed3780008)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/adapters/bundled/mcp_client_test.go:126 +0x60
+testing.tRunner(0x789ed3780008, 0x102fdbb00)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/adapters/bundled	5.509s
+ok  	github.com/wunderforge/agenova/internal/app	6.778s
+ok  	github.com/wunderforge/agenova/internal/authentication	5.558s
+ok  	github.com/wunderforge/agenova/internal/authentication/cognito	6.141s
+ok  	github.com/wunderforge/agenova/internal/authentication/googleoidc	6.152s
+ok  	github.com/wunderforge/agenova/internal/authentication/postgres	5.762s
+ok  	github.com/wunderforge/agenova/internal/authority	5.717s
+ok  	github.com/wunderforge/agenova/internal/authorization	5.765s
+ok  	github.com/wunderforge/agenova/internal/cli	5.756s
+--- FAIL: TestManagementHTTPSAuthorizationAndRedirectIsolation (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 35 [running]:
+testing.tRunner.func1.2({0x1009bf2a0, 0x64c62508eae0})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x1009bf2a0?, 0x64c62508eae0?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewTLSServer({0x100a18d98, 0x64c62508a318})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:459 +0x28
+github.com/wunderforge/agenova/internal/connectedclient.TestManagementHTTPSAuthorizationAndRedirectIsolation(0x64c6250d4b48)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/connectedclient/management_test.go:16 +0x9c
+testing.tRunner(0x64c6250d4b48, 0x100a1d520)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/connectedclient	5.740s
+--- FAIL: TestGrafanaProxyReauthorizesAndIsolatesCredentials (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 131 [running]:
+testing.tRunner.func1.2({0x10143c0b0, 0x353a01b09900})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x10143c0b0?, 0x353a01b09900?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewServer({0x1015213f8, 0x353a013f4ab0})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:267 +0x28
+github.com/wunderforge/agenova/internal/console.TestGrafanaProxyReauthorizesAndIsolatesCredentials(0x353a014fc6c8)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/console/grafana_proxy_test.go:27 +0x98
+testing.tRunner(0x353a014fc6c8, 0x10152e840)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/console	8.828s
+ok  	github.com/wunderforge/agenova/internal/evidence	5.439s
+ok  	github.com/wunderforge/agenova/internal/facts	5.429s
+ok  	github.com/wunderforge/agenova/internal/gateway	5.523s
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+ok  	github.com/wunderforge/agenova/internal/governance	5.325s
+ok  	github.com/wunderforge/agenova/internal/history	5.068s
+ok  	github.com/wunderforge/agenova/internal/history/sqlite	6.928s
+ok  	github.com/wunderforge/agenova/internal/invitations	7.022s
+ok  	github.com/wunderforge/agenova/internal/issuance	7.158s
+ok  	github.com/wunderforge/agenova/internal/landing	7.610s
+--- FAIL: TestNativeLoginPKCERefreshAndLogout (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 5 [running]:
+testing.tRunner.func1.2({0x102c112d0, 0x79986274600})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x102c112d0?, 0x79986274600?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewTLSServer({0x102c6a228, 0x799862fd830})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:459 +0x28
+github.com/wunderforge/agenova/internal/login.TestNativeLoginPKCERefreshAndLogout(0x799863a4908)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/login/client_test.go:33 +0xe8
+testing.tRunner(0x799863a4908, 0x102c6edd8)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/login	7.643s
+ok  	github.com/wunderforge/agenova/internal/management	7.678s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	7.589s
+--- FAIL: TestCompleteUsesPrivateProfileAndReturnsCompletion (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 5 [running]:
+testing.tRunner.func1.2({0x104e8bde8, 0x63b4b4489630})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x104e8bde8?, 0x63b4b4489630?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewServer({0x104ee8d40, 0x63b4b4460330})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:267 +0x28
+github.com/wunderforge/agenova/internal/modelprovider.TestCompleteUsesPrivateProfileAndReturnsCompletion(0x63b4b45b0488)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/modelprovider/adapter_test.go:36 +0x98
+testing.tRunner(0x63b4b45b0488, 0x104eed4b8)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/modelprovider	7.658s
+ok  	github.com/wunderforge/agenova/internal/operator	15.177s
+ok  	github.com/wunderforge/agenova/internal/platform	7.337s
+ok  	github.com/wunderforge/agenova/internal/platformapply	7.462s
+ok  	github.com/wunderforge/agenova/internal/policy	7.461s
+ok  	github.com/wunderforge/agenova/internal/registration	7.797s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	14.687s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+--- FAIL: TestThreeRealOTLPSignalsAndBoundedOutage (0.00s)
+panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 35 [running]:
+testing.tRunner.func1.2({0x10171a690, 0x49b626c0ef00})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2125 +0x1a0
+testing.tRunner.func1()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2128 +0x2c8
+panic({0x10171a690?, 0x49b626c0ef00?})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/runtime/panic.go:859 +0x120
+net/http/httptest.newLocalListener()
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:226 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:284
+net/http/httptest.NewServer({0x1017e0190, 0x49b626c10e20})
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/net/http/httptest/server.go:267 +0x28
+github.com/wunderforge/agenova/internal/telemetry.TestThreeRealOTLPSignalsAndBoundedOutage(0x49b626c80d88)
+	/Users/yue/Desktop/AI/AI_Project/Projects/agenova/internal/telemetry/telemetry_test.go:22 +0xb4
+testing.tRunner(0x49b626c80d88, 0x1017ec708)
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2195 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/yue/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64/src/testing/testing.go:2260 +0x3b8
+FAIL	github.com/wunderforge/agenova/internal/telemetry	6.435s
+ok  	github.com/wunderforge/agenova/internal/toolbackend	6.654s
+ok  	github.com/wunderforge/agenova/internal/toolgateway	6.684s
+ok  	github.com/wunderforge/agenova/internal/websession	6.736s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	6.824s
+ok  	github.com/wunderforge/agenova/internal/workloadidentity	6.849s
+ok  	github.com/wunderforge/agenova/internal/workstore	6.920s
+ok  	github.com/wunderforge/agenova/tools/local-product-preview	7.389s
+ok  	github.com/wunderforge/agenova/tools/product-release-migrate	6.570s
+ok  	github.com/wunderforge/agenova/ui/contractgen	6.530s
+FAIL
+Exception: /Users/yue/Desktop/AI/AI_Project/Projects/agenova/scripts/check.ps1:18
+Line |
+  18 |  function Fail($Message) { throw "[fail] $Message" }
+     |                            ~~~~~~~~~~~~~~~~~~~~~~~
+     | [fail] go test ./... failed

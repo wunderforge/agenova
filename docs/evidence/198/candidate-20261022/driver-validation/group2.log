@@ -1,0 +1,4 @@
+{"scenario": "succeeded", "origin": "A2 reference Worker", "phase": "Succeeded", "delta": {"model": 3, "mcp": 2}, "providerAttempts": {"model.invoke": 3, "tool.invoke": 2}, "receiptIDsMatch": true, "diagnosis": {"stage": "execution", "code": "run-Succeeded"}}
+{"scenario": "failed", "origin": "A1 scripted lifecycle probe", "phase": "Failed", "delta": {"model": 1, "mcp": 0}, "providerAttempts": {"model.invoke": 1, "tool.invoke": 0}, "receiptIDsMatch": true, "diagnosis": {"stage": "execution", "code": "agent-invalid-final-result"}}
+{"scenario": "expired", "origin": "A1 scripted lifecycle probe", "phase": "Expired", "delta": {"model": 1, "mcp": 0}, "providerAttempts": {"model.invoke": 1, "tool.invoke": 0}, "receiptIDsMatch": true, "diagnosis": {"stage": "execution", "code": "run-deadline"}}
+Observations saved. No Epic acceptance is automatically asserted.

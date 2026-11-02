@@ -1,0 +1,3 @@
+package main
+import("fmt";"net/http";"os";"time")
+func main(){if len(os.Args)>1&&os.Args[1]=="server"{http.HandleFunc("/probe",func(w http.ResponseWriter,r *http.Request){fmt.Println("receipt",r.URL.Query().Get("id"));fmt.Fprint(w,"OK")});panic(http.ListenAndServe(":8080",nil))}; c:=http.Client{Timeout:time.Second};for i:=0;i<45;i++{r,e:=c.Get(os.Getenv("TARGET")+"/probe?id="+os.Getenv("PROBE_ID"));if e!=nil{fmt.Println("attempt",i,"blocked-or-unreachable")}else{r.Body.Close();fmt.Println("attempt",i,"reachable",r.StatusCode)};time.Sleep(time.Second)}}

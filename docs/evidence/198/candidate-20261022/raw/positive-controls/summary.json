@@ -1,0 +1,99 @@
+[
+  {
+    "scenario": "model",
+    "exit": 0,
+    "before": {
+      "model": 60,
+      "mcp": 0
+    },
+    "after": {
+      "model": 62,
+      "mcp": 0
+    },
+    "delta": {
+      "model": 2,
+      "mcp": 0
+    },
+    "phase": "Succeeded",
+    "outcome": {
+      "status": "Succeeded",
+      "text": "Unknown scenario details",
+      "model": {
+        "invocationId": "inv-0c74b6725cf974f888037e9c4ed62ae4",
+        "model": "llama3.1:latest",
+        "responseId": "chatcmpl-79",
+        "inputTokens": 103,
+        "outputTokens": 18
+      }
+    },
+    "providerAttempts": {
+      "model.invoke": 2,
+      "tool.invoke": 0
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "toolInvocationIds": []
+  },
+  {
+    "scenario": "tool",
+    "exit": 0,
+    "before": {
+      "model": 62,
+      "mcp": 0
+    },
+    "after": {
+      "model": 65,
+      "mcp": 2
+    },
+    "delta": {
+      "model": 3,
+      "mcp": 2
+    },
+    "phase": "Succeeded",
+    "outcome": {
+      "status": "Succeeded",
+      "text": "The README.md file in the e15/work-a repository is a reference dataset for the Agenova E16 MCP fixture, describing a small payment client with one incident.",
+      "model": {
+        "invocationId": "inv-13cafecd5c0581b30649a871d352806c",
+        "model": "llama3.1:latest",
+        "responseId": "chatcmpl-6",
+        "inputTokens": 437,
+        "outputTokens": 49
+      }
+    },
+    "providerAttempts": {
+      "model.invoke": 3,
+      "tool.invoke": 2
+    },
+    "watchEvents": {
+      "pods": {
+        "ADDED": 1,
+        "MODIFIED": 8,
+        "DELETED": 1,
+        "ERROR": 0
+      },
+      "sandboxclaims": {
+        "ADDED": 1,
+        "MODIFIED": 4,
+        "DELETED": 1,
+        "ERROR": 0
+      }
+    },
+    "toolInvocationIds": [
+      "inv-43e33647b25fff72587465c7054275c4",
+      "inv-056e6d446cfca6c7edee86f8ceda9b59"
+    ]
+  }
+]

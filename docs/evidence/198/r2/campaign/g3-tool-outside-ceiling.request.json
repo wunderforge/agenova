@@ -1,0 +1,31 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-r2-g3-tool-outside-ceiling"
+  },
+  "spec": {
+    "templateRef": "e15-engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "e15-scenario=control"
+      }
+    },
+    "requestedAccess": {
+      "tools": [
+        "repo.read",
+        "repo.write"
+      ],
+      "resourceScopes": [
+        "repo:e15/work-a"
+      ],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "3m"
+    }
+  }
+}

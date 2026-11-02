@@ -1,0 +1,16 @@
+[
+  {
+    "scenario": "denied-submission",
+    "exit": 1,
+    "before": 34,
+    "after": 34,
+    "delta": 0
+  },
+  {
+    "scenario": "credential-canary",
+    "exit": 1,
+    "before": 34,
+    "after": 34,
+    "delta": 0
+  }
+]
