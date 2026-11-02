@@ -5,10 +5,128 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"github.com/wunderforge/agenova/internal/workerprotocol"
 	"strings"
 	"testing"
 )
+
+func TestDiagnosticAgentRecoversCloudFinishSequenceWithoutRepeatingRead(t *testing.T) {
+	researcherRole(t)
+	for _, second := range []string{
+		`{"answer":"Synthetic customer C001 needs help.","completion":"completed","input":"customer-retention"}`,
+		`{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention"}`,
+	} {
+		var in, out bytes.Buffer
+		e := json.NewEncoder(&in)
+		e.Encode(workerprotocol.Task{ClaimID: "c", ModelToken: "model-identity", ToolToken: "tool-identity", ModelProfile: "m", Objective: "Find at-risk internal customers", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct, MaxModelCalls: 6, Tools: []workerprotocol.Tool{{Operation: "crm.read", ResourceScope: "crm:customer-retention", Description: "customers", Parameter: "dataset_id", AllowedValues: []string{"customer-retention"}}}})
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"customer-retention"}`})
+		e.Encode(workerprotocol.Reply{Allowed: true})
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"synthetic":true,"customers":[{"id":"C001","risk":"high"}]}`})
+		for _, candidate := range []string{`{"action":"finish","resource":"crm:customer-retention","input":"customer-retention","answer":"Synthetic C001","completion":"completed"}`, second} {
+			e.Encode(workerprotocol.Reply{Allowed: true, Text: candidate})
+			e.Encode(workerprotocol.Reply{Allowed: true})
+		}
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"Synthetic customer C001 is at risk.","completion":"completed"}`})
+		e.Encode(workerprotocol.Reply{Allowed: true})
+		if err := run(&in, &out); err != nil {
+			t.Fatal(err)
+		}
+		var calls, reads int
+		var lastPrompt string
+		for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+			var m workerprotocol.Message
+			if err := json.Unmarshal([]byte(line), &m); err != nil {
+				t.Fatal(err)
+			}
+			if m.Operation == nil {
+				continue
+			}
+			op := m.Operation
+			if op.Kind == "model" {
+				calls++
+				lastPrompt = op.Prompt
+			}
+			if op.Kind == "tool" {
+				reads++
+			}
+			wantToken := "model-identity"
+			if op.Kind == "tool" {
+				wantToken = "tool-identity"
+			}
+			if op.ClaimID != "c" || op.WorkloadToken != wantToken {
+				t.Fatal("repair changed Work identity")
+			}
+		}
+		if calls != 4 || reads != 1 || !strings.Contains(lastPrompt, `"id":"C001"`) || !strings.Contains(out.String(), `"result":"Synthetic customer C001 is at risk."`) {
+			t.Fatal("mixed repairs must retain evidence and recover without a second backend read")
+		}
+	}
+}
+
+func TestDiagnosticAgentRepairsDeniedFinishWithoutInventingAuthority(t *testing.T) {
+	researcherRole(t)
+	var in, out bytes.Buffer
+	e := json.NewEncoder(&in)
+	e.Encode(workerprotocol.Task{ClaimID: "c", ModelProfile: "m", Objective: "Read the official website", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct, MaxModelCalls: 5, Tools: []workerprotocol.Tool{{Operation: "web.read", ResourceScope: "web:public-pages", Parameter: "url", Description: "public page", InputMode: "text", MaxBytes: 1024}}})
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"tool","tool":"web.read","resource":"web:public-pages","input":"https://example.org"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	e.Encode(workerprotocol.Reply{Allowed: false, Error: "tool access denied"})
+	for _, candidate := range []string{`{"answer":"A guessed answer","completion":"completed"}`, `{"action":"finish","answer":"A guessed answer","completion":"completed"}`} {
+		e.Encode(workerprotocol.Reply{Allowed: true, Text: candidate})
+		e.Encode(workerprotocol.Reply{Allowed: true})
+	}
+	e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"action":"finish","answer":"web.read was denied for this Work.","completion":"incomplete","reason":"tool-denied","target":"web.read"}`})
+	e.Encode(workerprotocol.Reply{Allowed: true})
+	if err := run(&in, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), `"kind":"model"`) != 4 || strings.Count(out.String(), `"kind":"tool"`) != 1 || !strings.Contains(out.String(), `"result":"web.read was denied for this Work."`) || strings.Contains(out.String(), `"result":"A guessed answer"`) {
+		t.Fatal("repair lost the actual Gateway denial")
+	}
+}
+
+func TestDiagnosticAgentRepairExhaustionHonorsWorkAndImageLimits(t *testing.T) {
+	researcherRole(t)
+	for _, budget := range []int{1, 3, 100} {
+		var in, out bytes.Buffer
+		e := json.NewEncoder(&in)
+		e.Encode(workerprotocol.Task{ClaimID: "c", ModelProfile: "m", Objective: "What is 2+2?", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct, MaxModelCalls: budget})
+		limit := min(budget, workerprotocol.AgentSafetyTurns)
+		for i := 0; i < limit; i++ {
+			e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"answer":"4"}`})
+			e.Encode(workerprotocol.Reply{Allowed: true})
+		}
+		e.Encode(workerprotocol.Reply{Allowed: true}) // explicit exhaustion feedback
+		if err := run(&in, &out); !errors.Is(err, workerprotocol.ErrTurnLimit) {
+			t.Fatalf("budget %d: %v", budget, err)
+		}
+		if strings.Count(out.String(), `"kind":"model"`) != limit || !strings.Contains(out.String(), `"diagnosticCode":"format-retry-limit"`) || strings.Contains(out.String(), `"kind":"tool"`) || strings.Contains(out.String(), `"result"`) {
+			t.Fatal("invalid output exceeded budget, executed a tool or fabricated success")
+		}
+	}
+}
+
+func TestDiagnosticAgentDoesNotRetryProviderOrFeedbackFailure(t *testing.T) {
+	researcherRole(t)
+	for _, failFeedback := range []bool{false, true} {
+		var in, out bytes.Buffer
+		e := json.NewEncoder(&in)
+		e.Encode(workerprotocol.Task{ClaimID: "c", ModelProfile: "m", Objective: "What is 2+2?", Diagnostics: true, Discovery: true, Mode: workerprotocol.ReAct, MaxModelCalls: 6})
+		if failFeedback {
+			e.Encode(workerprotocol.Reply{Allowed: true, Text: `{"answer":"4"}`})
+			e.Encode(workerprotocol.Reply{Allowed: false})
+		} else {
+			e.Encode(workerprotocol.Reply{Allowed: false, Error: "model budget exhausted"})
+		}
+		if err := run(&in, &out); err == nil {
+			t.Fatal("provider or evidence failure accepted")
+		}
+		if strings.Count(out.String(), `"kind":"model"`) != 1 || strings.Contains(out.String(), `"result"`) {
+			t.Fatal("a non-format failure launched a repair call")
+		}
+	}
+}
 
 func TestDiagnosticAgentFinishesAfterSearchAndReportsDenialHonestly(t *testing.T) {
 	researcherRole(t)

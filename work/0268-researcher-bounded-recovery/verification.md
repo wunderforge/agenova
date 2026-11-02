@@ -1,0 +1,20 @@
+# Verification: bounded Researcher recovery and Agent directory
+
+## Local results (2 November 2026)
+
+- `go test ./cmd/agenova-demo-worker ./internal/workerprotocol`: PASS. Includes consecutive malformed finishes, mixed format/duplicate-read errors, denial preservation, Work/image call bounds and actual host/Worker exchange.
+- Frontend unit suite: 195 tests / 19 files PASS.
+- TypeScript typecheck and production Vite build: PASS.
+- Focused rendered catalog smoke: PASS, desktop and 390px mobile. Dark browser preference stays light. Older versions remain explicitly discoverable; exact registration identity and project links are retained.
+- `./scripts/check.ps1 -All`: FAIL only at the existing Windows `TestOwnerBootstrapDeliveryGuards` invitation-delivery test. Other Go packages pass; formatter, module metadata, vet, architecture and documentation gates passed. Frontend was run separately after this stop.
+- Whole browser smoke suite: running; final result will be added before handoff.
+
+## Exact image gate
+
+The existing PR CI runs `harness/demo/research-mcp/build-worker.py`, including four new recovery/budget scenarios in the built image, without AWS credentials. Local Docker cannot start: its inference runtime socket reports "The file cannot be accessed by the system." A narrowly attempted rename failed; socket and Docker data disk are unchanged. Do not present the local image gate as passing. CI result pending.
+
+## Evidence boundaries
+
+Regression model replies and browser catalogs are synthetic. Production traces were read through the existing authenticated API to diagnose the defect, retained only in ignored local files and never copied into fixtures, this packet or the PR. No image push, template deletion, ECR cleanup, Policy activation, merge, application deployment or AWS resource change is part of these local results.
+
+Version selection is a display convention, not image attestation or a grant. Highest numeric -vN registration is selected per project/family; known reference researcher/researcher-advisor aliases are one family. An unversioned sole registration remains visible. Explicit older-version mode keeps historical registrations reachable.

@@ -30,21 +30,23 @@ func TestRawDatasetRepairThroughActualExchange(t *testing.T) {
 			bad := `{"action":"tool","tool":"crm.read","resource":"crm:customer-retention","input":"dataset_id=customer-retention","answer":"","completion":"","reason":"","target":"","decisionSummary":"Read customer risks"}`
 			good := strings.Replace(bad, "dataset_id=customer-retention", "customer-retention", 1)
 			models, calls, backend := 0, 0, 0
+			exhausted := false
 			got, err := workerprotocol.Exchange(context.Background(), hostReader, hostWriter, task, func(_ context.Context, op workerprotocol.Operation) (workerprotocol.Reply, error) {
 				switch op.Kind {
 				case "feedback":
+					exhausted = exhausted || op.DiagnosticCode == "format-retry-limit"
 					return workerprotocol.Reply{Allowed: true}, nil
 				case "model":
 					models++
 					if models == 1 {
 						return workerprotocol.Reply{Allowed: true, Text: bad}, nil
 					}
+					if mode == "repeated-invalid" {
+						return workerprotocol.Reply{Allowed: true, Text: bad}, nil
+					}
 					if models == 2 {
 						if !strings.Contains(op.Prompt, `"input":"customer-retention"`) || !strings.Contains(op.Prompt, "RAW INPUT REPAIR") || !strings.Contains(op.Prompt, "Invalid input for crm.read") {
 							return workerprotocol.Reply{}, errors.New("retry lacks exact catalog correction")
-						}
-						if mode == "repeated-invalid" {
-							return workerprotocol.Reply{Allowed: true, Text: bad}, nil
 						}
 						return workerprotocol.Reply{Allowed: true, Text: good}, nil
 					}
@@ -69,7 +71,7 @@ func TestRawDatasetRepairThroughActualExchange(t *testing.T) {
 			hostReader.Close()
 			workerErr := <-ended
 			if mode == "repeated-invalid" {
-				if !errors.Is(workerErr, workerprotocol.ErrNoFinalResult) || err == nil || calls != 0 || models != 2 {
+				if !errors.Is(workerErr, workerprotocol.ErrTurnLimit) || !errors.Is(err, workerprotocol.ErrNoFinalResult) || calls != 0 || models != task.MaxModelCalls || !exhausted {
 					t.Fatalf("repeated malformed output escaped bounds: %v %v %d %d", err, workerErr, calls, models)
 				}
 				return

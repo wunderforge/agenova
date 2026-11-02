@@ -70,16 +70,33 @@ Tools: ` + catalog.String() + "\n"
 	observed := false
 	providerFailed := false
 	syntheticObserved := false
-	invalid := 0
 	limit := workerprotocol.AgentSafetyTurns
 	if task.MaxModelCalls > 0 && task.MaxModelCalls < limit {
 		limit = task.MaxModelCalls
 	}
-	for turn := 1; turn <= limit; turn++ {
-		if len(sources) > 0 {
-			history += "\nCitation requirement: include one exact observed URL in answer: " + strings.Join(sources, " or ") + ". For completed, reason and target MUST be empty. Answer the question itself, not just a source URL."
+	// Repairs consume the same governed calls as useful actions. Do not impose
+	// an unrelated two-error cutoff while the Work still has calls remaining.
+	rejectCandidate := func(code, detail string, turn int) error {
+		if turn == limit {
+			detail = strings.TrimSuffix(detail, " The agent must retry.")
 		}
+		if err := feedback(code, detail); err != nil {
+			return err
+		}
+		if turn == limit {
+			if err := feedback("format-retry-limit", "The reference Agent's action-repair call limit was reached; no final answer was accepted."); err != nil {
+				return err
+			}
+			return workerprotocol.ErrTurnLimit
+		}
+		return nil
+	}
+	repair := ""
+	for turn := 1; turn <= limit; turn++ {
 		prompt := prefix + history + "\nNEXT ACTION: Use the observations above. If they answer the goal, FINISH now; otherwise read one relevant source. Do not repeat a completed search. Return compact JSON only."
+		if len(sources) > 0 {
+			prompt += "\nCitation requirement: include one exact observed URL in answer: " + strings.Join(sources, " or ") + ". For completed, reason and target MUST be empty. Answer the question itself, not just a source URL."
+		}
 		if currentWeatherTask(task.Objective) && !weatherRead && len(denied) == 0 {
 			prompt += "\nWEATHER NEXT ACTION: obtain actual measurements, not a search snippet. Choose action=tool, tool=web.read, resource=web:public-pages. Set input to https://wttr.in/CITY?format=j1, replacing CITY with the city in the question. Do not search or give a temperature before reading measurements."
 		}
@@ -105,6 +122,7 @@ Tools: ` + catalog.String() + "\n"
 		} else if observed && (!currentWeatherTask(task.Objective) || weatherRead) && (!explicitSourceTask(task.Objective) || weatherRead) {
 			prompt += "\nNEXT RESPONSE FORMAT: {\"action\":\"finish\",\"tool\":\"\",\"resource\":\"\",\"input\":\"\",\"answer\":\"Findings from the observations, with the observed source.\",\"completion\":\"completed\",\"reason\":\"\",\"target\":\"\",\"decisionSummary\":\"Summarize the verified finding\"}. Replace only answer and decisionSummary."
 		}
+		prompt += repair
 		response, err := exchange(workerprotocol.Operation{Kind: "model", AgentProtocol: workerprotocol.DiagnosticsProtocol, Profile: task.ModelProfile, Prompt: prompt})
 		if err != nil {
 			return err
@@ -115,15 +133,11 @@ Tools: ` + catalog.String() + "\n"
 		action, err := workerprotocol.ParseAgentAction(response.Text, task.Tools, workerprotocol.DiagnosticsProtocol)
 		if err != nil {
 			_, issue := workerprotocol.AgentActionIssue(response.Text, task.Tools, workerprotocol.DiagnosticsProtocol)
-			if e := feedback("schema-invalid", issue); e != nil {
+			if e := rejectCandidate("schema-invalid", issue, turn); e != nil {
 				return e
 			}
-			invalid++
-			if invalid > 1 {
-				return workerprotocol.ErrNoFinalResult
-			}
-			history += "\nFORMAT REPAIR: " + issue + " Always include action and all nine keys. For finish use action=finish and tool, resource, input empty. For a tool call answer, completion, reason, target must be empty."
-			history += "\n" + workerprotocol.ToolInputRepair(response.Text, task.Tools)
+			repair = "\nFORMAT REPAIR: " + issue + " Return a NEW valid JSON action with all nine keys. For finish explicitly set action=finish and tool, resource, input empty. For a tool call answer, completion, reason, target must be empty. Keep the observations and actual Gateway decisions above."
+			repair += "\n" + workerprotocol.ToolInputRepair(response.Text, task.Tools)
 			continue
 		}
 		reject := ""
@@ -176,9 +190,7 @@ Tools: ` + catalog.String() + "\n"
 				if !result.Allowed {
 					denied[action.Tool] = true
 				}
-				// A real observation starts a new format-repair window. Two mistakes
-				// on either side of valid tool progress are not consecutive failures.
-				invalid = 0
+				repair = ""
 				if result.Allowed && result.Error == "" {
 					observed = true
 					if sourceSynthetic(result.Text) {
@@ -210,12 +222,8 @@ Tools: ` + catalog.String() + "\n"
 		} else {
 			reject = "unsupported-finish"
 		}
-		if err := feedback(reject, "Candidate rejected by the Agent: "+reject); err != nil {
+		if err := rejectCandidate(reject, "Candidate rejected by the Agent: "+reject, turn); err != nil {
 			return err
-		}
-		invalid++
-		if invalid > 1 {
-			return workerprotocol.ErrNoFinalResult
 		}
 		if explicitSourceTask(task.Objective) && !weatherRead && !providerFailed {
 			history += "\nThe objective requires a read from the actual website. Search snippets alone do not fulfill it; choose web.read of a relevant source.\n"
@@ -223,7 +231,7 @@ Tools: ` + catalog.String() + "\n"
 		if currentWeatherTask(task.Objective) && !weatherRead {
 			history += "\nWeather measurements have not been read. Do not invent conditions or temperature. Use web.read of the city JSON endpoint to obtain actual current_condition before answering."
 		}
-		history += fmt.Sprintf("\nAgent feedback: %s. Use observed evidence; cite an observed URL. Never claim a Gateway denial without one. No repeated calls.\n", reject)
+		repair = fmt.Sprintf("\nAgent feedback: %s. Return a NEW valid action. Use the existing observations; do not repeat a successful read or a denied operation. If the Gateway denied the required tool, finish incomplete with reason tool-denied and that tool as target. Never claim a denial without one.\n", reject)
 	}
 	return workerprotocol.ErrTurnLimit
 }
