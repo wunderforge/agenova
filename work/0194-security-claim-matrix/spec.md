@@ -218,3 +218,7 @@ Following the maintainer's calibration on [#52](https://github.com/wunderforge/a
 None blocks merging this spec.
 
 - Whether the caller-side negatives (SR-5, SR-7, ES-2, ES-4, RI-1, TM-5) become one E15-ID ticket after #172, or join E14 tickets.
+
+## Kind boundary evidence from #52
+
+The [5 October kind campaign](../../docs/evidence/52/kind-boundary/summary.md) provides the worker/network part of AC-4, AC-6, AC-7, AC-8, AC-9, ES-5, RI-2, TM-1 and TM-3. AC-9 has a startup-window gap (#208); TM-1 has open public egress (#202). Metadata is inconclusive on kind, and TM-3 startup behavior was not probed. These results apply only to the recorded versions and environment; they do not establish current-main or EKS isolation. The matrix above retains its original baseline assessment.
