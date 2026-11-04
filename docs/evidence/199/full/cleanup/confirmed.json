@@ -1,0 +1,11 @@
+{
+  "dedicatedClusterRemoved": true,
+  "nodeID": "5e921213ef07972f2a53f82e2e448acb593976d3a862bbfa32f4eef4b94ca3c5",
+  "kubeSystemUID": "e2658027-c644-4134-9545-26420d2efeae",
+  "ownedProviderRemoved": true,
+  "providerID": "c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5",
+  "namespaceDeletion": "all four current namespace UIDs preconditioned and deletion confirmed",
+  "originalReferencePodUIDsUnchanged": true,
+  "hostOllamaReachable": true,
+  "eksActions": 0
+}

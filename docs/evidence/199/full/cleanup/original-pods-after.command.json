@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "kubectl",
+    "--context",
+    "kind-agenova-k8s-lab",
+    "-n",
+    "agenova-system",
+    "get",
+    "pods",
+    "-o",
+    "json"
+  ],
+  "exit": 0
+}

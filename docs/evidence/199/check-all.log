@@ -1,0 +1,73 @@
+[pass] current documentation and harness files exist; retired paths are absent
+[pass] open-source license, attribution, source headers, and module path are consistent
+[pass] product authorities, AIDLC routing, and task-packet structure are present
+[pass] local Markdown links resolve
+[pass] backend-specific Agent Sandbox shape stays inside its adapter
+[pass] command behavior and shared contracts stay provider-neutral
+Created task packet: /Users/yue/Desktop/AI/AI_Project/Projects/agenova-199/.tmp/task-scaffold-contract/9999-contract-check
+Read the linked Issue, replace every TODO marker, self-review the packet against the Ticket and PRD, then begin implementation. Independent review happens at the PR.
+[pass] issue, task-packet, PR, and evidence delivery contracts are mechanically validated
+[case] Integration/omitted: exit=1; calls=0
+[case] Integration/empty: exit=1; calls=0
+[case] Integration/whitespace: exit=1; calls=0
+[case] Integration/explicit: exit=0; calls=1
+[case] Backend/omitted: exit=1; calls=0
+[case] Backend/empty: exit=1; calls=0
+[case] Backend/whitespace: exit=1; calls=0
+[case] Backend/explicit: exit=0; calls=11
+[case] All/no-context: exit=0; calls=10
+[pass] integration entry points require explicit context before checks and preserve explicit arguments
+[pass] current Go files are formatted
+[pass] Go module metadata is tidy
+[pass] go vet ./...
+ok  	github.com/wunderforge/agenova/api/v1alpha1	0.537s
+ok  	github.com/wunderforge/agenova/cmd/agenova	15.913s
+ok  	github.com/wunderforge/agenova/cmd/agenova-console	0.877s
+ok  	github.com/wunderforge/agenova/cmd/agenova-control-plane	1.291s
+ok  	github.com/wunderforge/agenova/cmd/agenova-demo-worker	6.253s
+ok  	github.com/wunderforge/agenova/deploy/demo/eks/public/session	4.997s
+ok  	github.com/wunderforge/agenova/examples/engineer	5.815s
+?   	github.com/wunderforge/agenova/examples/engineer/toolclient	[no test files]
+ok  	github.com/wunderforge/agenova/harness/e2e	2.774s
+ok  	github.com/wunderforge/agenova/harness/fixtures/contract/v0	2.233s
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox/testworker	1.665s
+?   	github.com/wunderforge/agenova/harness/integration/platformapply/impersonate-kubectl	[no test files]
+ok  	github.com/wunderforge/agenova/internal/adapterregistry	3.937s
+ok  	github.com/wunderforge/agenova/internal/adapters/bundled	6.953s
+ok  	github.com/wunderforge/agenova/internal/app	7.353s
+ok  	github.com/wunderforge/agenova/internal/authority	5.403s
+ok  	github.com/wunderforge/agenova/internal/authorization	3.274s
+ok  	github.com/wunderforge/agenova/internal/cli	4.428s
+ok  	github.com/wunderforge/agenova/internal/connectedclient	6.891s
+ok  	github.com/wunderforge/agenova/internal/console	7.007s
+ok  	github.com/wunderforge/agenova/internal/evidence	6.932s
+ok  	github.com/wunderforge/agenova/internal/facts	6.732s
+ok  	github.com/wunderforge/agenova/internal/gateway	6.549s
+?   	github.com/wunderforge/agenova/internal/gateway/gatewaytest	[no test files]
+ok  	github.com/wunderforge/agenova/internal/governance	6.419s
+ok  	github.com/wunderforge/agenova/internal/issuance	6.258s
+ok  	github.com/wunderforge/agenova/internal/modelgateway	6.152s
+ok  	github.com/wunderforge/agenova/internal/modelprovider	6.016s
+ok  	github.com/wunderforge/agenova/internal/operator	9.818s
+ok  	github.com/wunderforge/agenova/internal/platform	6.196s
+ok  	github.com/wunderforge/agenova/internal/platformapply	6.186s
+ok  	github.com/wunderforge/agenova/internal/policy	5.813s
+ok  	github.com/wunderforge/agenova/internal/registration	5.756s
+?   	github.com/wunderforge/agenova/internal/runtime	[no test files]
+ok  	github.com/wunderforge/agenova/internal/runtime/agentsandbox	6.688s
+?   	github.com/wunderforge/agenova/internal/runtime/contracttest	[no test files]
+?   	github.com/wunderforge/agenova/internal/sandbox	[no test files]
+ok  	github.com/wunderforge/agenova/internal/toolgateway	5.557s
+ok  	github.com/wunderforge/agenova/internal/workerprotocol	5.621s
+ok  	github.com/wunderforge/agenova/ui/contractgen	5.786s
+[pass] go test ./...
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	0.452s [no tests to run]
+[pass] Agent Sandbox integration package compiles
+ok  	github.com/wunderforge/agenova/harness/integration/agentsandbox	0.648s [no tests to run]
+[pass] opt-in controlled Agent Sandbox integration package compiles
+Exception: /Users/yue/Desktop/AI/AI_Project/Projects/agenova-199/scripts/check.ps1:18
+Line |
+  18 |  function Fail($Message) { throw "[fail] $Message" }
+     |                            ~~~~~~~~~~~~~~~~~~~~~~~
+     | [fail] install frontend dependencies with 'npm --prefix ui ci' and
+     | Chromium with 'npm --prefix ui run browsers:install'

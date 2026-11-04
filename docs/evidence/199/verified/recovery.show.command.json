@@ -1,0 +1,12 @@
+{
+  "argv": [
+    ".tmp/agenova",
+    "work",
+    "show",
+    "e15-199-recovery-1792386685679617000",
+    "--state-dir",
+    ".tmp/state-199",
+    "--json"
+  ],
+  "exit": 0
+}

@@ -1,0 +1,12 @@
+{
+  "argv": [
+    ".tmp/agenova",
+    "run",
+    "-f",
+    "docs/evidence/199/campaign/outage.request.json",
+    "--state-dir",
+    ".tmp/state-199",
+    "--json"
+  ],
+  "exit": 1
+}

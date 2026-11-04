@@ -1,0 +1,21 @@
+{
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+        "creationTimestamp": "2026-10-19T05:08:04Z",
+        "labels": {
+            "kubernetes.io/metadata.name": "agenova-e15-199-provider"
+        },
+        "name": "agenova-e15-199-provider",
+        "resourceVersion": "138258",
+        "uid": "6ca1843e-7637-4e40-97d8-c891721851c3"
+    },
+    "spec": {
+        "finalizers": [
+            "kubernetes"
+        ]
+    },
+    "status": {
+        "phase": "Active"
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "kubectl",
+    "--kubeconfig",
+    ".tmp/faults.kubeconfig",
+    "--context",
+    "kind-agenova-e15-199-faults",
+    "-n",
+    "agenova-e15-199-terminal",
+    "get",
+    "pods,sandboxclaims,sandboxes",
+    "-o",
+    "json"
+  ],
+  "exit": 0
+}

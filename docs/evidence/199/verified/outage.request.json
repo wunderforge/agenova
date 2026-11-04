@@ -1,0 +1,26 @@
+{
+  "apiVersion": "agenova.io/v1alpha1",
+  "kind": "ClaimRequest",
+  "metadata": {
+    "name": "e15-199-outage-1792386685679617000"
+  },
+  "spec": {
+    "templateRef": "engineer",
+    "projectRef": "payments",
+    "task": {
+      "type": "investigation",
+      "input": {
+        "objective": "Explain in one sentence why synthetic payment retries need a deadline. Do not use tools."
+      }
+    },
+    "requestedAccess": {
+      "tools": [],
+      "resourceScopes": [],
+      "modelProfile": "coding-standard"
+    },
+    "runtime": {
+      "profileRef": "standard-isolated",
+      "timeout": "5m"
+    }
+  }
+}

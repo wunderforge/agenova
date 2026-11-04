@@ -1,0 +1,104 @@
+{
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+        "annotations": {
+            "deployment.kubernetes.io/revision": "2",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"agent-sandbox-controller\"},\"name\":\"agent-sandbox-controller\",\"namespace\":\"agent-sandbox-system\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"agent-sandbox-controller\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"agent-sandbox-controller\"}},\"spec\":{\"containers\":[{\"args\":[\"--leader-elect=true\",\"--extensions\"],\"image\":\"registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6\",\"name\":\"agent-sandbox-controller\",\"ports\":[{\"containerPort\":8080,\"name\":\"metrics\",\"protocol\":\"TCP\"},{\"containerPort\":8081,\"name\":\"healthz\",\"protocol\":\"TCP\"}]}],\"serviceAccountName\":\"agent-sandbox-controller\"}}}}\n"
+        },
+        "creationTimestamp": "2026-10-19T12:06:49Z",
+        "generation": 14,
+        "labels": {
+            "app": "agent-sandbox-controller"
+        },
+        "name": "agent-sandbox-controller",
+        "namespace": "agent-sandbox-system",
+        "resourceVersion": "5309",
+        "uid": "c280d7b5-4aa4-4e50-9157-58c3fe0bdc2d"
+    },
+    "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+            "matchLabels": {
+                "app": "agent-sandbox-controller"
+            }
+        },
+        "strategy": {
+            "rollingUpdate": {
+                "maxSurge": "25%",
+                "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+        },
+        "template": {
+            "metadata": {
+                "labels": {
+                    "app": "agent-sandbox-controller"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "args": [
+                            "--leader-elect=true",
+                            "--extensions"
+                        ],
+                        "image": "registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "agent-sandbox-controller",
+                        "ports": [
+                            {
+                                "containerPort": 8080,
+                                "name": "metrics",
+                                "protocol": "TCP"
+                            },
+                            {
+                                "containerPort": 8081,
+                                "name": "healthz",
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "resources": {},
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File"
+                    }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "agent-sandbox-controller",
+                "serviceAccountName": "agent-sandbox-controller",
+                "terminationGracePeriodSeconds": 30
+            }
+        }
+    },
+    "status": {
+        "availableReplicas": 1,
+        "conditions": [
+            {
+                "lastTransitionTime": "2026-10-19T12:06:49Z",
+                "lastUpdateTime": "2026-10-19T12:06:57Z",
+                "message": "ReplicaSet \"agent-sandbox-controller-854b999dc4\" has successfully progressed.",
+                "reason": "NewReplicaSetAvailable",
+                "status": "True",
+                "type": "Progressing"
+            },
+            {
+                "lastTransitionTime": "2026-10-19T12:32:28Z",
+                "lastUpdateTime": "2026-10-19T12:32:28Z",
+                "message": "Deployment has minimum availability.",
+                "reason": "MinimumReplicasAvailable",
+                "status": "True",
+                "type": "Available"
+            }
+        ],
+        "observedGeneration": 14,
+        "readyReplicas": 1,
+        "replicas": 1,
+        "terminatingReplicas": 0,
+        "updatedReplicas": 1
+    }
+}

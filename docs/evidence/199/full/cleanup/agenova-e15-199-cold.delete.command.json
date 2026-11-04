@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "kubectl",
+    "--kubeconfig",
+    ".tmp/faults.kubeconfig",
+    "--context",
+    "kind-agenova-e15-199-faults",
+    "delete",
+    "--raw",
+    "/api/v1/namespaces/agenova-e15-199-cold",
+    "-f",
+    "-"
+  ],
+  "exit": 0
+}

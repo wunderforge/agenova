@@ -1,0 +1,9 @@
+{
+  "containerID": "802b940856c53358d27306333bd14bc5faac621e348d7357f196befd0e8f300e",
+  "containerAbsent": true,
+  "containerInspectExit": 1,
+  "namespaceAbsent": true,
+  "namespaceGetExit": 1,
+  "namespaceUID": "6ca1843e-7637-4e40-97d8-c891721851c3",
+  "initialVerificationError": "Case-sensitive comparison expected No such object, Docker returned no such object; removal had already succeeded. Reconfirmed independently."
+}

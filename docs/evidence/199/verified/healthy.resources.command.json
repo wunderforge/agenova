@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "kubectl",
+    "--context",
+    "kind-agenova-k8s-lab",
+    "-n",
+    "agenova-e15-199-provider",
+    "get",
+    "pods,sandboxclaims,sandboxes",
+    "-o",
+    "json"
+  ],
+  "exit": 0
+}

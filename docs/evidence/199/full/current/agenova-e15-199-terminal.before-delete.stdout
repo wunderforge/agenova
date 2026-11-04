@@ -1,0 +1,21 @@
+{
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+        "creationTimestamp": "2026-10-19T12:14:49Z",
+        "labels": {
+            "kubernetes.io/metadata.name": "agenova-e15-199-terminal"
+        },
+        "name": "agenova-e15-199-terminal",
+        "resourceVersion": "2224",
+        "uid": "3aced4ef-bd75-4230-868c-53ea984de293"
+    },
+    "spec": {
+        "finalizers": [
+            "kubernetes"
+        ]
+    },
+    "status": {
+        "phase": "Active"
+    }
+}

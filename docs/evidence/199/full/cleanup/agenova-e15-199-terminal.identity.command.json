@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "kubectl",
+    "--kubeconfig",
+    ".tmp/faults.kubeconfig",
+    "--context",
+    "kind-agenova-e15-199-faults",
+    "get",
+    "namespace",
+    "agenova-e15-199-terminal",
+    "-o",
+    "json"
+  ],
+  "exit": 0
+}

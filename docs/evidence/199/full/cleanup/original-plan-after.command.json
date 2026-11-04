@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "/Users/yue/Desktop/AI/AI_Project/Projects/agenova/.tmp/agenova",
+    "platform",
+    "plan",
+    "-f",
+    "/Users/yue/Desktop/AI/AI_Project/Projects/agenova/deploy/reference/platform.kind.yaml",
+    "--json"
+  ],
+  "exit": 0
+}

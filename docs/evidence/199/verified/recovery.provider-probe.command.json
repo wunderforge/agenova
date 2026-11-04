@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "docker",
+    "exec",
+    "agenova-k8s-lab-control-plane",
+    "curl",
+    "-fsS",
+    "--max-time",
+    "5",
+    "http://host.docker.internal:11439/api/tags"
+  ],
+  "exit": 0
+}

@@ -1,0 +1,230 @@
+[
+    {
+        "Id": "c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5",
+        "Created": "2026-10-19T12:06:58.955416799Z",
+        "Path": "/bin/ollama",
+        "Args": [
+            "serve"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 9139,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-19T12:35:16.719942501Z",
+            "FinishedAt": "2026-10-19T12:35:15.099577459Z"
+        },
+        "Image": "sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d",
+        "ResolvConfPath": "/var/lib/docker/containers/c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5/hostname",
+        "HostsPath": "/var/lib/docker/containers/c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5/hosts",
+        "LogPath": "/var/lib/docker/containers/c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5/c2ac6f8d0c4c10a616354840360a9b0b5d48f8b458a907496e164360ef4b9fd5-json.log",
+        "Name": "/agenova-e15-199-full-provider",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/Users/yue/.ollama/models:/root/.ollama/models:ro"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "bridge",
+            "PortBindings": {
+                "11434/tcp": [
+                    {
+                        "HostIp": "127.0.0.1",
+                        "HostPort": "11439"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/Users/yue/.ollama/models",
+                "Destination": "/root/.ollama/models",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "c2ac6f8d0c4c",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "11434/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64",
+                "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+                "NVIDIA_VISIBLE_DEVICES=all",
+                "OLLAMA_HOST=0.0.0.0:11434"
+            ],
+            "Cmd": [
+                "serve"
+            ],
+            "Image": "ollama/ollama:0.13.5",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": [
+                "/bin/ollama"
+            ],
+            "Labels": {
+                "agenova.ticket": "199",
+                "org.opencontainers.image.ref.name": "ubuntu",
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "14c6a4c7d535fd529c80d2aa2174dd9ce70ef8be64b35a86a2675feca72496c3",
+            "SandboxKey": "/var/run/docker/netns/14c6a4c7d535",
+            "Ports": {
+                "11434/tcp": [
+                    {
+                        "HostIp": "127.0.0.1",
+                        "HostPort": "11439"
+                    }
+                ]
+            },
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "30d1f3b5348049e80b6a4e5fe4724db84d77b6f282db338bc75cac32c51b7c69",
+                    "EndpointID": "5c4fec9d28259b27c5dc5efbc9e63cb1a26fb9252873a8db90ce9022f44f883f",
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.2",
+                    "MacAddress": "f2:dc:b8:0a:f7:d8",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:20b45b07a4200835a3f51f7eb04e3cf6613f626a98480abdf716741ebab58483",
+            "size": 1064,
+            "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+            }
+        }
+    }
+]

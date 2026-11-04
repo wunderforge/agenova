@@ -1,0 +1,273 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Node",
+            "metadata": {
+                "annotations": {
+                    "node.alpha.kubernetes.io/ttl": "0",
+                    "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+                },
+                "creationTimestamp": "2026-09-27T14:07:53Z",
+                "labels": {
+                    "beta.kubernetes.io/arch": "arm64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/arch": "arm64",
+                    "kubernetes.io/hostname": "agenova-k8s-lab-control-plane",
+                    "kubernetes.io/os": "linux",
+                    "node-role.kubernetes.io/control-plane": ""
+                },
+                "name": "agenova-k8s-lab-control-plane",
+                "resourceVersion": "138737",
+                "uid": "f91cbcc6-b1ad-42a1-ae72-0412d0c1e177"
+            },
+            "spec": {
+                "podCIDR": "10.244.0.0/24",
+                "podCIDRs": [
+                    "10.244.0.0/24"
+                ],
+                "providerID": "kind://docker/agenova-k8s-lab/agenova-k8s-lab-control-plane"
+            },
+            "status": {
+                "addresses": [
+                    {
+                        "address": "172.18.0.2",
+                        "type": "InternalIP"
+                    },
+                    {
+                        "address": "agenova-k8s-lab-control-plane",
+                        "type": "Hostname"
+                    }
+                ],
+                "allocatable": {
+                    "cpu": "15",
+                    "ephemeral-storage": "977843695616",
+                    "hugepages-1Gi": "0",
+                    "hugepages-2Mi": "0",
+                    "hugepages-32Mi": "0",
+                    "hugepages-64Ki": "0",
+                    "memory": "10171860Ki",
+                    "pods": "110"
+                },
+                "capacity": {
+                    "cpu": "15",
+                    "ephemeral-storage": "977843695616",
+                    "hugepages-1Gi": "0",
+                    "hugepages-2Mi": "0",
+                    "hugepages-32Mi": "0",
+                    "hugepages-64Ki": "0",
+                    "memory": "10171860Ki",
+                    "pods": "110"
+                },
+                "conditions": [
+                    {
+                        "lastHeartbeatTime": "2026-10-19T05:10:55Z",
+                        "lastTransitionTime": "2026-09-27T14:07:53Z",
+                        "message": "kubelet has sufficient memory available",
+                        "reason": "KubeletHasSufficientMemory",
+                        "status": "False",
+                        "type": "MemoryPressure"
+                    },
+                    {
+                        "lastHeartbeatTime": "2026-10-19T05:10:55Z",
+                        "lastTransitionTime": "2026-09-27T14:07:53Z",
+                        "message": "kubelet has no disk pressure",
+                        "reason": "KubeletHasNoDiskPressure",
+                        "status": "False",
+                        "type": "DiskPressure"
+                    },
+                    {
+                        "lastHeartbeatTime": "2026-10-19T05:10:55Z",
+                        "lastTransitionTime": "2026-09-27T14:07:53Z",
+                        "message": "kubelet has sufficient PID available",
+                        "reason": "KubeletHasSufficientPID",
+                        "status": "False",
+                        "type": "PIDPressure"
+                    },
+                    {
+                        "lastHeartbeatTime": "2026-10-19T05:10:55Z",
+                        "lastTransitionTime": "2026-09-27T14:08:13Z",
+                        "message": "kubelet is posting ready status",
+                        "reason": "KubeletReady",
+                        "status": "True",
+                        "type": "Ready"
+                    }
+                ],
+                "daemonEndpoints": {
+                    "kubeletEndpoint": {
+                        "Port": 10250
+                    }
+                },
+                "declaredFeatures": [
+                    "ExtendWebSocketsToKubelet",
+                    "InPlacePodLevelResourcesVerticalScaling",
+                    "InPlacePodVerticalScalingInitContainers",
+                    "RestartAllContainersOnContainerExits"
+                ],
+                "features": {
+                    "supplementalGroupsPolicy": true
+                },
+                "images": [
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-08-26@sha256:4fbbef5581e6ed60b96426e3786371b57da07f66e350b4ff2b0077413c2b0444",
+                            "registry.k8s.io/kube-apiserver-arm64:v1.37.0",
+                            "registry.k8s.io/kube-apiserver:v1.37.0"
+                        ],
+                        "sizeBytes": 97074036
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-08-26@sha256:dda35f6553455c1dde75aebfbb20759d24b7de776b884eb06415f242f276200c",
+                            "registry.k8s.io/kube-controller-manager-arm64:v1.37.0",
+                            "registry.k8s.io/kube-controller-manager:v1.37.0"
+                        ],
+                        "sizeBytes": 85081821
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-08-26@sha256:d5e740cce95911da5590b633aae2f7f7e3370ec9d212d4dbbbf3bf19fa07551f",
+                            "registry.k8s.io/kube-proxy-arm64:v1.37.0",
+                            "registry.k8s.io/kube-proxy:v1.37.0"
+                        ],
+                        "sizeBytes": 84532964
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-08-26@sha256:2aa78b45454b3df79d15bf6a57b4f9871f11ce16c8b645109ba2310076d228dd",
+                            "registry.k8s.io/kube-scheduler-arm64:v1.37.0",
+                            "registry.k8s.io/kube-scheduler:v1.37.0"
+                        ],
+                        "sizeBytes": 59129565
+                    },
+                    {
+                        "names": [
+                            "docker.io/kindest/kindnetd:v20260820-69b56db7"
+                        ],
+                        "sizeBytes": 35652389
+                    },
+                    {
+                        "names": [
+                            "registry.k8s.io/coredns/coredns:v1.14.6"
+                        ],
+                        "sizeBytes": 21239459
+                    },
+                    {
+                        "names": [
+                            "registry.k8s.io/etcd:3.7.0-0"
+                        ],
+                        "sizeBytes": 20455189
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-10-17@sha256:a0c98ab5e1f196a1689d55248c13d89515c0a733f7b9c870df00899c2a4888f2",
+                            "docker.io/library/agenova-control-plane:0.1.0"
+                        ],
+                        "sizeBytes": 20283338
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-09-27@sha256:606affe320217708fa9e27c64aae037cd1d4b5fe8b3ec83015781631d007766a",
+                            "docker.io/library/import-2026-09-27@sha256:f07262c8ce50b023eb6c9c8ea9849acbf1586919c72076515024bbd768e3b8b7",
+                            "docker.io/library/import-2026-10-05@sha256:75c24766b0fc13e87ebc15282c3d8982ade877f18ec1a1531f7fb82e6feefaec"
+                        ],
+                        "sizeBytes": 19519829
+                    },
+                    {
+                        "names": [
+                            "docker.io/kindest/local-path-provisioner:v20260820-69b56db7"
+                        ],
+                        "sizeBytes": 14217939
+                    },
+                    {
+                        "names": [
+                            "registry.k8s.io/agent-sandbox/agent-sandbox-controller@sha256:93c28f724f34845fcfbd58818959958fd877f9953698c920add3081f61a54429",
+                            "registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.6"
+                        ],
+                        "sizeBytes": 13936634
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/agenova-e15-scriptedworker@sha256:02eec5f22a228158b672dca7bdac9b28104c8268e28f7682dc0efc480a451a62",
+                            "docker.io/library/import-2026-10-18@sha256:c7220f8741dc6b8b7892706ca804b7d4626b12da8426528bd861818b45212972",
+                            "docker.io/library/agenova-e15-scriptedworker:kind"
+                        ],
+                        "sizeBytes": 7592566
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-10-17@sha256:8e8504dbf034845cda9f8717528bc327dede14dfb4dad7195877a9dc5e280c2b"
+                        ],
+                        "sizeBytes": 7588201
+                    },
+                    {
+                        "names": [
+                            "docker.io/library/import-2026-09-27@sha256:35700b22352ca928dd4875316ed044fb96a3eed74546fc18e39a5ee116be4ea5",
+                            "docker.io/library/import-2026-09-27@sha256:8331397912415bab3f2c70b7d22981a0498229c57aa80e5915ea6993929eb924",
+                            "docker.io/library/import-2026-10-05@sha256:f40a1d768921e25f8c77995c37c5415454833361ab298325f9b7f0eeee184aa0",
+                            "docker.io/library/agenova-e15-backup-testworker:kind",
+                            "docker.io/library/agenova-testworker:kind"
+                        ],
+                        "sizeBytes": 7577704
+                    },
+                    {
+                        "names": [
+                            "docker.io/kindest/local-path-helper:v20260131-7181c60a"
+                        ],
+                        "sizeBytes": 2740462
+                    },
+                    {
+                        "names": [
+                            "registry.k8s.io/pause:3.10"
+                        ],
+                        "sizeBytes": 267933
+                    }
+                ],
+                "nodeInfo": {
+                    "architecture": "arm64",
+                    "bootID": "b19139ef-7817-4037-be69-f1caae8f0147",
+                    "containerRuntimeVersion": "containerd://2.3.4",
+                    "kernelVersion": "7.0.12-linuxkit",
+                    "kubeProxyVersion": "",
+                    "kubeletVersion": "v1.37.0",
+                    "machineID": "5da05877602544c38689729b142b4327",
+                    "operatingSystem": "linux",
+                    "osImage": "Debian GNU/Linux 13 (trixie)",
+                    "runningInUserNamespace": false,
+                    "swap": {
+                        "capacity": 1073737728
+                    },
+                    "systemUUID": "5da05877602544c38689729b142b4327"
+                },
+                "runtimeHandlers": [
+                    {
+                        "features": {
+                            "recursiveReadOnlyMounts": true,
+                            "userNamespaces": true
+                        },
+                        "name": ""
+                    },
+                    {
+                        "features": {
+                            "recursiveReadOnlyMounts": true,
+                            "userNamespaces": true
+                        },
+                        "name": "runc"
+                    },
+                    {
+                        "features": {
+                            "recursiveReadOnlyMounts": true,
+                            "userNamespaces": true
+                        },
+                        "name": "test-handler"
+                    }
+                ]
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

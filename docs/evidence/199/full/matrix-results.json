@@ -1,0 +1,311 @@
+{
+  "healthy": {
+    "requestRef": "e15-199-healthy-1792412874983895000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-bhml6"
+    },
+    "providerBefore": {
+      "responses": 21,
+      "completed": 21
+    },
+    "providerAfter": {
+      "responses": 23,
+      "completed": 23
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "queue-expiry": {
+    "requestRef": "e15-199-queue-expiry-1792412891980724000",
+    "claimPhase": "Expired",
+    "outcome": "Expired",
+    "answerPresent": false,
+    "backendIdentity": null,
+    "providerBefore": {
+      "responses": 23,
+      "completed": 23
+    },
+    "providerAfter": {
+      "responses": 23,
+      "completed": 23
+    },
+    "attempts": 0,
+    "providerOutcomes": [],
+    "cleanup": [],
+    "noUnsupportedSuccess": true
+  },
+  "slow": {
+    "requestRef": "e15-199-slow-1792412891358827000",
+    "claimPhase": "Expired",
+    "outcome": "Expired",
+    "answerPresent": false,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-qcmkz"
+    },
+    "providerBefore": {
+      "responses": 23,
+      "completed": 23
+    },
+    "providerAfter": {
+      "responses": 23,
+      "completed": 23
+    },
+    "attempts": 1,
+    "providerOutcomes": [
+      "Cancelled"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "queue-blocker": {
+    "requestRef": "e15-199-queue-blocker-1792412930689161000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-4gs79"
+    },
+    "providerBefore": {
+      "responses": 23,
+      "completed": 23
+    },
+    "providerAfter": {
+      "responses": 27,
+      "completed": 27
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "queue-resume": {
+    "requestRef": "e15-199-queue-resume-1792412931717333000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-b4q6q"
+    },
+    "providerBefore": {
+      "responses": 23,
+      "completed": 23
+    },
+    "providerAfter": {
+      "responses": 27,
+      "completed": 27
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "worker-delete": {
+    "requestRef": "e15-199-worker-delete-1792412979819827000",
+    "claimPhase": "Failed",
+    "outcome": "Failed",
+    "answerPresent": false,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-m9zs5"
+    },
+    "providerBefore": {
+      "responses": 27,
+      "completed": 27
+    },
+    "providerAfter": {
+      "responses": 28,
+      "completed": 28
+    },
+    "attempts": 1,
+    "providerOutcomes": [
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "worker-recovery": {
+    "requestRef": "e15-199-worker-recovery-1792412992727491000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-g2588"
+    },
+    "providerBefore": {
+      "responses": 28,
+      "completed": 28
+    },
+    "providerAfter": {
+      "responses": 30,
+      "completed": 30
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "controller-short": {
+    "requestRef": "e15-199-controller-short-1792413000152313000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-claim-hash-claim-e15-199-controller-sh-7cb57ddb15ab6760"
+    },
+    "providerBefore": {
+      "responses": 30,
+      "completed": 30
+    },
+    "providerAfter": {
+      "responses": 34,
+      "completed": 34
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "controller-queue": {
+    "requestRef": "e15-199-controller-queue-1792413000286359000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-7cfm4"
+    },
+    "providerBefore": {
+      "responses": 30,
+      "completed": 30
+    },
+    "providerAfter": {
+      "responses": 34,
+      "completed": 34
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "controller-running": {
+    "requestRef": "e15-199-controller-running-1792413042701628000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-6x29l"
+    },
+    "providerBefore": {
+      "responses": 34,
+      "completed": 34
+    },
+    "providerAfter": {
+      "responses": 36,
+      "completed": 36
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  },
+  "restart-active": {
+    "requestRef": "e15-199-restart-active-1792413053872267000",
+    "postRestartHTTP": 404,
+    "outcome": "unknown/lost",
+    "notInterpretedAsSuccess": true
+  },
+  "restart-queued": {
+    "requestRef": "e15-199-restart-queued-1792413067985523000",
+    "postRestartHTTP": 404,
+    "outcome": "unknown/lost",
+    "notInterpretedAsSuccess": true
+  },
+  "restart-recovery": {
+    "requestRef": "e15-199-restart-recovery-1792413074815142000",
+    "claimPhase": "Succeeded",
+    "outcome": "Succeeded",
+    "answerPresent": true,
+    "backendIdentity": {
+      "backend": "agent-sandbox",
+      "workerId": "agenova-pool-pool-engineer-qff7h"
+    },
+    "providerBefore": {
+      "responses": 36,
+      "completed": 36
+    },
+    "providerAfter": {
+      "responses": 38,
+      "completed": 38
+    },
+    "attempts": 2,
+    "providerOutcomes": [
+      "Succeeded",
+      "Succeeded"
+    ],
+    "cleanup": [
+      "TerminateSucceeded",
+      "CleanupSucceeded"
+    ],
+    "noUnsupportedSuccess": true
+  }
+}
