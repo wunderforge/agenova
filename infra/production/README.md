@@ -11,7 +11,8 @@
 These are independent state roots. The EKS VPC also supports production RDS.
 **Never destroy the entire EKS root to stop compute.** Preserve the database,
 network dependencies, domain, certificates, IAM/SSO, ECR and logs. Use a reviewed,
-resource-specific lifecycle operation under the latest authorized deadline.
+resource-specific lifecycle operation under explicit current authorization.
+Automatic retirement is cancelled. See the [shared state and lifecycle guide](../../docs/development/shared-terraform-operations.md).
 Renaming this directory does not certify high availability or budget compliance.
 
 ## Existing installation migration
@@ -34,8 +35,9 @@ Compare state hashes, lineage, serial and resource IDs before/after. Run `valida
 and compare saved `plan -refresh=false` results using the same state and inputs.
 Then review a refreshed plan separately for pre-existing drift. A directory move
 must add no resource changes; it does not authorize applying unrelated drift.
-For team-operated Terraform, establish an encrypted shared backend and locking as
-a separate migration. Agenova application users never receive Terraform state.
+The committed S3 backends now provide shared state with native locking.
+Initialize them before operating any checkout; old local states are recovery
+material only. Agenova application users never receive Terraform state.
 
 See [member deployment](../../deploy/production/member-service.md),
 [member ingress](../member-edge/README.md) and
