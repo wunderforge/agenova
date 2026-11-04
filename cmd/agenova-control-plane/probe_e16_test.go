@@ -272,8 +272,10 @@ func probeRequest(t *testing.T, env probeEnv, name string, scopes []string, time
 	return data
 }
 
-func toolOp(claimID, scope, file string) workerprotocol.Operation {
-	return workerprotocol.Operation{ClaimID: claimID, Kind: "tool", Tool: "repo.read", ResourceScope: scope, Input: file}
+// toolOp carries the Task's tool token: the Gateways accept only calls that
+// authenticate as the claim's worker.
+func toolOp(claimID, token, scope, file string) workerprotocol.Operation {
+	return workerprotocol.Operation{ClaimID: claimID, WorkloadToken: token, Kind: "tool", Tool: "repo.read", ResourceScope: scope, Input: file}
 }
 
 // toolFacts lists tool.invoke facts recorded for ref after sequence `after`.
@@ -411,7 +413,7 @@ func awaitProbe(t *testing.T, service *console.Service, ref string) {
 func control(t *testing.T, env probeEnv, caseName, label string) {
 	t.Helper()
 	runInWork(t, env, strings.ToLower(caseName+"-"+label), []string{probeFixtureScope}, nil, func(ctx context.Context, task workerprotocol.Task, h workerprotocol.Handler, service *console.Service) {
-		r, reply, err := step(env, service, strings.ToLower(caseName+"-"+label), h, ctx, toolOp(task.ClaimID, probeFixtureScope, probeFile))
+		r, reply, err := step(env, service, strings.ToLower(caseName+"-"+label), h, ctx, toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, probeFile))
 		r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = caseName, label, env.provider, "provider success", 1
 		r.Pass = err == nil && reply.Allowed && hasOnly(r.ToolFacts, "ToolDecision:Allow", "ProviderAttempt:Attempted", "ProviderOutcome:Succeeded") && (r.DoubleCalls == nil || *r.DoubleCalls == 1)
 		emit(t, r)
@@ -468,35 +470,35 @@ func TestE16Probes(t *testing.T) {
 
 	t.Run("N1", func(t *testing.T) {
 		zeroCall(t, "N1", nil, "", func(task workerprotocol.Task) workerprotocol.Operation {
-			return toolOp(task.ClaimID, probeFixtureScope, probeFile)
+			return toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, probeFile)
 		}, "Tool Gateway authority (no tool grant)", func(r probeReceipt) bool {
 			return r.ObservedError == "" && !r.ReplyAllowed && hasOnly(r.ToolFacts, "ToolDecision:Deny") && hasOnly(r.ReasonCodes, gateway.CategoryToolNotGranted)
 		})
 	})
 	t.Run("N2a", func(t *testing.T) {
 		zeroCall(t, "N2a", []string{probeFixtureScope}, "", func(task workerprotocol.Task) workerprotocol.Operation {
-			return toolOp(task.ClaimID, probeFaultsScope, "notes/incident-timeline.md")
+			return toolOp(task.ClaimID, task.ToolToken, probeFaultsScope, "notes/incident-timeline.md")
 		}, "Tool Gateway authority (ungranted configured scope)", func(r probeReceipt) bool {
 			return r.ObservedError == "" && !r.ReplyAllowed && hasOnly(r.ToolFacts, "ToolDecision:Deny") && hasOnly(r.ReasonCodes, gateway.CategoryResourceNotGranted)
 		})
 	})
 	t.Run("N2b", func(t *testing.T) {
 		zeroCall(t, "N2b", []string{probeFixtureScope}, "", func(task workerprotocol.Task) workerprotocol.Operation {
-			return toolOp(task.ClaimID, probeFixtureScope, "logs/slow.log")
+			return toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, "logs/slow.log")
 		}, "installed route allowlist before the Gateway", func(r probeReceipt) bool {
 			return r.ObservedError == toolbackend.ErrArguments.Error() && len(r.ToolFacts) == 0
 		})
 	})
 	t.Run("N5a", func(t *testing.T) {
 		zeroCall(t, "N5a", []string{probeFixtureScope}, "ToolDecision", func(task workerprotocol.Task) workerprotocol.Operation {
-			return toolOp(task.ClaimID, probeFixtureScope, probeFile)
+			return toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, probeFile)
 		}, "ToolDecision journal append", func(r probeReceipt) bool {
 			return r.InjectedFailures == 1 && r.InjectedFact == "ToolDecision:Allow:" && r.ObservedError == evidenceFailure && len(r.ToolFacts) == 0
 		})
 	})
 	t.Run("N5b", func(t *testing.T) {
 		zeroCall(t, "N5b", []string{probeFixtureScope}, "ProviderAttempt", func(task workerprotocol.Task) workerprotocol.Operation {
-			return toolOp(task.ClaimID, probeFixtureScope, probeFile)
+			return toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, probeFile)
 		}, "ProviderAttempt journal append", func(r probeReceipt) bool {
 			return r.InjectedFailures == 1 && r.InjectedFact == "ProviderAttempt::Attempted" && r.ObservedError == evidenceFailure && hasOnly(r.ToolFacts, "ToolDecision:Allow")
 		})
@@ -508,7 +510,7 @@ func TestE16Probes(t *testing.T) {
 	// N11 makes one real call, so it runs outside the zero-call windows.
 	t.Run("N11", func(t *testing.T) {
 		runInWork(t, env, "n11", []string{probeFixtureScope}, failKind("ProviderOutcome"), func(ctx context.Context, task workerprotocol.Task, h workerprotocol.Handler, service *console.Service) {
-			r, _, _ := step(env, service, "n11", h, ctx, toolOp(task.ClaimID, probeFixtureScope, probeFile))
+			r, _, _ := step(env, service, "n11", h, ctx, toolOp(task.ClaimID, task.ToolToken, probeFixtureScope, probeFile))
 			r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = "N11", "probe", env.provider, "ProviderOutcome journal append after the call", 1
 			// The refused outcome must be the provider's success: a failed call
 			// whose record is lost would prove nothing about N11.
@@ -520,22 +522,24 @@ func TestE16Probes(t *testing.T) {
 }
 
 // probeCrossClaim holds claims A and B Running in two independent service
-// instances and injects an operation nominating B into A's handler. Each
-// runner owns its own state, so this proves only A's handler correlation
-// check, not shared-service authorisation or authenticated isolation.
+// instances and injects B's operation, with B's own tool token, into A's
+// handler. Each runner owns its own state, so this proves only A's handler
+// correlation check, not shared-service authorisation or authenticated
+// isolation.
 func probeCrossClaim(t *testing.T, env probeEnv) {
 	control(t, env, "N3", "control-before")
 	type running struct {
-		service *console.Service
-		claimID string
-		handler workerprotocol.Handler
-		ctx     context.Context
+		service   *console.Service
+		claimID   string
+		toolToken string
+		handler   workerprotocol.Handler
+		ctx       context.Context
 	}
 	start := func(ref string, release <-chan struct{}) (chan running, *console.Service) {
 		entered := make(chan running, 1)
 		var service *console.Service
 		service = newProbeService(t, env, func(ctx context.Context, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
-			entered <- running{service: service, claimID: task.ClaimID, handler: h, ctx: ctx}
+			entered <- running{service: service, claimID: task.ClaimID, toolToken: task.ToolToken, handler: h, ctx: ctx}
 			<-release
 			return "", errors.New("probe finished")
 		}, nil)
@@ -567,7 +571,7 @@ func probeCrossClaim(t *testing.T, env probeEnv) {
 		return out
 	}
 	snapshot := phases()
-	r, _, _ := step(env, serviceA, "n3-a", a.handler, a.ctx, toolOp(b.claimID, probeFixtureScope, probeFile))
+	r, _, _ := step(env, serviceA, "n3-a", a.handler, a.ctx, toolOp(b.claimID, b.toolToken, probeFixtureScope, probeFile))
 	_, bFacts, _ := toolFacts(serviceB, "n3-b", 0)
 	r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = "N3", "probe", env.provider, "claim-ID check in A's operation handler", 0
 	r.Requests, r.Claims, r.ClaimPhases = []string{"n3-a", "n3-b"}, []string{a.claimID, b.claimID}, snapshot
@@ -580,7 +584,7 @@ func probeCrossClaim(t *testing.T, env probeEnv) {
 		ref     string
 		running running
 	}{{"control-matched-a", "n3-a", a}, {"control-matched-b", "n3-b", b}} {
-		r, reply, err := step(env, item.running.service, item.ref, item.running.handler, item.running.ctx, toolOp(item.running.claimID, probeFixtureScope, probeFile))
+		r, reply, err := step(env, item.running.service, item.ref, item.running.handler, item.running.ctx, toolOp(item.running.claimID, item.running.toolToken, probeFixtureScope, probeFile))
 		r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = "N3", item.label, env.provider, "provider success", 1
 		r.Pass = err == nil && reply.Allowed && hasOnly(r.ToolFacts, "ToolDecision:Allow", "ProviderAttempt:Attempted", "ProviderOutcome:Succeeded")
 		emit(t, r)
@@ -592,24 +596,25 @@ func probeCrossClaim(t *testing.T, env probeEnv) {
 }
 
 // probeTerminal captures a Work's handler, drives its claim to the terminal
-// phase, then calls the handler with a fresh live context. The rejection must
-// come from the lifecycle check, not from the cancelled work context.
+// phase, then calls the handler with a fresh live context and the worker's
+// retained tool token. The rejection must come from the lifecycle check, not
+// from the cancelled work context or workload authentication.
 func probeTerminal(t *testing.T, env probeEnv, terminal v0.ClaimPhase) {
 	caseName := "N4-" + string(terminal)
 	ref := strings.ToLower(caseName)
 	control(t, env, caseName, "control-before")
 	captured := make(chan workerprotocol.Handler, 1)
-	var claimID string
+	var claimID, toolToken string
 	timeout := 2 * time.Minute
 	if terminal == v0.ClaimPhaseExpired {
 		timeout = 3 * time.Second
 	}
 	service := newProbeService(t, env, func(ctx context.Context, task workerprotocol.Task, h workerprotocol.Handler) (string, error) {
-		claimID = task.ClaimID
+		claimID, toolToken = task.ClaimID, task.ToolToken
 		captured <- h
 		switch terminal {
 		case v0.ClaimPhaseSucceeded:
-			reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")})
+			reply, err := h(ctx, workerprotocol.Operation{ClaimID: task.ClaimID, WorkloadToken: task.ModelToken, Kind: "model", Profile: task.ModelProfile, Prompt: workerprotocol.LoopPrompt(task, "")})
 			return reply.Text, err
 		case v0.ClaimPhaseFailed:
 			return "", errors.New("probe worker failure")
@@ -628,7 +633,7 @@ func probeTerminal(t *testing.T, env probeEnv, terminal v0.ClaimPhase) {
 		t.Fatalf("terminal state unavailable: %v", err)
 	}
 	phase := view.State.Claim.Phase
-	r, _, _ := step(env, service, ref, h, context.Background(), toolOp(claimID, probeFixtureScope, probeFile))
+	r, _, _ := step(env, service, ref, h, context.Background(), toolOp(claimID, toolToken, probeFixtureScope, probeFile))
 	r.Case, r.Step, r.Provider, r.ExpectedPoint, r.ExpectedCalls = caseName, "probe", env.provider, "app.RequireRunningClaim", 0
 	r.ClaimPhases = []string{claimID + "=" + string(phase)}
 	r.Pass = phase == terminal && strings.Contains(r.ObservedError, fmt.Sprintf("is not running (phase: %s)", terminal)) && len(r.ToolFacts) == 0 && (r.DoubleCalls == nil || *r.DoubleCalls == 0)
