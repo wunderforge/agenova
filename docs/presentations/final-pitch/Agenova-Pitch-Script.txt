@@ -1,0 +1,174 @@
+Slide 1 | 00:00–01:00
+
+Good evening, everyone. We’re the team behind Agenova. Tonight, we’re looking at how to keep AI agents within the authority of the job we give them.
+
+In June, an OpenAI agent was researching public spending on medicines. It gained unauthorised access to Australia’s Medicare statistics portal and opened non-public files.
+
+Australia launched a review. In November, the government announced plans for mandatory AI safety and incident reporting requirements.
+
+The agent had a research goal. Its actions crossed an access boundary.
+
+How do we make sure an agent can only do what it’s authorised to do for that specific job?
+
+Let’s look at what happens when the same agent takes on different jobs.
+
+
+Slide 2 | 01:00–02:30
+
+Imagine a researcher that starts with public market research. It needs access to public reports.
+
+Then we ask it to analyse internal customers at risk of leaving. Now it also needs access to customer records.
+
+[Click 1: Reveal Agent / user permissions.]
+
+Permissions are often attached to the agent or the user account it runs under. As we give that identity more jobs, we add access to more systems and data.
+
+Unless we explicitly remove or narrow those grants, they accumulate. More jobs, broader permissions.
+
+So when our researcher returns to public market research, it may still have access to customer records. Those permissions were useful for an earlier job, but they are unnecessary for this one.
+
+The task has changed. The identity’s permissions have not.
+
+[Click 2: Reveal Task permissions.]
+
+What we need is a scope for each task, within the identity’s existing permissions. Public research gets public sources. Internal analysis gets the approved customer records.
+
+So far, we’ve seen how access can accumulate around an identity, while each task needs only a part of it. There is already real demand for task-level permissions. Here are two examples from developers.
+
+
+Slide 3 | 02:30–03:45
+
+First, approval scope.
+
+In Hermes, the request is to approve a task. Approving each call creates repeated interruptions. Approving the whole session can grant more than the task needs.
+
+The desired middle ground is permission for the bounded job: several calls, within an approved scope, ending when the task ends.
+
+[Click 1: Reveal the AX example.]
+
+Second, different jobs under the same identity.
+
+In AX, the example is reviewing a pull request versus implementing one. Both tasks use the same identity and GitHub connection. One needs read access. The other needs read and write.
+
+A review should not inherit the write authority needed by an implementation task.
+
+Both examples point to the same need: permissions that follow the task.
+
+So how are teams addressing this today, and what still needs to be connected?
+
+
+Slide 4 | 03:45–05:00
+
+AWS AgentCore provides Policy and Gateway to check tool calls.
+
+Claude Code provides tool rules, hooks and approval flows, plus an operating-system sandbox for shell commands. You can configure permissions in advance so allowed actions run without repeated approval.
+
+[Click 1: Reveal Business task → Your mapping logic → Tool-specific controls.]
+
+The remaining challenge is mapping a business task to the right permissions. You still have to build that logic and connect it to the controls of your chosen agent or platform.
+
+Change the agent, tool or platform, and that integration may need to change too.
+
+Our opportunity is to separate task policy from those tool-specific integrations: one task-permission model, with adapters for different agents and platforms.
+
+That is what Agenova provides.
+
+
+Slide 5 | 05:00–06:30
+
+In Agenova, a task is an explicit object called a Work. It carries the assignment, its context and the access being requested.
+
+[Click 1: Move the Work into Policy. Wait for the animation to finish.]
+
+Policy decides which tools, resources and limits this Work is allowed to use. For example, public research can request public web access; customer analysis can request the approved CRM records.
+
+[Click 2: Reveal the Work claim. Wait for the animation to finish.]
+
+The approved authority is bound to that run through its Work claim. We now have something the platform can check, separate from the agent’s instructions.
+
+[Click 3: Move the claim into the Governed run. Wait for the animation to finish.]
+
+That authority travels with the run, instead of living only in the agent’s instructions. Your task policy stays separate from the agent’s code and the infrastructure adapters.
+
+You define the task rules once, instead of rebuilding them inside every agent.
+
+How do those permission requests enter the platform? You have three choices.
+
+
+Slide 6 | 06:30–07:30
+
+The same Policy engine supports task-level permissions through one standard interface. A request describes the tools, resources and limits needed for the task.
+
+There are three ways to supply it.
+
+[Click 1: Reveal Manual and its connection to the shared interface.]
+
+Manually: for a customer review, you select CRM read access and the customer records it needs.
+
+[Click 2: Reveal Upstream system and its connection.]
+
+From your upstream system: a scheduled customer-review workflow submits that scope through our API.
+
+[Click 3: Reveal Auto advisor and its connection.]
+
+Or through our advisor: you ask, “Find customers at risk of leaving,” and it suggests the required scope.
+
+Different inputs, the same request contract and Policy decision.
+
+We now have an approved scope for the task. What makes that scope hold when the agent actually runs?
+
+
+Slide 7 | 07:30–08:20
+
+You can check permissions in the downstream system, but the request must first reach that system before it can be rejected. So it can be expensive.
+
+You can also put checks inside the agent. But you need to cover every access path, and hooks written for one agent may need adapting for another. They are not directly migratable.
+
+Agenova adds an outer boundary. The Gateway rejects calls that the task was not granted, before they reach the backend. Infrastructure isolation constrains routes that could bypass that check.
+
+[Click 1: Reveal Fail fast, Safety net and Agent-agnostic.]
+
+This helps us fail fast, provides a safety net when the agent misses a check, and makes the enforcement reusable across agents.
+
+
+Slide 8 | 08:20–12:20
+
+Let’s see this in the product: the same agent, working on different tasks, with permissions scoped to each job.
+
+We’ll look at task permissions, the Access Advisor, and how teams manage their agents through the portal and CLI.
+
+[Switch to the Portal and CLI for the demo.]
+
+[Return to slide 8 for this transition, then advance to slide 9.]
+
+You’ve seen how task permissions work in practice. Now, how do we bring this to more teams?
+
+
+Slide 9 | 12:20–13:20
+
+Our business model starts with open source. Teams can self-host Agenova, connect their agents and build on the platform. That gives us a way to grow adoption and learn from real workloads.
+
+[Click 1: Reveal Enterprise services and the connecting arrow.]
+
+Our first commercial path is enterprise services: helping teams integrate their systems, configure governance and operate reliably. We plan to validate demand for paid integration and support through enterprise pilots.
+
+[Click 2: Reveal Agent ecosystem and the connecting arrow.]
+
+From there, we see two opportunities to scale: managed hosting for teams that want us to operate the platform, and a marketplace where developers can distribute reusable agent images.
+
+That creates a path from service revenue to recurring hosting revenue and marketplace fees.
+
+Open source builds adoption. Enterprise services establish the business. A broader agent ecosystem creates room to grow.
+
+
+Slide 10 | 13:20–13:55
+
+So that’s Agenova: permissions scoped to each task, an outer safety net, and governance that works across agents and tools.
+
+The next step is to put it to work with more teams. That’s where we’d like your help.
+
+Bring a workflow and become a pilot partner. Connect your agent or tools. Or challenge the boundary through security testing and research.
+
+Build Agenova with us. Join us on GitHub.
+
+Thank you.
